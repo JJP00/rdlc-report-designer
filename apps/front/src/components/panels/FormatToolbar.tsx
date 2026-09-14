@@ -1,7 +1,6 @@
 import type { StyleDto, StylePatch } from '@rdlc-designer/contracts';
 import {
   AlignCenter,
-  AlignJustify,
   AlignLeft,
   AlignRight,
   Bold,
@@ -114,10 +113,9 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
       </div>
 
       <div className="flex items-center gap-1.5">
-        {toggle(style?.textAlign === 'Left', { textAlign: 'Left' }, <AlignLeft />, 'Izquierda')}
-        {toggle(style?.textAlign === 'Center', { textAlign: 'Center' }, <AlignCenter />, 'Centro')}
-        {toggle(style?.textAlign === 'Right', { textAlign: 'Right' }, <AlignRight />, 'Derecha')}
-        {toggle(style?.textAlign === 'Justify', { textAlign: 'Justify' }, <AlignJustify />, 'Justificado')}
+        {toggle(style?.textAlign === 'Left', { textAlign: 'Left' }, <AlignLeft />, 'Alinear izquierda')}
+        {toggle(style?.textAlign === 'Center', { textAlign: 'Center' }, <AlignCenter />, 'Centrar')}
+        {toggle(style?.textAlign === 'Right', { textAlign: 'Right' }, <AlignRight />, 'Alinear derecha')}
 
         <Separator orientation="vertical" className="mx-0.5 h-5" />
 
@@ -149,8 +147,7 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
           { verticalAlign: 'Bottom' },
           <span className="text-[10px] leading-none">A↓</span>,
           'Alinear abajo',
-        )}
-      </div>
+        )}      </div>
     </div>
   );
 }
