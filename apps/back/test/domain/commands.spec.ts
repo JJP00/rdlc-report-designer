@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { appliedOf, undoAll } from './command-test-utils.js';
 import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import type { RdlcNode } from '../../src/domain/document/tree/RdlcNode.js';
@@ -93,7 +94,7 @@ describe('F1 · setLocation', () => {
     expect(moved).not.toBe(xml);
 
     // Deshacer = aplicar la inversa.
-    const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
+    const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
     expect(target.child('Top')!.text()).toBe(previousTop);
@@ -156,7 +157,7 @@ describe('F1 · setText', () => {
 
     expect(adapter.serialize(doc)).toContain('=Fields!Item_No.Value');
 
-    const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
+    const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
   });
@@ -187,7 +188,7 @@ describe('F1 · setSize', () => {
     if (!applied.isRight()) return;
     expect(adapter.serialize(doc)).toContain('<Width>5.5cm</Width>');
 
-    const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
+    const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
   });
@@ -217,11 +218,11 @@ describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)
     expect(left.value + width.value).toBeLessThanOrEqual(bounds!.width.value + 1e-6);
 
     // Los valores normalizados viajan para que el front reconcilie.
-    const normalized = applied.value.applied as { top: { value: number }; left: { value: number } };
+    const normalized = appliedOf(applied.value, id) as { top: { value: number }; left: { value: number } };
     expect(normalized.top.value).toBeCloseTo(top.value, 5);
     expect(normalized.left.value).toBeCloseTo(left.value, 5);
 
-    const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
+    const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
   });

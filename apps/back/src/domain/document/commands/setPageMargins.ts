@@ -39,12 +39,6 @@ export function applySetPageMargins(
       left: previous.left,
       right: previous.right,
     },
-    applied: {
-      top: command.top,
-      bottom: command.bottom,
-      left: command.left,
-      right: command.right,
-    },
   });
 }
 

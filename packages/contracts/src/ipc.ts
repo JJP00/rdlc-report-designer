@@ -86,8 +86,10 @@ export const commandOkSchema = z.object({
   ok: z.literal(true),
   /** Id nuevo al insertar. */
   id: z.string().optional(),
-  /** Valores normalizados que el front debe reflejar. */
-  applied: z.custom<Partial<ItemDto>>().optional(),
+  /** Valores normalizados por el dominio (uno o varios elementos). */
+  applied: z
+    .array(z.object({ id: z.string(), values: z.record(z.string(), z.unknown()) }))
+    .optional(),
   version: z.number().int().nonnegative().optional(),
 });
 

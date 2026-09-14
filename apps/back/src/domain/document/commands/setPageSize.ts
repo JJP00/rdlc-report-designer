@@ -33,6 +33,5 @@ export function applySetPageSize(
       width: previousWidth,
       height: previousHeight,
     },
-    applied: { width: command.width, height: command.height },
   });
 }

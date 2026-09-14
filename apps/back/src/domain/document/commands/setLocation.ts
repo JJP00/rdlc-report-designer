@@ -3,14 +3,17 @@ import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import { clampPosition, readLength, writeLength } from '../geometry/geometry.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
+import { growContainerToFit } from './growContainer.js';
 
 export type SetLocationCommand = Extract<RdlcCommand, { cmd: 'setLocation' }>;
 
 /**
  * Drag = 1 comando al soltar: mueve el item y devuelve la posición anterior.
- * El dominio normaliza la posición para que el item no salga de su región
- * (invariante: bounds dentro de la página); los valores normalizados viajan
- * en `applied` para que el front reconcilie el optimismo.
+ *
+ * - El dominio normaliza la posición para que el item no salga de su región
+ *   (invariante: bounds dentro de la página).
+ * - Si el item es hijo de un rectángulo con tamaño explícito y se sale de él,
+ *   el contenedor **crece** para envolverlo (el inverso incluye ese `setSize`).
  */
 export function applySetLocation(
   ctx: CommandContext,
@@ -39,8 +42,16 @@ export function applySetLocation(
   writeLength(node, 'Top', top);
   writeLength(node, 'Left', clampedLeft);
 
+  const growth = growContainerToFit(node);
+
   return right({
-    inverse: { cmd: 'setLocation', id: command.id, top: previousTop, left: previousLeft },
-    applied: { top, left: clampedLeft },
+    inverse: [
+      { cmd: 'setLocation', id: command.id, top: previousTop, left: previousLeft },
+      ...(growth ? [growth.inverse] : []),
+    ],
+    applied: [
+      { id: command.id, values: { top, left: clampedLeft } },
+      ...(growth ? [growth.applied] : []),
+    ],
   });
 }

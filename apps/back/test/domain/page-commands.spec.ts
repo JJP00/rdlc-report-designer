@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { undoAll } from './command-test-utils.js';
 import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import { TrueFormatProjectionAdapter } from '../../src/infrastructure/rdlc/TrueFormatProjectionAdapter.js';
@@ -38,7 +39,7 @@ describe('F1 · setPageSize', () => {
     expect(output).toContain('<PageWidth>21.59cm</PageWidth>');
     expect(output).toContain('<PageHeight>27.94cm</PageHeight>');
 
-    const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
+    const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
   });
@@ -91,7 +92,7 @@ describe('F1 · setPageMargins', () => {
     expect(output).toContain('<TopMargin>1.5cm</TopMargin>');
     expect(output).toContain('<LeftMargin>1cm</LeftMargin>');
 
-    const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
+    const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
   });
@@ -111,7 +112,7 @@ describe('F1 · setReportCode', () => {
 
     expect(adapter.serialize(doc)).toContain('Doble');
 
-    const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
+    const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
   });

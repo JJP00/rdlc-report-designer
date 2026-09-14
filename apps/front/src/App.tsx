@@ -137,12 +137,24 @@ export function App(): ReactNode {
   );
 
   /** Reconcilia el optimismo con los valores normalizados por el dominio. */
-  const reconcile = useCallback((id: string, applied: Partial<ItemDto> | undefined): void => {
-    if (!applied || Object.keys(applied).length === 0) return;
-    setDoc((current) =>
-      current ? { ...current, projection: patchItem(current.projection, id, applied) } : current,
-    );
-  }, []);
+  const reconcile = useCallback(
+    (applied: { id: string; values: Record<string, unknown> }[] | undefined): void => {
+      if (!applied || applied.length === 0) return;
+      setDoc((current) =>
+        current
+          ? {
+              ...current,
+              projection: applied.reduce(
+                (projection, entry) =>
+                  patchItem(projection, entry.id, entry.values as Partial<ItemDto>),
+                current.projection,
+              ),
+            }
+          : current,
+      );
+    },
+    [],
+  );
 
   /* --------------------- mover con flechas (1pt / 10pt) ------------------ */
 
@@ -165,7 +177,7 @@ export function App(): ReactNode {
       id: pending.id,
       top: cm(pending.topCm),
       left: cm(pending.leftCm),
-    }).then((result) => reconcile(pending.id, result?.ok ? result.applied : undefined));
+    }).then((result) => reconcile(result?.ok ? result.applied : undefined));
   }, [reconcile, sendCommand]);
 
   // El flush se invoca desde efectos/limpiezas: usa un ref para no depender
@@ -236,7 +248,7 @@ export function App(): ReactNode {
         current ? { ...current, projection: patchItem(current.projection, id, { top, left }) } : current,
       );
       void sendCommand({ cmd: 'setLocation', id, top, left }).then((result) =>
-        reconcile(id, result?.ok ? result.applied : undefined),
+        reconcile(result?.ok ? result.applied : undefined),
       );
     },
     [reconcile, sendCommand],
@@ -260,7 +272,7 @@ export function App(): ReactNode {
           : current,
       );
       void sendCommand({ cmd: 'setSize', id, width, height }).then((result) =>
-        reconcile(id, result?.ok ? result.applied : undefined),
+        reconcile(result?.ok ? result.applied : undefined),
       );
     },
     [reconcile, selectedItem, sendCommand],

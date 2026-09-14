@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import type { CommandResult, RdlcCommand } from '@rdlc-designer/contracts';
 import { applyCommand } from '../../domain/document/commands/applyCommand.js';
+import { inverseCommands } from '../../domain/document/commands/CommandContext.js';
 import { left, right, type Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 import { UnknownSessionError } from '../../shared/domainError.js';
@@ -10,7 +11,8 @@ import { SESSION_SERVICE } from './ISessionService.js';
 
 interface JournalEntry {
   command: RdlcCommand;
-  inverse: RdlcCommand;
+  /** Inversos en orden de aplicación; el undo los aplica al revés. */
+  inverse: RdlcCommand[];
 }
 
 /** Comandos que cambian la estructura/límites: obligan a reconstruir el índice. */
@@ -47,7 +49,7 @@ export class CommandService implements ICommandService {
     if (applied.isLeft()) return left(applied.value);
 
     const journal = this.journal(sessionId);
-    journal.undoStack.push({ command, inverse: applied.value.inverse });
+    journal.undoStack.push({ command, inverse: inverseCommands(applied.value) });
     journal.redoStack.length = 0;
 
     if (STRUCTURAL_COMMANDS.has(command.cmd)) this.sessions.rebuildIndex(sessionId);
@@ -73,18 +75,18 @@ export class CommandService implements ICommandService {
     const target = this.sessions.getEditTarget(sessionId);
     if (target.isLeft()) return left(target.value);
 
-    const applied = applyCommand(
-      { root: target.value.document.root, index: target.value.index },
-      entry.inverse,
-    );
-    if (applied.isLeft()) {
-      // No debería ocurrir (la inversa es siempre aplicable); si pasa, se
-      // devuelve el estado del journal a su sitio para no perder el paso.
-      journal.undoStack.push(entry);
-      return left(applied.value);
+    const ctx = { root: target.value.document.root, index: target.value.index };
+    for (const inverse of [...entry.inverse].reverse()) {
+      const applied = applyCommand(ctx, inverse);
+      if (applied.isLeft()) {
+        // No debería ocurrir (los inversos son siempre aplicables); si pasa,
+        // se devuelve el estado del journal a su sitio para no perder el paso.
+        journal.undoStack.push(entry);
+        return left(applied.value);
+      }
     }
 
-    journal.redoStack.push({ command: entry.command, inverse: applied.value.inverse });
+    journal.redoStack.push({ command: entry.command, inverse: [...entry.inverse] });
     if (STRUCTURAL_COMMANDS.has(entry.command.cmd)) this.sessions.rebuildIndex(sessionId);
     const version = this.sessions.touch(sessionId, { snapshotOut: true });
     return right({ ok: true, version });
@@ -109,7 +111,7 @@ export class CommandService implements ICommandService {
       return left(applied.value);
     }
 
-    journal.undoStack.push({ command: entry.command, inverse: applied.value.inverse });
+    journal.undoStack.push({ command: entry.command, inverse: inverseCommands(applied.value) });
     if (STRUCTURAL_COMMANDS.has(entry.command.cmd)) this.sessions.rebuildIndex(sessionId);
     const version = this.sessions.touch(sessionId, { snapshotOut: true });
     return right({ ok: true, version });
