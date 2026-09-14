@@ -102,6 +102,13 @@ async function maybeCaptureScreenshot(window: BrowserWindow): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, delay));
 
   try {
+    // Preparación opcional (p. ej. abrir paneles/diálogos) antes de capturar.
+    const script = process.env['RDLC_SHOT_SCRIPT'];
+    if (script) {
+      await window.webContents.executeJavaScript(script);
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+
     const image = await window.webContents.capturePage();
     await writeFile(shotPath, image.toPNG());
     log.info(`Captura guardada en ${shotPath}`);

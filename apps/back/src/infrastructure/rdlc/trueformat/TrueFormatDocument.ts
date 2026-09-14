@@ -85,9 +85,13 @@ export class TrueFormatNode implements RdlcNode {
   }
 
   setText(value: string): void {
+    // Escapado propio (no el de la librería): `"` y `'` se dejan tal cual,
+    // como hacen los ficheros de BC; así los comandos son byte-fieles al
+    // deshacer textos con comillas (p. ej. el bloque <Code> VB).
+    const escaped = escapeXmlText(value);
     const textNode = this.el.children.find((child): child is XmlText => child instanceof XmlText);
-    if (textNode) textNode.setText(value);
-    else this.el.children.push(new XmlText(value));
+    if (textNode) textNode.text = escaped;
+    else this.el.children.push(new XmlText(escaped));
     this.doc.markDirty();
   }
 
@@ -151,4 +155,9 @@ export class TrueFormatNode implements RdlcNode {
     }
     return node;
   }
+}
+
+/** Escapa lo imprescindible en un nodo de texto (deja `"` y `'` crudas). */
+function escapeXmlText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

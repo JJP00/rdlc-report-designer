@@ -61,10 +61,27 @@ const PAGE_ORDER = [
   'Style',
 ];
 
+const REPORT_SECTION_ORDER = ['Body', 'Width', 'Page', 'Style'];
+
+const REPORT_ORDER = [
+  'AutoRefresh',
+  'DataSources',
+  'ReportSections',
+  'Code',
+  'Language',
+  'DataSets',
+  'ReportParameters',
+  'EmbeddedImages',
+  'Variables',
+  'CustomProperties',
+];
+
 const CONTAINER_ORDERS: Record<string, string[]> = {
   Textbox: TEXTBOX_ORDER,
   Tablix: TABLIX_ORDER,
   Page: PAGE_ORDER,
+  ReportSection: REPORT_SECTION_ORDER,
+  Report: REPORT_ORDER,
 };
 
 function orderFor(parentTag: string): string[] {
@@ -161,4 +178,13 @@ export function insertCanonical(parent: RdlcNode, tagName: string, child: RdlcNo
     }
   }
   parent.appendChild(child);
+}
+
+/** Devuelve el hijo (creándolo en orden canónico si falta). */
+export function childOrCreate(parent: RdlcNode, tagName: string): RdlcNode {
+  const existing = parent.child(tagName);
+  if (existing) return existing;
+  const created = parent.createElement(tagName);
+  insertCanonical(parent, tagName, created);
+  return created;
 }

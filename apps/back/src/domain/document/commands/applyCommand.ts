@@ -3,6 +3,9 @@ import { left, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
 import { applySetLocation } from './setLocation.js';
+import { applySetPageMargins } from './setPageMargins.js';
+import { applySetPageSize } from './setPageSize.js';
+import { applySetReportCode } from './setReportCode.js';
 import { applySetSize } from './setSize.js';
 import { applySetText } from './setText.js';
 
@@ -22,6 +25,12 @@ export function applyCommand(
       return applySetSize(ctx, command);
     case 'setText':
       return applySetText(ctx, command);
+    case 'setPageSize':
+      return applySetPageSize(ctx, command);
+    case 'setPageMargins':
+      return applySetPageMargins(ctx, command);
+    case 'setReportCode':
+      return applySetReportCode(ctx, command);
     default:
       return left(CommandRejectedError.create(`Comando no implementado: '${command.cmd}'`));
   }

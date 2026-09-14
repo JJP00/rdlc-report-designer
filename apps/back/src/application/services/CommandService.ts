@@ -13,6 +13,13 @@ interface JournalEntry {
   inverse: RdlcCommand;
 }
 
+/** Comandos que cambian la estructura/límites: obligan a reconstruir el índice. */
+const STRUCTURAL_COMMANDS = new Set<RdlcCommand['cmd']>([
+  'setPageSize',
+  'setPageMargins',
+  'setReportCode',
+]);
+
 interface SessionJournal {
   undoStack: JournalEntry[];
   redoStack: JournalEntry[];
@@ -43,7 +50,13 @@ export class CommandService implements ICommandService {
     journal.undoStack.push({ command, inverse: applied.value.inverse });
     journal.redoStack.length = 0;
 
-    const version = this.sessions.touch(sessionId);
+    if (STRUCTURAL_COMMANDS.has(command.cmd)) this.sessions.rebuildIndex(sessionId);
+
+    // Los comandos estructurales (página, código) reenvían la proyección:
+    // el front refresca límites y funciones de <Code> sin esperar al reload.
+    const version = this.sessions.touch(sessionId, {
+      snapshotOut: STRUCTURAL_COMMANDS.has(command.cmd),
+    });
     const result: CommandResult = applied.value.applied
       ? { ok: true, version, applied: applied.value.applied }
       : { ok: true, version };
@@ -72,6 +85,7 @@ export class CommandService implements ICommandService {
     }
 
     journal.redoStack.push({ command: entry.command, inverse: applied.value.inverse });
+    if (STRUCTURAL_COMMANDS.has(entry.command.cmd)) this.sessions.rebuildIndex(sessionId);
     const version = this.sessions.touch(sessionId, { snapshotOut: true });
     return right({ ok: true, version });
   }
@@ -96,6 +110,7 @@ export class CommandService implements ICommandService {
     }
 
     journal.undoStack.push({ command: entry.command, inverse: applied.value.inverse });
+    if (STRUCTURAL_COMMANDS.has(entry.command.cmd)) this.sessions.rebuildIndex(sessionId);
     const version = this.sessions.touch(sessionId, { snapshotOut: true });
     return right({ ok: true, version });
   }

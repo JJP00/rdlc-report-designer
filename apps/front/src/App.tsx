@@ -6,11 +6,13 @@ import type {
   RdlcCommand,
   TextboxDto,
 } from '@rdlc-designer/contracts';
-import { FolderOpen, Minus, Plus, Redo2, Save, Undo2, X } from 'lucide-react';
+import { FolderOpen, Minus, Plus, Redo2, Save, Settings2, Undo2, Variable, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
 import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
+import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
 import { TextPanel } from '@/components/panels/TextPanel';
+import { VariablesPanel } from '@/components/panels/VariablesPanel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -41,6 +43,8 @@ export function App(): ReactNode {
   const [zoom, setZoom] = useState(0.6);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [showVariables, setShowVariables] = useState(false);
 
   // Sin preload (p. ej. abriendo el renderer en un navegador) no hay backend IPC.
   const hasBackend = typeof window !== 'undefined' && window.api !== undefined;
@@ -242,6 +246,59 @@ export function App(): ReactNode {
     [selectedItem, sendCommand],
   );
 
+  /* ------------------- página y código (Propiedades del informe) ---------- */
+
+  const setPageSize = useCallback(
+    (width: Length, height: Length): void => {
+      if (!doc) return;
+      setDoc((current) =>
+        current
+          ? {
+              ...current,
+              projection: { ...current.projection, page: { ...current.projection.page, width, height } },
+            }
+          : current,
+      );
+      void sendCommand({ cmd: 'setPageSize', width, height });
+    },
+    [doc, sendCommand],
+  );
+
+  const setPageMargins = useCallback(
+    (margins: { top: Length; bottom: Length; left: Length; right: Length }): void => {
+      if (!doc) return;
+      setDoc((current) =>
+        current
+          ? {
+              ...current,
+              projection: { ...current.projection, page: { ...current.projection.page, margins } },
+            }
+          : current,
+      );
+      void sendCommand({ cmd: 'setPageMargins', ...margins });
+    },
+    [doc, sendCommand],
+  );
+
+  const setReportCode = useCallback(
+    (code: string): void => {
+      if (!doc) return;
+      setDoc((current) =>
+        current
+          ? {
+              ...current,
+              projection: {
+                ...current.projection,
+                meta: { ...current.projection.meta, code: { ...current.projection.meta.code, text: code } },
+              },
+            }
+          : current,
+      );
+      void sendCommand({ cmd: 'setReportCode', code });
+    },
+    [doc, sendCommand],
+  );
+
   const undo = useCallback(async (): Promise<void> => {
     if (!doc) return;
     flushMoveBurst();
@@ -358,6 +415,27 @@ export function App(): ReactNode {
 
           <Separator orientation="vertical" className="mx-1 h-5" />
 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPropertiesOpen(true)}
+            disabled={!doc}
+          >
+            <Settings2 data-icon="inline-start" />
+            Informe…
+          </Button>
+          <Button
+            variant={showVariables ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setShowVariables((value) => !value)}
+            disabled={!doc}
+          >
+            <Variable data-icon="inline-start" />
+            Variables
+          </Button>
+
+          <Separator orientation="vertical" className="mx-1 h-5" />
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm" onClick={() => void undo()} disabled={!doc}>
@@ -420,6 +498,15 @@ export function App(): ReactNode {
         ) : null}
 
         <main className="flex min-h-0 flex-1">
+          {showVariables && doc ? (
+            <aside className="flex w-72 shrink-0 flex-col border-r bg-background">
+              <VariablesPanel
+                meta={doc.projection.meta}
+                onPick={(expression) => setStatus(`Copiada al portapapeles: ${expression}`)}
+              />
+            </aside>
+          ) : null}
+
           <div className="flex min-h-0 flex-1 flex-col">
             {doc ? (
               <>
@@ -482,6 +569,17 @@ export function App(): ReactNode {
           {status}
         </footer>
       </div>
+
+      {doc ? (
+        <ReportPropertiesDialog
+          projection={doc.projection}
+          open={propertiesOpen}
+          onOpenChange={setPropertiesOpen}
+          onSetPageSize={setPageSize}
+          onSetPageMargins={setPageMargins}
+          onSetReportCode={setReportCode}
+        />
+      ) : null}
     </TooltipProvider>
   );
 }

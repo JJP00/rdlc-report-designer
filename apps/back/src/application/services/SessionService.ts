@@ -143,6 +143,12 @@ export class SessionService implements ISessionService {
     return right({ document: session.document, index: session.index });
   }
 
+  rebuildIndex(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    session.index = DocumentIndex.build(session.document.root);
+  }
+
   touch(sessionId: string, options?: TouchOptions): number {
     const session = this.sessions.get(sessionId);
     if (!session) return 0;

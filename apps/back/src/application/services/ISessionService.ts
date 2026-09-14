@@ -36,6 +36,8 @@ export interface ISessionService {
 
   /** Acceso de edición: el DOM + índice de nombres de la sesión. */
   getEditTarget(sessionId: string): Either<DomainError, EditTarget>;
+  /** Reconstruye el índice tras comandos que cambian estructura o límites. */
+  rebuildIndex(sessionId: string): void;
   /** Mutación aplicada: sube la versión, marca dirty y emite eventos. */
   touch(sessionId: string, options?: TouchOptions): number;
   versionOf(sessionId: string): number;
