@@ -29,6 +29,12 @@ export interface RdlcNode {
   /** Crea un elemento huérfano listo para insertar (mismo tipo de documento). */
   createElement(tagName: string, text?: string): RdlcNode;
 
+  /** Copia profunda del subárbol (duplicar / copiar-pegar), formato incluido. */
+  clone(): RdlcNode;
+
+  /** true si ambos envoltorios apuntan al mismo nodo del documento. */
+  equals(other: RdlcNode): boolean;
+
   appendChild(child: RdlcNode): void;
   insertBefore(child: RdlcNode, reference: RdlcNode): void;
   /** Inserta como n-ésimo hijo elemento (más allá del final = append). */

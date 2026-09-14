@@ -1,5 +1,12 @@
 import type { XmlDocument } from 'xml-trueformat';
-import { XmlElement, XmlText } from 'xml-trueformat';
+import {
+  XmlAttribute,
+  XmlCData,
+  XmlComment,
+  XmlElement,
+  XmlProcessing,
+  XmlText,
+} from 'xml-trueformat';
 import type { RdlcDocument, RdlcNode } from '../../../domain/document/tree/RdlcNode.js';
 
 /**
@@ -101,6 +108,14 @@ export class TrueFormatNode implements RdlcNode {
     return new TrueFormatNode(element, null, this.doc);
   }
 
+  clone(): RdlcNode {
+    return new TrueFormatNode(cloneElement(this.el), null, this.doc);
+  }
+
+  equals(other: RdlcNode): boolean {
+    return other instanceof TrueFormatNode && other.el === this.el;
+  }
+
   appendChild(child: RdlcNode): void {
     const wrapped = this.unwrap(child);
     this.el.addElement(wrapped.el);
@@ -136,6 +151,7 @@ export class TrueFormatNode implements RdlcNode {
     if (previous instanceof XmlText && previous.isWhitespace()) {
       this.el.children.splice(index - 1, 1);
     }
+    wrapped.parentNode = null;
     this.doc.markDirty();
   }
 
@@ -160,4 +176,32 @@ export class TrueFormatNode implements RdlcNode {
 /** Escapa lo imprescindible en un nodo de texto (deja `"` y `'` crudas). */
 function escapeXmlText(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Copia profunda conservando formato: comillas, whitespace, atributos y orden. */
+function cloneElement(source: XmlElement): XmlElement {
+  const copy = new XmlElement(source.tagName, [], [], source.attrTrailingWs, source.selfClosing, source.closeTagWs);
+  copy.attributes = source.attributes.map(
+    (attribute) =>
+      new XmlAttribute(
+        attribute.name,
+        attribute.value,
+        attribute.leadingWs,
+        attribute.wsBeforeEqual,
+        attribute.wsAfterEqual,
+        attribute.quote,
+        attribute.hasValue,
+      ),
+  );
+  copy.children = source.children.map((child) => {
+    if (child instanceof XmlElement) return cloneElement(child);
+    if (child instanceof XmlText) return new XmlText(child.text);
+    if (child instanceof XmlComment) return new XmlComment(child.comment);
+    if (child instanceof XmlCData) return new XmlCData(child.cdata);
+    if (child instanceof XmlProcessing) {
+      return new XmlProcessing(child.target, child.wsAfterTarget, child.data);
+    }
+    return child;
+  });
+  return copy;
 }

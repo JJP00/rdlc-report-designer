@@ -1,22 +1,27 @@
-import type { TextboxDto } from '@rdlc-designer/contracts';
+import type { StylePatch, TextboxDto } from '@rdlc-designer/contracts';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { FormatToolbar } from './FormatToolbar';
 
 interface TextPanelProps {
   item: TextboxDto;
   /** Edita UN TextRun (texto plano o `=expresión`); commit con Enter o al salir. */
   onSetText: (p: number, r: number, value: string) => void;
+  /** Estilo del item (fuente, colores, alineación, viñetas). */
+  onSetStyle: (patch: StylePatch) => void;
 }
 
 /**
  * Panel de texto/expresión. F1: edición por run (cubre el caso simple y el
  * texto mixto); el editor rich-text completo llegará con el dominio `expression`.
  */
-export function TextPanel({ item, onSetText }: TextPanelProps): ReactNode {
+export function TextPanel({ item, onSetText, onSetStyle }: TextPanelProps): ReactNode {
   return (
-    <div className="flex flex-col gap-3 border-t p-3">
+    <div className="flex flex-col border-t">
+      <FormatToolbar style={item.style} onSetStyle={onSetStyle} />
+      <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold">Texto y expresión</span>
         <Badge variant="outline">
@@ -52,6 +57,7 @@ export function TextPanel({ item, onSetText }: TextPanelProps): ReactNode {
         <code>=Parameters!X.Value</code>… El autocompletado con la lista de variables llega con el
         dominio <code>expression</code>.
       </p>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import type { CommandResult, RdlcCommand } from '@rdlc-designer/contracts';
 import { applyCommand } from '../../domain/document/commands/applyCommand.js';
 import { inverseCommands } from '../../domain/document/commands/CommandContext.js';
+import type { DomainCommand } from '../../domain/document/commands/CommandContext.js';
 import { left, right, type Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 import { UnknownSessionError } from '../../shared/domainError.js';
@@ -12,7 +13,7 @@ import { SESSION_SERVICE } from './ISessionService.js';
 interface JournalEntry {
   command: RdlcCommand;
   /** Inversos en orden de aplicación; el undo los aplica al revés. */
-  inverse: RdlcCommand[];
+  inverse: DomainCommand[];
 }
 
 /** Comandos que cambian la estructura/límites: obligan a reconstruir el índice. */
@@ -20,6 +21,9 @@ const STRUCTURAL_COMMANDS = new Set<RdlcCommand['cmd']>([
   'setPageSize',
   'setPageMargins',
   'setReportCode',
+  'insertItem',
+  'duplicateItem',
+  'deleteItem',
 ]);
 
 interface SessionJournal {

@@ -327,7 +327,10 @@ describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)
 describe('F1 · comandos no implementados', () => {
   it('se rechazan explícitamente, nunca en silencio', () => {
     const { doc, index } = open('PalletOutput.rdlc');
-    const result = applyCommand({ root: doc.root, index }, { cmd: 'deleteItem', id: 'Textbox25' });
+    const result = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'moveItem', id: 'Textbox25', toScope: { kind: 'body' }, toIndex: 0 },
+    );
     expect(result.isLeft()).toBe(true);
     if (result.isLeft()) expect(result.value.errorMessage).toContain('no implementado');
   });

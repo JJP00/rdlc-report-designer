@@ -76,12 +76,37 @@ const REPORT_ORDER = [
   'CustomProperties',
 ];
 
+const STYLE_ORDER = [
+  'FontStyle',
+  'FontFamily',
+  'FontSize',
+  'FontWeight',
+  'Format',
+  'TextDecoration',
+  'Color',
+  'PaddingLeft',
+  'PaddingRight',
+  'PaddingTop',
+  'PaddingBottom',
+  'BackgroundColor',
+  'BackgroundImage',
+  'Border',
+  'TopBorder',
+  'BottomBorder',
+  'LeftBorder',
+  'RightBorder',
+  'TextAlign',
+  'VerticalAlign',
+  'ListStyle',
+];
+
 const CONTAINER_ORDERS: Record<string, string[]> = {
   Textbox: TEXTBOX_ORDER,
   Tablix: TABLIX_ORDER,
   Page: PAGE_ORDER,
   ReportSection: REPORT_SECTION_ORDER,
   Report: REPORT_ORDER,
+  Style: STYLE_ORDER,
 };
 
 function orderFor(parentTag: string): string[] {

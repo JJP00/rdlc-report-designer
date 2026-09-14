@@ -44,15 +44,38 @@ export const styleSchema = z.object({
   padding: paddingSchema.optional(),
   border: borderSidesSchema.optional(),
   format: z.string().optional(),
+  /** Viñetas / numeración del párrafo (RDL `ListStyle`). */
+  listStyle: z.enum(['None', 'Bulleted', 'Numbered']).optional(),
 });
 export type StyleDto = z.infer<typeof styleSchema>;
 
-/** Parche de estilo para `setStyle`: todo opcional, un nivel de anidamiento. */
-export const stylePatchSchema = styleSchema
-  .partial()
-  .extend({
-    padding: paddingSchema.partial().optional(),
-    border: borderSidesSchema.optional(),
+/** Parche de estilo para `setStyle`: los campos a `null` se eliminan del `<Style>`. */
+const optional = <T extends z.ZodTypeAny>(schema: T) => schema.nullable().optional();
+
+const paddingPatchSchema = z
+  .object({
+    top: optional(lengthSchema),
+    left: optional(lengthSchema),
+    bottom: optional(lengthSchema),
+    right: optional(lengthSchema),
+  })
+  .strict();
+
+export const stylePatchSchema = z
+  .object({
+    fontFamily: optional(z.string()),
+    fontSize: optional(lengthSchema),
+    fontWeight: optional(z.enum(['Normal', 'Bold'])),
+    fontStyle: optional(z.enum(['Normal', 'Italic'])),
+    textDecoration: optional(z.enum(['None', 'Underline', 'LineThrough', 'Overline'])),
+    color: optional(z.string()),
+    backgroundColor: optional(z.string()),
+    textAlign: optional(z.enum(['Left', 'Center', 'Right', 'Justify'])),
+    verticalAlign: optional(z.enum(['Top', 'Middle', 'Bottom'])),
+    padding: optional(paddingPatchSchema),
+    border: optional(borderSidesSchema),
+    format: optional(z.string()),
+    listStyle: optional(z.enum(['None', 'Bulleted', 'Numbered'])),
   })
   .strict();
 export type StylePatch = z.infer<typeof stylePatchSchema>;

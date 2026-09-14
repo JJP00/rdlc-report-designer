@@ -4,9 +4,26 @@ import type {
   Length,
   ProjectionDto,
   RdlcCommand,
+  StyleDto,
+  StylePatch,
   TextboxDto,
 } from '@rdlc-designer/contracts';
-import { FolderOpen, Minus, Plus, Redo2, Save, Settings2, Undo2, Variable, X } from 'lucide-react';
+import {
+  Copy,
+  FolderOpen,
+  Image,
+  Minus,
+  Plus,
+  Redo2,
+  Save,
+  Settings2,
+  Square,
+  Trash2,
+  Type,
+  Undo2,
+  Variable,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
 import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
@@ -22,7 +39,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { cm, countItems, findItem, formatKinds, patchItem, toCm } from '@/lib/projection';
+import { cm, collectIds, countItems, findItem, formatKinds, patchItem, toCm } from '@/lib/projection';
 
 /** Paso de las flechas: 1pt (Shift = 10pt). */
 const NUDGE_PT_CM = 2.54 / 72;
@@ -262,8 +279,7 @@ export function App(): ReactNode {
     [moveItem, selectedItem],
   );
 
-  const setItemSize = useCallback(
-    (width: Length, height: Length): void => {
+  const setItemSize = useCallback(    (width: Length, height: Length): void => {
       if (!selectedItem) return;
       const id = selectedItem.id;
       setDoc((current) =>
@@ -272,6 +288,31 @@ export function App(): ReactNode {
           : current,
       );
       void sendCommand({ cmd: 'setSize', id, width, height }).then((result) =>
+        reconcile(result?.ok ? result.applied : undefined),
+      );
+    },
+    [reconcile, selectedItem, sendCommand],
+  );
+
+  const setItemStyle = useCallback(
+    (patch: StylePatch): void => {
+      if (!selectedItem) return;
+      const id = selectedItem.id;
+
+      // Optimista: aplica el parche; `null` = quitar la propiedad.
+      const nextStyle: StyleDto = { ...(selectedItem.style ?? {}) };
+      const target = nextStyle as Record<string, unknown>;
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null) delete target[key];
+        else if (value !== undefined) target[key] = value;
+      }
+
+      setDoc((current) =>
+        current
+          ? { ...current, projection: patchItem(current.projection, id, { style: nextStyle }) }
+          : current,
+      );
+      void sendCommand({ cmd: 'setStyle', id, style: patch }).then((result) =>
         reconcile(result?.ok ? result.applied : undefined),
       );
     },
@@ -303,6 +344,64 @@ export function App(): ReactNode {
     },
     [selectedItem, sendCommand],
   );
+
+  /* ------------------ insertar / duplicar / eliminar items --------------- */
+
+  const nextFreeName = useCallback(
+    (kind: 'textbox' | 'rectangle' | 'line' | 'image'): string => {
+      const prefix =
+        kind === 'textbox'
+          ? 'Textbox'
+          : kind === 'rectangle'
+            ? 'Rectangle'
+            : kind === 'line'
+              ? 'Line'
+              : 'Image';
+      const ids = doc ? collectIds(doc.projection) : new Set<string>();
+      for (let index = 1; ; index += 1) {
+        const candidate = `${prefix}${index}`;
+        if (!ids.has(candidate)) return candidate;
+      }
+    },
+    [doc],
+  );
+
+  const insertItem = useCallback(
+    (kind: 'textbox' | 'rectangle' | 'line' | 'image'): void => {
+      if (!doc) return;
+      const name = nextFreeName(kind);
+      const index = doc.projection.page.body.items.length;
+      void sendCommand({
+        cmd: 'insertItem',
+        scope: { kind: 'body' },
+        index,
+        item: {
+          kind,
+          name,
+          top: { value: 2, unit: 'cm' },
+          left: { value: 2, unit: 'cm' },
+          width: { value: kind === 'line' ? 4 : 5, unit: 'cm' },
+          height: { value: kind === 'line' ? 0 : 1, unit: 'cm' },
+          ...(kind === 'textbox' ? { text: '' } : {}),
+        },
+      }).then((result) => {
+        if (result?.ok) setSelectedId(name);
+      });
+    },
+    [doc, nextFreeName, sendCommand],
+  );
+
+  const duplicateSelected = useCallback((): void => {
+    if (!selectedItem) return;
+    void sendCommand({ cmd: 'duplicateItem', id: selectedItem.id }).then((result) => {
+      if (result?.ok && result.id) setSelectedId(result.id);
+    });
+  }, [selectedItem, sendCommand]);
+
+  const deleteSelected = useCallback((): void => {
+    if (!selectedItem) return;
+    void sendCommand({ cmd: 'deleteItem', id: selectedItem.id }).then(() => setSelectedId(null));
+  }, [selectedItem, sendCommand]);
 
   /* ------------------- página y código (Propiedades del informe) ---------- */
 
@@ -398,6 +497,16 @@ export function App(): ReactNode {
         else if (event.key === 'ArrowDown') nudge(0, step);
         else if (event.key === 'ArrowLeft') nudge(-step, 0);
         else if (event.key === 'ArrowRight') nudge(step, 0);
+        return;
+      }
+      if (event.key === 'Delete' && selectedItem) {
+        event.preventDefault();
+        deleteSelected();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && key === 'd' && selectedItem) {
+        event.preventDefault();
+        duplicateSelected();
       }
     };
 
@@ -411,7 +520,7 @@ export function App(): ReactNode {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [doc, undo, redo, nudge, selectedItem]);
+  }, [doc, undo, redo, nudge, selectedItem, deleteSelected, duplicateSelected]);
 
   const open = async (): Promise<void> => {
     setError(null);
@@ -500,6 +609,90 @@ export function App(): ReactNode {
             <Variable data-icon="inline-start" />
             Variables
           </Button>
+
+          <Separator orientation="vertical" className="mx-1 h-5" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!doc}
+                onClick={() => insertItem('textbox')}
+              >
+                <Type />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Insertar textbox</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!doc}
+                onClick={() => insertItem('rectangle')}
+              >
+                <Square />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Insertar rectángulo</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!doc}
+                onClick={() => insertItem('line')}
+              >
+                <Minus />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Insertar línea</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!doc}
+                onClick={() => insertItem('image')}
+              >
+                <Image />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Insertar imagen</TooltipContent>
+          </Tooltip>
+
+          <Separator orientation="vertical" className="mx-1 h-5" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!selectedItem}
+                onClick={duplicateSelected}
+              >
+                <Copy />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Duplicar (Ctrl+D)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!selectedItem}
+                onClick={deleteSelected}
+              >
+                <Trash2 />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Eliminar (Supr)</TooltipContent>
+          </Tooltip>
 
           <Separator orientation="vertical" className="mx-1 h-5" />
 
@@ -621,7 +814,7 @@ export function App(): ReactNode {
                   onSetSize={setItemSize}
                 />
                 {selectedItem.kind === 'textbox' ? (
-                  <TextPanel item={selectedItem} onSetText={setRunText} />
+                  <TextPanel item={selectedItem} onSetText={setRunText} onSetStyle={setItemStyle} />
                 ) : null}
               </>
             ) : (

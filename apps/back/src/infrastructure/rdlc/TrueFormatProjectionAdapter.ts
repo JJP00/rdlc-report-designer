@@ -356,6 +356,11 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     }
     if (format) style.format = format;
 
+    const listStyle = textOf(el.getFirstElementByName('ListStyle'));
+    if (listStyle === 'None' || listStyle === 'Bulleted' || listStyle === 'Numbered') {
+      style.listStyle = listStyle;
+    }
+
     const padding = {
       top: maybeLength(textOf(el.getFirstElementByName('PaddingTop'))),
       left: maybeLength(textOf(el.getFirstElementByName('PaddingLeft'))),

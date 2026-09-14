@@ -1,12 +1,16 @@
 import type { RdlcCommand } from '@rdlc-designer/contracts';
 import type { DocumentIndex } from '../index/DocumentIndex.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
+import type { InternalCommand } from './internal.js';
 
 /** Contexto de edición: el árbol + índice por nombre. */
 export interface CommandContext {
   readonly root: RdlcNode;
   readonly index: DocumentIndex;
 }
+
+/** Comando que el journal puede aplicar: público (IPC) o interno. */
+export type DomainCommand = RdlcCommand | InternalCommand;
 
 /** Valores normalizados de un elemento tras aplicar un comando. */
 export interface AppliedEntry {
@@ -21,12 +25,12 @@ export interface AppliedEntry {
  * `setSize` del contenedor. El journal los aplica en orden inverso al deshacer.
  */
 export interface CommandOutcome {
-  readonly inverse: RdlcCommand | RdlcCommand[];
+  readonly inverse: DomainCommand | DomainCommand[];
   /** Valores normalizados por el dominio (el front reconcilia su optimismo). */
   readonly applied?: AppliedEntry[];
 }
 
 /** Normaliza el inverso a una lista (orden de aplicación; el undo lo invierte). */
-export function inverseCommands(outcome: CommandOutcome): RdlcCommand[] {
+export function inverseCommands(outcome: CommandOutcome): DomainCommand[] {
   return Array.isArray(outcome.inverse) ? outcome.inverse : [outcome.inverse];
 }

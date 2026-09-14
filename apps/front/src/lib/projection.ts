@@ -90,8 +90,7 @@ export function patchItem(
   };
 }
 
-export function countItems(projection: ProjectionDto): {
-  total: number;
+export function countItems(projection: ProjectionDto): {  total: number;
   byKind: Record<string, number>;
 } {
   const byKind: Record<string, number> = {};
@@ -122,4 +121,28 @@ export function formatKinds(byKind: Record<string, number>): string {
   return Object.entries(byKind)
     .map(([kind, count]) => `${count} ${kind}`)
     .join(', ');
+}
+
+/** Todos los ids usados en la proyección (para proponer nombres libres). */
+export function collectIds(projection: ProjectionDto): Set<string> {
+  const ids = new Set<string>();
+
+  const walk = (items: ItemDto[]): void => {
+    for (const item of items) {
+      ids.add(item.id);
+      if (item.kind === 'rectangle') walk(item.children);
+      if (item.kind === 'tablix') {
+        for (const row of item.body.rows) {
+          for (const cell of row.cells) {
+            if (cell?.content) walk([cell.content]);
+          }
+        }
+      }
+    }
+  };
+
+  walk(projection.page.header.items);
+  walk(projection.page.body.items);
+  walk(projection.page.footer.items);
+  return ids;
 }
