@@ -613,9 +613,7 @@ function renderContent(
       return <Line points={[0, 0, width, height]} stroke="#111827" hitStrokeWidth={8} />;
 
     case 'image':
-      return (
-        <Rect width={width} height={height} fill="rgba(0,0,0,0)" stroke="#9ca3af" dash={[4, 3]} />
-      );
+      return <ImagePlaceholder width={width} height={height} source={item.source} />;
 
     case 'tablix':
       return <TablixContent item={item} onSelect={onSelect} onMoveItem={onMoveItem} />;
@@ -627,8 +625,84 @@ function renderContent(
   }
 }
 
-function TablixContent({
-  item,
+/**
+ * Placeholder de imagen: en tiempo de diseño no hay datos (el `<Value>` es una
+ * expresión / URL), así que se dibuja un marco con el icono de imagen y el
+ * origen — como hace Report Builder.
+ */
+function ImagePlaceholder({
+  width,
+  height,
+  source,
+}: {
+  width: number;
+  height: number;
+  source?: string;
+}): ReactNode {
+  const inset = Math.min(width, height) * 0.15;
+  const frame = {
+    x: inset,
+    y: inset,
+    width: Math.max(width - inset * 2, 0),
+    height: Math.max(height - inset * 2, 0),
+  };
+  const iconSize = Math.min(frame.width, frame.height) * 0.55;
+  const iconX = frame.x + (frame.width - iconSize) / 2;
+  const iconY = frame.y + (frame.height - iconSize) / 2;
+
+  const showLabel = width > 90 && height > 26;
+
+  return (
+    <>
+      <Rect width={width} height={height} fill="#f9fafb" stroke="#9ca3af" dash={[4, 3]} />
+      {/* Montañita + sol: pictograma clásico de imagen */}
+      <Line
+        points={[
+          iconX,
+          iconY + iconSize,
+          iconX + iconSize * 0.38,
+          iconY + iconSize * 0.35,
+          iconX + iconSize * 0.6,
+          iconY + iconSize * 0.68,
+          iconX + iconSize * 0.78,
+          iconY + iconSize * 0.5,
+          iconX + iconSize,
+          iconY + iconSize,
+        ]}
+        stroke="#9ca3af"
+        strokeWidth={1}
+        closed
+        fill="#e5e7eb"
+        listening={false}
+      />
+      <Rect
+        x={iconX + iconSize * 0.68}
+        y={iconY + iconSize * 0.08}
+        width={iconSize * 0.22}
+        height={iconSize * 0.22}
+        cornerRadius={iconSize * 0.11}
+        fill="#9ca3af"
+        listening={false}
+      />
+      {showLabel ? (
+        <KonvaText
+          text={source ?? 'Imagen'}
+          x={frame.x + 2}
+          y={frame.y + frame.height - 11}
+          width={Math.max(frame.width - 4, 0)}
+          fontSize={9}
+          fill="#9ca3af"
+          align="center"
+          wrap="none"
+          ellipsis
+          listening={false}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function TablixContent({  item,
   onSelect,
   onMoveItem,
 }: {

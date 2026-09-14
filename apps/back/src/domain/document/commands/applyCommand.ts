@@ -9,6 +9,7 @@ import { applyInsertItem } from './insertItem.js';
 import { applySetLocation } from './setLocation.js';
 import { applySetPageMargins } from './setPageMargins.js';
 import { applySetPageSize } from './setPageSize.js';
+import { applySetImageOptions } from './setImageOptions.js';
 import { applySetReportCode } from './setReportCode.js';
 import { applySetSize } from './setSize.js';
 import { applySetStyle } from './setStyle.js';
@@ -38,6 +39,8 @@ export function applyCommand(
       return applySetPageMargins(ctx, command);
     case 'setReportCode':
       return applySetReportCode(ctx, command);
+    case 'setImageOptions':
+      return applySetImageOptions(ctx, command);
     case 'insertItem':
       return applyInsertItem(ctx, command);
     case 'duplicateItem':

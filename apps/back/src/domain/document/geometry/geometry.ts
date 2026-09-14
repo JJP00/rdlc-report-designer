@@ -49,6 +49,14 @@ const TABLIX_ORDER = [
   'KeepTogether',
 ];
 
+const IMAGE_ORDER = [
+  ...REPORT_ITEM_ORDER,
+  'Source',
+  'Value',
+  'MIMEType',
+  'Sizing',
+];
+
 const PAGE_ORDER = [
   'PageHeader',
   'PageFooter',
@@ -103,6 +111,7 @@ const STYLE_ORDER = [
 const CONTAINER_ORDERS: Record<string, string[]> = {
   Textbox: TEXTBOX_ORDER,
   Tablix: TABLIX_ORDER,
+  Image: IMAGE_ORDER,
   Page: PAGE_ORDER,
   ReportSection: REPORT_SECTION_ORDER,
   Report: REPORT_ORDER,

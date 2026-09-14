@@ -196,6 +196,18 @@ const setReportCode = z.object({
   code: z.string(),
 });
 
+/* ------------------- Familia 4: opciones de Image ------------------------ */
+
+const setImageOptions = z.object({
+  cmd: z.literal('setImageOptions'),
+  id: z.string().min(1),
+  source: z.enum(['External', 'Embedded', 'Database']).nullable().optional(),
+  /** Expresión (`=Fields!...`) o URL según el origen. */
+  value: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+  sizing: z.string().nullable().optional(),
+});
+
 /* ------------------------------ Unión ----------------------------------- */
 
 export const commandSchema = z.discriminatedUnion('cmd', [
@@ -217,6 +229,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setRegionHeight,
   setHeaderFooterOptions,
   setReportCode,
+  setImageOptions,
 ]);
 
 export type RdlcCommand = z.infer<typeof commandSchema>;

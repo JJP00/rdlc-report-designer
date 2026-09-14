@@ -72,7 +72,10 @@ export interface LineDto extends ItemBaseDto {
 export interface ImageDto extends ItemBaseDto {
   kind: 'image';
   source?: string;
-  sourceKind?: 'External' | 'Embedded' | 'Database';
+  /** Expresión o URL del contenido (`<Value>`). */
+  value?: string;
+  /** Ej. `image/png`. */
+  mimeType?: string;
   sizing?: string;
 }
 
@@ -113,8 +116,9 @@ export const lineSchema: z.ZodType<LineDto> = z.object({
 export const imageSchema: z.ZodType<ImageDto> = z.object({
   kind: z.literal('image'),
   ...itemBaseShape,
-  source: z.string().optional(),
-  sourceKind: z.enum(['External', 'Embedded', 'Database']).optional(),
+  source: z.enum(['External', 'Embedded', 'Database']).optional(),
+  value: z.string().optional(),
+  mimeType: z.string().optional(),
   sizing: z.string().optional(),
 });
 

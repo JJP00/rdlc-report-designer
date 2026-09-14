@@ -153,14 +153,21 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
         };
       case 'Line':
         return { ...base, kind: 'line' };
-      case 'Image':
+      case 'Image': {
+        const source = textOf(el.getFirstElementByName('Source'));
+        const sourceKind =
+          source === 'External' || source === 'Embedded' || source === 'Database'
+            ? source
+            : undefined;
         return {
           ...base,
           kind: 'image',
-          source: textOf(el.getFirstElementByName('Source')),
-          sourceKind: this.imageSourceKind(textOf(el.getFirstElementByName('Source'))),
+          ...(sourceKind ? { source: sourceKind } : {}),
+          value: textOf(el.getFirstElementByName('Value')),
+          mimeType: textOf(el.getFirstElementByName('MIMEType')),
           sizing: textOf(el.getFirstElementByName('Sizing')),
         };
+      }
       case 'Tablix':
         return this.tablix(el, base);
       default:

@@ -27,6 +27,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
+import { ImagePanel, type ImageOptionsPatch } from '@/components/panels/ImagePanel';
 import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
 import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
 import { TextPanel } from '@/components/panels/TextPanel';
@@ -314,6 +315,29 @@ export function App(): ReactNode {
           : current,
       );
       void sendCommand({ cmd: 'setStyle', id, style: patch }).then((result) =>
+        reconcile(result?.ok ? result.applied : undefined),
+      );
+    },
+    [reconcile, selectedItem, sendCommand],
+  );
+
+  const setImageOptions = useCallback(
+    (patch: ImageOptionsPatch): void => {
+      if (!selectedItem || selectedItem.kind !== 'image') return;
+      const id = selectedItem.id;
+
+      const next: Record<string, unknown> = { ...selectedItem };
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null) delete next[key];
+        else if (value !== undefined) next[key] = value;
+      }
+
+      setDoc((current) =>
+        current
+          ? { ...current, projection: patchItem(current.projection, id, next) }
+          : current,
+      );
+      void sendCommand({ cmd: 'setImageOptions', id, ...patch }).then((result) =>
         reconcile(result?.ok ? result.applied : undefined),
       );
     },
@@ -809,6 +833,9 @@ export function App(): ReactNode {
                 />
                 {selectedItem.kind === 'textbox' ? (
                   <TextPanel item={selectedItem} onSetText={setRunText} onSetStyle={setItemStyle} />
+                ) : null}
+                {selectedItem.kind === 'image' ? (
+                  <ImagePanel item={selectedItem} onSetImageOptions={setImageOptions} />
                 ) : null}
               </>
             ) : (
