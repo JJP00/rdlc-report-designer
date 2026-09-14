@@ -29,6 +29,10 @@ const NUDGE_PT_CM = 2.54 / 72;
 /** Racha de flechas: se agrupa en UN comando (un paso de undo). */
 const NUDGE_BURST_MS = 400;
 
+function round4(value: number): number {
+  return Math.round(value * 10000) / 10000;
+}
+
 interface OpenDocument {
   sessionId: string;
   path: string;
@@ -142,60 +146,88 @@ export function App(): ReactNode {
 
   /* --------------------- mover con flechas (1pt / 10pt) ------------------ */
 
-  const moveBurst = useRef<{
+  interface PendingMove {
     id: string;
     topCm: number;
     leftCm: number;
-    dx: number;
-    dy: number;
     timer: number;
-  } | null>(null);
+  }
 
-  const flushMoveBurst = useCallback((): void => {
-    const burst = moveBurst.current;
-    moveBurst.current = null;
-    if (!burst) return;
+  const pendingMove = useRef<PendingMove | null>(null);
+
+  const flushPendingMove = useCallback((): void => {
+    const pending = pendingMove.current;
+    if (!pending) return;
+    pendingMove.current = null;
+    window.clearTimeout(pending.timer);
     void sendCommand({
       cmd: 'setLocation',
-      id: burst.id,
-      top: cm(burst.topCm + burst.dy),
-      left: cm(burst.leftCm + burst.dx),
-    }).then((result) => reconcile(burst.id, result?.ok ? result.applied : undefined));
+      id: pending.id,
+      top: cm(pending.topCm),
+      left: cm(pending.leftCm),
+    }).then((result) => reconcile(pending.id, result?.ok ? result.applied : undefined));
   }, [reconcile, sendCommand]);
+
+  // El flush se invoca desde efectos/limpiezas: usa un ref para no depender
+  // de su identidad (que cambia con cada mutación del documento).
+  const flushRef = useRef(flushPendingMove);
+  useEffect(() => {
+    flushRef.current = flushPendingMove;
+  }, [flushPendingMove]);
+
+  // Al cambiar de selección, cierra la ráfaga pendiente.
+  useEffect(() => () => flushRef.current(), [selectedId]);
 
   const nudge = useCallback(
     (dxCm: number, dyCm: number): void => {
       if (!selectedItem) return;
+
       const id = selectedItem.id;
-      const current = moveBurst.current;
-      const burst =
+      const current = pendingMove.current;
+      const pending: PendingMove =
         current && current.id === id
           ? current
           : {
               id,
               topCm: toCm(selectedItem.top),
               leftCm: toCm(selectedItem.left),
-              dx: 0,
-              dy: 0,
               timer: 0,
             };
-      burst.dx += dxCm;
-      burst.dy += dyCm;
-      window.clearTimeout(burst.timer);
-      burst.timer = window.setTimeout(() => flushMoveBurst(), NUDGE_BURST_MS);
-      moveBurst.current = burst;
 
-      const top = cm(burst.topCm + burst.dy);
-      const left = cm(burst.leftCm + burst.dx);
+      const nextTop = pending.topCm + dyCm;
+      const nextLeft = pending.leftCm + dxCm;
+
+      // Nada que mover (p. ej. ya está en el borde): no se envía nada.
+      if (
+        round4(nextTop) === round4(toCm(selectedItem.top)) &&
+        round4(nextLeft) === round4(toCm(selectedItem.left))
+      ) {
+        return;
+      }
+
+      pending.topCm = nextTop;
+      pending.leftCm = nextLeft;
+      // Un temporizador por ráfaga (no se reinicia con cada tecla): mantén la
+      // tecla pulsada = unos pocos comandos, no uno por repetición.
+      if (pending.timer === 0) {
+        pending.timer = window.setTimeout(() => flushRef.current(), NUDGE_BURST_MS);
+      }
+      pendingMove.current = pending;
+
       setDoc((cur) =>
-        cur ? { ...cur, projection: patchItem(cur.projection, id, { top, left }) } : cur,
+        cur
+          ? {
+              ...cur,
+              projection: patchItem(cur.projection, id, {
+                top: cm(pending.topCm),
+                left: cm(pending.leftCm),
+              }),
+            }
+          : cur,
       );
     },
-    [flushMoveBurst, selectedItem],
+    [selectedItem],
   );
-
-  // Al cambiar de selección, cierra la racha pendiente.
-  useEffect(() => () => flushMoveBurst(), [selectedId, flushMoveBurst]);
 
   const moveItem = useCallback(
     (id: string, top: Length, left: Length): void => {
@@ -315,22 +347,22 @@ export function App(): ReactNode {
 
   const undo = useCallback(async (): Promise<void> => {
     if (!doc) return;
-    flushMoveBurst();
+    flushRef.current();
     const result = await window.api.undo(doc.sessionId);
     if (!result.ok) setError(`${result.code}: ${result.message ?? 'no se pudo deshacer'}`);
     else setStatus(`Deshecho (v${result.version ?? '?'})`);
-  }, [doc, flushMoveBurst]);
+  }, [doc]);
 
   const redo = useCallback(async (): Promise<void> => {
     if (!doc) return;
-    flushMoveBurst();
+    flushRef.current();
     const result = await window.api.redo(doc.sessionId);
     if (!result.ok) setError(`${result.code}: ${result.message ?? 'no se pudo rehacer'}`);
     else setStatus(`Rehecho (v${result.version ?? '?'})`);
-  }, [doc, flushMoveBurst]);
+  }, [doc]);
 
   useEffect(() => {
-    const handler = (event: KeyboardEvent): void => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
       if (!doc) return;
@@ -356,8 +388,17 @@ export function App(): ReactNode {
         else if (event.key === 'ArrowRight') nudge(step, 0);
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+
+    const handleKeyUp = (event: KeyboardEvent): void => {
+      if (event.key.startsWith('Arrow')) flushRef.current();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, [doc, undo, redo, nudge, selectedItem]);
 
   const open = async (): Promise<void> => {

@@ -290,10 +290,21 @@ function Ruler({
 
     // Longitud de la marca: etiqueta > centímetro > milímetro.
     const ratio = isLabel ? 1 : isCm ? 0.75 : 0.35;
+    const thickness = 1;
     const style = {
       ...(orientation === 'horizontal'
-        ? { left: offset, top: RULER_PX * (1 - ratio), height: RULER_PX * ratio }
-        : { top: offset, left: RULER_PX * (1 - ratio), width: RULER_PX * ratio }),
+        ? {
+            left: offset,
+            top: RULER_PX * (1 - ratio),
+            height: RULER_PX * ratio,
+            width: thickness,
+          }
+        : {
+            top: offset,
+            left: RULER_PX * (1 - ratio),
+            width: RULER_PX * ratio,
+            height: thickness,
+          }),
       backgroundColor: isCm ? 'var(--muted-foreground)' : 'var(--border)',
     } as const;
 
