@@ -12,11 +12,22 @@ NestJS con arquitectura hexagonal y **XML lossless** como fuente de verdad.
 
 ```
 apps/back/            # Electron main + NestJS (hexágono: dominio/aplicación/presentación/infraestructura)
-apps/front/           # React renderer (Konva + Monaco) — F1
+apps/front/           # React renderer — Tailwind v4 + shadcn/ui (preset radix-nova) + Konva
 packages/contracts/   # @rdlc-designer/contracts — zod: comandos, proyección, IPC
 fixtures/corpus/      # corpus de .rdlc versionado para golden tests
 docs/adr/             # decisiones de arquitectura
+docs/perf/            # líneas base de rendimiento
 ```
+
+### UI (front)
+
+- **shadcn/ui** con el preset `radix-nova` (CLI oficial): los componentes viven en
+  `apps/front/src/components/ui/` y son nuestros (filosofía copy-in).
+  Añadir más: `pnpm dlx shadcn@latest add <componente>` desde `apps/front`.
+- **Tailwind v4** vía `@tailwindcss/vite`; tema y tokens en `apps/front/src/styles.css`.
+- Iconos: `lucide-react`. Fuente: Geist.
+- El alias `@/*` está configurado en `apps/front/tsconfig.json`, en su `vite.config.ts`
+  y en `apps/back/electron.vite.config.ts` (build de Electron).
 
 ## Requisitos
 
@@ -71,5 +82,10 @@ documentado en [`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-l
       ([`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-lienzo.md));
       los 60 fps son criterio de salida de F1 (drag sin re-render de React,
       culling, grid cacheado).
-- [ ] Diálogo de conflictos y dirty real (F1, con comandos).
+- [x] F1 en curso: árbol de dominio lossless, comandos con inverso
+      (`setLocation`/`setSize`/`setText`), journal de undo/redo por sesión,
+      drag con snap en el lienzo y UI migrada a shadcn/ui.
+- [ ] F1 siguiente: paneles (propiedades, texto/expresión, variables), lista de
+      funciones `<Code>`, buscador (command palette) y diálogo de propiedades
+      del informe.
 

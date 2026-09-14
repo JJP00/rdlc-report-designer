@@ -1,6 +1,16 @@
 import type { ItemDto, Length, ProjectionDto, RdlcCommand } from '@rdlc-designer/contracts';
+import { FolderOpen, Minus, Plus, Redo2, Save, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { CanvasPreview } from './CanvasPreview';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { CanvasPreview } from '@/components/canvas/CanvasPreview';
 
 interface OpenDocument {
   sessionId: string;
@@ -149,76 +159,128 @@ export function App(): ReactNode {
   };
 
   return (
-    <div className="app">
-      <header className="toolbar">
-        <strong className="brand">RDLC Report Designer</strong>
-        <button onClick={() => void open()}>Abrir…</button>
-        <button onClick={() => void save()} disabled={!doc}>
-          Guardar
-        </button>
-        <button onClick={() => void close()} disabled={!doc}>
-          Cerrar
-        </button>
-        <span className="sep" />
-        <button onClick={() => void undo()} disabled={!doc} title="Ctrl+Z">
-          Deshacer
-        </button>
-        <button onClick={() => void redo()} disabled={!doc} title="Ctrl+Shift+Z / Ctrl+Y">
-          Rehacer
-        </button>
-        <span className="spacer" />
-        {selectedId ? <span className="selection">{selectedId}</span> : null}
-        <span className="zoom">
-          <button onClick={() => setZoom((z) => Math.max(0.2, z - 0.1))}>−</button>
-          <span>{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom((z) => Math.min(2, z + 0.1))}>+</button>
-        </span>
-      </header>
+    <TooltipProvider>
+      <div className="flex h-full flex-col bg-background">
+        <header className="flex items-center gap-1.5 border-b bg-background px-3 py-1.5">
+          <span className="mr-2 text-sm font-semibold">RDLC Report Designer</span>
 
-      {error ? <div className="error">{error}</div> : null}
-      {!hasBackend ? (
-        <div className="error">
-          Modo navegador: sin backend IPC. Arranca la aplicación con{' '}
-          <code>pnpm --filter @rdlc-designer/back dev</code>.
-        </div>
-      ) : null}
+          <Button variant="outline" size="sm" onClick={() => void open()}>
+            <FolderOpen data-icon="inline-start" />
+            Abrir…
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => void save()} disabled={!doc}>
+            <Save data-icon="inline-start" />
+            Guardar
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => void close()} disabled={!doc}>
+            <X data-icon="inline-start" />
+            Cerrar
+          </Button>
 
-      <main className="content">
-        {doc ? (
-          <>
-            <div className="docinfo">
-              <span className="file">
-                {doc.path}
-                {dirty ? <span className="dirty"> *</span> : null}
-              </span>
-              {stats ? (
-                <span className="stats">
-                  {stats.total} elementos · {formatKinds(stats.byKind)}
-                </span>
-              ) : null}
-              {reloads > 0 ? <span className="reload">{reloads} recarga(s) externa(s)</span> : null}
-            </div>
-            <CanvasPreview
-              projection={doc.projection}
-              zoom={zoom}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onMoveItem={moveItem}
-            />
-          </>
-        ) : (
-          <div className="empty">
-            <p>Sin documento abierto.</p>
-            <p className="hint">
-              Flujo F1: abre un .rdlc, selecciona un elemento y arrástralo (imán de 0,1 cm; Shift
-              lo ignora), deshaz con Ctrl+Z y guarda: solo cambian los valores editados.
-            </p>
+          <Separator orientation="vertical" className="mx-1 h-5" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" onClick={() => void undo()} disabled={!doc}>
+                <Undo2 data-icon="inline-start" />
+                Deshacer
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Ctrl+Z</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" onClick={() => void redo()} disabled={!doc}>
+                <Redo2 data-icon="inline-start" />
+                Rehacer
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Ctrl+Shift+Z o Ctrl+Y</TooltipContent>
+          </Tooltip>
+
+          <div className="flex-1" />
+
+          {selectedId ? (
+            <Badge variant="secondary" className="font-mono">
+              {selectedId}
+            </Badge>
+          ) : null}
+
+          <Separator orientation="vertical" className="mx-1 h-5" />
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setZoom((z) => Math.max(0.2, z - 0.1))}
+            >
+              <Minus />
+            </Button>
+            <span className="w-10 text-center text-xs tabular-nums">
+              {Math.round(zoom * 100)}%
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setZoom((z) => Math.min(2, z + 0.1))}
+            >
+              <Plus />
+            </Button>
           </div>
-        )}
-      </main>
+        </header>
 
-      <footer className="statusbar">{status}</footer>
-    </div>
+        {error ? (
+          <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive">
+            {error}
+          </div>
+        ) : null}
+        {!hasBackend ? (
+          <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive">
+            Modo navegador: sin backend IPC. Arranca la aplicación con{' '}
+            <code>pnpm --filter @rdlc-designer/back dev</code>.
+          </div>
+        ) : null}
+
+        <main className="flex min-h-0 flex-1 flex-col">
+          {doc ? (
+            <>
+              <div className="flex items-center gap-4 border-b bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {doc.path}
+                  {dirty ? <span className="text-amber-600"> *</span> : null}
+                </span>
+                {stats ? (
+                  <span>
+                    {stats.total} elementos · {formatKinds(stats.byKind)}
+                  </span>
+                ) : null}
+                {reloads > 0 ? (
+                  <span className="text-amber-600">{reloads} recarga(s) externa(s)</span>
+                ) : null}
+              </div>
+              <CanvasPreview
+                projection={doc.projection}
+                zoom={zoom}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onMoveItem={moveItem}
+              />
+            </>
+          ) : (
+            <div className="m-auto max-w-lg text-center text-sm text-muted-foreground">
+              <p>Sin documento abierto.</p>
+              <p className="mt-2">
+                Flujo F1: abre un .rdlc, selecciona un elemento y arrástralo (imán de 0,1 cm;
+                Shift lo ignora), deshaz con Ctrl+Z y guarda: solo cambian los valores editados.
+              </p>
+            </div>
+          )}
+        </main>
+
+        <footer className="border-t bg-background px-3 py-1 text-xs text-muted-foreground">
+          {status}
+        </footer>
+      </div>
+    </TooltipProvider>
   );
 }
 

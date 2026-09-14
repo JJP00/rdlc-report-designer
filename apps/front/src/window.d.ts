@@ -1,5 +1,5 @@
 import type { RdlcApi } from '@rdlc-designer/contracts';
-import type { BenchResult } from './bench';
+import type { BenchResult } from '@/lib/bench';
 
 declare global {
   interface Window {

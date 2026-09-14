@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { makeProjection, summarize, type BenchResult } from './bench';
-import { CanvasPreview } from './CanvasPreview';
+import { Button } from '@/components/ui/button';
+import { makeProjection, summarize, type BenchResult } from '@/lib/bench';
+import { CanvasPreview } from '@/components/canvas/CanvasPreview';
 
 const MEASURE_MS = 3000;
 const ZOOM = 0.45;
@@ -78,17 +79,21 @@ export function BenchPage({ count }: { count: number }): ReactNode {
   };
 
   return (
-    <div className="app">
-      <header className="toolbar">
-        <strong className="brand">Benchmark de lienzo — {count} textboxes</strong>
-        <span className="spacer" />
-        {phase === 'hecho' ? <button onClick={restart}>Repetir</button> : null}
+    <div className="flex h-full flex-col bg-background">
+      <header className="flex items-center gap-2 border-b px-3 py-1.5">
+        <span className="text-sm font-semibold">Benchmark de lienzo — {count} textboxes</span>
+        <div className="flex-1" />
+        {phase === 'hecho' ? (
+          <Button variant="outline" size="sm" onClick={restart}>
+            Repetir
+          </Button>
+        ) : null}
       </header>
 
-      <main className="content">
-        <div className="docinfo">
+      <main className="flex min-h-0 flex-1 flex-col">
+        <div className="border-b bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
           {result ? (
-            <span className="stats">
+            <span>
               p50 {result.fpsP50} fps · p95 {result.fpsP95} fps · min {result.minFps} fps ·{' '}
               {result.frames} frames · montaje {result.mountMs} ms · heap{' '}
               {result.heapMB === null ? 'n/d' : `${result.heapMB} MB`}
@@ -100,7 +105,7 @@ export function BenchPage({ count }: { count: number }): ReactNode {
         <CanvasPreview projection={projection} zoom={ZOOM} />
       </main>
 
-      <footer className="statusbar">
+      <footer className="border-t px-3 py-1 text-xs text-muted-foreground">
         Abre esta página en Electron/Chromium para medir el coste real del lienzo.
       </footer>
     </div>

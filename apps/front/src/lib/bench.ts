@@ -60,7 +60,8 @@ export function makeProjection(count: number): ProjectionDto {
 
 export function summarize(frames: number[], items: number, mountMs: number): BenchResult {
   const sorted = [...frames].sort((a, b) => a - b);
-  const at = (quantile: number): number => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * quantile))] ?? 16.7;
+  const at = (quantile: number): number =>
+    sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * quantile))] ?? 16.7;
   const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
 
   return {

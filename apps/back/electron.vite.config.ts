@@ -1,9 +1,11 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 
 const root = dirname(fileURLToPath(import.meta.url));
+const frontSrc = resolve(root, '../front/src');
 
 /**
  * Estructura del monorepo:
@@ -30,7 +32,12 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(root, '../front'),
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
+    resolve: {
+      alias: {
+        '@': frontSrc,
+      },
+    },
     build: {
       outDir: resolve(root, 'out/renderer'),
       emptyOutDir: true,
