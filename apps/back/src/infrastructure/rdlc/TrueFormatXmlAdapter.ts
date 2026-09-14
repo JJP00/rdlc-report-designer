@@ -1,4 +1,5 @@
-import { XmlDocument, XmlParser } from 'xml-trueformat';
+import type { XmlDocument } from 'xml-trueformat';
+import { XmlParser } from 'xml-trueformat';
 import type { RdlcParserPort } from '../../application/ports/out/RdlcParserPort.js';
 import type { RdlcSerializerPort } from '../../application/ports/out/RdlcSerializerPort.js';
 import { asRdlcDocument, type RdlcDocument } from '../../domain/document/tree/RdlcDocument.js';

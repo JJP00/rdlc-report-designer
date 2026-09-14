@@ -4,17 +4,32 @@
   "private": true,
   "description": "Electron main + NestJS — el hexágono (dominio, aplicación, presentación, infraestructura)",
   "type": "module",
+  "main": "out/main/main.js",
   "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/core": "^12.0.1",
     "@rdlc-designer/contracts": "workspace:*",
-    "xml-trueformat": "^0.9.5"
+    "chokidar": "^5.0.0",
+    "electron-log": "^5.4.4",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "xml-trueformat": "^0.9.5",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^5",
+    "electron": "^44.3.0",
+    "electron-vite": "^5.0.0",
     "fast-xml-parser": "^4.5.1",
+    "vite": "^7.3.6",
     "vitest": "^3.0.5"
   }
 }

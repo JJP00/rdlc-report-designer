@@ -5,6 +5,7 @@ import { projectionSchema } from './projection.js';
 
 /** Canales `ipcMain.handle` / `ipcRenderer.invoke`. */
 export const IPC_CHANNELS = {
+  pickFile: 'rdlc:pickFile',
   openFile: 'rdlc:openFile',
   createNew: 'rdlc:createNew',
   save: 'rdlc:save',
@@ -70,6 +71,15 @@ export type ExecuteCommandRequest = z.infer<typeof executeCommandRequestSchema>;
 
 /* ---------------------- Respuestas (backend → front) --------------------- */
 
+/** Respuesta de error uniforme: nunca cruzan excepciones crudas por IPC. */
+export const ipcErrorSchema = z.object({
+  ok: z.literal(false),
+  code: errorCodeSchema,
+  message: z.string().optional(),
+  data: z.unknown().optional(),
+});
+export type IpcErrorDto = z.infer<typeof ipcErrorSchema>;
+
 export const commandOkSchema = z.object({
   ok: z.literal(true),
   /** Id nuevo al insertar. */
@@ -79,31 +89,40 @@ export const commandOkSchema = z.object({
   version: z.number().int().nonnegative().optional(),
 });
 
-export const commandErrorSchema = z.object({
-  ok: z.literal(false),
-  code: errorCodeSchema,
-  message: z.string().optional(),
-  data: z.unknown().optional(),
-});
-
-export const commandResultSchema = z.discriminatedUnion('ok', [commandOkSchema, commandErrorSchema]);
+export const commandResultSchema = z.discriminatedUnion('ok', [commandOkSchema, ipcErrorSchema]);
 export type CommandResult = z.infer<typeof commandResultSchema>;
 
-export const openFileResultSchema = z.object({
-  sessionId: z.string(),
-  projection: projectionSchema,
+export const pickFileResultSchema = z.object({
+  ok: z.literal(true),
+  path: z.string().nullable(),
 });
+export type PickFileResult = z.infer<typeof pickFileResultSchema>;
+
+export const openFileResultSchema = z.discriminatedUnion('ok', [
+  z.object({
+    ok: z.literal(true),
+    sessionId: z.string(),
+    projection: projectionSchema,
+  }),
+  ipcErrorSchema,
+]);
 export type OpenFileResult = z.infer<typeof openFileResultSchema>;
 
-export const saveResultSchema = z.object({
-  ok: z.boolean(),
-  path: z.string().optional(),
-});
+export const saveResultSchema = z.discriminatedUnion('ok', [
+  z.object({
+    ok: z.literal(true),
+    path: z.string(),
+    /** true si el fichero no se tocó y se re-escribieron los mismos bytes. */
+    bytesIdentical: z.boolean(),
+  }),
+  ipcErrorSchema,
+]);
 export type SaveResult = z.infer<typeof saveResultSchema>;
 
 export const closeResultSchema = z.union([
   z.object({ ok: z.literal(true) }),
   z.object({ ok: z.literal(false), needsConfirmation: z.literal(true), dirty: z.literal(true) }),
+  ipcErrorSchema,
 ]);
 export type CloseResult = z.infer<typeof closeResultSchema>;
 

@@ -27,19 +27,29 @@ docs/adr/             # decisiones de arquitectura
 
 ```bash
 pnpm install
-pnpm test        # vitest (golden round-trip + comparativa de parsers)
-pnpm typecheck   # tsc en todos los paquetes
-pnpm format      # prettier
+pnpm test                       # vitest: golden round-trip, comparativa, caso de uso
+pnpm typecheck                  # tsc en todos los paquetes
+pnpm format                     # prettier
+pnpm --filter @rdlc-designer/back dev     # Electron en modo dev (HMR renderer)
+pnpm --filter @rdlc-designer/back build   # build de producción (main + preload + renderer)
 ```
 
 ## Estado (Fase 0 — spike round-trip)
 
 - [x] Monorepo pnpm + turbo, TypeScript estricto.
 - [x] `packages/contracts` v0: comandos (familias 1-3), proyección completa,
-      canales IPC, códigos de error.
+      canales IPC, códigos de error y `RdlcApi` (preload tipado).
 - [x] Corpus de 10 ficheros + golden tests de round-trip **byte a byte**.
 - [x] Decisión del parser: `xml-trueformat` (ver
       [`docs/adr/0001-parser-xml-lossless.md`](./docs/adr/0001-parser-xml-lossless.md)).
-- [ ] Shell Electron + Nest (`NestFactory.createApplicationContext`) + preload tipado.
-- [ ] File watching → re-parseo → snapshot nueva.
-- [ ] Benchmark de lienzo (972 textboxes) y presupuesto de memoria.
+- [x] Parser/serializer tras puertos + SessionService (abrir/guardar/cerrar)
+      con `Either`/`DomainError` y tests de integración con adaptadores fake.
+- [x] Shell Electron + NestJS (`NestFactory.createApplicationContext`), IPC
+      validado con zod y preload tipado (`window.api`).
+- [x] File watching (chokidar) → re-parseo → `documentChanged` → recarga en el
+      front, filtrando el eco de la propia escritura.
+- [x] Proyección mínima F0 (página, bandas, items, Tablix, texto, meta) y
+      vista Konva de solo lectura.
+- [ ] Benchmark de lienzo (972 textboxes) y presupuesto de memoria del renderer.
+- [ ] Diálogo de conflictos y dirty real (F1, con comandos).
+
