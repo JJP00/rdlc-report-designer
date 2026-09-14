@@ -112,6 +112,8 @@ export const openFileResultSchema = z.discriminatedUnion('ok', [
     ok: z.literal(true),
     sessionId: z.string(),
     projection: projectionSchema,
+    /** Avisos de validación de esquema al importar (no bloquean). */
+    warnings: z.array(z.string()).optional(),
   }),
   ipcErrorSchema,
 ]);

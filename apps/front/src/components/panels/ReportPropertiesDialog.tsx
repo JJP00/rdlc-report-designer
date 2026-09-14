@@ -170,7 +170,7 @@ export function ReportPropertiesDialog({
               un todo: un paso de undo.
             </p>
             <Textarea
-              className="min-h-[320px] font-mono text-xs"
+              className="field-sizing-fixed h-[380px] max-h-[55vh] resize-y overflow-auto font-mono text-xs"
               value={code}
               onChange={(event) => setCode(event.target.value)}
               spellCheck={false}

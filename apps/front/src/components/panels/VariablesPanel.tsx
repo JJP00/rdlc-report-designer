@@ -104,7 +104,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-col gap-2 border-b p-3">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">Variables</span>
@@ -118,7 +118,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
         />
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-3 p-3">
           {groups.map(([group, list]) => (
             <div key={group} className="flex flex-col gap-1">

@@ -5,6 +5,10 @@ import { IPC_EVENTS, type DocumentChangedEvent } from '@rdlc-designer/contracts'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EventBusPort } from '../../src/application/ports/out/EventBusPort.js';
 import type { FileWatcherPort, Unwatch } from '../../src/application/ports/out/FileWatcherPort.js';
+import type {
+  SchemaValidationResult,
+  XmlSchemaValidatorPort,
+} from '../../src/application/ports/out/XmlSchemaValidatorPort.js';
 import { SessionService } from '../../src/application/services/SessionService.js';
 import { NodeFileSystemAdapter } from '../../src/infrastructure/fs/NodeFileSystemAdapter.js';
 import { TrueFormatProjectionAdapter } from '../../src/infrastructure/rdlc/TrueFormatProjectionAdapter.js';
@@ -38,6 +42,16 @@ class FakeEventBus implements EventBusPort {
   }
 }
 
+class FakeSchemaValidator implements XmlSchemaValidatorPort {
+  result: SchemaValidationResult = { valid: true, problems: [] };
+
+  validate(): SchemaValidationResult {
+    return this.result;
+  }
+
+  warmUp(): void {}
+}
+
 const tempDirs: string[] = [];
 
 afterEach(async () => {
@@ -48,6 +62,7 @@ async function makeService(): Promise<{
   service: SessionService;
   watcher: FakeWatcher;
   events: FakeEventBus;
+  schema: FakeSchemaValidator;
   tmp: string;
 }> {
   const tmp = await mkdtemp(join(tmpdir(), 'rdlc-test-'));
@@ -55,6 +70,7 @@ async function makeService(): Promise<{
 
   const watcher = new FakeWatcher();
   const events = new FakeEventBus();
+  const schema = new FakeSchemaValidator();
   const xml = new TrueFormatXmlAdapter();
   const service = new SessionService(
     new NodeFileSystemAdapter(),
@@ -62,9 +78,10 @@ async function makeService(): Promise<{
     xml,
     xml,
     new TrueFormatProjectionAdapter(),
+    schema,
     events,
   );
-  return { service, watcher, events, tmp };
+  return { service, watcher, events, schema, tmp };
 }
 
 async function writeFixture(tmp: string, name: string): Promise<string> {
@@ -188,5 +205,38 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
 
     const saveAfterClose = await service.save(opened.value.sessionId);
     expect(saveAfterClose.isLeft()).toBe(true);
+  });
+
+  it('bloquea el guardado si el XML no valida contra el esquema (E_VALIDATION)', async () => {
+    const { service, schema, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'PalletOutput.rdlc');
+    const before = await readFile(path);
+
+    const opened = await service.open(path);
+    expect(opened.isRight()).toBe(true);
+    if (!opened.isRight()) return;
+
+    schema.result = { valid: false, problems: ["Element 'Bogus': This element is not expected."] };
+
+    const saved = await service.save(opened.value.sessionId);
+    expect(saved.isLeft()).toBe(true);
+    if (saved.isLeft()) {
+      expect(saved.value.code).toBe('E_VALIDATION');
+      expect(saved.value.data).toEqual(["Element 'Bogus': This element is not expected."]);
+    }
+
+    // No se escribió nada en disco.
+    const after = await readFile(path);
+    expect(after.equals(before)).toBe(true);
+  });
+
+  it('al importar, un XML inválido se avisa pero se abre igual', async () => {
+    const { service, schema, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'PalletOutput.rdlc');
+    schema.result = { valid: false, problems: ['aviso de esquema'] };
+
+    const opened = await service.open(path);
+    expect(opened.isRight()).toBe(true);
+    if (opened.isRight()) expect(opened.value.warnings).toEqual(['aviso de esquema']);
   });
 });

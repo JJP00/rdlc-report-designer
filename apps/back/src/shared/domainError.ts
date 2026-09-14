@@ -81,6 +81,22 @@ export class InvalidCommandError implements DomainError {
   }
 }
 
+export class ValidationFailedError implements DomainError {
+  readonly code = 'E_VALIDATION' as const;
+
+  private constructor(
+    readonly errorMessage: string,
+    readonly data?: unknown,
+  ) {}
+
+  static create(problems: string[]): ValidationFailedError {
+    return new ValidationFailedError(
+      `El XML no valida contra el esquema RDL 2016/01 (${problems.length} problema(s)); no se escribió el fichero`,
+      problems,
+    );
+  }
+}
+
 export class UnexpectedError implements DomainError {
   readonly code = 'E_UNEXPECTED' as const;
 

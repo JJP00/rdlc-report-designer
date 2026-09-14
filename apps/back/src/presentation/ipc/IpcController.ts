@@ -63,6 +63,7 @@ export class IpcController {
           ok: true,
           sessionId: value.sessionId,
           projection: value.projection,
+          ...(value.warnings ? { warnings: value.warnings } : {}),
         }),
       ),
     );

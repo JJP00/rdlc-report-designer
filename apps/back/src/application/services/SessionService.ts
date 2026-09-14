@@ -15,10 +15,18 @@ import type { RdlcParserPort } from '../ports/out/RdlcParserPort.js';
 import { RDLC_PARSER_PORT } from '../ports/out/RdlcParserPort.js';
 import type { RdlcSerializerPort } from '../ports/out/RdlcSerializerPort.js';
 import { RDLC_SERIALIZER_PORT } from '../ports/out/RdlcSerializerPort.js';
+import type { XmlSchemaValidatorPort } from '../ports/out/XmlSchemaValidatorPort.js';
+import { XML_SCHEMA_VALIDATOR_PORT } from '../ports/out/XmlSchemaValidatorPort.js';
 import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
 import { left, right, type Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
-import { FileNotFoundError, InvalidXmlError, IoError, UnknownSessionError } from '../../shared/domainError.js';
+import {
+  FileNotFoundError,
+  InvalidXmlError,
+  IoError,
+  UnknownSessionError,
+  ValidationFailedError,
+} from '../../shared/domainError.js';
 import type {
   EditTarget,
   ISessionService,
@@ -54,6 +62,7 @@ export class SessionService implements ISessionService {
     @Inject(RDLC_PARSER_PORT) private readonly parser: RdlcParserPort,
     @Inject(RDLC_SERIALIZER_PORT) private readonly serializer: RdlcSerializerPort,
     @Inject(RDLC_PROJECTION_PORT) private readonly projection: RdlcProjectionPort,
+    @Inject(XML_SCHEMA_VALIDATOR_PORT) private readonly schema: XmlSchemaValidatorPort,
     @Inject(EVENT_BUS_PORT) private readonly events: EventBusPort,
   ) {}
 
@@ -93,7 +102,16 @@ export class SessionService implements ISessionService {
       void this.onExternalChange(sessionId);
     });
 
-    return right({ sessionId, projection: this.project(session) });
+    // Validación de esquema al importar: avisa, no bloquea (el usuario puede
+    // querer arreglar un fichero roto con la herramienta).
+    const validation = this.schema.validate(read.value.toString('utf8'));
+    const warnings = validation.valid ? undefined : validation.problems;
+
+    return right({
+      sessionId,
+      projection: this.project(session),
+      ...(warnings ? { warnings } : {}),
+    });
   }
 
   async save(sessionId: string): Promise<Either<DomainError, SaveSessionResult>> {
@@ -102,6 +120,13 @@ export class SessionService implements ISessionService {
 
     const xml = this.serializer.serialize(session.document);
     const bytes = Buffer.from(xml, 'utf8');
+
+    // Validación de esquema ANTES de escribir: BC rompe con un XML inválido.
+    const validation = this.schema.validate(xml);
+    if (!validation.valid) {
+      return left(ValidationFailedError.create(validation.problems));
+    }
+
     const bytesIdentical = bytes.equals(session.originalBytes);
 
     session.writing = true;

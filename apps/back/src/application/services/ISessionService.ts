@@ -9,6 +9,8 @@ export const SESSION_SERVICE = Symbol('ISessionService');
 export interface OpenSessionResult {
   sessionId: string;
   projection: ProjectionDto;
+  /** Problemas de esquema al importar (aviso; el fichero se abre igual). */
+  warnings?: string[];
 }
 
 export interface SaveSessionResult {

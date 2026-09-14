@@ -8,6 +8,7 @@ import type {
 import type Konva from 'konva';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
+import { computeDragEnd } from '@/lib/drag';
 
 export const PX_PER_CM = 96 / 2.54;
 /** Rejilla de imán en cm (Shift la ignora al soltar). */
@@ -354,13 +355,25 @@ function NodeGroup({
   itemSize,
   children,
 }: NodeGroupProps): ReactNode {
-  /** Mantiene el nodo dentro de su contenedor/región (invariante del dominio). */
+  /**
+   * Nunca negativo. El tope máximo solo aplica cuando hay `bounds` (regiones
+   * de primer nivel): los items anidados pueden desbordar su contenedor en
+   * RDL, así que no se les fuerza a 0 cuando no caben.
+   */
   const clampToBounds = (node: MovableNode): void => {
-    if (!bounds || !itemSize) return;
-    const maxX = Math.max(0, bounds.width - itemSize.width);
-    const maxY = Math.max(0, bounds.height - itemSize.height);
-    node.x(Math.min(Math.max(node.x(), 0), maxX));
-    node.y(Math.min(Math.max(node.y(), 0), maxY));
+    const x = Math.max(node.x(), 0);
+    const y = Math.max(node.y(), 0);
+
+    if (!bounds || !itemSize) {
+      node.x(x);
+      node.y(y);
+      return;
+    }
+
+    const maxX = bounds.width - itemSize.width;
+    const maxY = bounds.height - itemSize.height;
+    node.x(maxX > 0 ? Math.min(x, maxX) : x);
+    node.y(maxY > 0 ? Math.min(y, maxY) : y);
   };
 
   return (
@@ -380,26 +393,18 @@ function NodeGroup({
       onDragMove={(event) => clampToBounds(event.target)}
       onDragEnd={(event) => {
         const node = event.target;
-        clampToBounds(node);
+        const { top, left } = computeDragEnd({
+          x: node.x(),
+          y: node.y(),
+          itemSize: itemSize ?? { width: 0, height: 0 },
+          ...(bounds ? { bounds } : {}),
+          snap: !event.evt.shiftKey,
+          pxPerCm: PX_PER_CM,
+          snapCm: SNAP_CM,
+        });
 
-        const snap = !event.evt.shiftKey;
-        let leftCm = node.x() / PX_PER_CM;
-        let topCm = node.y() / PX_PER_CM;
-        if (snap) {
-          leftCm = Math.round(leftCm / SNAP_CM) * SNAP_CM;
-          topCm = Math.round(topCm / SNAP_CM) * SNAP_CM;
-        }
-        leftCm = round2(leftCm);
-        topCm = round2(topCm);
-
-        node.position({ x: leftCm * PX_PER_CM, y: topCm * PX_PER_CM });
-        clampToBounds(node);
-
-        onMoveItem?.(
-          itemId,
-          { value: node.y() / PX_PER_CM, unit: 'cm' },
-          { value: node.x() / PX_PER_CM, unit: 'cm' },
-        );
+        node.position({ x: left * PX_PER_CM, y: top * PX_PER_CM });
+        onMoveItem?.(itemId, { value: top, unit: 'cm' }, { value: left, unit: 'cm' });
       }}
     >
       {children}
@@ -526,7 +531,7 @@ function renderContent(
               onSelect={onSelect}
               onMoveItem={onMoveItem}
               draggable={onMoveItem !== undefined}
-              bounds={{ width, height }}
+              /* Sin bounds: el contenedor no es un límite duro en RDL. */
             />
           ))}
         </>
@@ -628,7 +633,7 @@ function TablixContent({
               onSelect={onSelect}
               onMoveItem={onMoveItem}
               draggable={onMoveItem !== undefined}
-              bounds={{ width: cellWidth, height: cellHeight }}
+              /* Sin bounds: el contenido de una celda puede desbordarla. */
             />
           </Group>,
         );
