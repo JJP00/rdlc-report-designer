@@ -1,115 +1,105 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
-Análisis de lo que falta en `RDLC Report Designer.md`, para tratar en una futura sesión. Ordenado por prioridad.
+> **Sesión 2026-09-14** — Fase 0 cerrada y Fase 1 muy avanzada. Mañana se retoma por:
+> **① Paleta de búsqueda Ctrl+K** (elementos + variables) y **② Monaco** para el editor de
+> expresiones con autocompletado. Debajo está el detalle de lo hecho y lo que queda.
 
-## 🔴 Gaps funcionales (afectan al MVP real)
+## ✅ Hecho en la sesión (2026-09-14)
 
-1. **El bloque `<Code>` (VB custom)** — ✅ diseño decidido, implementación pendiente (Fase 1).
-   Los ficheros tienen 9 bloques VB custom y 355 usos de `Code.` (`GetData`, `SetData`, `BlankZero`...).
-   - Acceso: menú contextual / menú Informe → "Propiedades del informe…" → pestaña **Código** (Monaco, lenguaje `vb` nativo — sin lenguaje custom).
-   - Además: **panel inferior** (estilo VS Code) "Código" — solo lectura con highlighting, lista de funciones detectadas y botón "Editar" que abre el diálogo en la pestaña Código.
-   - El autocompletado de `Code.` en expresiones se alimenta del mismo parser de firmas VB.
-   - Comando **atómico**: `setReportCode { code }` (reemplaza el contenido completo del bloque; inverso = texto anterior).
-   - Sin compilador VB en JS: validación ligera más adelante; la compilación real la hace BC al renderizar.
+| Área | Estado |
+|---|---|
+| Monorepo pnpm + turbo, TS estricto, prettier | ✅ |
+| `packages/contracts` (comandos, proyección, IPC, errores, `RdlcApi`) | ✅ |
+| Golden round-trip **byte a byte** sobre el corpus (10/10) + ADR 0001 | ✅ |
+| Shell Electron + NestJS en el main (`createApplicationContext`) + preload tipado | ✅ (ADR 0002) |
+| File watching → re-parseo → recarga en vivo (filtra el eco por mtime) | ✅ |
+| Lienzo Konva: papel + márgenes + bandas, reglas en mm/cm, zoom Ctrl+rueda, placeholder de imagen | ✅ |
+| Selección (marco + tiradores), drag con imán (Shift lo ignora), flechas 1pt/10pt | ✅ |
+| Edición de anidados (drag determinista por delta del puntero; `dragend` que burbujea) | ✅ |
+| **Validación XSD oficial RDL 2016/01** (libxml2-wasm): avisa al importar, **bloquea al guardar** | ✅ |
+| Panel de propiedades (geometría), panel de texto/expresión por runs | ✅ |
+| **Barra de formato** (fuente del sistema, tamaño, N/I/S, color, resaltado, alineación, listas, valign) | ✅ |
+| Variables (Fields/Parameters/Code./Globals/User) con búsqueda y grupos colapsables | ✅ |
+| Propiedades del informe (Configurar página + Código VB en Monaco-like textarea) | ✅ |
+| Panel de imagen: origen, campo/expresión (fx), MIME desplegable (fx), tamaño (radios), padding | ✅ |
+| Insertar / duplicar / eliminar items (botones, Ctrl+D, Supr) con undo byte-exacto | ✅ |
+| Auto-crecimiento del contenedor al sacar un hijo fuera (solo rectángulos con tamaño explícito) | ✅ |
+| Undo/redo con journal (inversos múltiples por comando) | ✅ |
+| Tests: 94 back + 10 front (golden, comandos, invariantes, integración, fuentes, XSD) | ✅ |
 
-2. **PageHeader / PageFooter / PageSetup** — ✅ diseño decidido, implementación pendiente (Fase 1). Obligatorio en MVP.
-   - Lienzo con **3 bandas**: Encabezado / Cuerpo / Pie, con contorno de página y guías de margen.
-   - Encabezado y pie con altura propia y opciones `PrintOnFirstPage` / `PrintOnLastPage`.
-   - **Configurar página como pestaña dentro de "Propiedades del informe"**: tamaño (A4/Letter/custom), orientación (intercambia ancho/alto) y los 4 márgenes. `Columns`/`ColumnSpacing` quedan opacos (no se usan).
-   - Comandos nuevos: `setPageSize`, `setPageMargins`, `setRegionHeight`, `setHeaderFooterOptions`; `insertItem`/`deleteItem` ganan `scope` (`Body | PageHeader | PageFooter` + contenedores Rectangle/celdas Tablix).
-   - Proyección: `page: { width, height, margins, header, footer, body }`.
+## 🔴 Gaps funcionales (MVP)
 
-3. **Catálogo de comandos** — ✅ resuelto (documentado en `RDLC Report Designer - arquitectura.md` → sección "Catálogo de comandos").
-   Contrato completo del MVP: envolvente (`CommandResult`, IDs = Name, `Length`, semántica de commit, inversos) + familias de comandos: items (setLocation, setStyle, insertItem, moveItem...), texto (`setText`, `setParagraphs`), página/informe (`setPageSize`, `setReportCode`...), Tablix (F2) y Matrix (F3).
-   Claves: acción completada = 1 comando; front propone nombre, back valida; todo comando tiene inverso.
-
-4. **Esquema del JSON de proyección** — ✅ resuelto (documentado en `RDLC Report Designer - arquitectura.md` → sección "Esquema de proyección").
-   `ProjectionDto` (raíz: sessionId, version, meta, page con header/body/footer) + `ItemDto` (textbox/rectangle/line/image/tablix/unknown) + `ParagraphDto`/`TextRunDto` + `StyleDto`/`Length` compartidos con los comandos + reglas de normalización (Length, bordes por lado, hidden booleano/expresión) + qué NO viaja (lossy a propósito). Schemas zod en `contracts`, tipos con `z.infer`, frontend arrancable con fixtures.
-
-5. **UX del "texto mixto".**
-   El panel de un Textbox con varios TextRuns (expresión + ":" + estilos distintos) requiere un mini editor tipo rich-text por párrafos. Más trabajo de lo que parece; no está dimensionado.
+1. **Buscador / command palette (Ctrl+K)** — ⬜ siguiente bloque.
+   Buscar por nombre de elemento y por contenido de expresión; acciones (abrir, guardar,
+   undo/redo, insertar). shadcn `Command` en un `Dialog`.
+2. **Monaco para expresiones** — ⬜ siguiente bloque.
+   Highlight VB-like + autocompletado alimentado por el dominio `expression`
+   (`Fields!`, `Parameters!`, `Globals!`, `User!`, `ReportItems!` y funciones de `<Code>`).
+   Hoy el panel de texto es un `<Input>` y el bloque `<Code>` un `<Textarea>`.
+3. **Texto mixto (varios TextRuns por párrafo)** — 🔶 se edita por run; falta el mini
+   editor rich-text por párrafos para añadir/quitar runs y estilos por run.
+4. **Tablix visual (Fase 2)** — ⬜ rejilla editable, resize de filas/columnas, grupos de
+   fila con totales (`addRowGroup`, `resizeColumn`… ya definidos en el catálogo).
+   El modelo ya se proyecta completo (body + jerarquías) y las celdas heredan tamaño
+   (ColSpan/RowSpan) — ver hallazgos.
+5. **Matrix (Fase 3)** — ⬜ grupos de columna.
+6. **`moveItem`** (reparentar/reordenar) — ⬜ implementado hasta `insertItem`/`deleteItem`/
+   `duplicateItem`; `moveItem` sigue rechazándose explícitamente.
+7. **`setName`** (renombrar elemento) — ⬜ está en el catálogo; falta el comando y el
+   campo editable en el panel de propiedades.
 
 ## 🟡 Gaps técnicos de frontend
 
-6. **Rendimiento del lienzo.**
-   972 textboxes en Konva: capas separadas, text caching (`cache()`), no re-renderizar todo en cada drag. Y en los drags, **batching de comandos**: no un IPC por frame — coalescer (un comando por frame de animación o debounce ~50ms).
+8. **Rendimiento del lienzo** — 🔶 línea base medida (972 textboxes ≈ 30 fps p50,
+   [docs/perf/0001-baseline-lienzo.md](docs/perf/0001-baseline-lienzo.md)); faltan las
+   optimizaciones: drag sin re-render de React, viewport culling, grid cacheado,
+   solo la pestaña activa monta el stage, batching de comandos.
+9. **Arquitectura del lienzo** — 🔶 hay base (capas, selección, drag, snap); faltan
+   multi-selección, alineación/distribución, guías inteligentes y toolbox con drag&drop
+   real (hoy los items se insertan con botones).
+10. **Lista de variables → inserción en Monaco** — 🔶 hoy copia al portapapeles; con
+    Monaco debe insertar en la posición del cursor.
+11. **Renombrar en el panel** (doble clic en el nombre), breadcrumb de contenedor
+    (Rectángulo/Celda) y panel de jerarquía del informe (árbol de elementos).
 
-7. **Arquitectura del canvas.**
-   Falta definir: capas de Konva, transform/zoom/pan, modelo de selección (multi-select, alineación), renderizado del grid/snap, toolbox de drag & drop. Es la parte más grande del front; el plan solo dice "lienzo".
+## 🟠 Proceso y operativa
 
-8. **Monaco y la lista de variables.**
-   Integración del editor de expresiones en el panel (Monaco embebido + custom language VB-like) y cómo el dominio `expression` alimenta el autocompletado. Implícito, no definido.
+12. **Empaquetado** — ⬜ electron-builder (MSI/NSIS), decisión de firma, recursos del
+    renderer (el XSD viaja en `apps/back/resources/`).
+13. **Seguridad Electron** — 🔶 `contextIsolation`, `nodeIntegration:false`, CSP y zod en
+    el borde ya están; falta revisar el checklist antes de abrir el repo.
+14. **XML corrupto / inválido** — ✅ resuelto: parse error → no se abre; XSD inválido →
+    aviso al importar y **bloqueo al guardar** con lista de problemas.
+15. **Flujo BC** — ⬜ documentar el ciclo exportar layout (página 9650) → editar →
+    reimportar; evolutivo: desplegar a BC.
+16. **Testing más allá del golden** — 🔶 104 tests (94 back + 10 front); faltan property
+    tests de comandos aleatorios, E2E Playwright del lienzo y CI.
 
-## 🔵 Rendimiento y memoria (requisito: ligera y fluida)
+## ⚪ Decisiones menores
 
-**Objetivo**: con 900+ textboxes la app debe ir a 60fps sin lags, y la RAM contenida. Electron parte de una base alta (~150-250 MB), así que esto se diseña desde el día 1, no se optimiza al final.
+- **i18n**: por ahora solo español con strings centralizadas.
+- **CRLF/BOM**: preservados y verificados en golden tests.
+- **Logging**: `electron-log` + consola del renderer al log del main (útil para soporte).
+- **Modo QA**: `RDLC_OPEN` (abrir fichero), `RDLC_SHOT`/`RDLC_SHOT_SCRIPT`/`RDLC_SHOT_DRAG`
+  (capturas y drag simulado con eventos reales), `RDLC_BENCH` (benchmark del lienzo).
+- **No-goals del MVP**: charts/gauges/maps, subreports, multi-dataset, preview real,
+  drillthrough/bookmarks, compilador VB.
 
-### Expectativas de RAM (validar en Fase 0)
+## 🔍 Hallazgos del corpus (importantes para no romper BC)
 
-| Escenario | Estimación |
-|---|---|
-| App con 1 informe mediano abierto | ~300-450 MB |
-| 4-5 ficheros grandes abiertos | ~700 MB - 1 GB |
-
-Desglose: base Electron ~150-250 MB; React+DOM ~40-80 MB; Konva activo ~50-150 MB; Monaco ~40-60 MB; main NestJS ~20-40 MB; **DOM lossless ~30-100 MB por fichero grande** (un .rdlc de 500KB ≈ 150-250k nodos; los nodos de texto/indentación dominan).
-
-### Optimizaciones de RAM (priorizadas por retorno)
-
-1. **Solo la pestaña activa monta el lienzo.** Las inactivas guardan solo el JSON de proyección (KBs) y destruyen su stage (`stage.destroy()`). La decisión más rentable: evita multiplicar canvas × pestañas.
-2. **Monaco en lazy-load**: dynamic import solo al abrir el panel de expresión; descargable al cerrarlo.
-3. **`Konva.pixelRatio` limitado a 1.5** (no 2-3) y número de capas mínimo (grid + items + selección/guías).
-4. **Text caching selectivo**: `cache()` solo en elementos visibles o durante drag; nunca en los ~1000 a la vez.
-5. **No cachear `sourceText` por nodo** si se vende `xml-trueformat` (conserva el formato en su modelo; la caché era solo el plan B con fast-xml-parser).
-6. **Wrappers tipados lazy en el dominio**: no crear el `Textbox` de los 972 al parsear; solo al indexar/seleccionar.
-
-### Optimizaciones de fluidez del lienzo (60fps con 900+ shapes)
-
-1. **`listening: false`** en todos los shapes que no necesitan eventos propios (delegar en el stage). Enlazar eventos en 900+ nodos es de los mayores ladrones de fps en Konva.
-2. **Viewport culling**: crear/renderizar solo los elementos que intersectan el viewport. Alternar `visible(false)` al hacer pan/zoom en vez de crear/destruir (evita churn de GC).
-3. **Batching de comandos en drags**: coalescer los `mousemove` — un comando por frame de animación (o debounce ~50ms), no un IPC por evento.
-4. **Actualizar solo el shape afectado**: en un drag, `layer.batchDraw()` de la capa de items sin redibujar grid/guías; `perfectDrawEnabled: false` durante el drag.
-5. **Grid cacheado**: dibujar el grid una vez en su capa con `cache()`, no por frame. Zoom con `stage.scale()` (barato) sin recalcular posiciones.
-6. **Sin filtros costosos** (shadows/blur) salvo petición explícita; `Konva.Text` con `wrap` solo cuando es necesario.
-7. **Listas virtualizadas** en paneles (lista de variables con miles de fields): virtualización tipo TanStack Virtual; nada de renderizar miles de nodos DOM.
-
-### Main process / IPC
-
-- No re-parsear ante cada evento de `fs.watch`: comparar `mtime`/hash primero.
-- Los comandos de drag ya llegan batching desde el front; el backend aplica en O(1) (índice Name→nodo) — sin recorridos de árbol por comando.
-
-### Tareas de medición (Fase 0)
-
-- Abrir los 9 ficheros a la vez y medir memoria (main + renderer) y tiempo de parseo por fichero (objetivo: < 1-2 s para los de 500KB).
-- Benchmark del lienzo: 972 textboxes renderizados, drag de un elemento a 60fps, pan/zoom fluido.
-- Definir presupuestos: parse < 2s, RAM idle < 300 MB, 60fps en drag con 1000 shapes.
-
-## 🟠 Gaps de proceso y operativa
-
-9. **Empaquetado y distribución Electron.**
-   `electron-builder`/`electron-forge`; dev mode (Vite + recarga), build, distribución al equipo (instalador MSI/NSIS, decisión sobre firma de código).
-
-10. **Seguridad Electron.**
-    `contextIsolation: true`, `nodeIntegration: false`, CSP, sanitizar lo que entra por IPC (zod ya ayuda). Importante para open source.
-
-11. **Comportamiento ante XML corrupto.**
-    Definir: toast de error + no abrir pestaña (recomendado). Nunca abrir en un modo que pueda sobrescribir el fichero.
-
-12. **Flujo de trabajo con BC.**
-    Documentar el ciclo completo: exportar layout de BC (página 9650) → editar → reimportar. Dejar como evolutivo natural un "desplegar a BC" (import automático).
-
-13. **Estrategia de testing más allá del golden.**
-    Tests de comandos (aplicar/invertir), invariantes del dominio, integración sobre IPC, E2E del canvas. Fixtures: los 9 ficheros como corpus versionado en el repo.
-
-## ⚪ Decisiones menores pendientes
-
-- **CRLF**: los ficheros usan `\r\n`; el round-trip debe preservar los saltos de línea (los golden tests lo cazarán, pero anotarlo).
-- **i18n de la UI**: ¿solo español al inicio o framework desde ya? Decidir temprano por el open source.
-- **Logging/diagnóstico**: `electron-log` con niveles; ayuda a reportar bugs de la herramienta interna.
-- **Alcance del buscador**: ¿busca por nombre de elemento, por contenido de expresión, o ambos?
-- **No-goals explícitos**: lista corta de lo que NO hará el MVP (charts, multi-dataset, preview real, drillthrough) para proteger el alcance.
-
-## Ranking de qué integrar primero en el plan
-
-**Resueltos**: 1 (bloque `<Code>`), 2 (regiones de página), 3 (catálogo de comandos), 4 (esquema de proyección) — todos con diseño cerrado e integrados en los documentos. Con esto el **contrato IPC queda completo** (comandos + proyección).
-
-Los que quedan por integrar en el plan: **6, 9, 12, 13, la sección de Rendimiento/memoria** (en particular "solo la pestaña activa renderiza" y el batching de comandos) **+ no-goals**. El resto son detalles de implementación que pueden vivir en issues del repo cuando exista.
+1. **`<Label>` en los TextRun**: el diseñador de BC/RB muestra esa etiqueta
+   (`[BTCClientName]`) en lugar de la expresión. Se parsea y se pinta entre corchetes.
+2. **Contenido de celdas de Tablix sin `Width/Height`**: el tamaño lo pone la celda
+   (con `ColSpan`/`RowSpan`). Distinguir “longitud ausente” de “0cm” es clave; si no,
+   las celdas se dibujan 0×0 (bug real que tuvimos).
+3. **Rectángulos 0×0 dentro de celdas**: son contenedores implícitos (manda la celda).
+   **No deben crecer** al sacar un hijo fuera; solo crecen los de tamaño explícito.
+4. **Eventos de Konva que burbujean**: `dragend`/`dragmove` llegan también al grupo
+   padre; hay que filtrar por `event.target === event.currentTarget`. Y la posición en
+   anidados se calcula con el **delta del puntero**, no con `setAbsolutePosition`.
+5. **Escapado de texto propio** (deja `"` y `'` crudas): el escaper de la librería
+   rompía el undo byte-exacto del bloque `<Code>` (comillas de VB).
+6. **Unidad y representación**: el clamp solo debe reescribir la longitud si realmente
+   recorta (si no, `20pt` se convertía en `0.705556cm`).
+7. **Imágenes de BC**: siempre `Source=Database` + `=First(Fields!CompanyPicture.Value, …)`
+   + `MIMEType=image/png` + `Sizing=FitProportional`. En diseño: placeholder.

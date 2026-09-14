@@ -62,30 +62,30 @@ El resultado (`[bench] {...}`) sale en consola/log y el estado actual está
 documentado en [`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-lienzo.md).
 
 
-## Estado (Fase 0 — spike round-trip)
+## Estado (Fase 0 cerrada · Fase 1 en curso — sesión 2026-09-14)
+
+**Fase 0 (spike round-trip) — cerrada:**
 
 - [x] Monorepo pnpm + turbo, TypeScript estricto.
-- [x] `packages/contracts` v0: comandos (familias 1-3), proyección completa,
-      canales IPC, códigos de error y `RdlcApi` (preload tipado).
-- [x] Corpus de 10 ficheros + golden tests de round-trip **byte a byte**.
-- [x] Decisión del parser: `xml-trueformat` (ver
-      [`docs/adr/0001-parser-xml-lossless.md`](./docs/adr/0001-parser-xml-lossless.md)).
-- [x] Parser/serializer tras puertos + SessionService (abrir/guardar/cerrar)
-      con `Either`/`DomainError` y tests de integración con adaptadores fake.
-- [x] Shell Electron + NestJS (`NestFactory.createApplicationContext`), IPC
-      validado con zod y preload tipado (`window.api`).
-- [x] File watching (chokidar) → re-parseo → `documentChanged` → recarga en el
-      front, filtrando el eco de la propia escritura.
-- [x] Proyección mínima F0 (página, bandas, items, Tablix, texto, meta) y
-      vista Konva de solo lectura.
-- [x] Benchmark de lienzo: línea base con 972 textboxes
-      ([`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-lienzo.md));
-      los 60 fps son criterio de salida de F1 (drag sin re-render de React,
-      culling, grid cacheado).
-- [x] F1 en curso: árbol de dominio lossless, comandos con inverso
-      (`setLocation`/`setSize`/`setText`), journal de undo/redo por sesión,
-      drag con snap en el lienzo y UI migrada a shadcn/ui.
-- [ ] F1 siguiente: paneles (propiedades, texto/expresión, variables), lista de
-      funciones `<Code>`, buscador (command palette) y diálogo de propiedades
-      del informe.
+- [x] `packages/contracts` v0: comandos, proyección completa, canales IPC, códigos de error.
+- [x] Corpus de 10 ficheros + golden tests de round-trip **byte a byte** (10/10).
+- [x] Decisión del parser: `xml-trueformat` ([ADR 0001](docs/adr/0001-parser-xml-lossless.md)).
+- [x] Shell Electron + NestJS ([ADR 0002](docs/adr/0002-nest-en-electron-main.md)) + preload tipado.
+- [x] File watching → re-parseo → snapshot nueva (recarga en vivo).
+- [x] Benchmark de lienzo con 972 textboxes
+      ([docs/perf/0001-baseline-lienzo.md](docs/perf/0001-baseline-lienzo.md)).
+
+**Fase 1 (editor de layout) — en curso:**
+
+- [x] Árbol de dominio lossless + comandos con inverso (undo byte-exacto) y journal.
+- [x] **Validación XSD oficial RDL 2016/01** (avisa al importar, bloquea al guardar).
+- [x] Lienzo: papel + márgenes + bandas, reglas mm/cm, selección, drag con imán,
+      flechas 1pt/10pt, zoom Ctrl+rueda, placeholder de imágenes.
+- [x] Insertar / duplicar / eliminar items; auto-crecimiento del contenedor.
+- [x] Paneles: propiedades, texto/expresión, imagen (origen/MIME/tamaño/padding),
+      variables (búsqueda + colapsables), Propiedades del informe (página + Código VB).
+- [x] Barra de formato con **fuentes del sistema** (registro de Windows vía IPC).
+- [ ] Buscador Ctrl+K · [ ] Monaco para expresiones · [ ] Tablix visual (F2) · [ ] Matrix (F3).
+
+Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).
 

@@ -53,6 +53,12 @@ Otros hallazgos:
 
 # Fases
 
+> **Estado a 2026-09-14**: Fase 0 **cerrada** (golden round-trip 10/10 + shell Electron +
+> watching + benchmark). Fase 1 **muy avanzada** (dominio, comandos, paneles, barra de
+> formato, variables, propiedades del informe, validación XSD, insertar/duplicar/eliminar,
+> auto-crecimiento de contenedores). Siguiente: buscador Ctrl+K y Monaco. Detalle en
+> `RDLC Report Designer - Pendientes.md`.
+
 1. **Fase 0 — Spike round-trip (go/no-go)**: parser + serializer con golden tests sobre los 9 ficheros, namespaces `rd:` incluidos, file watching con recarga en vivo.
 2. **Fase 1 — Editor de layout**: Textbox/Rectangle/Line/Image en Konva, drag & drop, snap + Shift, panel de propiedades, panel de texto/expresión (plano/expresión/mixto), lista de variables (incluye funciones de `<Code>`), undo/redo. **Regiones de página** (Encabezado/Cuerpo/Pie + Configurar página), **Propiedades del informe** (pestaña Código VB) y **panel inferior de Código**. Tablix completo en lectura/escritura.
 3. **Fase 2 — Tablix visual**: rejilla, redimensionar columnas/filas, editar celdas, añadir/quitar filas/columnas, grupos de filas + totales.

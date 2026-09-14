@@ -281,6 +281,26 @@ Los módulos NestJS son **solo el cableado de DI** (binding por tokens: `provide
 
 Dos dominios reales; el resto son servicios de aplicación.
 
+> **Estado de implementación (sesión 2026-09-14)** — de este diseño ya están en código:
+> el árbol de dominio propio sobre `xml-trueformat`, ambos dominios (`document` y
+> `expression` — este último con tokenizer/catálogo pendiente), los comandos con inverso
+> (con soporte de **varios inversos por comando** y **comandos internos del journal**
+> `removeNode`/`restoreNode` para insertar/duplicar/eliminar), los puertos
+> `RdlcParser`/`RdlcSerializer`/`RdlcProjection`/`FileSystem`/`FileWatcher`/`EventBus` y
+> dos puertos añadidos después del diseño inicial:
+>
+> - **`XmlSchemaValidatorPort`** → validación con el XSD oficial RDL 2016/01
+>   (`libxml2-wasm`): al importar avisa, al guardar bloquea la escritura.
+> - **`SystemFontsPort`** → fuentes instaladas (registro de Windows) para la barra de
+>   formato (canal IPC `listFonts`).
+>
+> Comandos implementados hoy: `setLocation`, `setSize`, `setText`, `setStyle`,
+> `setImageOptions`, `insertItem`, `duplicateItem`, `deleteItem`, `setPageSize`,
+> `setPageMargins`, `setReportCode`. Pendientes: `moveItem`, `setName`,
+> `setZIndex`, `setVisibility`, `setItemOptions` y toda la familia Tablix/Matrix
+> (F2/F3). El catálogo de `packages/contracts` ya los define todos.
+
+
 ## Dominio 1: `document` — el documento RDLC (el grande)
 
 El corazón: el aggregate root `Document` (árbol + índice) y toda la semántica RDL.
