@@ -54,6 +54,13 @@ export function CanvasPreview({
   onMoveItem,
   onZoomChange,
 }: CanvasPreviewProps): ReactNode {
+  // Dev: detector de bucles de render.
+  const renders = useRef(0);
+  renders.current += 1;
+  if (import.meta.env.DEV && renders.current % 100 === 0) {
+    console.log(`[debug] CanvasPreview renders: ${renders.current}`);
+  }
+
   const stageRef = useRef<Konva.Stage | null>(null);
   const [selectionRect, setSelectionRect] = useState<{
     x: number;
@@ -355,6 +362,10 @@ function NodeGroup({
   itemSize,
   children,
 }: NodeGroupProps): ReactNode {
+  const dragState = useRef<{ pointerX: number; pointerY: number; nodeX: number; nodeY: number } | null>(
+    null,
+  );
+
   /**
    * Nunca negativo. El tope máximo solo aplica cuando hay `bounds` (regiones
    * de primer nivel): los items anidados pueden desbordar su contenedor en
@@ -390,9 +401,43 @@ function NodeGroup({
         event.cancelBubble = true;
         onSelect?.(itemId);
       }}
-      onDragMove={(event) => clampToBounds(event.target)}
-      onDragEnd={(event) => {
+      onDragStart={(event) => {
+        if (event.target !== event.currentTarget) return;
+        event.cancelBubble = true;
+        // Arrastrar selecciona: Konva no re-emite `click` tras un drag y el
+        // elemento quedaría sin seleccionar al soltar.
+        onSelect?.(itemId);
         const node = event.target;
+        dragState.current = {
+          pointerX: event.evt.clientX,
+          pointerY: event.evt.clientY,
+          nodeX: node.x(),
+          nodeY: node.y(),
+        };
+      }}
+      onDragMove={(event) => {
+        // `dragmove` burbujea: solo atiende el grupo que arrastra de verdad.
+        if (event.target !== event.currentTarget) return;
+        const state = dragState.current;
+        if (!state) return;
+
+        // Posición calculada por nosotros: el delta del puntero (en unidades
+        // del stage) aplicado a la posición inicial del nodo. Es determinista
+        // con anidamiento, a diferencia del `setAbsolutePosition` de Konva.
+        const node = event.target;
+        const zoom = node.getStage()?.scaleX() ?? 1;
+        node.x(state.nodeX + (event.evt.clientX - state.pointerX) / zoom);
+        node.y(state.nodeY + (event.evt.clientY - state.pointerY) / zoom);
+        clampToBounds(node);
+        // Redibuja escena y grafo de hit: sin esto el `click` posterior usa la
+        // posición antigua y la selección se pierde al soltar.
+        node.getLayer()?.batchDraw();
+      }}
+      onDragEnd={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const node = event.target;
+        dragState.current = null;
+
         const { top, left } = computeDragEnd({
           x: node.x(),
           y: node.y(),

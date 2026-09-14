@@ -36,6 +36,13 @@ interface OpenDocument {
 }
 
 export function App(): ReactNode {
+  // Dev: detector de bucles de render (se elimina del bundle de producción).
+  const renders = useRef(0);
+  renders.current += 1;
+  if (import.meta.env.DEV && renders.current % 50 === 0) {
+    console.log(`[debug] App renders: ${renders.current}`);
+  }
+
   const [doc, setDoc] = useState<OpenDocument | null>(null);
   const [status, setStatus] = useState('Listo. Abre un .rdlc exportado de Business Central.');
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +114,14 @@ export function App(): ReactNode {
     async (command: RdlcCommand): Promise<CommandResult | undefined> => {
       if (!doc) return undefined;
       const result = await window.api.executeCommand(doc.sessionId, command);
+      if (import.meta.env.DEV) {
+        console.log(
+          `[debug] cmd ${command.cmd} → ok=${result.ok}` +
+            (result.ok
+              ? ` v=${result.version} applied=${JSON.stringify(result.applied ?? null)}`
+              : ` code=${result.code} ${result.message ?? ''}`),
+        );
+      }
       if (!result.ok) {
         setError(`${result.code}: ${result.message ?? 'comando rechazado'}`);
         return result;

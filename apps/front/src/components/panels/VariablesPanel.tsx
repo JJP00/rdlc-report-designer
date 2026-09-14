@@ -1,8 +1,12 @@
 import type { ReportMetaDto } from '@rdlc-designer/contracts';
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface VariablesPanelProps {
   meta: ReportMetaDto;
@@ -30,13 +34,16 @@ const GLOBALS = [
 const USER_FIELDS = ['UserID', 'Language'];
 
 /**
- * Lista de variables del informe con buscador: campos del dataset, parámetros,
- * funciones del bloque `<Code>`, Globals! y User!. Al pinchar se copia la
- * expresión (el autocompletado/inserción en Monaco llega con el dominio
- * `expression`).
+ * Lista de variables del informe con buscador y **grupos colapsables**:
+ * campos del dataset, parámetros, funciones del bloque `<Code>`, Globals! y
+ * User!. Al pinchar se copia la expresión (el autocompletado/inserción en
+ * Monaco llega con el dominio `expression`).
  */
 export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode {
   const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    'Campos (Fields!)': true,
+  });
 
   const entries = useMemo<VariableEntry[]>(() => {
     const fields = meta.fields.map((field) => ({
@@ -96,6 +103,21 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
     return [...map.entries()];
   }, [filtered]);
 
+  const searching = query.trim().length > 0;
+  const allCollapsed = groups.length > 0 && groups.every(([group]) => collapsed[group]);
+
+  const toggleGroup = (group: string): void => {
+    setCollapsed((current) => ({ ...current, [group]: !current[group] }));
+  };
+
+  const toggleAll = (): void => {
+    if (allCollapsed) {
+      setCollapsed({});
+      return;
+    }
+    setCollapsed(Object.fromEntries(groups.map(([group]) => [group, true])));
+  };
+
   const pick = (entry: VariableEntry): void => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       void navigator.clipboard.writeText(entry.expression);
@@ -108,7 +130,17 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
       <div className="flex flex-col gap-2 border-b p-3">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">Variables</span>
-          <Badge variant="secondary">{filtered.length}</Badge>
+          <div className="flex items-center gap-1">
+            <Badge variant="secondary">{filtered.length}</Badge>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              title={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
+              onClick={toggleAll}
+            >
+              {allCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+            </Button>
+          </div>
         </div>
         <Input
           className="h-7 text-xs"
@@ -119,30 +151,53 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-3 p-3">
-          {groups.map(([group, list]) => (
-            <div key={group} className="flex flex-col gap-1">
-              <div className="text-[11px] font-medium text-muted-foreground">
-                {group} ({list.length})
-              </div>
-              {list.map((entry) => (
-                <button
-                  key={`${group}.${entry.name}`}
-                  type="button"
-                  onClick={() => pick(entry)}
-                  title={entry.expression}
-                  className="flex items-center justify-between gap-2 rounded px-1.5 py-1 text-left font-mono text-xs hover:bg-muted"
-                >
-                  <span className="truncate">{entry.name}</span>
-                  {entry.detail ? (
-                    <span className="shrink-0 truncate text-[10px] text-muted-foreground">
-                      {entry.detail}
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          ))}
+        <div className="flex flex-col gap-1 p-3">
+          {groups.map(([group, list]) => {
+            // Al buscar, los grupos con resultados se muestran siempre abiertos.
+            const isOpen = searching || !collapsed[group];
+            return (
+              <Collapsible
+                key={group}
+                open={isOpen}
+                onOpenChange={() => toggleGroup(group)}
+                className="flex flex-col"
+              >
+                <CollapsibleTrigger className="flex w-full items-center gap-1 rounded px-1 py-1 text-left hover:bg-muted">
+                  {isOpen ? (
+                    <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="flex-1 text-[11px] font-medium text-muted-foreground">
+                    {group}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">{list.length}</span>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="flex flex-col gap-0.5 pb-1 pl-4">
+                    {list.map((entry) => (
+                      <button
+                        key={`${group}.${entry.name}`}
+                        type="button"
+                        onClick={() => pick(entry)}
+                        title={entry.expression}
+                        className={cn(
+                          'flex items-center justify-between gap-2 rounded px-1.5 py-1 text-left font-mono text-xs hover:bg-muted',
+                        )}
+                      >
+                        <span className="truncate">{entry.name}</span>
+                        {entry.detail ? (
+                          <span className="shrink-0 truncate text-[10px] text-muted-foreground">
+                            {entry.detail}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
           {groups.length === 0 ? (
             <p className="text-xs text-muted-foreground">Sin resultados.</p>
           ) : null}
