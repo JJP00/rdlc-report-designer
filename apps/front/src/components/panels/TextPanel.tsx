@@ -20,7 +20,6 @@ interface TextPanelProps {
 export function TextPanel({ item, onSetText, onSetStyle }: TextPanelProps): ReactNode {
   return (
     <div className="flex flex-col border-t">
-      <FormatToolbar style={item.style} onSetStyle={onSetStyle} />
       <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold">Texto y expresión</span>

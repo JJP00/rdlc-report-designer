@@ -19,6 +19,8 @@ import { Separator } from '@/components/ui/separator';
 interface FormatToolbarProps {
   style: StyleDto | undefined;
   onSetStyle: (patch: StylePatch) => void;
+  /** Sin textbox seleccionado la barra se muestra deshabilitada. */
+  disabled?: boolean;
 }
 
 const FONT_FAMILIES = ['Arial', 'Segoe UI', 'Times New Roman', 'Courier New', 'Tahoma'];
@@ -28,7 +30,7 @@ const FONT_FAMILIES = ['Arial', 'Segoe UI', 'Times New Roman', 'Courier New', 'T
  * negrita/cursiva/subrayado, color, resaltado y alineación/viñetas.
  * Aplica al `<Style>` del item seleccionado vía comando `setStyle`.
  */
-export function FormatToolbar({ style, onSetStyle }: FormatToolbarProps): ReactNode {
+export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProps): ReactNode {
   const fontSizePt = style?.fontSize
     ? style.fontSize.unit === 'pt'
       ? style.fontSize.value
@@ -52,7 +54,11 @@ export function FormatToolbar({ style, onSetStyle }: FormatToolbarProps): ReactN
   );
 
   return (
-    <div className="flex flex-col gap-2 border-b p-3">
+    <div
+      className={`flex flex-col gap-2 border-b bg-background px-3 py-1.5 ${
+        disabled ? 'pointer-events-none opacity-40' : ''
+      }`}
+    >
       <div className="flex items-center gap-1.5">
         <select
           className="h-7 max-w-[130px] rounded-md border bg-background px-1 text-xs"

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
+import { FormatToolbar } from '@/components/panels/FormatToolbar';
 import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
 import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
 import { TextPanel } from '@/components/panels/TextPanel';
@@ -745,6 +746,13 @@ export function App(): ReactNode {
           </div>
         </header>
 
+        {/* Barra de formato de texto (ribbon), bajo la toolbar principal. */}
+        <FormatToolbar
+          style={selectedItem?.kind === 'textbox' ? selectedItem.style : undefined}
+          onSetStyle={setItemStyle}
+          disabled={selectedItem?.kind !== 'textbox'}
+        />
+
         {error ? (
           <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive">
             {error}
@@ -770,20 +778,6 @@ export function App(): ReactNode {
           <div className="flex min-h-0 flex-1 flex-col">
             {doc ? (
               <>
-                <div className="flex items-center gap-4 border-b bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    {doc.path}
-                    {dirty ? <span className="text-amber-600"> *</span> : null}
-                  </span>
-                  {stats ? (
-                    <span>
-                      {stats.total} elementos · {formatKinds(stats.byKind)}
-                    </span>
-                  ) : null}
-                  {reloads > 0 ? (
-                    <span className="text-amber-600">{reloads} recarga(s) externa(s)</span>
-                  ) : null}
-                </div>
                 <CanvasPreview
                   projection={doc.projection}
                   zoom={zoom}
@@ -825,8 +819,24 @@ export function App(): ReactNode {
           </aside>
         </main>
 
-        <footer className="border-t bg-background px-3 py-1 text-xs text-muted-foreground">
-          {status}
+        <footer className="flex items-center gap-3 border-t bg-background px-3 py-1 text-xs text-muted-foreground">
+          <span className="truncate">{status}</span>
+          {doc ? (
+            <span className="ml-auto flex shrink-0 items-center gap-3">
+              <span className="max-w-[340px] truncate font-medium text-foreground" title={doc.path}>
+                {doc.path}
+                {dirty ? <span className="text-amber-600"> *</span> : null}
+              </span>
+              {stats ? (
+                <span>
+                  {stats.total} elementos · {formatKinds(stats.byKind)}
+                </span>
+              ) : null}
+              {reloads > 0 ? (
+                <span className="text-amber-600">{reloads} recarga(s) externa(s)</span>
+              ) : null}
+            </span>
+          ) : null}
         </footer>
       </div>
 
