@@ -271,35 +271,45 @@ function Ruler({
   zoom: number;
   lengthPx: number;
 }): ReactNode {
-  const step = PX_PER_CM * zoom;
-  const count = Math.ceil(lengthPx / step);
+  const cmPx = PX_PER_CM * zoom;
+  const maxCm = lengthPx / cmPx;
+
+  // Granularidad adaptada al zoom para que no se solapen las marcas.
+  const tickStep = zoom >= 1.2 ? 0.1 : zoom >= 0.6 ? 0.5 : zoom >= 0.3 ? 1 : 2;
+  const labelStep = zoom >= 0.5 ? 1 : zoom >= 0.3 ? 2 : 5;
+
   const ticks: ReactNode[] = [];
+  const count = Math.floor(maxCm / tickStep + 1e-9);
 
-  for (let cm = 0; cm <= count; cm += 1) {
-    const major = cm % 5 === 0;
-    const offset = cm * step;
-    const style = major
-      ? orientation === 'horizontal'
-        ? { left: offset, top: RULER_PX / 2, height: RULER_PX / 2 }
-        : { top: offset, left: RULER_PX / 2, width: RULER_PX / 2 }
-      : orientation === 'horizontal'
-        ? { left: offset, top: (RULER_PX * 3) / 4, height: RULER_PX / 4 }
-        : { top: offset, left: (RULER_PX * 3) / 4, width: RULER_PX / 4 };
+  for (let index = 0; index <= count; index += 1) {
+    const cm = index * tickStep;
+    const offset = cm * cmPx;
+    const isLabel = isMultiple(cm, labelStep);
+    const isInteger = Math.abs(cm - Math.round(cm)) < 1e-9;
 
-    ticks.push(<div key={`t${cm}`} className="absolute bg-border" style={style} />);
+    // Longitud de la marca: etiqueta > entero > fracción.
+    const ratio = isLabel ? 1 : isInteger ? 0.7 : 0.45;
+    const style = {
+      ...(orientation === 'horizontal'
+        ? { left: offset, top: RULER_PX * (1 - ratio), height: RULER_PX * ratio }
+        : { top: offset, left: RULER_PX * (1 - ratio), width: RULER_PX * ratio }),
+      backgroundColor: isLabel ? 'var(--muted-foreground)' : 'var(--border)',
+    } as const;
 
-    if (major && cm > 0) {
+    ticks.push(<div key={`t${index}`} className="absolute" style={style} />);
+
+    if (isLabel && index > 0) {
       ticks.push(
         <span
-          key={`l${cm}`}
+          key={`l${index}`}
           className="absolute select-none text-[9px] leading-none text-muted-foreground"
           style={
             orientation === 'horizontal'
-              ? { left: offset + 2, top: 2 }
-              : { top: offset + 2, left: 2 }
+              ? { left: offset + 2, top: 1 }
+              : { top: offset + 2, left: 1 }
           }
         >
-          {cm}
+          {formatCm(cm, labelStep)}
         </span>,
       );
     }
@@ -307,11 +317,7 @@ function Ruler({
 
   return (
     <div
-      className={
-        orientation === 'horizontal'
-          ? 'absolute border-b border-r bg-muted'
-          : 'absolute border-b border-r bg-muted'
-      }
+      className="absolute border-b border-r bg-muted"
       style={
         orientation === 'horizontal'
           ? { left: RULER_PX, top: 0, width: lengthPx, height: RULER_PX }
@@ -321,6 +327,15 @@ function Ruler({
       {ticks}
     </div>
   );
+}
+
+function isMultiple(value: number, step: number): boolean {
+  return Math.abs(value / step - Math.round(value / step)) < 1e-6;
+}
+
+function formatCm(value: number, step: number): string {
+  if (step < 1) return value.toFixed(1);
+  return String(Math.round(value));
 }
 
 /* ------------------------------- items ---------------------------------- */
