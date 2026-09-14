@@ -11,6 +11,7 @@ import {
   Underline,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -22,14 +23,38 @@ interface FormatToolbarProps {
   disabled?: boolean;
 }
 
-const FONT_FAMILIES = ['Arial', 'Segoe UI', 'Times New Roman', 'Courier New', 'Tahoma'];
+const FONT_FAMILIES_FALLBACK = ['Arial', 'Segoe UI', 'Times New Roman', 'Courier New', 'Tahoma'];
 
 /**
  * Barra de formato de texto (como la de Report Builder): fuente, tamaño,
  * negrita/cursiva/subrayado, color, resaltado y alineación/viñetas.
  * Aplica al `<Style>` del item seleccionado vía comando `setStyle`.
+ * Las fuentes se leen del **sistema** (registro de Windows vía IPC).
  */
 export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProps): ReactNode {
+  const [fonts, setFonts] = useState<string[]>(FONT_FAMILIES_FALLBACK);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (typeof window.api?.listFonts !== 'function') return;
+        const result = await window.api.listFonts();
+        if (!cancelled && result.ok && result.fonts.length > 0) setFonts(result.fonts);
+      } catch {
+        // Sin acceso al sistema: se queda la lista de respaldo.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // La fuente del estilo actual siempre debe poder seleccionarse.
+  const options = style?.fontFamily && !fonts.includes(style.fontFamily)
+    ? [style.fontFamily, ...fonts]
+    : fonts;
+
   const fontSizePt = style?.fontSize
     ? style.fontSize.unit === 'pt'
       ? style.fontSize.value
@@ -64,7 +89,7 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
           value={style?.fontFamily ?? 'Arial'}
           onChange={(event) => onSetStyle({ fontFamily: event.target.value })}
         >
-          {FONT_FAMILIES.map((family) => (
+          {options.map((family) => (
             <option key={family} value={family}>
               {family}
             </option>

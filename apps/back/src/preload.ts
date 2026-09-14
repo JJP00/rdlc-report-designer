@@ -6,6 +6,7 @@ import {
   type CommandResult,
   type DirtyChangedEvent,
   type DocumentChangedEvent,
+  type FontListResult,
   type OpenFileResult,
   type PendingOpenResult,
   type PickFileResult,
@@ -31,6 +32,8 @@ const api: RdlcApi = {
 
   consumePendingOpen: (): Promise<PendingOpenResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.pendingOpen),
+
+  listFonts: (): Promise<FontListResult> => ipcRenderer.invoke(IPC_CHANNELS.listFonts),
 
   openFile: (path: string): Promise<OpenFileResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.openFile, { path }),

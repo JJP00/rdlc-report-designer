@@ -6,8 +6,10 @@ import { FILE_WATCHER_PORT } from '../application/ports/out/FileWatcherPort.js';
 import { RDLC_PROJECTION_PORT } from '../application/ports/out/RdlcProjectionPort.js';
 import { RDLC_PARSER_PORT } from '../application/ports/out/RdlcParserPort.js';
 import { RDLC_SERIALIZER_PORT } from '../application/ports/out/RdlcSerializerPort.js';
+import { SYSTEM_FONTS_PORT } from '../application/ports/out/SystemFontsPort.js';
 import { XML_SCHEMA_VALIDATOR_PORT } from '../application/ports/out/XmlSchemaValidatorPort.js';
 import { ElectronEventBusAdapter } from '../infrastructure/events/ElectronEventBusAdapter.js';
+import { WindowsSystemFontsAdapter } from '../infrastructure/fonts/WindowsSystemFontsAdapter.js';
 import { ChokidarWatcherAdapter } from '../infrastructure/fs/ChokidarWatcherAdapter.js';
 import { NodeFileSystemAdapter } from '../infrastructure/fs/NodeFileSystemAdapter.js';
 import { TrueFormatProjectionAdapter } from '../infrastructure/rdlc/TrueFormatProjectionAdapter.js';
@@ -38,6 +40,7 @@ const RDL_SCHEMA_PATH = join(
       provide: XML_SCHEMA_VALIDATOR_PORT,
       useFactory: () => new LibXml2SchemaValidatorAdapter(RDL_SCHEMA_PATH),
     },
+    { provide: SYSTEM_FONTS_PORT, useClass: WindowsSystemFontsAdapter },
     ElectronEventBusAdapter,
     { provide: EVENT_BUS_PORT, useExisting: ElectronEventBusAdapter },
   ],
@@ -48,6 +51,7 @@ const RDL_SCHEMA_PATH = join(
     RDLC_SERIALIZER_PORT,
     RDLC_PROJECTION_PORT,
     XML_SCHEMA_VALIDATOR_PORT,
+    SYSTEM_FONTS_PORT,
     EVENT_BUS_PORT,
     ElectronEventBusAdapter,
   ],

@@ -8,6 +8,8 @@ export const IPC_CHANNELS = {
   pickFile: 'rdlc:pickFile',
   /** Fichero con el que se arrancó la app (CLI/argumento), si lo hay. */
   pendingOpen: 'rdlc:pendingOpen',
+  /** Fuentes instaladas en el sistema (para la barra de formato). */
+  listFonts: 'rdlc:listFonts',
   openFile: 'rdlc:openFile',
   createNew: 'rdlc:createNew',
   save: 'rdlc:save',
@@ -108,6 +110,13 @@ export const pendingOpenResultSchema = z.object({
   path: z.string().nullable(),
 });
 export type PendingOpenResult = z.infer<typeof pendingOpenResultSchema>;
+
+/** Fuentes instaladas en el sistema. */
+export const fontListResultSchema = z.object({
+  ok: z.literal(true),
+  fonts: z.array(z.string()),
+});
+export type FontListResult = z.infer<typeof fontListResultSchema>;
 
 export const openFileResultSchema = z.discriminatedUnion('ok', [
   z.object({

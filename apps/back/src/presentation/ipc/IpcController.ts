@@ -5,6 +5,7 @@ import {
   sessionRequestSchema,
   type CloseResult,
   type CommandResult,
+  type FontListResult,
   type IpcErrorDto,
   type OpenFileResult,
   type PendingOpenResult,
@@ -21,6 +22,8 @@ import type {
   SaveSessionResult,
 } from '../../application/services/ISessionService.js';
 import { SESSION_SERVICE } from '../../application/services/ISessionService.js';
+import type { SystemFontsPort } from '../../application/ports/out/SystemFontsPort.js';
+import { SYSTEM_FONTS_PORT } from '../../application/ports/out/SystemFontsPort.js';
 import type { Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
@@ -37,6 +40,7 @@ export class IpcController {
   constructor(
     @Inject(SESSION_SERVICE) private readonly sessions: ISessionService,
     @Inject(COMMAND_SERVICE) private readonly commands: ICommandService,
+    @Inject(SYSTEM_FONTS_PORT) private readonly fonts: SystemFontsPort,
   ) {}
 
   /** Fichero inicial (argumento de CLI) que el front consume al montar. */
@@ -52,6 +56,11 @@ export class IpcController {
     ipcMain.handle(
       IPC_CHANNELS.pendingOpen,
       (): PendingOpenResult => ({ ok: true, path: this.pendingOpen }),
+    );
+
+    ipcMain.handle(
+      IPC_CHANNELS.listFonts,
+      async (): Promise<FontListResult> => ({ ok: true, fonts: await this.fonts.list() }),
     );
 
     ipcMain.handle(IPC_CHANNELS.openFile, (_event, payload) =>

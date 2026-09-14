@@ -4,6 +4,7 @@ import type {
   CommandResult,
   DirtyChangedEvent,
   DocumentChangedEvent,
+  FontListResult,
   OpenFileResult,
   PendingOpenResult,
   PickFileResult,
@@ -19,6 +20,8 @@ export interface RdlcApi {
   pickFile(): Promise<PickFileResult>;
   /** Fichero con el que se arrancó la app (arg. de línea de comandos), si lo hay. */
   consumePendingOpen(): Promise<PendingOpenResult>;
+  /** Fuentes instaladas en el sistema (barra de formato / expresiones). */
+  listFonts(): Promise<FontListResult>;
   openFile(path: string): Promise<OpenFileResult>;
   save(sessionId: string): Promise<SaveResult>;
   close(sessionId: string): Promise<CloseResult>;
