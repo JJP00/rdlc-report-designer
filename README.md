@@ -34,6 +34,12 @@ pnpm --filter @rdlc-designer/back dev     # Electron en modo dev (HMR renderer)
 pnpm --filter @rdlc-designer/back build   # build de producción (main + preload + renderer)
 ```
 
+### Troubleshooting
+
+- **`Error: Electron uninstall` al arrancar en dev**: pnpm no ejecutó el
+  postinstall de Electron (algunas configuraciones lo bloquean). Descarga el
+  binario a mano: `node apps/back/node_modules/electron/install.js`.
+
 ## Estado (Fase 0 — spike round-trip)
 
 - [x] Monorepo pnpm + turbo, TypeScript estricto.

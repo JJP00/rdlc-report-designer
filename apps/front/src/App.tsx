@@ -15,7 +15,11 @@ export function App(): ReactNode {
   const [reloads, setReloads] = useState(0);
   const [zoom, setZoom] = useState(0.6);
 
+  // Sin preload (p. ej. abriendo el renderer en un navegador) no hay backend IPC.
+  const hasBackend = typeof window !== 'undefined' && window.api !== undefined;
+
   useEffect(() => {
+    if (!hasBackend) return;
     return window.api.onDocumentChanged((event) => {
       setDoc((current) =>
         current && current.sessionId === event.sessionId
@@ -93,6 +97,12 @@ export function App(): ReactNode {
       </header>
 
       {error ? <div className="error">{error}</div> : null}
+      {!hasBackend ? (
+        <div className="error">
+          Modo navegador: sin backend IPC. Arranca la aplicación con{' '}
+          <code>pnpm --filter @rdlc-designer/back dev</code>.
+        </div>
+      ) : null}
 
       <main className="content">
         {doc ? (
