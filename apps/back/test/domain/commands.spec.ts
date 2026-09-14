@@ -28,6 +28,23 @@ function firstTextboxWithGeometry(index: DocumentIndex): RdlcNode {
   throw new Error('El corpus no tiene textboxes con geometría');
 }
 
+/** Item de primer nivel (no anidado): su espacio es la región. */
+function firstTopLevelTextbox(index: DocumentIndex): RdlcNode {
+  for (const name of index.names()) {
+    const node = index.get(name);
+    if (
+      node &&
+      node.tagName === 'Textbox' &&
+      node.child('Top') &&
+      node.child('Left') &&
+      !index.isNested(name)
+    ) {
+      return node;
+    }
+  }
+  throw new Error('El corpus no tiene textboxes de primer nivel');
+}
+
 /** `"17.84194cm"` → `"17.84195cm"` (misma longitud, un carácter distinto). */
 function bumpLastDigit(raw: string): string {
   const match = /^(.*?)(\d)(cm|mm|in|pt)$/.exec(raw);
@@ -179,9 +196,10 @@ describe('F1 · setSize', () => {
 describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)', () => {
   it('clampa la posición dentro del body y la inversa restaura los bytes', () => {
     const { xml, doc, index } = open('BTCLoadingOrder.rdlc');
-    const target = firstTextboxWithGeometry(index);
+    const target = firstTopLevelTextbox(index);
     const id = target.attribute('Name')!;
     const bounds = index.boundsOf(id);
+    expect(bounds).toBeDefined();
 
     const applied = applyCommand(
       { root: doc.root, index },
@@ -195,11 +213,13 @@ describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)
     const width = parseExpected(target.child('Width')!.text()!);
     const height = parseExpected(target.child('Height')!.text()!);
 
-    expect(top.value + height.value).toBeLessThanOrEqual(bounds.height.value + 1e-6);
-    expect(left.value + width.value).toBeLessThanOrEqual(bounds.width.value + 1e-6);
+    expect(top.value + height.value).toBeLessThanOrEqual(bounds!.height.value + 1e-6);
+    expect(left.value + width.value).toBeLessThanOrEqual(bounds!.width.value + 1e-6);
 
     // Los valores normalizados viajan para que el front reconcilie.
-    expect(applied.value.applied).toMatchObject({ top, left });
+    const normalized = applied.value.applied as { top: { value: number }; left: { value: number } };
+    expect(normalized.top.value).toBeCloseTo(top.value, 5);
+    expect(normalized.left.value).toBeCloseTo(left.value, 5);
 
     const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
     expect(undone.isRight()).toBe(true);
@@ -226,10 +246,16 @@ describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)
     const { doc, index } = open('BTCLoadingOrder.rdlc');
     const headerName = index
       .names()
-      .find((name) => index.regionOf(name) === 'pageHeader' && index.get(name)!.child('Top'));
+      .find(
+        (name) =>
+          index.regionOf(name) === 'pageHeader' &&
+          !index.isNested(name) &&
+          index.get(name)!.child('Top'),
+      );
     expect(headerName).toBeDefined();
     const id = headerName!;
     const bounds = index.boundsOf(id);
+    expect(bounds).toBeDefined();
 
     const applied = applyCommand(
       { root: doc.root, index },
@@ -240,14 +266,15 @@ describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)
 
     const top = parseExpected(index.get(id)!.child('Top')!.text()!);
     const height = parseExpected(index.get(id)!.child('Height')!.text()!);
-    expect(top.value + height.value).toBeLessThanOrEqual(bounds.height.value + 1e-6);
+    expect(top.value + height.value).toBeLessThanOrEqual(bounds!.height.value + 1e-6);
   });
 
   it('setSize no deja que el item se salga de su región', () => {
-    const { doc, index } = open('PalletOutput.rdlc');
-    const target = firstTextboxWithGeometry(index);
+    const { doc, index } = open('BTCLoadingOrder.rdlc');
+    const target = firstTopLevelTextbox(index);
     const id = target.attribute('Name')!;
     const bounds = index.boundsOf(id);
+    expect(bounds).toBeDefined();
 
     const applied = applyCommand(
       { root: doc.root, index },
@@ -260,8 +287,39 @@ describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)
     const height = parseExpected(target.child('Height')!.text()!);
     const left = parseExpected(target.child('Left')!.text()!);
     const top = parseExpected(target.child('Top')!.text()!);
-    expect(left.value + width.value).toBeLessThanOrEqual(bounds.width.value + 1e-6);
-    expect(top.value + height.value).toBeLessThanOrEqual(bounds.height.value + 1e-6);
+    expect(left.value + width.value).toBeLessThanOrEqual(bounds!.width.value + 1e-6);
+    expect(top.value + height.value).toBeLessThanOrEqual(bounds!.height.value + 1e-6);
+  });
+
+  it('los items anidados se mueven en coordenadas de su contenedor (solo clamp a ≥ 0)', () => {
+    const { doc, index } = open('PalletOutput.rdlc');
+
+    // Textbox25 vive dentro de Rectangle1 dentro de una celda del tablix.
+    const nestedName = index
+      .names()
+      .find((name) => index.isNested(name) && index.get(name)!.tagName === 'Textbox');
+    expect(nestedName).toBeDefined();
+    const id = nestedName!;
+    expect(index.isNested(id)).toBe(true);
+    expect(index.boundsOf(id)).toBeUndefined();
+
+    // Una posición local grande es válida (el contenedor manda; el lienzo clamp­ea).
+    const moved = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setLocation', id, top: { value: 2.5, unit: 'cm' }, left: { value: 1.5, unit: 'cm' } },
+    );
+    expect(moved.isRight()).toBe(true);
+    if (!moved.isRight()) return;
+    expect(index.get(id)!.child('Top')!.text()).toBe('2.5cm');
+
+    // Negativo sí se normaliza a 0.
+    const negative = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setLocation', id, top: { value: -2, unit: 'cm' }, left: { value: -1, unit: 'cm' } },
+    );
+    expect(negative.isRight()).toBe(true);
+    expect(index.get(id)!.child('Top')!.text()).toBe('0cm');
+    expect(index.get(id)!.child('Left')!.text()).toBe('0cm');
   });
 });
 

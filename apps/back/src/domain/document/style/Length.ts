@@ -39,7 +39,8 @@ export function toCm(length: Length): number {
 }
 
 export function fromCm(value: number, unit: LengthUnit = 'cm'): Length {
-  return { value: value / CM_PER_UNIT[unit], unit };
+  // Mismo redondeo que `formatLength`: lo que se aplica y lo que se escribe coinciden.
+  return { value: Number((value / CM_PER_UNIT[unit]).toFixed(6)), unit };
 }
 
 export function lengthsEqual(a: Length, b: Length): boolean {

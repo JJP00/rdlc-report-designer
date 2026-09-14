@@ -15,6 +15,8 @@ import { styleSchema } from './style.js';
 export const textRunSchema = z.object({
   /** Literal o expresión (`=Fields!X.Value`). */
   value: z.string(),
+  /** Etiqueta de diseñador (BC/RB la muestra en lugar de la expresión). */
+  label: z.string().optional(),
   style: styleSchema.optional(),
 });
 export type TextRunDto = z.infer<typeof textRunSchema>;
@@ -192,6 +194,8 @@ export const itemSchema: z.ZodType<ItemDto> = z.lazy(() =>
 /* ------------------------- Página y regiones ---------------------------- */
 
 export interface RegionDto {
+  /** Ancho del área de contenido de la banda (el cuerpo define el del report). */
+  width: Length;
   height: Length;
   items: ItemDto[];
   printOnFirstPage?: boolean;
@@ -199,6 +203,7 @@ export interface RegionDto {
 }
 
 export const regionSchema: z.ZodType<RegionDto> = z.object({
+  width: lengthSchema,
   height: lengthSchema,
   items: z.array(itemSchema),
   printOnFirstPage: z.boolean().optional(),

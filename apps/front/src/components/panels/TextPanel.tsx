@@ -37,7 +37,8 @@ export function TextPanel({ item, onSetText }: TextPanelProps): ReactNode {
           {paragraph.runs.map((run, r) => (
             <RunField
               key={`${p}.${r}`}
-              label={`${p}.${r}`}
+              index={`${p}.${r}`}
+              label={run.label}
               value={run.value}
               onCommit={(value) => onSetText(p, r, value)}
             />
@@ -56,11 +57,14 @@ export function TextPanel({ item, onSetText }: TextPanelProps): ReactNode {
 }
 
 function RunField({
+  index,
   label,
   value,
   onCommit,
 }: {
-  label: string;
+  index: string;
+  /** Etiqueta de diseñador del run (`<Label>`); se muestra, no se edita. */
+  label?: string;
   value: string;
   onCommit: (value: string) => void;
 }): ReactNode {
@@ -80,8 +84,13 @@ function RunField({
     <div className="grid gap-1">
       <div className="flex items-center gap-2">
         <Badge variant="secondary" className="font-mono text-[10px]">
-          {label}
+          {index}
         </Badge>
+        {label !== undefined ? (
+          <Badge variant="outline" className="text-[10px]">
+            [{label}]
+          </Badge>
+        ) : null}
         {isExpression ? (
           <Badge className="text-[10px]">expresión</Badge>
         ) : (

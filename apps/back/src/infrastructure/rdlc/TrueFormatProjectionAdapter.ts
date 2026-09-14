@@ -73,18 +73,23 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     const headerEl = pageEl?.getFirstElementByName('PageHeader');
     const footerEl = pageEl?.getFirstElementByName('PageFooter');
 
+    const pageWidth = this.length(textOf(pageEl?.getFirstElementByName('PageWidth')), DEFAULT_WIDTH);
+    const pageHeight = this.length(textOf(pageEl?.getFirstElementByName('PageHeight')), DEFAULT_HEIGHT);
+    // El cuerpo (sección) define el ancho real del report; el A4 es el papel.
+    const sectionWidth = this.length(textOf(section?.getFirstElementByName('Width')), pageWidth);
+
     const page = {
-      width: this.length(textOf(pageEl?.getFirstElementByName('PageWidth')), DEFAULT_WIDTH),
-      height: this.length(textOf(pageEl?.getFirstElementByName('PageHeight')), DEFAULT_HEIGHT),
+      width: pageWidth,
+      height: pageHeight,
       margins: {
         top: this.length(textOf(pageEl?.getFirstElementByName('TopMargin')), DEFAULT_MARGIN_V),
         bottom: this.length(textOf(pageEl?.getFirstElementByName('BottomMargin')), DEFAULT_MARGIN_V),
         left: this.length(textOf(pageEl?.getFirstElementByName('LeftMargin')), DEFAULT_MARGIN_H),
         right: this.length(textOf(pageEl?.getFirstElementByName('RightMargin')), DEFAULT_MARGIN_H),
       },
-      header: this.region(headerEl),
-      body: this.region(bodyEl),
-      footer: this.region(footerEl),
+      header: this.region(headerEl, sectionWidth),
+      body: this.region(bodyEl, sectionWidth),
+      footer: this.region(footerEl, sectionWidth),
     };
 
     return {
@@ -98,8 +103,9 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
 
   /* ------------------------------ región ------------------------------- */
 
-  private region(el: XmlElement | undefined): RegionDto {
+  private region(el: XmlElement | undefined, width: Length): RegionDto {
     return {
+      width,
       height: this.length(textOf(el?.getFirstElementByName('Height'))),
       items: this.items(el?.getFirstElementByName('ReportItems')),
     };
@@ -181,10 +187,14 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
         style: this.style(p.getFirstElementByName('Style')),
         runs: (p.getFirstElementByName('TextRuns')?.children ?? [])
           .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TextRun')
-          .map((run) => ({
-            value: textOf(run.getFirstElementByName('Value')) ?? '',
-            style: this.style(run.getFirstElementByName('Style')),
-          })),
+          .map((run) => {
+            const label = textOf(run.getFirstElementByName('Label'));
+            return {
+              value: textOf(run.getFirstElementByName('Value')) ?? '',
+              ...(label !== undefined ? { label } : {}),
+              style: this.style(run.getFirstElementByName('Style')),
+            };
+          }),
       }));
   }
 
@@ -345,6 +355,18 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       style.verticalAlign = verticalAlign;
     }
     if (format) style.format = format;
+
+    const padding = {
+      top: maybeLength(textOf(el.getFirstElementByName('PaddingTop'))),
+      left: maybeLength(textOf(el.getFirstElementByName('PaddingLeft'))),
+      bottom: maybeLength(textOf(el.getFirstElementByName('PaddingBottom'))),
+      right: maybeLength(textOf(el.getFirstElementByName('PaddingRight'))),
+    };
+    if (Object.values(padding).some((value) => value !== undefined)) {
+      style.padding = Object.fromEntries(
+        Object.entries(padding).filter(([, value]) => value !== undefined),
+      );
+    }
 
     return Object.keys(style).length > 0 ? style : undefined;
   }

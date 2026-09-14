@@ -87,16 +87,17 @@ function clampLength(length: Length, minCm: number, maxCm: number): Length {
 /**
  * Normaliza una posición para que el item no salga de su región
  * (`0 ≤ x`, `0 ≤ y`, `x+width ≤ región`, `y+height ≤ región`).
+ * `bounds` es `undefined` para items anidados (su espacio es el contenedor).
  */
 export function clampPosition(
   top: Length,
   left: Length,
   width: Length,
   height: Length,
-  bounds: { width: Length; height: Length },
+  bounds: { width: Length; height: Length } | undefined,
 ): { top: Length; left: Length } {
-  const maxLeft = toCm(bounds.width) - toCm(width);
-  const maxTop = toCm(bounds.height) - toCm(height);
+  const maxLeft = bounds ? toCm(bounds.width) - toCm(width) : Number.POSITIVE_INFINITY;
+  const maxTop = bounds ? toCm(bounds.height) - toCm(height) : Number.POSITIVE_INFINITY;
   return {
     top: clampLength(top, 0, maxTop),
     left: clampLength(left, 0, maxLeft),
@@ -109,11 +110,11 @@ export function clampSize(
   height: Length,
   top: Length,
   left: Length,
-  bounds: { width: Length; height: Length },
+  bounds: { width: Length; height: Length } | undefined,
 ): { width: Length; height: Length } {
   const MIN_CM = 0.05;
-  const maxWidth = Math.max(MIN_CM, toCm(bounds.width) - toCm(left));
-  const maxHeight = Math.max(MIN_CM, toCm(bounds.height) - toCm(top));
+  const maxWidth = bounds ? Math.max(MIN_CM, toCm(bounds.width) - toCm(left)) : Number.POSITIVE_INFINITY;
+  const maxHeight = bounds ? Math.max(MIN_CM, toCm(bounds.height) - toCm(top)) : Number.POSITIVE_INFINITY;
   return {
     width: clampLength(width, MIN_CM, maxWidth),
     height: clampLength(height, MIN_CM, maxHeight),

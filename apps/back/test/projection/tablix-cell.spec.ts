@@ -92,3 +92,26 @@ describe('proyección · geometría de celdas de Tablix', () => {
     expect(textbox!.height.value).toBeGreaterThan(0);
   });
 });
+
+describe('proyección · etiquetas de diseñador (`<Label>`) y estilos', () => {
+  it('el run expone la etiqueta y conserva el valor original (expresión)', () => {
+    const projection = project('SalesInvoiceESP.rdlc');
+    const textbox = allItems(projection).find((item) => item.id === 'Textbox23');
+    expect(textbox?.kind).toBe('textbox');
+    if (textbox?.kind !== 'textbox') return;
+
+    const run = textbox.paragraphs[0]?.runs[0];
+    expect(run?.label).toBe('BTCClientName');
+    expect(run?.value).toBe('=Code.GetData(8, 1)');
+  });
+
+  it('parsea padding y alineación vertical', () => {
+    const projection = project('SalesInvoiceESP.rdlc');
+    const textbox = allItems(projection).find((item) => item.id === 'Textbox23');
+    if (textbox?.kind !== 'textbox') throw new Error('sin textbox');
+
+    expect(textbox.style?.verticalAlign).toBe('Bottom');
+    expect(textbox.style?.padding?.left).toEqual({ value: 2, unit: 'pt' });
+    expect(textbox.style?.padding?.bottom).toEqual({ value: 2, unit: 'pt' });
+  });
+});

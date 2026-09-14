@@ -57,9 +57,13 @@ function makeProjection(): ProjectionDto {
         left: { value: 1.9, unit: 'cm' },
         right: { value: 1.9, unit: 'cm' },
       },
-      header: { height: { value: 0, unit: 'cm' }, items: [] },
-      body: { height: { value: 29.7, unit: 'cm' }, items: [rectangle, tablix] },
-      footer: { height: { value: 0, unit: 'cm' }, items: [] },
+      header: { width: { value: 21, unit: 'cm' }, height: { value: 0, unit: 'cm' }, items: [] },
+      body: {
+        width: { value: 21, unit: 'cm' },
+        height: { value: 29.7, unit: 'cm' },
+        items: [rectangle, tablix],
+      },
+      footer: { width: { value: 21, unit: 'cm' }, height: { value: 0, unit: 'cm' }, items: [] },
     },
   };
 }

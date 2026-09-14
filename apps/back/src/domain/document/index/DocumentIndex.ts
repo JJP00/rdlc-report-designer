@@ -33,20 +33,24 @@ function regionFor(tagName: string): RegionName | undefined {
 export class DocumentIndex {
   private readonly byName = new Map<string, RdlcNode>();
   private readonly regionByName = new Map<string, RegionName>();
+  /** Items que viven dentro de otro item (ReportItems o celda de Tablix). */
+  private readonly nestedNames = new Set<string>();
   private readonly boundsValue: DocumentBounds;
 
   private constructor(root: RdlcNode) {
     this.boundsValue = readBounds(root);
-    const walk = (node: RdlcNode, region: RegionName | undefined): void => {
+    const walk = (node: RdlcNode, region: RegionName | undefined, insideItem: boolean): void => {
       const effective = regionFor(node.tagName) ?? region;
       const name = node.attribute('Name');
       if (name) {
         this.byName.set(name, node);
         if (effective) this.regionByName.set(name, effective);
+        if (insideItem) this.nestedNames.add(name);
       }
-      for (const child of node.children()) walk(child, effective);
+      const childInsideItem = insideItem || name !== undefined;
+      for (const child of node.children()) walk(child, effective, childInsideItem);
     };
-    walk(root, undefined);
+    walk(root, undefined, false);
   }
 
   static build(root: RdlcNode): DocumentIndex {
@@ -74,11 +78,23 @@ export class DocumentIndex {
     return this.regionByName.get(name);
   }
 
+  /** true si el item está dentro de otro item (posición relativa al contenedor). */
+  isNested(name: string): boolean {
+    return this.nestedNames.has(name);
+  }
+
   bounds(): DocumentBounds {
     return this.boundsValue;
   }
 
-  boundsOf(name: string): RegionBounds {
+  /**
+   * Límites aplicables al item:
+   * - top-level → el de su región;
+   * - anidado → `undefined` (sus coordenadas son relativas al contenedor, que
+   *   puede no declarar tamaño en el XML; el clamp máximo lo hace el lienzo).
+   */
+  boundsOf(name: string): RegionBounds | undefined {
+    if (this.isNested(name)) return undefined;
     const region = this.regionOf(name) ?? 'body';
     const bounds = this.boundsValue;
     if (region === 'pageHeader') return bounds.header;
@@ -99,7 +115,7 @@ function readBounds(root: RdlcNode): DocumentBounds {
 
   return {
     header: {
-      width: pageWidth,
+      width: bodyWidth,
       height: parseLength(page?.child('PageHeader')?.child('Height')?.text()) ?? {
         value: 0,
         unit: 'cm',
@@ -107,7 +123,7 @@ function readBounds(root: RdlcNode): DocumentBounds {
     },
     body: { width: bodyWidth, height: bodyHeight },
     footer: {
-      width: pageWidth,
+      width: bodyWidth,
       height: parseLength(page?.child('PageFooter')?.child('Height')?.text()) ?? {
         value: 0,
         unit: 'cm',
