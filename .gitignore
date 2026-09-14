@@ -30,5 +30,8 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 
+# capturas de desarrollo (RDLC_SHOT)
+tmp/
+
 # originales de trabajo (el corpus versionado vive en fixtures/corpus/)
 /*.rdlc

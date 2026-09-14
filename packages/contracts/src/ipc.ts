@@ -6,6 +6,8 @@ import { projectionSchema } from './projection.js';
 /** Canales `ipcMain.handle` / `ipcRenderer.invoke`. */
 export const IPC_CHANNELS = {
   pickFile: 'rdlc:pickFile',
+  /** Fichero con el que se arrancó la app (CLI/argumento), si lo hay. */
+  pendingOpen: 'rdlc:pendingOpen',
   openFile: 'rdlc:openFile',
   createNew: 'rdlc:createNew',
   save: 'rdlc:save',
@@ -97,6 +99,13 @@ export const pickFileResultSchema = z.object({
   path: z.string().nullable(),
 });
 export type PickFileResult = z.infer<typeof pickFileResultSchema>;
+
+/** Fichero inicial pasado a la app (argumento de línea de comandos). */
+export const pendingOpenResultSchema = z.object({
+  ok: z.literal(true),
+  path: z.string().nullable(),
+});
+export type PendingOpenResult = z.infer<typeof pendingOpenResultSchema>;
 
 export const openFileResultSchema = z.discriminatedUnion('ok', [
   z.object({

@@ -15,4 +15,6 @@ export interface CommandContext {
  */
 export interface CommandOutcome {
   readonly inverse: RdlcCommand;
+  /** Valores normalizados por el dominio (el front reconcilia su optimismo). */
+  readonly applied?: Record<string, unknown>;
 }

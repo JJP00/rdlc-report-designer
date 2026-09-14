@@ -5,6 +5,7 @@ import type {
   DirtyChangedEvent,
   DocumentChangedEvent,
   OpenFileResult,
+  PendingOpenResult,
   PickFileResult,
   SaveResult,
 } from './ipc.js';
@@ -16,6 +17,8 @@ import type {
 export interface RdlcApi {
   /** Abre el diálogo nativo de ficheros; `path: null` si se cancela. */
   pickFile(): Promise<PickFileResult>;
+  /** Fichero con el que se arrancó la app (arg. de línea de comandos), si lo hay. */
+  consumePendingOpen(): Promise<PendingOpenResult>;
   openFile(path: string): Promise<OpenFileResult>;
   save(sessionId: string): Promise<SaveResult>;
   close(sessionId: string): Promise<CloseResult>;

@@ -1,11 +1,12 @@
 import type { RdlcCommand } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
-import { readLength, writeLength } from '../geometry/geometry.js';
+import { clampSize, readLength, writeLength } from '../geometry/geometry.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
 
 export type SetSizeCommand = Extract<RdlcCommand, { cmd: 'setSize' }>;
 
+/** Redimensiona; el dominio normaliza para que el item quepa en su región. */
 export function applySetSize(
   ctx: CommandContext,
   command: SetSizeCommand,
@@ -15,9 +16,14 @@ export function applySetSize(
 
   const previousWidth = readLength(node, 'Width') ?? { value: 0, unit: 'cm' };
   const previousHeight = readLength(node, 'Height') ?? { value: 0, unit: 'cm' };
+  const top = readLength(node, 'Top') ?? { value: 0, unit: 'cm' };
+  const leftPosition = readLength(node, 'Left') ?? { value: 0, unit: 'cm' };
 
-  writeLength(node, 'Width', command.width);
-  writeLength(node, 'Height', command.height);
+  const bounds = ctx.index.boundsOf(command.id);
+  const { width, height } = clampSize(command.width, command.height, top, leftPosition, bounds);
+
+  writeLength(node, 'Width', width);
+  writeLength(node, 'Height', height);
 
   return right({
     inverse: {
@@ -26,5 +32,6 @@ export function applySetSize(
       width: previousWidth,
       height: previousHeight,
     },
+    applied: { width, height },
   });
 }

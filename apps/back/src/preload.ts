@@ -7,6 +7,7 @@ import {
   type DirtyChangedEvent,
   type DocumentChangedEvent,
   type OpenFileResult,
+  type PendingOpenResult,
   type PickFileResult,
   type RdlcApi,
   type RdlcCommand,
@@ -27,6 +28,9 @@ function subscribe<T>(channel: string, callback: (payload: T) => void): () => vo
 
 const api: RdlcApi = {
   pickFile: (): Promise<PickFileResult> => ipcRenderer.invoke(IPC_CHANNELS.pickFile),
+
+  consumePendingOpen: (): Promise<PendingOpenResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.pendingOpen),
 
   openFile: (path: string): Promise<OpenFileResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.openFile, { path }),

@@ -176,6 +176,95 @@ describe('F1 · setSize', () => {
   });
 });
 
+describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)', () => {
+  it('clampa la posición dentro del body y la inversa restaura los bytes', () => {
+    const { xml, doc, index } = open('BTCLoadingOrder.rdlc');
+    const target = firstTextboxWithGeometry(index);
+    const id = target.attribute('Name')!;
+    const bounds = index.boundsOf(id);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setLocation', id, top: { value: 999, unit: 'cm' }, left: { value: 999, unit: 'cm' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const top = parseExpected(target.child('Top')!.text()!);
+    const left = parseExpected(target.child('Left')!.text()!);
+    const width = parseExpected(target.child('Width')!.text()!);
+    const height = parseExpected(target.child('Height')!.text()!);
+
+    expect(top.value + height.value).toBeLessThanOrEqual(bounds.height.value + 1e-6);
+    expect(left.value + width.value).toBeLessThanOrEqual(bounds.width.value + 1e-6);
+
+    // Los valores normalizados viajan para que el front reconcilie.
+    expect(applied.value.applied).toMatchObject({ top, left });
+
+    const undone = applyCommand({ root: doc.root, index }, applied.value.inverse);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('clampa a 0 las posiciones negativas', () => {
+    const { doc, index } = open('SalesShipment.rdlc');
+    const target = firstTextboxWithGeometry(index);
+    const id = target.attribute('Name')!;
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setLocation', id, top: { value: -5, unit: 'cm' }, left: { value: -3, unit: 'cm' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    expect(target.child('Top')!.text()).toBe('0cm');
+    expect(target.child('Left')!.text()).toBe('0cm');
+  });
+
+  it('un item del encabezado no puede salir del encabezado', () => {
+    const { doc, index } = open('BTCLoadingOrder.rdlc');
+    const headerName = index
+      .names()
+      .find((name) => index.regionOf(name) === 'pageHeader' && index.get(name)!.child('Top'));
+    expect(headerName).toBeDefined();
+    const id = headerName!;
+    const bounds = index.boundsOf(id);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setLocation', id, top: { value: 999, unit: 'cm' }, left: { value: 0, unit: 'cm' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const top = parseExpected(index.get(id)!.child('Top')!.text()!);
+    const height = parseExpected(index.get(id)!.child('Height')!.text()!);
+    expect(top.value + height.value).toBeLessThanOrEqual(bounds.height.value + 1e-6);
+  });
+
+  it('setSize no deja que el item se salga de su región', () => {
+    const { doc, index } = open('PalletOutput.rdlc');
+    const target = firstTextboxWithGeometry(index);
+    const id = target.attribute('Name')!;
+    const bounds = index.boundsOf(id);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setSize', id, width: { value: 999, unit: 'cm' }, height: { value: 999, unit: 'cm' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const width = parseExpected(target.child('Width')!.text()!);
+    const height = parseExpected(target.child('Height')!.text()!);
+    const left = parseExpected(target.child('Left')!.text()!);
+    const top = parseExpected(target.child('Top')!.text()!);
+    expect(left.value + width.value).toBeLessThanOrEqual(bounds.width.value + 1e-6);
+    expect(top.value + height.value).toBeLessThanOrEqual(bounds.height.value + 1e-6);
+  });
+});
+
 describe('F1 · comandos no implementados', () => {
   it('se rechazan explícitamente, nunca en silencio', () => {
     const { doc, index } = open('PalletOutput.rdlc');

@@ -1,4 +1,11 @@
-import type { Length, ProjectionDto, RdlcCommand, TextboxDto } from '@rdlc-designer/contracts';
+import type {
+  CommandResult,
+  ItemDto,
+  Length,
+  ProjectionDto,
+  RdlcCommand,
+  TextboxDto,
+} from '@rdlc-designer/contracts';
 import { FolderOpen, Minus, Plus, Redo2, Save, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
@@ -36,6 +43,34 @@ export function App(): ReactNode {
   useEffect(() => {
     if (!hasBackend) return;
 
+    let cancelled = false;
+    void (async () => {
+      try {
+        // Guarda para preloads antiguos en dev (requiere reinicio al cambiar el preload).
+        if (typeof window.api.consumePendingOpen !== 'function') return;
+        const pending = await window.api.consumePendingOpen();
+        if (cancelled || !pending.path) return;
+        const result = await window.api.openFile(pending.path);
+        if (cancelled) return;
+        if (!result.ok) {
+          setError(`${result.code}: ${result.message ?? 'error al abrir'}`);
+          return;
+        }
+        setDoc({ sessionId: result.sessionId, path: pending.path, projection: result.projection });
+        setStatus(`Abierto: ${pending.path}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasBackend]);
+
+  useEffect(() => {
+    if (!hasBackend) return;
+
     const offDocument = window.api.onDocumentChanged((event) => {
       setDoc((current) =>
         current && current.sessionId === event.sessionId
@@ -61,17 +96,26 @@ export function App(): ReactNode {
   );
 
   const sendCommand = useCallback(
-    async (command: RdlcCommand): Promise<void> => {
-      if (!doc) return;
+    async (command: RdlcCommand): Promise<CommandResult | undefined> => {
+      if (!doc) return undefined;
       const result = await window.api.executeCommand(doc.sessionId, command);
       if (!result.ok) {
         setError(`${result.code}: ${result.message ?? 'comando rechazado'}`);
-        return;
+        return result;
       }
       setStatus(`Comando '${command.cmd}' aplicado (v${result.version ?? '?'})`);
+      return result;
     },
     [doc],
   );
+
+  /** Reconcilia el optimismo con los valores normalizados por el dominio. */
+  const reconcile = useCallback((id: string, applied: Partial<ItemDto> | undefined): void => {
+    if (!applied || Object.keys(applied).length === 0) return;
+    setDoc((current) =>
+      current ? { ...current, projection: patchItem(current.projection, id, applied) } : current,
+    );
+  }, []);
 
   const moveItem = useCallback(
     (id: string, top: Length, left: Length): void => {
@@ -79,9 +123,11 @@ export function App(): ReactNode {
       setDoc((current) =>
         current ? { ...current, projection: patchItem(current.projection, id, { top, left }) } : current,
       );
-      void sendCommand({ cmd: 'setLocation', id, top, left });
+      void sendCommand({ cmd: 'setLocation', id, top, left }).then((result) =>
+        reconcile(id, result?.ok ? result.applied : undefined),
+      );
     },
-    [sendCommand],
+    [reconcile, sendCommand],
   );
 
   const setItemLocation = useCallback(
@@ -101,9 +147,11 @@ export function App(): ReactNode {
           ? { ...current, projection: patchItem(current.projection, id, { width, height }) }
           : current,
       );
-      void sendCommand({ cmd: 'setSize', id, width, height });
+      void sendCommand({ cmd: 'setSize', id, width, height }).then((result) =>
+        reconcile(id, result?.ok ? result.applied : undefined),
+      );
     },
-    [selectedItem, sendCommand],
+    [reconcile, selectedItem, sendCommand],
   );
 
   const setRunText = useCallback(

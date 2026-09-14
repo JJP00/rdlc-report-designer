@@ -7,6 +7,7 @@ import {
   type CommandResult,
   type IpcErrorDto,
   type OpenFileResult,
+  type PendingOpenResult,
   type PickFileResult,
   type SaveResult,
 } from '@rdlc-designer/contracts';
@@ -31,16 +32,27 @@ import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
 @Injectable()
 export class IpcController {
   private getWindow: () => BrowserWindow | null = () => null;
+  private pendingOpen: string | null = null;
 
   constructor(
     @Inject(SESSION_SERVICE) private readonly sessions: ISessionService,
     @Inject(COMMAND_SERVICE) private readonly commands: ICommandService,
   ) {}
 
+  /** Fichero inicial (argumento de CLI) que el front consume al montar. */
+  setPendingOpen(path: string | null): void {
+    this.pendingOpen = path;
+  }
+
   register(getWindow: () => BrowserWindow | null): void {
     this.getWindow = getWindow;
 
     ipcMain.handle(IPC_CHANNELS.pickFile, () => this.pickFile());
+
+    ipcMain.handle(
+      IPC_CHANNELS.pendingOpen,
+      (): PendingOpenResult => ({ ok: true, path: this.pendingOpen }),
+    );
 
     ipcMain.handle(IPC_CHANNELS.openFile, (_event, payload) =>
       this.handle(

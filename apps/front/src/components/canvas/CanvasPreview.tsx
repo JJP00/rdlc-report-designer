@@ -65,7 +65,7 @@ export function CanvasPreview({
   const contentBottom = Math.min(y, pageHeight);
 
   return (
-    <div className="canvas-scroll">
+    <div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6">
       <Stage
         width={pageWidth * zoom}
         height={pageHeight * zoom}
@@ -106,6 +106,7 @@ export function CanvasPreview({
                   draggable={onMoveItem !== undefined}
                   onSelect={onSelect}
                   onMoveItem={onMoveItem}
+                  bounds={{ width: pageWidth, height: toPx(band.region.height) }}
                 />
               ))}
             </Group>
@@ -136,7 +137,18 @@ interface NodeGroupProps {
   draggable?: boolean;
   onSelect?: (id: string | null) => void;
   onMoveItem?: (id: string, top: Length, left: Length) => void;
+  /** Límites de la región (px) y tamaño del item para no salir de ella. */
+  bounds?: { width: number; height: number };
+  itemSize?: { width: number; height: number };
   children: ReactNode;
+}
+
+/** Nodo Konva mínimo que necesitamos para el clamp (evita tipar el árbol entero). */
+interface MovableNode {
+  x(): number;
+  x(value: number): void;
+  y(): number;
+  y(value: number): void;
 }
 
 /** Grupo posicionado con selección y drag (un comando al soltar, con snap). */
@@ -147,8 +159,19 @@ function NodeGroup({
   draggable,
   onSelect,
   onMoveItem,
+  bounds,
+  itemSize,
   children,
 }: NodeGroupProps): ReactNode {
+  /** Mantiene el nodo dentro de su región (invariante del dominio). */
+  const clampToBounds = (node: MovableNode): void => {
+    if (!bounds || !itemSize) return;
+    const maxX = Math.max(0, bounds.width - itemSize.width);
+    const maxY = Math.max(0, bounds.height - itemSize.height);
+    node.x(Math.min(Math.max(node.x(), 0), maxX));
+    node.y(Math.min(Math.max(node.y(), 0), maxY));
+  };
+
   return (
     <Group
       x={x}
@@ -162,10 +185,12 @@ function NodeGroup({
         event.cancelBubble = true;
         onSelect?.(itemId);
       }}
+      onDragMove={(event) => clampToBounds(event.target)}
       onDragEnd={(event) => {
         const node = event.target;
-        const snap = !event.evt.shiftKey;
+        clampToBounds(node);
 
+        const snap = !event.evt.shiftKey;
         let leftCm = node.x() / PX_PER_CM;
         let topCm = node.y() / PX_PER_CM;
         if (snap) {
@@ -176,7 +201,9 @@ function NodeGroup({
         topCm = round2(topCm);
 
         node.position({ x: leftCm * PX_PER_CM, y: topCm * PX_PER_CM });
-        onMoveItem?.(itemId, { value: topCm, unit: 'cm' }, { value: leftCm, unit: 'cm' });
+        clampToBounds(node);
+
+        onMoveItem?.(itemId, { value: node.y() / PX_PER_CM, unit: 'cm' }, { value: node.x() / PX_PER_CM, unit: 'cm' });
       }}
     >
       {children}
@@ -190,9 +217,17 @@ interface ItemViewProps {
   draggable?: boolean;
   onSelect?: (id: string | null) => void;
   onMoveItem?: (id: string, top: Length, left: Length) => void;
+  bounds?: { width: number; height: number };
 }
 
-function ItemView({ item, selected, draggable, onSelect, onMoveItem }: ItemViewProps): ReactNode {
+function ItemView({
+  item,
+  selected,
+  draggable,
+  onSelect,
+  onMoveItem,
+  bounds,
+}: ItemViewProps): ReactNode {
   if (item.hidden === true) return null;
 
   const x = toPx(item.left);
@@ -230,6 +265,8 @@ function ItemView({ item, selected, draggable, onSelect, onMoveItem }: ItemViewP
       draggable={draggable}
       onSelect={onSelect}
       onMoveItem={onMoveItem}
+      bounds={draggable ? bounds : undefined}
+      itemSize={{ width, height }}
     >
       {renderContent(item, width, height, fontSize, fontStyle, onSelect)}
       {outline}
@@ -252,7 +289,9 @@ function renderContent(
         .join('\n');
       return (
         <>
-          <Group clip={{ x: 0, y: 0, width, height }} listening={false}>
+          {/* El grupo recorta el contenido; NO puede ser listening=false o el
+              texto/rect no serían clicables (hit-testing de Konva). */}
+          <Group clip={{ x: 0, y: 0, width, height }}>
             <Rect
               width={width}
               height={height}
@@ -282,13 +321,13 @@ function renderContent(
     case 'rectangle':
       return (
         <>
+          {/* fill transparente (no undefined): sin fill, el área no es clicable. */}
           <Rect
             width={width}
             height={height}
-            fill={item.style?.backgroundColor}
+            fill={item.style?.backgroundColor ?? 'rgba(0,0,0,0)'}
             stroke="#9ca3af"
             strokeWidth={0.5}
-            listening={false}
           />
           {item.children.map((child) => (
             <ItemView key={child.id} item={child} onSelect={onSelect} />
@@ -297,16 +336,20 @@ function renderContent(
       );
 
     case 'line':
-      return <Line points={[0, 0, width, height]} stroke="#111827" hitStrokeWidth={6} />;
+      return <Line points={[0, 0, width, height]} stroke="#111827" hitStrokeWidth={8} />;
 
     case 'image':
-      return <Rect width={width} height={height} stroke="#9ca3af" dash={[4, 3]} />;
+      return (
+        <Rect width={width} height={height} fill="rgba(0,0,0,0)" stroke="#9ca3af" dash={[4, 3]} />
+      );
 
     case 'tablix':
       return <TablixContent item={item} onSelect={onSelect} />;
 
     case 'unknown':
-      return <Rect width={width} height={height} stroke="#f59e0b" dash={[6, 3]} />;
+      return (
+        <Rect width={width} height={height} fill="rgba(0,0,0,0)" stroke="#f59e0b" dash={[6, 3]} />
+      );
   }
 }
 
@@ -327,14 +370,26 @@ function TablixContent({
   columns.forEach((columnWidth, index) => {
     cx += columnWidth;
     grid.push(
-      <Line key={`v${index}`} points={[cx, 0, cx, totalHeight]} stroke="#d1d5db" strokeWidth={0.5} />,
+      <Line
+        key={`v${index}`}
+        points={[cx, 0, cx, totalHeight]}
+        stroke="#d1d5db"
+        strokeWidth={0.5}
+        listening={false}
+      />,
     );
   });
   let cy = 0;
   rows.forEach((rowHeight, index) => {
     cy += rowHeight;
     grid.push(
-      <Line key={`h${index}`} points={[0, cy, totalWidth, cy]} stroke="#d1d5db" strokeWidth={0.5} />,
+      <Line
+        key={`h${index}`}
+        points={[0, cy, totalWidth, cy]}
+        stroke="#d1d5db"
+        strokeWidth={0.5}
+        listening={false}
+      />,
     );
   });
 

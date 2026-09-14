@@ -44,7 +44,10 @@ export class CommandService implements ICommandService {
     journal.redoStack.length = 0;
 
     const version = this.sessions.touch(sessionId);
-    return right({ ok: true, version });
+    const result: CommandResult = applied.value.applied
+      ? { ok: true, version, applied: applied.value.applied }
+      : { ok: true, version };
+    return right(result);
   }
 
   undo(sessionId: string): Either<DomainError, CommandResult> {

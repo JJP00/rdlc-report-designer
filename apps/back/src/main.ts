@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { app, BrowserWindow } from 'electron';
 import log from 'electron-log/main';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { AppModule } from './app.module.js';
 import { ElectronEventBusAdapter } from './infrastructure/events/ElectronEventBusAdapter.js';
@@ -10,6 +11,14 @@ import { IpcController } from './presentation/ipc/IpcController.js';
 log.initialize();
 
 let mainWindow: BrowserWindow | null = null;
+
+/** Fichero inicial: `RDLC_OPEN` (dev) o primer argumento `.rdlc` (CLI). */
+function findInitialFile(): string | null {
+  const fromEnv = process.env['RDLC_OPEN'];
+  if (fromEnv) return fromEnv;
+  const fromArgs = process.argv.slice(1).find((arg) => arg.toLowerCase().endsWith('.rdlc'));
+  return fromArgs ?? null;
+}
 
 async function createWindow(): Promise<BrowserWindow> {
   const window = new BrowserWindow({
@@ -55,10 +64,13 @@ async function bootstrap(): Promise<void> {
   events.attach(() => mainWindow);
 
   const ipc = nest.get(IpcController);
+  ipc.setPendingOpen(findInitialFile());
   ipc.register(() => mainWindow);
 
   mainWindow = await createWindow();
   log.info('RDLC Report Designer iniciado');
+
+  await maybeCaptureScreenshot(mainWindow);
 }
 
 void app.whenReady().then(bootstrap);
@@ -77,3 +89,25 @@ app.on('window-all-closed', () => {
 
 process.on('uncaughtException', (error) => log.error(error));
 process.on('unhandledRejection', (error) => log.error(error));
+
+/**
+ * Dev/diagnóstico: `RDLC_SHOT=<ruta.png>` captura la ventana tras cargar
+ * (con `RDLC_SHOT_DELAY` ms de espera) y sale si `RDLC_SHOT_QUIT=1`.
+ */
+async function maybeCaptureScreenshot(window: BrowserWindow): Promise<void> {
+  const shotPath = process.env['RDLC_SHOT'];
+  if (!shotPath) return;
+
+  const delay = Number(process.env['RDLC_SHOT_DELAY'] ?? 5000);
+  await new Promise((resolve) => setTimeout(resolve, delay));
+
+  try {
+    const image = await window.webContents.capturePage();
+    await writeFile(shotPath, image.toPNG());
+    log.info(`Captura guardada en ${shotPath}`);
+  } catch (error) {
+    log.error('No se pudo capturar la pantalla', error);
+  }
+
+  if (process.env['RDLC_SHOT_QUIT'] === '1') app.quit();
+}
