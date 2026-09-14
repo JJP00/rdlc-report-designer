@@ -58,6 +58,29 @@ export class UnknownSessionError implements DomainError {
   }
 }
 
+export class CommandRejectedError implements DomainError {
+  readonly code = 'E_COMMAND_REJECTED' as const;
+
+  private constructor(
+    readonly errorMessage: string,
+    readonly data?: unknown,
+  ) {}
+
+  static create(message: string, data?: unknown): CommandRejectedError {
+    return new CommandRejectedError(message, data);
+  }
+}
+
+export class InvalidCommandError implements DomainError {
+  readonly code = 'E_INVALID_COMMAND' as const;
+
+  private constructor(readonly errorMessage: string) {}
+
+  static create(message: string): InvalidCommandError {
+    return new InvalidCommandError(message);
+  }
+}
+
 export class UnexpectedError implements DomainError {
   readonly code = 'E_UNEXPECTED' as const;
 

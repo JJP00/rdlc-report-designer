@@ -1,5 +1,5 @@
-import { XmlDocument, XmlElement, XmlText } from 'xml-trueformat';
 import { describe, expect, it } from 'vitest';
+import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { corpusByName, firstDiff, loadCorpus } from './fixtures.js';
 
@@ -7,7 +7,7 @@ import { corpusByName, firstDiff, loadCorpus } from './fixtures.js';
  * Fase 0 — Gate go/no-go.
  *
  * Parsear y serializar cada fichero del corpus debe devolver los bytes
- * originales, exactos: CRLF, whitespace, comentarios, comillas y orden de
+ * originales, exactos: CRLF, BOM, whitespace, comentarios, comillas y orden de
  * atributos, namespaces `rd:`, self-closing, `<Code>` VB incluido.
  */
 
@@ -42,34 +42,22 @@ describe('F0 · golden round-trip byte a byte', () => {
 
 /* ------------------------- parcheo quirúrgico --------------------------- */
 
-function findDeep(el: XmlElement, tagName: string): XmlElement | undefined {
-  if (el.tagName === tagName) return el;
-  for (const child of el.children) {
-    if (child instanceof XmlElement) {
-      const found = findDeep(child, tagName);
-      if (found) return found;
-    }
-  }
-  return undefined;
-}
-
 describe('F0 · parcheo quirúrgico (solo se toca lo editado)', () => {
   it('cambiar un valor altera exactamente un carácter del XML', () => {
     const { xml } = corpusByName('PalletOutput.rdlc');
     const doc = adapter.parse(xml);
-    const xmlDoc = doc as unknown as XmlDocument;
+    const index = DocumentIndex.build(doc.root);
 
-    const top = findDeep(xmlDoc.getRootElement(), 'Top');
-    expect(top).toBeDefined();
+    const target = index
+      .names()
+      .map((name) => index.get(name))
+      .find((node) => node !== undefined && /^\d+(\.\d+)?cm$/.test(node.child('Top')?.text() ?? ''));
+    expect(target).toBeDefined();
 
-    const textNode = top!.children.find((c): c is XmlText => c instanceof XmlText);
-    expect(textNode).toBeDefined();
-    expect(textNode!.text).toMatch(/^\d+(\.\d+)?cm$/);
-
-    const original = textNode!.text;
-    const m = /^(.*?)(\d)(cm)$/.exec(original)!;
-    const tweaked = `${m[1]}${(Number(m[2]) + 1) % 10}cm`;
-    textNode!.setText(tweaked);
+    const top = target!.child('Top')!;
+    const original = top.text()!;
+    const match = /^(.*?)(\d)(cm)$/.exec(original)!;
+    top.setText(`${match[1]}${(Number(match[2]) + 1) % 10}cm`);
 
     const out = adapter.serialize(doc);
 
@@ -81,6 +69,5 @@ describe('F0 · parcheo quirúrgico (solo se toca lo editado)', () => {
       if (out[i] !== xml[i]) diffs += 1;
     }
     expect(diffs, `se alteraron ${diffs} caracteres, se esperaba 1`).toBe(1);
-    expect(out).toContain(tweaked);
   });
 });

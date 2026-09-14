@@ -1,18 +1,14 @@
 import { XMLBuilder, XMLParser } from 'fast-xml-parser';
-import type { RdlcParserPort } from '../../application/ports/out/RdlcParserPort.js';
-import type { RdlcSerializerPort } from '../../application/ports/out/RdlcSerializerPort.js';
-import { asRdlcDocument, type RdlcDocument } from '../../domain/document/tree/RdlcDocument.js';
 
 /**
- * Adaptador de comparación (Fase 0) basado en `fast-xml-parser`.
+ * Comparador de round-trip (Fase 0) basado en `fast-xml-parser`.
  *
  * Configurado al máximo de fidelidad (`preserveOrder`, `trimValues: false`,
- * `ignoreAttributes: false`), pero por diseño no promete preservar formato:
- * whitespace, comillas, atributos booleanos y self-closing se normalizan.
- * Solo existe para evidenciar la decisión del ADR; NO es un adaptador de
- * producción.
+ * `ignoreAttributes: false`), pero por diseño no promete preservar formato.
+ * Solo existe para la evidencia del ADR 0001; NO es un adaptador de producción
+ * ni implementa los puertos del dominio.
  */
-export class FastXmlAdapter implements RdlcParserPort, RdlcSerializerPort {
+export class FastXmlAdapter {
   readonly name = 'fast-xml-parser';
 
   private readonly parser = new XMLParser({
@@ -40,11 +36,7 @@ export class FastXmlAdapter implements RdlcParserPort, RdlcSerializerPort {
     processEntities: false,
   });
 
-  parse(xml: string): RdlcDocument {
-    return asRdlcDocument(this.parser.parse(xml));
-  }
-
-  serialize(doc: RdlcDocument): string {
-    return this.builder.build(doc as object);
+  roundTrip(xml: string): string {
+    return this.builder.build(this.parser.parse(xml) as object);
   }
 }

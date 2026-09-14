@@ -1,8 +1,21 @@
-import type { CodeFunctionDto, ItemDto, Length, LengthUnit, ParagraphDto, ProjectionDto, RegionDto, ReportMetaDto, StyleDto, TablixCellDto, TablixDto, TextboxDto } from '@rdlc-designer/contracts';
-import type { XmlDocument } from 'xml-trueformat';
+import type {
+  CodeFunctionDto,
+  ItemDto,
+  Length,
+  LengthUnit,
+  ParagraphDto,
+  ProjectionDto,
+  RegionDto,
+  ReportMetaDto,
+  StyleDto,
+  TablixCellDto,
+  TablixDto,
+  TextboxDto,
+} from '@rdlc-designer/contracts';
 import { XmlElement, XmlText } from 'xml-trueformat';
 import type { RdlcProjectionPort } from '../../application/ports/out/RdlcProjectionPort.js';
-import type { RdlcDocument } from '../../domain/document/tree/RdlcDocument.js';
+import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
+import { TrueFormatDocument } from './trueformat/TrueFormatDocument.js';
 
 /**
  * F0 — Proyección mínima leyendo el modelo de `xml-trueformat`.
@@ -35,8 +48,10 @@ interface ItemBaseOut {
 
 export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
   private unknownCounter = 0;  project(input: { sessionId: string; filePath: string; document: RdlcDocument; version: number }): ProjectionDto {
-    const doc = input.document as unknown as XmlDocument;
-    const root = doc.getRootElement();
+    if (!(input.document instanceof TrueFormatDocument)) {
+      throw new Error('TrueFormatProjectionAdapter requiere un documento TrueFormat');
+    }
+    const root = input.document.raw().getRootElement();
     const section = root.getFirstElementByName('ReportSections')?.getFirstElementByName('ReportSection');
     const bodyEl = section?.getFirstElementByName('Body');
     const pageEl = section?.getFirstElementByName('Page');

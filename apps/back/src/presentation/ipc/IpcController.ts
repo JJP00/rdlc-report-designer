@@ -1,8 +1,10 @@
 import {
   IPC_CHANNELS,
+  executeCommandRequestSchema,
   openFileRequestSchema,
   sessionRequestSchema,
   type CloseResult,
+  type CommandResult,
   type IpcErrorDto,
   type OpenFileResult,
   type PickFileResult,
@@ -11,6 +13,7 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { dialog, ipcMain, type BrowserWindow, type OpenDialogOptions } from 'electron';
 import type { ZodType } from 'zod';
+import { COMMAND_SERVICE, type ICommandService } from '../../application/services/ICommandService.js';
 import type {
   ISessionService,
   OpenSessionResult,
@@ -29,7 +32,10 @@ import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
 export class IpcController {
   private getWindow: () => BrowserWindow | null = () => null;
 
-  constructor(@Inject(SESSION_SERVICE) private readonly sessions: ISessionService) {}
+  constructor(
+    @Inject(SESSION_SERVICE) private readonly sessions: ISessionService,
+    @Inject(COMMAND_SERVICE) private readonly commands: ICommandService,
+  ) {}
 
   register(getWindow: () => BrowserWindow | null): void {
     this.getWindow = getWindow;
@@ -66,8 +72,39 @@ export class IpcController {
       this.handle(
         sessionRequestSchema,
         payload,
-        (req) => this.sessions.close(req.sessionId),
+        async (req) => {
+          const result = await this.sessions.close(req.sessionId);
+          if (result.isRight()) this.commands.drop(req.sessionId);
+          return result;
+        },
         (): CloseResult => ({ ok: true }),
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.executeCommand, (_event, payload) =>
+      this.handle(
+        executeCommandRequestSchema,
+        payload,
+        (req) => Promise.resolve(this.commands.execute(req.sessionId, req.command)),
+        (value: CommandResult): CommandResult => value,
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.undo, (_event, payload) =>
+      this.handle(
+        sessionRequestSchema,
+        payload,
+        (req) => Promise.resolve(this.commands.undo(req.sessionId)),
+        (value: CommandResult): CommandResult => value,
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.redo, (_event, payload) =>
+      this.handle(
+        sessionRequestSchema,
+        payload,
+        (req) => Promise.resolve(this.commands.redo(req.sessionId)),
+        (value: CommandResult): CommandResult => value,
       ),
     );
   }

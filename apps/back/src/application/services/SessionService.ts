@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { IPC_EVENTS } from '@rdlc-designer/contracts';
 import type { ProjectionDto } from '@rdlc-designer/contracts';
 import { Injectable, Inject } from '@nestjs/common';
+import { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
 import type { EventBusPort } from '../ports/out/EventBusPort.js';
 import { EVENT_BUS_PORT } from '../ports/out/EventBusPort.js';
 import type { FileSystemPort } from '../ports/out/FileSystemPort.js';
@@ -14,19 +15,28 @@ import type { RdlcParserPort } from '../ports/out/RdlcParserPort.js';
 import { RDLC_PARSER_PORT } from '../ports/out/RdlcParserPort.js';
 import type { RdlcSerializerPort } from '../ports/out/RdlcSerializerPort.js';
 import { RDLC_SERIALIZER_PORT } from '../ports/out/RdlcSerializerPort.js';
-import type { RdlcDocument } from '../../domain/document/tree/RdlcDocument.js';
+import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
 import { left, right, type Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 import { FileNotFoundError, InvalidXmlError, IoError, UnknownSessionError } from '../../shared/domainError.js';
-import type { ISessionService, OpenSessionResult, SaveSessionResult } from './ISessionService.js';
+import type {
+  EditTarget,
+  ISessionService,
+  OpenSessionResult,
+  SaveSessionResult,
+  TouchOptions,
+} from './ISessionService.js';
 
 interface Session {
   sessionId: string;
   filePath: string;
   document: RdlcDocument;
+  /** Índice Name → nodo (O(1) por comando). */
+  index: DocumentIndex;
   /** Bytes leídos del disco (referencia para el guardado quirúrgico). */
   originalBytes: Buffer;
   version: number;
+  dirty: boolean;
   /** mtime de la última escritura propia (filtra el eco del watcher). */
   lastWriteMs: number;
   /** true mientras escribimos: el watcher ignora esos eventos. */
@@ -70,8 +80,10 @@ export class SessionService implements ISessionService {
       sessionId,
       filePath,
       document: parsed.value,
+      index: DocumentIndex.build(parsed.value.root),
       originalBytes: read.value,
       version: 1,
+      dirty: false,
       lastWriteMs: mtimeMs,
       writing: false,
     };
@@ -104,6 +116,12 @@ export class SessionService implements ISessionService {
       session.writing = false;
     }
 
+    session.document.markClean();
+    if (session.dirty) {
+      session.dirty = false;
+      this.events.send(IPC_EVENTS.dirtyChanged, { sessionId, dirty: false });
+    }
+
     this.events.send(IPC_EVENTS.saved, { sessionId, path: session.filePath });
     return right({ path: session.filePath, bytesIdentical });
   }
@@ -115,6 +133,38 @@ export class SessionService implements ISessionService {
     this.sessions.delete(sessionId);
     this.events.send(IPC_EVENTS.sessionClosed, { sessionId });
     return right(undefined);
+  }
+
+  /* ------------------- acceso de edición (comandos) ------------------- */
+
+  getEditTarget(sessionId: string): Either<DomainError, EditTarget> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return left(UnknownSessionError.create(sessionId));
+    return right({ document: session.document, index: session.index });
+  }
+
+  touch(sessionId: string, options?: TouchOptions): number {
+    const session = this.sessions.get(sessionId);
+    if (!session) return 0;
+
+    session.version += 1;
+
+    if (!session.dirty && session.document.isDirty()) {
+      session.dirty = true;
+      this.events.send(IPC_EVENTS.dirtyChanged, { sessionId, dirty: true });
+    }
+
+    if (options?.snapshotOut) {
+      this.events.send(IPC_EVENTS.documentChanged, {
+        sessionId,
+        projection: this.project(session),
+      });
+    }
+    return session.version;
+  }
+
+  versionOf(sessionId: string): number {
+    return this.sessions.get(sessionId)?.version ?? 0;
   }
 
   /* --------------------------- interno -------------------------------- */
@@ -132,9 +182,15 @@ export class SessionService implements ISessionService {
       const doc = this.parser.parse(bytes.toString('utf8'));
 
       session.document = doc;
+      session.index = DocumentIndex.build(doc.root);
       session.originalBytes = bytes;
       session.version += 1;
       session.lastWriteMs = stat.mtimeMs;
+
+      if (session.dirty) {
+        session.dirty = false;
+        this.events.send(IPC_EVENTS.dirtyChanged, { sessionId, dirty: false });
+      }
 
       this.events.send(IPC_EVENTS.documentChanged, {
         sessionId,

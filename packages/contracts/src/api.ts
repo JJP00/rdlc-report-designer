@@ -1,5 +1,8 @@
+import type { RdlcCommand } from './commands.js';
 import type {
   CloseResult,
+  CommandResult,
+  DirtyChangedEvent,
   DocumentChangedEvent,
   OpenFileResult,
   PickFileResult,
@@ -16,6 +19,14 @@ export interface RdlcApi {
   openFile(path: string): Promise<OpenFileResult>;
   save(sessionId: string): Promise<SaveResult>;
   close(sessionId: string): Promise<CloseResult>;
-  /** Solicitud de cambio externo del fichero (watcher) → nueva snapshot. */
+
+  /** Ejecuta un comando de edición (el backend queda sincronizado al momento). */
+  executeCommand(sessionId: string, command: RdlcCommand): Promise<CommandResult>;
+  undo(sessionId: string): Promise<CommandResult>;
+  redo(sessionId: string): Promise<CommandResult>;
+
+  /** Cambio externo del fichero (watcher) o snapshot tras undo/redo. */
   onDocumentChanged(callback: (event: DocumentChangedEvent) => void): () => void;
+  /** La pestaña tiene (o deja de tener) cambios sin guardar. */
+  onDirtyChanged(callback: (event: DirtyChangedEvent) => void): () => void;
 }

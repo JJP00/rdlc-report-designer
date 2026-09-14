@@ -1,4 +1,6 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
+import type { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
+import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
 import type { Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 
@@ -15,9 +17,26 @@ export interface SaveSessionResult {
   bytesIdentical: boolean;
 }
 
+/** Lo que necesita el CommandService de una sesión. */
+export interface EditTarget {
+  document: RdlcDocument;
+  index: DocumentIndex;
+}
+
+export interface TouchOptions {
+  /** Emite la proyección completa (undo/redo: el front redibuja). */
+  snapshotOut?: boolean;
+}
+
 /** Caso de uso: ciclo de vida de pestañas (abrir/guardar/cerrar/vigilar). */
 export interface ISessionService {
   open(filePath: string): Promise<Either<DomainError, OpenSessionResult>>;
   save(sessionId: string): Promise<Either<DomainError, SaveSessionResult>>;
   close(sessionId: string): Promise<Either<DomainError, void>>;
+
+  /** Acceso de edición: el DOM + índice de nombres de la sesión. */
+  getEditTarget(sessionId: string): Either<DomainError, EditTarget>;
+  /** Mutación aplicada: sube la versión, marca dirty y emite eventos. */
+  touch(sessionId: string, options?: TouchOptions): number;
+  versionOf(sessionId: string): number;
 }

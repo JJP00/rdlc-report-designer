@@ -13,29 +13,40 @@ import { loadCorpus } from './fixtures.js';
 
 const corpus = loadCorpus();
 
+interface Codec {
+  name: string;
+  roundTrip(xml: string): string;
+}
+
+const trueFormat = new TrueFormatXmlAdapter();
+const fastXml = new FastXmlAdapter();
+const codecs: Codec[] = [
+  { name: trueFormat.name, roundTrip: (xml) => trueFormat.serialize(trueFormat.parse(xml)) },
+  { name: fastXml.name, roundTrip: (xml) => fastXml.roundTrip(xml) },
+];
+
 describe('F0 · comparativa de adaptadores (evidencia ADR)', () => {
   it('mide el round-trip byte a byte de cada candidato', () => {
-    const adapters = [new TrueFormatXmlAdapter(), new FastXmlAdapter()];
     const rows: string[] = [];
     const scores = new Map<string, number>();
 
-    for (const adapter of adapters) {
+    for (const codec of codecs) {
       let ok = 0;
       for (const { name, bytes, xml } of corpus) {
         try {
-          const out = adapter.serialize(adapter.parse(xml));
+          const out = codec.roundTrip(xml);
           const identical = Buffer.from(out, 'utf8').equals(bytes);
           if (identical) ok += 1;
           rows.push(
-            `${adapter.name.padEnd(18)} ${name.padEnd(26)} ${identical ? 'OK' : 'FAIL'} (${bytes.length} bytes)`,
+            `${codec.name.padEnd(18)} ${name.padEnd(26)} ${identical ? 'OK' : 'FAIL'} (${bytes.length} bytes)`,
           );
         } catch (err) {
           rows.push(
-            `${adapter.name.padEnd(18)} ${name.padEnd(26)} ERROR: ${(err as Error).message}`,
+            `${codec.name.padEnd(18)} ${name.padEnd(26)} ERROR: ${(err as Error).message}`,
           );
         }
       }
-      scores.set(adapter.name, ok);
+      scores.set(codec.name, ok);
     }
 
     // eslint-disable-next-line no-console

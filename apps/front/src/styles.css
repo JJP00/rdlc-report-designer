@@ -58,6 +58,23 @@ button:disabled {
   flex: 1;
 }
 
+.sep {
+  width: 1px;
+  height: 20px;
+  background: #e5e7eb;
+  margin: 0 4px;
+}
+
+.selection {
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.dirty {
+  color: #b45309;
+  font-weight: 700;
+}
+
 .zoom {
   display: flex;
   align-items: center;
