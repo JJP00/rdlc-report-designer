@@ -1,4 +1,5 @@
-import { XmlDocument, XmlElement, XmlText } from 'xml-trueformat';
+import type { XmlDocument } from 'xml-trueformat';
+import { XmlElement, XmlText } from 'xml-trueformat';
 import type { RdlcDocument, RdlcNode } from '../../../domain/document/tree/RdlcNode.js';
 
 /**

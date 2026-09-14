@@ -1,6 +1,9 @@
-import type { ItemDto, Length, ProjectionDto, RdlcCommand } from '@rdlc-designer/contracts';
+import type { Length, ProjectionDto, RdlcCommand, TextboxDto } from '@rdlc-designer/contracts';
 import { FolderOpen, Minus, Plus, Redo2, Save, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { CanvasPreview } from '@/components/canvas/CanvasPreview';
+import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
+import { TextPanel } from '@/components/panels/TextPanel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -10,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { CanvasPreview } from '@/components/canvas/CanvasPreview';
+import { countItems, findItem, formatKinds, patchItem } from '@/lib/projection';
 
 interface OpenDocument {
   sessionId: string;
@@ -52,6 +55,10 @@ export function App(): ReactNode {
   }, [hasBackend]);
 
   const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
+  const selectedItem = useMemo(
+    () => (doc && selectedId ? findItem(doc.projection, selectedId) : undefined),
+    [doc, selectedId],
+  );
 
   const sendCommand = useCallback(
     async (command: RdlcCommand): Promise<void> => {
@@ -70,13 +77,59 @@ export function App(): ReactNode {
     (id: string, top: Length, left: Length): void => {
       // Optimista: el lienzo ya movió el nodo; aquí se refleja en la proyección.
       setDoc((current) =>
-        current
-          ? { ...current, projection: moveItemInProjection(current.projection, id, top, left) }
-          : current,
+        current ? { ...current, projection: patchItem(current.projection, id, { top, left }) } : current,
       );
       void sendCommand({ cmd: 'setLocation', id, top, left });
     },
     [sendCommand],
+  );
+
+  const setItemLocation = useCallback(
+    (top: Length, left: Length): void => {
+      if (!selectedItem) return;
+      moveItem(selectedItem.id, top, left);
+    },
+    [moveItem, selectedItem],
+  );
+
+  const setItemSize = useCallback(
+    (width: Length, height: Length): void => {
+      if (!selectedItem) return;
+      const id = selectedItem.id;
+      setDoc((current) =>
+        current
+          ? { ...current, projection: patchItem(current.projection, id, { width, height }) }
+          : current,
+      );
+      void sendCommand({ cmd: 'setSize', id, width, height });
+    },
+    [selectedItem, sendCommand],
+  );
+
+  const setRunText = useCallback(
+    (p: number, r: number, value: string): void => {
+      if (!selectedItem || selectedItem.kind !== 'textbox') return;
+      const updated: TextboxDto = {
+        ...selectedItem,
+        paragraphs: selectedItem.paragraphs.map((paragraph, paragraphIndex) =>
+          paragraphIndex === p
+            ? {
+                ...paragraph,
+                runs: paragraph.runs.map((run, runIndex) =>
+                  runIndex === r ? { ...run, value } : run,
+                ),
+              }
+            : paragraph,
+        ),
+      };
+      setDoc((current) =>
+        current
+          ? { ...current, projection: patchItem(current.projection, selectedItem.id, updated) }
+          : current,
+      );
+      void sendCommand({ cmd: 'setText', id: selectedItem.id, p, r, value });
+    },
+    [selectedItem, sendCommand],
   );
 
   const undo = useCallback(async (): Promise<void> => {
@@ -240,40 +293,62 @@ export function App(): ReactNode {
           </div>
         ) : null}
 
-        <main className="flex min-h-0 flex-1 flex-col">
-          {doc ? (
-            <>
-              <div className="flex items-center gap-4 border-b bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {doc.path}
-                  {dirty ? <span className="text-amber-600"> *</span> : null}
-                </span>
-                {stats ? (
-                  <span>
-                    {stats.total} elementos · {formatKinds(stats.byKind)}
+        <main className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1 flex-col">
+            {doc ? (
+              <>
+                <div className="flex items-center gap-4 border-b bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {doc.path}
+                    {dirty ? <span className="text-amber-600"> *</span> : null}
                   </span>
-                ) : null}
-                {reloads > 0 ? (
-                  <span className="text-amber-600">{reloads} recarga(s) externa(s)</span>
-                ) : null}
+                  {stats ? (
+                    <span>
+                      {stats.total} elementos · {formatKinds(stats.byKind)}
+                    </span>
+                  ) : null}
+                  {reloads > 0 ? (
+                    <span className="text-amber-600">{reloads} recarga(s) externa(s)</span>
+                  ) : null}
+                </div>
+                <CanvasPreview
+                  projection={doc.projection}
+                  zoom={zoom}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onMoveItem={moveItem}
+                />
+              </>
+            ) : (
+              <div className="m-auto max-w-lg text-center text-sm text-muted-foreground">
+                <p>Sin documento abierto.</p>
+                <p className="mt-2">
+                  Flujo F1: abre un .rdlc, selecciona un elemento y arrástralo (imán de 0,1 cm;
+                  Shift lo ignora), edita su texto o expresión en el panel derecho, deshaz con
+                  Ctrl+Z y guarda: solo cambian los valores editados.
+                </p>
               </div>
-              <CanvasPreview
-                projection={doc.projection}
-                zoom={zoom}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                onMoveItem={moveItem}
-              />
-            </>
-          ) : (
-            <div className="m-auto max-w-lg text-center text-sm text-muted-foreground">
-              <p>Sin documento abierto.</p>
-              <p className="mt-2">
-                Flujo F1: abre un .rdlc, selecciona un elemento y arrástralo (imán de 0,1 cm;
-                Shift lo ignora), deshaz con Ctrl+Z y guarda: solo cambian los valores editados.
+            )}
+          </div>
+
+          <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
+            {selectedItem ? (
+              <>
+                <PropertiesPanel
+                  item={selectedItem}
+                  onSetLocation={setItemLocation}
+                  onSetSize={setItemSize}
+                />
+                {selectedItem.kind === 'textbox' ? (
+                  <TextPanel item={selectedItem} onSetText={setRunText} />
+                ) : null}
+              </>
+            ) : (
+              <p className="p-4 text-xs text-muted-foreground">
+                Selecciona un elemento en el lienzo para editar sus propiedades.
               </p>
-            </div>
-          )}
+            )}
+          </aside>
         </main>
 
         <footer className="border-t bg-background px-3 py-1 text-xs text-muted-foreground">
@@ -282,55 +357,4 @@ export function App(): ReactNode {
       </div>
     </TooltipProvider>
   );
-}
-
-function moveItemInProjection(
-  projection: ProjectionDto,
-  id: string,
-  top: Length,
-  left: Length,
-): ProjectionDto {
-  const move = (items: ItemDto[]): ItemDto[] =>
-    items.map((item) => (item.id === id ? { ...item, top, left } : item));
-
-  return {
-    ...projection,
-    page: {
-      ...projection.page,
-      header: { ...projection.page.header, items: move(projection.page.header.items) },
-      body: { ...projection.page.body, items: move(projection.page.body.items) },
-      footer: { ...projection.page.footer, items: move(projection.page.footer.items) },
-    },
-  };
-}
-
-function countItems(projection: ProjectionDto): { total: number; byKind: Record<string, number> } {
-  const byKind: Record<string, number> = {};
-  let total = 0;
-
-  const walk = (items: ItemDto[]): void => {
-    for (const item of items) {
-      total += 1;
-      byKind[item.kind] = (byKind[item.kind] ?? 0) + 1;
-      if (item.kind === 'rectangle') walk(item.children);
-      if (item.kind === 'tablix') {
-        for (const row of item.body.rows) {
-          for (const cell of row.cells) {
-            if (cell?.content) walk([cell.content]);
-          }
-        }
-      }
-    }
-  };
-
-  walk(projection.page.header.items);
-  walk(projection.page.body.items);
-  walk(projection.page.footer.items);
-  return { total, byKind };
-}
-
-function formatKinds(byKind: Record<string, number>): string {
-  return Object.entries(byKind)
-    .map(([kind, count]) => `${count} ${kind}`)
-    .join(', ');
 }
