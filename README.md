@@ -40,6 +40,17 @@ pnpm --filter @rdlc-designer/back build   # build de producción (main + preload
   postinstall de Electron (algunas configuraciones lo bloquean). Descarga el
   binario a mano: `node apps/back/node_modules/electron/install.js`.
 
+### Benchmark del lienzo
+
+```bash
+# Electron abrirá la página de benchmark (972 textboxes, drag simulado 3 s)
+$env:RDLC_BENCH='972'; pnpm --filter @rdlc-designer/back dev
+```
+
+El resultado (`[bench] {...}`) sale en consola/log y el estado actual está
+documentado en [`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-lienzo.md).
+
+
 ## Estado (Fase 0 — spike round-trip)
 
 - [x] Monorepo pnpm + turbo, TypeScript estricto.
@@ -56,6 +67,9 @@ pnpm --filter @rdlc-designer/back build   # build de producción (main + preload
       front, filtrando el eco de la propia escritura.
 - [x] Proyección mínima F0 (página, bandas, items, Tablix, texto, meta) y
       vista Konva de solo lectura.
-- [ ] Benchmark de lienzo (972 textboxes) y presupuesto de memoria del renderer.
+- [x] Benchmark de lienzo: línea base con 972 textboxes
+      ([`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-lienzo.md));
+      los 60 fps son criterio de salida de F1 (drag sin re-render de React,
+      culling, grid cacheado).
 - [ ] Diálogo de conflictos y dirty real (F1, con comandos).
 

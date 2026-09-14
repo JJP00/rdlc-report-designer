@@ -30,9 +30,15 @@ async function createWindow(): Promise<BrowserWindow> {
     mainWindow = null;
   });
 
+  // Diagnóstico: la consola del renderer también va al log del main.
+  window.webContents.on('console-message', (event) => {
+    log.info('[renderer]', event.message);
+  });
+
   const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
+  const bench = process.env['RDLC_BENCH'];
   if (devServerUrl) {
-    await window.loadURL(devServerUrl);
+    await window.loadURL(bench ? `${devServerUrl}/?bench=${encodeURIComponent(bench)}` : devServerUrl);
   } else {
     await window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
   }
