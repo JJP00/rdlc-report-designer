@@ -1,0 +1,26 @@
+{
+  "name": "rdlc-report-designer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Editor visual para layouts de informes RDLC de Business Central",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "prettier": "^3.5.2",
+    "turbo": "^2.4.2",
+    "typescript": "^5.7.3"
+  }
+}

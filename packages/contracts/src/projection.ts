@@ -1,0 +1,262 @@
+import { z } from 'zod';
+import type { Length } from './common.js';
+import { lengthSchema } from './common.js';
+import type { StyleDto } from './style.js';
+import { styleSchema } from './style.js';
+
+/**
+ * JSON de renderizado (lossy a propósito). Lo que el lienzo necesita dibujar.
+ * No contiene comentarios XML, orden de atributos ni texto fuente: eso vive
+ * únicamente en el DOM lossless del backend.
+ */
+
+/* ----------------------------- Texto ---------------------------------- */
+
+export const textRunSchema = z.object({
+  /** Literal o expresión (`=Fields!X.Value`). */
+  value: z.string(),
+  style: styleSchema.optional(),
+});
+export type TextRunDto = z.infer<typeof textRunSchema>;
+
+export const paragraphSchema = z.object({
+  runs: z.array(textRunSchema),
+  style: styleSchema.optional(),
+});
+export type ParagraphDto = z.infer<typeof paragraphSchema>;
+
+/* ------------------------------ Items ---------------------------------- */
+
+export interface ItemBaseDto {
+  /** = `Name` del elemento (clave del índice del dominio). */
+  id: string;
+  top: Length;
+  left: Length;
+  width: Length;
+  height: Length;
+  zIndex?: number;
+  /** Booleano literal o expresión. */
+  hidden?: boolean | string;
+  style?: StyleDto;
+}
+
+export const itemBaseShape = {
+  id: z.string().min(1),
+  top: lengthSchema,
+  left: lengthSchema,
+  width: lengthSchema,
+  height: lengthSchema,
+  zIndex: z.number().int().optional(),
+  hidden: z.union([z.boolean(), z.string()]).optional(),
+  style: styleSchema.optional(),
+} as const;
+
+export interface TextboxDto extends ItemBaseDto {
+  kind: 'textbox';
+  paragraphs: ParagraphDto[];
+  canGrow?: boolean;
+  keepTogether?: boolean;
+}
+
+export interface RectangleDto extends ItemBaseDto {
+  kind: 'rectangle';
+  children: ItemDto[];
+}
+
+export interface LineDto extends ItemBaseDto {
+  kind: 'line';
+}
+
+export interface ImageDto extends ItemBaseDto {
+  kind: 'image';
+  source?: string;
+  sourceKind?: 'External' | 'Embedded' | 'Database';
+  sizing?: string;
+}
+
+export interface UnknownItemDto extends ItemBaseDto {
+  kind: 'unknown';
+  /** Elemento XML original (para el placeholder fantasma del lienzo). */
+  tagName: string;
+  path: string;
+}
+
+export type ItemDto =
+  | TextboxDto
+  | RectangleDto
+  | LineDto
+  | ImageDto
+  | TablixDto
+  | UnknownItemDto;
+
+export const textboxSchema: z.ZodType<TextboxDto> = z.object({
+  kind: z.literal('textbox'),
+  ...itemBaseShape,
+  paragraphs: z.array(paragraphSchema),
+  canGrow: z.boolean().optional(),
+  keepTogether: z.boolean().optional(),
+});
+
+export const rectangleSchema: z.ZodType<RectangleDto> = z.object({
+  kind: z.literal('rectangle'),
+  ...itemBaseShape,
+  children: z.array(z.lazy(() => itemSchema)),
+});
+
+export const lineSchema: z.ZodType<LineDto> = z.object({
+  kind: z.literal('line'),
+  ...itemBaseShape,
+});
+
+export const imageSchema: z.ZodType<ImageDto> = z.object({
+  kind: z.literal('image'),
+  ...itemBaseShape,
+  source: z.string().optional(),
+  sourceKind: z.enum(['External', 'Embedded', 'Database']).optional(),
+  sizing: z.string().optional(),
+});
+
+export const unknownItemSchema: z.ZodType<UnknownItemDto> = z.object({
+  kind: z.literal('unknown'),
+  ...itemBaseShape,
+  tagName: z.string(),
+  path: z.string(),
+});
+
+/* ----------------------------- Tablix ---------------------------------- */
+
+export interface TablixCellDto {
+  colSpan?: number;
+  rowSpan?: number;
+  content: ItemDto | null;
+}
+
+export const tablixCellSchema: z.ZodType<TablixCellDto> = z.object({
+  colSpan: z.number().int().positive().optional(),
+  rowSpan: z.number().int().positive().optional(),
+  content: z.lazy(() => itemSchema).nullable(),
+});
+
+export interface TablixMemberDto {
+  /** Posición en el árbol = `memberPath` de los comandos. */
+  path: number[];
+  /** Presente = grupo dinámico; ausente = miembro estático. */
+  expression?: string;
+  total: 'none' | 'before' | 'after';
+  hidden?: boolean | string;
+  children: TablixMemberDto[];
+}
+
+export const tablixMemberSchema: z.ZodType<TablixMemberDto> = z.lazy(() =>
+  z.object({
+    path: z.array(z.number().int().nonnegative()),
+    expression: z.string().optional(),
+    total: z.enum(['none', 'before', 'after']),
+    hidden: z.union([z.boolean(), z.string()]).optional(),
+    children: z.array(tablixMemberSchema),
+  }),
+);
+
+export interface TablixDto extends ItemBaseDto {
+  kind: 'tablix';
+  body: {
+    columns: Length[];
+    rows: { height: Length; cells: TablixCellDto[] }[];
+  };
+  rowHierarchy: TablixMemberDto[];
+  columnHierarchy: TablixMemberDto[];
+  corner?: TablixCellDto | null;
+}
+
+export const tablixSchema: z.ZodType<TablixDto> = z.object({
+  kind: z.literal('tablix'),
+  ...itemBaseShape,
+  body: z.object({
+    columns: z.array(lengthSchema),
+    rows: z.array(
+      z.object({
+        height: lengthSchema,
+        cells: z.array(tablixCellSchema),
+      }),
+    ),
+  }),
+  rowHierarchy: z.array(tablixMemberSchema),
+  columnHierarchy: z.array(tablixMemberSchema),
+  corner: tablixCellSchema.nullable().optional(),
+});
+
+export const itemSchema: z.ZodType<ItemDto> = z.lazy(() =>
+  z.union([textboxSchema, rectangleSchema, lineSchema, imageSchema, tablixSchema, unknownItemSchema]),
+);
+
+/* ------------------------- Página y regiones ---------------------------- */
+
+export interface RegionDto {
+  height: Length;
+  items: ItemDto[];
+  printOnFirstPage?: boolean;
+  printOnLastPage?: boolean;
+}
+
+export const regionSchema: z.ZodType<RegionDto> = z.object({
+  height: lengthSchema,
+  items: z.array(itemSchema),
+  printOnFirstPage: z.boolean().optional(),
+  printOnLastPage: z.boolean().optional(),
+});
+
+export const pageMarginsSchema = z.object({
+  top: lengthSchema,
+  bottom: lengthSchema,
+  left: lengthSchema,
+  right: lengthSchema,
+});
+export type PageMarginsDto = z.infer<typeof pageMarginsSchema>;
+
+export const pageSchema = z.object({
+  width: lengthSchema,
+  height: lengthSchema,
+  margins: pageMarginsSchema,
+  header: regionSchema,
+  body: regionSchema,
+  footer: regionSchema,
+});
+export type PageDto = z.infer<typeof pageSchema>;
+
+/* ------------------------------- Meta ----------------------------------- */
+
+export const codeFunctionSchema = z.object({
+  name: z.string(),
+  parameters: z.array(z.string()).optional(),
+});
+export type CodeFunctionDto = z.infer<typeof codeFunctionSchema>;
+
+export const reportMetaSchema = z.object({
+  /** Bloque `<Code>` VB custom del informe. */
+  code: z.object({
+    text: z.string(),
+    functions: z.array(codeFunctionSchema),
+  }),
+  fields: z.array(z.object({ name: z.string(), dataType: z.string().optional() })),
+  parameters: z.array(
+    z.object({
+      name: z.string(),
+      dataType: z.string().optional(),
+      default: z.string().optional(),
+      prompt: z.string().optional(),
+    }),
+  ),
+});
+export type ReportMetaDto = z.infer<typeof reportMetaSchema>;
+
+/* ------------------------------ Raíz ------------------------------------ */
+
+export const projectionSchema = z.object({
+  sessionId: z.string(),
+  /** Contador monotónico; sube con cada mutación (reconciliación del optimismo). */
+  version: z.number().int().nonnegative(),
+  reportName: z.string(),
+  meta: reportMetaSchema,
+  page: pageSchema,
+});
+export type ProjectionDto = z.infer<typeof projectionSchema>;

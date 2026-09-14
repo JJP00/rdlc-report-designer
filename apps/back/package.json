@@ -1,0 +1,20 @@
+{
+  "name": "@rdlc-designer/back",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron main + NestJS — el hexágono (dominio, aplicación, presentación, infraestructura)",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rdlc-designer/contracts": "workspace:*",
+    "xml-trueformat": "^0.9.5"
+  },
+  "devDependencies": {
+    "fast-xml-parser": "^4.5.1",
+    "vitest": "^3.0.5"
+  }
+}

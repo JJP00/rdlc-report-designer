@@ -1,0 +1,22 @@
+{
+  "name": "@rdlc-designer/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contrato compartido: DTOs zod, comandos, proyección e IPC",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.5"
+  }
+}
