@@ -274,8 +274,9 @@ function Ruler({
   const cmPx = PX_PER_CM * zoom;
   const maxCm = lengthPx / cmPx;
 
-  // Granularidad adaptada al zoom para que no se solapen las marcas.
-  const tickStep = zoom >= 1.2 ? 0.1 : zoom >= 0.6 ? 0.5 : zoom >= 0.3 ? 1 : 2;
+  // Milímetro a milímetro; el texto (en negrita) se agrupa si el zoom es bajo
+  // para que no se solapen las etiquetas.
+  const tickStep = 0.1;
   const labelStep = zoom >= 0.5 ? 1 : zoom >= 0.3 ? 2 : 5;
 
   const ticks: ReactNode[] = [];
@@ -285,15 +286,15 @@ function Ruler({
     const cm = index * tickStep;
     const offset = cm * cmPx;
     const isLabel = isMultiple(cm, labelStep);
-    const isInteger = Math.abs(cm - Math.round(cm)) < 1e-9;
+    const isCm = isMultiple(cm, 1);
 
-    // Longitud de la marca: etiqueta > entero > fracción.
-    const ratio = isLabel ? 1 : isInteger ? 0.7 : 0.45;
+    // Longitud de la marca: etiqueta > centímetro > milímetro.
+    const ratio = isLabel ? 1 : isCm ? 0.75 : 0.35;
     const style = {
       ...(orientation === 'horizontal'
         ? { left: offset, top: RULER_PX * (1 - ratio), height: RULER_PX * ratio }
         : { top: offset, left: RULER_PX * (1 - ratio), width: RULER_PX * ratio }),
-      backgroundColor: isLabel ? 'var(--muted-foreground)' : 'var(--border)',
+      backgroundColor: isCm ? 'var(--muted-foreground)' : 'var(--border)',
     } as const;
 
     ticks.push(<div key={`t${index}`} className="absolute" style={style} />);
@@ -302,7 +303,7 @@ function Ruler({
       ticks.push(
         <span
           key={`l${index}`}
-          className="absolute select-none text-[9px] leading-none text-muted-foreground"
+          className="absolute select-none text-[9px] font-semibold leading-none text-foreground"
           style={
             orientation === 'horizontal'
               ? { left: offset + 2, top: 1 }
