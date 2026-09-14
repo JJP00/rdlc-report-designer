@@ -835,7 +835,11 @@ export function App(): ReactNode {
                   <TextPanel item={selectedItem} onSetText={setRunText} onSetStyle={setItemStyle} />
                 ) : null}
                 {selectedItem.kind === 'image' ? (
-                  <ImagePanel item={selectedItem} onSetImageOptions={setImageOptions} />
+                  <ImagePanel
+                    item={selectedItem}
+                    onSetImageOptions={setImageOptions}
+                    onSetStyle={setItemStyle}
+                  />
                 ) : null}
               </>
             ) : (
