@@ -18,14 +18,18 @@ import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
 import { TrueFormatDocument } from './trueformat/TrueFormatDocument.js';
 
 /**
- * F0 — Proyección mínima leyendo el modelo de `xml-trueformat`.
+ * F0/F1 — Proyección leyendo el modelo de `xml-trueformat`.
  *
  * Cubre: página (tamaño/márgenes/regiones), items del cuerpo y de las cajas
  * (Textbox, Rectangle, Line, Image, Tablix con celdas), texto por runs, estilo
  * básico y meta (fields/parámetros/funciones VB).
  *
- * F1: sustituido por `ProjectionService` (aplicación) sobre el árbol de dominio.
- * Las jerarquías del Tablix se emiten vacías en F0.
+ * Regla clave de RDL: **dentro de una celda de Tablix el contenido no declara
+ * tamaño** (lo define la celda, con ColSpan/RowSpan). La proyección hereda esa
+ * geometría; si no, el contenido se dibujaría 0×0.
+ *
+ * F1 (pendiente): jerarquías del Tablix (grupos y totales) y sustitución por
+ * `ProjectionService` sobre el árbol de dominio.
  */
 
 const DEFAULT_WIDTH: Length = { value: 21, unit: 'cm' };
@@ -33,8 +37,9 @@ const DEFAULT_HEIGHT: Length = { value: 29.7, unit: 'cm' };
 const DEFAULT_MARGIN_V: Length = { value: 2.5, unit: 'cm' };
 const DEFAULT_MARGIN_H: Length = { value: 1.9, unit: 'cm' };
 const LENGTH_RE = /^(-?\d+(?:\.\d+)?)(cm|mm|in|pt)?$/;
+const ZERO: Length = { value: 0, unit: 'cm' };
 
-/** Base de item que comparten todas las variantes del contrato. */
+/** Geometría base que comparten todas las variantes del contrato. */
 interface ItemBaseOut {
   id: string;
   top: Length;
@@ -46,8 +51,18 @@ interface ItemBaseOut {
   style?: StyleDto;
 }
 
+/** Geometría de respaldo (p. ej. el tamaño de la celda que contiene el item). */
+interface GeometryFallback {
+  top: Length;
+  left: Length;
+  width: Length;
+  height: Length;
+}
+
 export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
-  private unknownCounter = 0;  project(input: { sessionId: string; filePath: string; document: RdlcDocument; version: number }): ProjectionDto {
+  private unknownCounter = 0;
+
+  project(input: { sessionId: string; filePath: string; document: RdlcDocument; version: number }): ProjectionDto {
     if (!(input.document instanceof TrueFormatDocument)) {
       throw new Error('TrueFormatProjectionAdapter requiere un documento TrueFormat');
     }
@@ -90,22 +105,28 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     };
   }
 
-  private items(container: XmlElement | undefined): ItemDto[] {
+  private items(container: XmlElement | undefined, fallback?: GeometryFallback): ItemDto[] {
     if (!container) return [];
     return container.children
       .filter((c): c is XmlElement => c instanceof XmlElement)
-      .map((c) => this.item(c))
+      .map((c) => this.item(c, fallback))
       .filter((i): i is ItemDto => i !== null);
   }
 
   /* ------------------------------- items ------------------------------- */
 
-  private item(el: XmlElement): ItemDto | null {
-    const geometry = {
-      top: this.length(textOf(el.getFirstElementByName('Top'))),
-      left: this.length(textOf(el.getFirstElementByName('Left'))),
-      width: this.length(textOf(el.getFirstElementByName('Width'))),
-      height: this.length(textOf(el.getFirstElementByName('Height'))),
+  private item(el: XmlElement, fallback?: GeometryFallback): ItemDto | null {
+    const declared = {
+      top: maybeLength(textOf(el.getFirstElementByName('Top'))),
+      left: maybeLength(textOf(el.getFirstElementByName('Left'))),
+      width: maybeLength(textOf(el.getFirstElementByName('Width'))),
+      height: maybeLength(textOf(el.getFirstElementByName('Height'))),
+    };
+    const geometry: GeometryFallback = {
+      top: declared.top ?? fallback?.top ?? ZERO,
+      left: declared.left ?? fallback?.left ?? ZERO,
+      width: declared.width ?? fallback?.width ?? ZERO,
+      height: declared.height ?? fallback?.height ?? ZERO,
     };
     const base: ItemBaseOut = {
       id: el.getAttributeValue('Name') ?? `${el.tagName}__${(this.unknownCounter += 1)}`,
@@ -119,7 +140,11 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       case 'Textbox':
         return this.textbox(el, base);
       case 'Rectangle':
-        return { ...base, kind: 'rectangle', children: this.items(el.getFirstElementByName('ReportItems')) };
+        return {
+          ...base,
+          kind: 'rectangle',
+          children: this.items(el.getFirstElementByName('ReportItems'), geometry),
+        };
       case 'Line':
         return { ...base, kind: 'line' };
       case 'Image':
@@ -168,15 +193,17 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     const columns = (bodyEl?.getFirstElementByName('TablixColumns')?.children ?? [])
       .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixColumn')
       .map((col) => this.length(textOf(col.getFirstElementByName('Width'))));
+    const rowEls = (bodyEl?.getFirstElementByName('TablixRows')?.children ?? []).filter(
+      (c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixRow',
+    );
+    const rowHeights = rowEls.map((row) => this.length(textOf(row.getFirstElementByName('Height'))));
 
-    const rows = (bodyEl?.getFirstElementByName('TablixRows')?.children ?? [])
-      .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixRow')
-      .map((row) => ({
-        height: this.length(textOf(row.getFirstElementByName('Height'))),
-        cells: (row.getFirstElementByName('TablixCells')?.children ?? [])
-          .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixCell')
-          .map((cell) => this.tablixCell(cell)),
-      }));
+    const rows = rowEls.map((rowEl, rowIndex) => ({
+      height: rowHeights[rowIndex] ?? ZERO,
+      cells: (rowEl.getFirstElementByName('TablixCells')?.children ?? [])
+        .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixCell')
+        .map((cellEl, colIndex) => this.tablixCell(cellEl, colIndex, rowIndex, columns, rowHeights)),
+    }));
 
     return {
       ...base,
@@ -188,10 +215,38 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     };
   }
 
-  private tablixCell(cell: XmlElement): TablixCellDto {
-    const contents = cell.getFirstElementByName('CellContents');
-    const child = contents?.children.find((c): c is XmlElement => c instanceof XmlElement);
-    return { content: child ? this.item(child) : null };
+  /**
+   * La celda define el tamaño del contenido: `ColumnSpan × RowSpan` sobre las
+   * dimensiones de las columnas/filas. Los hijos `ColSpan`/`RowSpan`/`Height`
+   * de `CellContents` NO son el contenido.
+   */
+  private tablixCell(
+    cellEl: XmlElement,
+    columnIndex: number,
+    rowIndex: number,
+    columns: Length[],
+    rowHeights: Length[],
+  ): TablixCellDto {
+    const contents = cellEl.getFirstElementByName('CellContents');
+    const colSpan = this.int(textOf(contents?.getFirstElementByName('ColSpan'))) ?? 1;
+    const rowSpan = this.int(textOf(contents?.getFirstElementByName('RowSpan'))) ?? 1;
+
+    const width = sumLengths(columns.slice(columnIndex, columnIndex + colSpan));
+    const height = sumLengths(rowHeights.slice(rowIndex, rowIndex + rowSpan));
+
+    const contentEl = (contents?.children ?? []).find(
+      (c): c is XmlElement =>
+        c instanceof XmlElement && !['ColSpan', 'RowSpan', 'Height'].includes(c.tagName),
+    );
+
+    const cell: TablixCellDto = {
+      content: contentEl
+        ? this.item(contentEl, { top: ZERO, left: ZERO, width, height })
+        : null,
+    };
+    if (colSpan > 1) cell.colSpan = colSpan;
+    if (rowSpan > 1) cell.rowSpan = rowSpan;
+    return cell;
   }
 
   /* ------------------------------- meta -------------------------------- */
@@ -218,7 +273,12 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
         name,
         dataType: textOf(param.getFirstElementByName('DataType')),
         prompt: textOf(param.getFirstElementByName('Prompt')),
-        default: textOf(param.getFirstElementByName('DefaultValue')?.getFirstElementByName('Values')?.getFirstElementByName('Value')),
+        default: textOf(
+          param
+            .getFirstElementByName('DefaultValue')
+            ?.getFirstElementByName('Values')
+            ?.getFirstElementByName('Value'),
+        ),
       });
     }
 
@@ -228,7 +288,7 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
 
   /* --------------------------- value objects ---------------------------- */
 
-  private length(raw: string | undefined, fallback: Length = { value: 0, unit: 'cm' }): Length {
+  private length(raw: string | undefined, fallback: Length = ZERO): Length {
     if (!raw) return fallback;
     const match = LENGTH_RE.exec(raw.trim());
     if (!match) return fallback;
@@ -296,6 +356,28 @@ function textOf(el: XmlElement | undefined): string | undefined {
   if (!el) return undefined;
   const textNode = el.children.find((c): c is XmlText => c instanceof XmlText);
   return textNode?.unescapeText();
+}
+
+/** Longitud declarada; `undefined` si el elemento no la trae (no lo confundas con 0). */
+function maybeLength(raw: string | undefined): Length | undefined {
+  if (raw === undefined) return undefined;
+  const match = LENGTH_RE.exec(raw.trim());
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value)) return undefined;
+  return { value, unit: (match[2] as LengthUnit | undefined) ?? 'cm' };
+}
+
+const CM_PER_UNIT: Record<LengthUnit, number> = {
+  cm: 1,
+  mm: 0.1,
+  in: 2.54,
+  pt: 2.54 / 72,
+};
+
+function sumLengths(lengths: Length[]): Length {
+  const cm = lengths.reduce((acc, length) => acc + length.value * CM_PER_UNIT[length.unit], 0);
+  return { value: Number(cm.toFixed(6)), unit: 'cm' };
 }
 
 function baseName(filePath: string): string {

@@ -5,7 +5,8 @@ import type {
   RegionDto,
   TablixDto,
 } from '@rdlc-designer/contracts';
-import type { ReactNode } from 'react';
+import type Konva from 'konva';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
 
 export const PX_PER_CM = 96 / 2.54;
@@ -32,6 +33,8 @@ export interface CanvasPreviewProps {
   onSelect?: (id: string | null) => void;
   /** Se llama al soltar un drag con la posición ya normalizada (cm). */
   onMoveItem?: (id: string, top: Length, left: Length) => void;
+  /** Zoom con Ctrl/Cmd + rueda. */
+  onZoomChange?: (zoom: number) => void;
 }
 
 /**
@@ -45,7 +48,32 @@ export function CanvasPreview({
   selectedId,
   onSelect,
   onMoveItem,
+  onZoomChange,
 }: CanvasPreviewProps): ReactNode {
+  const stageRef = useRef<Konva.Stage | null>(null);
+  const [selectionRect, setSelectionRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  // El marco de selección se mide del nodo real (funciona con anidados y celdas).
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !selectedId) {
+      setSelectionRect(null);
+      return;
+    }
+    const node = stage.findOne((candidate: Konva.Node) => candidate.id() === selectedId);
+    if (!node) {
+      setSelectionRect(null);
+      return;
+    }
+    const rect = node.getClientRect({ relativeTo: stage });
+    setSelectionRect(rect);
+  }, [selectedId, projection, zoom]);
+
   const pageWidth = toPx(projection.page.width);
   const pageHeight = toPx(projection.page.height);
 
@@ -67,6 +95,7 @@ export function CanvasPreview({
   return (
     <div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6">
       <Stage
+        ref={stageRef}
         width={pageWidth * zoom}
         height={pageHeight * zoom}
         scaleX={zoom}
@@ -75,6 +104,15 @@ export function CanvasPreview({
         onClick={(event) => {
           // Click en vacío = deseleccionar (los items cortan la propagación).
           if (event.target === event.target.getStage()) onSelect?.(null);
+        }}
+        onWheel={(event) => {
+          if (!onZoomChange) return;
+          const { ctrlKey, metaKey, deltaY } = event.evt;
+          if (!ctrlKey && !metaKey) return; // rueda normal = scroll
+          // En Electron, sin preventDefault Chromium hace zoom de toda la app.
+          event.evt.preventDefault();
+          const factor = deltaY > 0 ? 1 / 1.1 : 1.1;
+          onZoomChange(Math.min(2, Math.max(0.2, Number((zoom * factor).toFixed(3)))));
         }}
       >
         <Layer>
@@ -121,9 +159,49 @@ export function CanvasPreview({
             />
           ) : null}
         </Layer>
+
+        {/* Selección: capa superior para que ningún elemento la tape. */}
+        <Layer listening={false}>
+          {selectionRect ? (
+            <>
+              <Rect
+                x={selectionRect.x}
+                y={selectionRect.y}
+                width={selectionRect.width}
+                height={selectionRect.height}
+                stroke="#2563eb"
+                strokeWidth={2}
+                dash={[6, 3]}
+                strokeScaleEnabled={false}
+                fillEnabled={false}
+              />
+              {cornerPoints(selectionRect).map(([hx, hy], index) => (
+                <Rect
+                  key={index}
+                  x={hx - 4 / zoom}
+                  y={hy - 4 / zoom}
+                  width={8 / zoom}
+                  height={8 / zoom}
+                  fill="#2563eb"
+                  stroke="#ffffff"
+                  strokeWidth={1 / zoom}
+                />
+              ))}
+            </>
+          ) : null}
+        </Layer>
       </Stage>
     </div>
   );
+}
+
+function cornerPoints(rect: { x: number; y: number; width: number; height: number }): [number, number][] {
+  return [
+    [rect.x, rect.y],
+    [rect.x + rect.width, rect.y],
+    [rect.x, rect.y + rect.height],
+    [rect.x + rect.width, rect.y + rect.height],
+  ];
 }
 
 function fingerprint(region: RegionDto): boolean {
@@ -174,6 +252,7 @@ function NodeGroup({
 
   return (
     <Group
+      id={itemId}
       x={x}
       y={y}
       draggable={draggable}
@@ -235,20 +314,6 @@ function ItemView({
   const width = toPx(item.width);
   const height = toPx(item.height);
 
-  const outline = selected ? (
-    <Rect
-      x={-1.5}
-      y={-1.5}
-      width={width + 3}
-      height={height + 3}
-      stroke="#2563eb"
-      strokeWidth={1.5}
-      dash={[4, 3]}
-      strokeScaleEnabled={false}
-      listening={false}
-    />
-  ) : null;
-
   const fontSize = item.style?.fontSize ? toPx(item.style.fontSize) : 12;
   const fontStyle = [
     item.style?.fontWeight === 'Bold' ? 'bold' : '',
@@ -269,7 +334,6 @@ function ItemView({
       itemSize={{ width, height }}
     >
       {renderContent(item, width, height, fontSize, fontStyle, onSelect)}
-      {outline}
     </NodeGroup>
   );
 }

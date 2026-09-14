@@ -365,6 +365,7 @@ export function App(): ReactNode {
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                   onMoveItem={moveItem}
+                  onZoomChange={setZoom}
                 />
               </>
             ) : (
