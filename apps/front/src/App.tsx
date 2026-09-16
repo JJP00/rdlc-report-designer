@@ -1,1008 +1,135 @@
-import type {
-  CommandResult,
-  ItemDto,
-  Length,
-  NewItemSpec,
-  ProjectionDto,
-  RdlcCommand,
-  ScopeRef,
-  StyleDto,
-  StylePatch,
-  TextboxDto,
-} from '@rdlc-designer/contracts';
-import {
-  Copy,
-  FolderOpen,
-  Image,
-  Minus,
-  Plus,
-  Redo2,
-  Save,
-  Settings2,
-  Square,
-  Trash2,
-  Type,
-  Undo2,
-  Variable,
-  X,
-} from 'lucide-react';
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CanvasPreview, ITEM_DRAG_TYPE } from '@/components/canvas/CanvasPreview';
+import type { NewItemSpec } from '@rdlc-designer/contracts';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { CanvasArea } from '@/components/CanvasArea';
+import { EditorToolbar } from '@/components/EditorToolbar';
+import { StatusBar } from '@/components/StatusBar';
 import { CommandPalette } from '@/components/panels/CommandPalette';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
-import { ImagePanel, type ImageOptionsPatch } from '@/components/panels/ImagePanel';
-import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
+import { ItemPanels } from '@/components/panels/ItemPanels';
 import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
-import { TextPanel } from '@/components/panels/TextPanel';
 import { VariablesPanel } from '@/components/panels/VariablesPanel';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuLabel,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  cm,
-  countItems,
-  findItem,
-  formatKinds,
-  patchItem,
-  toCm,
-} from '@/lib/projection';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { useDocumentCore } from '@/hooks/useDocumentCore';
+import { useGlobalKeys } from '@/hooks/useGlobalKeys';
+import { useItemEditing } from '@/hooks/useItemEditing';
+import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
+import type { CanvasHit } from '@/lib/hit';
+import { paletteRunner, type PaletteActionId } from '@/lib/palette';
+import { countItems, formatKinds } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
-import { setCompletionMeta } from '@/lib/completionMeta';
-import type { CanvasHit } from '@/lib/hit';import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
-import type { PaletteActionId } from '@/lib/palette';
 
-/** Paso de las flechas: 1pt (Shift = 10pt). */
-const NUDGE_PT_CM = 2.54 / 72;
-/** Racha de flechas: se agrupa en UN comando (un paso de undo). */
-const NUDGE_BURST_MS = 400;
-
-/** Tamaño con el que nace cada item insertado. */
-const NEW_ITEM_SIZES: Record<NewItemSpec['kind'], { width: Length; height: Length }> = {
-  textbox: { width: { value: 5, unit: 'cm' }, height: { value: 1, unit: 'cm' } },
-  rectangle: { width: { value: 5, unit: 'cm' }, height: { value: 1, unit: 'cm' } },
-  line: { width: { value: 4, unit: 'cm' }, height: { value: 0, unit: 'cm' } },
-  image: { width: { value: 3, unit: 'cm' }, height: { value: 2, unit: 'cm' } },
-};
-
-const ITEM_KIND_LABELS: Record<NewItemSpec['kind'], string> = {
-  textbox: 'Textbox',
-  rectangle: 'Rectángulo',
-  line: 'Línea',
-  image: 'Imagen',
-};
-
-function round4(value: number): number {
-  return Math.round(value * 10000) / 10000;
-}
-
-interface OpenDocument {
-  sessionId: string;
-  path: string;
-  projection: ProjectionDto;
-}
-
+/**
+ * Shell del editor: composición de hooks (`useDocumentCore` para el ciclo de
+ * vida del fichero, `useItemEditing` para la edición y `useGlobalKeys` para los
+ * atajos) y del chrome (toolbar, barra de formato, lienzo y paneles).
+ */
 export function App(): ReactNode {
-  const [doc, setDoc] = useState<OpenDocument | null>(null);
-  const [status, setStatus] = useState('Listo. Abre un .rdlc exportado de Business Central.');
-  const [error, setError] = useState<string | null>(null);
-  const [reloads, setReloads] = useState(0);
+  const core = useDocumentCore();
+  const items = useItemEditing(core);
+
+  // Estado de UI (no del documento).
   const [zoom, setZoom] = useState(0.6);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [conflict, setConflict] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   /** Último hit del click derecho: destino de "Insertar" y de "Pegar". */
   const [menuHit, setMenuHit] = useState<CanvasHit | null>(null);
-  const [hasClipboard, setHasClipboard] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  /** Elemento al que la paleta quiere llevar la vista (nonce para repetir). */
-  const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
 
-  // Sin preload (p. ej. abriendo el renderer en un navegador) no hay backend IPC.
-  const hasBackend = typeof window !== 'undefined' && window.api !== undefined;
+  const { doc, status, error, dirty, conflict, reloads, hasBackend } = core;
+  const { selectedId, selectedItem } = items;
+  const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
 
-  useEffect(() => {
-    if (!hasBackend) return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        // Guarda para preloads antiguos en dev (requiere reinicio al cambiar el preload).
-        if (typeof window.api.consumePendingOpen !== 'function') return;
-        const pending = await window.api.consumePendingOpen();
-        if (cancelled || !pending.path) return;
-        const result = await window.api.openFile(pending.path);
-        if (cancelled) return;
-        if (!result.ok) {
-          setError(`${result.code}: ${result.message ?? 'error al abrir'}`);
-          return;
-        }
-        setDoc({ sessionId: result.sessionId, path: pending.path, projection: result.projection });
-        setStatus(`Abierto: ${pending.path}`);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [hasBackend]);
-  useEffect(() => {
-    if (!hasBackend) return;
-
-    const offDocument = window.api.onDocumentChanged((event) => {
-      setDoc((current) =>
-        current && current.sessionId === event.sessionId
-          ? { ...current, projection: event.projection }
-          : current,
-      );
-      // Solo las recargas externas cuentan (y avisan): los snapshots internos
-      // (insert/undo/redo) son parte del trabajo normal.
-      if (event.reason === 'external') {
-        setReloads((count) => count + 1);
-        setStatus(`Recargado desde disco (v${event.projection.version})`);
-      }
-    });
-
-    const offDirty = window.api.onDirtyChanged((event) => setDirty(event.dirty));
-
-    // El fichero cambió en disco con cambios locales: el backend NO recarga
-    // (sería perder el trabajo); aquí se avisa y el usuario decide.
-    const offConflict =
-      typeof window.api.onConflictDetected === 'function'
-        ? window.api.onConflictDetected((event) => {
-            setConflict(event.filePath);
-            setStatus('El fichero cambió en disco. Tus cambios siguen en el editor.');
-          })
-        : () => {};
-
-    return () => {
-      offDocument();
-      offDirty();
-      offConflict();
-    };
-  }, [hasBackend]);
-
-  useEffect(() => {
-    setCompletionMeta(doc?.projection.meta ?? null);
-  }, [doc]);
-
-  // Si el documento cambia (undo/redo, recarga, borrado) y el id seleccionado ya
-  // no existe, se limpia: nada de insignias ni paneles fantasma.
-  useEffect(() => {
-    if (!doc || !selectedId) return;
-    if (!findItem(doc.projection, selectedId)) setSelectedId(null);
-  }, [doc, selectedId]);
-
-  const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);  const selectedItem = useMemo(
-    () => (doc && selectedId ? findItem(doc.projection, selectedId) : undefined),
-    [doc, selectedId],
-  );
-
-  const sendCommand = useCallback(
-    async (command: RdlcCommand): Promise<CommandResult | undefined> => {
-      if (!doc) return undefined;
-      const result = await window.api.executeCommand(doc.sessionId, command);
-      if (import.meta.env.DEV) {
-        console.log(
-          `[debug] cmd ${command.cmd} → ok=${result.ok}` +
-            (result.ok
-              ? ` v=${result.version} applied=${JSON.stringify(result.applied ?? null)}`
-              : ` code=${result.code} ${result.message ?? ''}`),
-        );
-      }
-      if (!result.ok) {
-        setError(`${result.code}: ${result.message ?? 'comando rechazado'}`);
-        return result;
-      }
-      setStatus(`Comando '${command.cmd}' aplicado (v${result.version ?? '?'})`);
-      return result;
-    },
-    [doc],
-  );
-
-  /** Reconcilia el optimismo con los valores normalizados por el dominio. */
-  const reconcile = useCallback(
-    (applied: { id: string; values: Record<string, unknown> }[] | undefined): void => {
-      if (!applied || applied.length === 0) return;
-      setDoc((current) =>
-        current
-          ? {
-              ...current,
-              projection: applied.reduce(
-                (projection, entry) =>
-                  patchItem(projection, entry.id, entry.values as Partial<ItemDto>),
-                current.projection,
-              ),
-            }
-          : current,
-      );
-    },
-    [],
-  );
-
-  /* --------------------- mover con flechas (1pt / 10pt) ------------------ */
-
-  interface PendingMove {
-    id: string;
-    topCm: number;
-    leftCm: number;
-    timer: number;
-  }
-
-  const pendingMove = useRef<PendingMove | null>(null);
-
-  const flushPendingMove = useCallback((): void => {
-    const pending = pendingMove.current;
-    if (!pending) return;
-    pendingMove.current = null;
-    window.clearTimeout(pending.timer);
-    void sendCommand({
-      cmd: 'setLocation',
-      id: pending.id,
-      top: cm(pending.topCm),
-      left: cm(pending.leftCm),
-    }).then((result) => reconcile(result?.ok ? result.applied : undefined));
-  }, [reconcile, sendCommand]);
-
-  // El flush se invoca desde efectos/limpiezas: usa un ref para no depender
-  // de su identidad (que cambia con cada mutación del documento).
-  const flushRef = useRef(flushPendingMove);
-  useEffect(() => {
-    flushRef.current = flushPendingMove;
-  }, [flushPendingMove]);
-
-  // Al cambiar de selección, cierra la ráfaga pendiente.
-  useEffect(() => () => flushRef.current(), [selectedId]);
-
-  const nudge = useCallback(
-    (dxCm: number, dyCm: number): void => {
-      if (!selectedItem) return;
-
-      const id = selectedItem.id;
-      const current = pendingMove.current;
-      const pending: PendingMove =
-        current && current.id === id
-          ? current
-          : {
-              id,
-              topCm: toCm(selectedItem.top),
-              leftCm: toCm(selectedItem.left),
-              timer: 0,
-            };
-
-      const nextTop = pending.topCm + dyCm;
-      const nextLeft = pending.leftCm + dxCm;
-
-      // Nada que mover (p. ej. ya está en el borde): no se envía nada.
-      if (
-        round4(nextTop) === round4(toCm(selectedItem.top)) &&
-        round4(nextLeft) === round4(toCm(selectedItem.left))
-      ) {
+  const setStatus = core.setStatus;
+  const pickExpression = useCallback(
+    (expression: string, name: string): void => {
+      if (insertIntoExpressionEditor(expression)) {
+        setStatus(`${name} insertada en el editor`);
         return;
       }
-
-      pending.topCm = nextTop;
-      pending.leftCm = nextLeft;
-      // Un temporizador por ráfaga (no se reinicia con cada tecla): mantén la
-      // tecla pulsada = unos pocos comandos, no uno por repetición.
-      if (pending.timer === 0) {
-        pending.timer = window.setTimeout(() => flushRef.current(), NUDGE_BURST_MS);
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        void navigator.clipboard.writeText(expression);
       }
-      pendingMove.current = pending;
-
-      setDoc((cur) =>
-        cur
-          ? {
-              ...cur,
-              projection: patchItem(cur.projection, id, {
-                top: cm(pending.topCm),
-                left: cm(pending.leftCm),
-              }),
-            }
-          : cur,
-      );
+      setStatus(`${name} copiada al portapapeles: ${expression}`);
     },
-    [selectedItem],
+    [setStatus],
   );
 
-  const moveItem = useCallback(
-    (id: string, top: Length, left: Length): void => {
-      // Optimista: el lienzo ya movió el nodo; aquí se refleja en la proyección.
-      setDoc((current) =>
-        current
-          ? { ...current, projection: patchItem(current.projection, id, { top, left }) }
-          : current,
-      );
-      void sendCommand({ cmd: 'setLocation', id, top, left }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
-    },
-    [reconcile, sendCommand],
-  );
-
-  const setItemLocation = useCallback(
-    (top: Length, left: Length): void => {
-      if (!selectedItem) return;
-      moveItem(selectedItem.id, top, left);
-    },
-    [moveItem, selectedItem],
-  );
-
-  const setItemSize = useCallback(
-    (width: Length, height: Length): void => {
-      if (!selectedItem) return;
-      const id = selectedItem.id;
-      setDoc((current) =>
-        current
-          ? { ...current, projection: patchItem(current.projection, id, { width, height }) }
-          : current,
-      );
-      void sendCommand({ cmd: 'setSize', id, width, height }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
-    },
-    [reconcile, selectedItem, sendCommand],
-  );
-
-  const setItemStyle = useCallback(
-    (patch: StylePatch): void => {
-      if (!selectedItem) return;
-      const id = selectedItem.id;
-
-      // Optimista: aplica el parche; `null` = quitar la propiedad.
-      // `padding` es anidado, así que se fusiona lado a lado (el parche de un
-      // lado no debe borrar los demás).
-      const nextStyle: StyleDto = { ...(selectedItem.style ?? {}) };
-      const target = nextStyle as Record<string, unknown>;
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === null) delete target[key];
-        else if (value === undefined) continue;
-        else if (key === 'padding') {
-          target[key] = {
-            ...((target[key] as Record<string, unknown> | undefined) ?? {}),
-            ...(value as Record<string, unknown>),
-          };
-        } else target[key] = value;
-      }
-
-      setDoc((current) =>
-        current
-          ? { ...current, projection: patchItem(current.projection, id, { style: nextStyle }) }
-          : current,
-      );
-      void sendCommand({ cmd: 'setStyle', id, style: patch }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
-    },
-    [reconcile, selectedItem, sendCommand],
-  );
-
-  const setImageOptions = useCallback(
-    (patch: ImageOptionsPatch): void => {
-      if (!selectedItem || selectedItem.kind !== 'image') return;
-      const id = selectedItem.id;
-
-      const next: Record<string, unknown> = { ...selectedItem };
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === null) delete next[key];
-        else if (value !== undefined) next[key] = value;
-      }
-
-      setDoc((current) =>
-        current ? { ...current, projection: patchItem(current.projection, id, next) } : current,
-      );
-      void sendCommand({ cmd: 'setImageOptions', id, ...patch }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
-    },
-    [reconcile, selectedItem, sendCommand],
-  );
-
-  const setRunText = useCallback(
-    (p: number, r: number, value: string): void => {
-      if (!selectedItem || selectedItem.kind !== 'textbox') return;
-      const updated: TextboxDto = {
-        ...selectedItem,
-        paragraphs: selectedItem.paragraphs.map((paragraph, paragraphIndex) =>
-          paragraphIndex === p
-            ? {
-                ...paragraph,
-                runs: paragraph.runs.map((run, runIndex) =>
-                  runIndex === r ? { ...run, value } : run,
-                ),
-              }
-            : paragraph,
-        ),
-      };
-      setDoc((current) =>
-        current
-          ? { ...current, projection: patchItem(current.projection, selectedItem.id, updated) }
-          : current,
-      );
-      void sendCommand({ cmd: 'setText', id: selectedItem.id, p, r, value });
-    },
-    [selectedItem, sendCommand],
-  );
-
-  /* ------------------ insertar / duplicar / eliminar items --------------- */
-
-  /** Inserta un item nuevo en el punto/scope indicado (drop o menú contextual). */
-  const insertAt = useCallback(
-    (kind: NewItemSpec['kind'], hit: CanvasHit): void => {
-      if (!doc) return;
-      const size = NEW_ITEM_SIZES[kind];
-      // El nombre lo elige el **backend** (su índice está siempre al día): así
-      // dos inserciones seguidas no pueden chocar de nombre.
-      void sendCommand({
-        cmd: 'insertItem',
-        scope: hit.scope,
-        index: hit.index,
-        item: {
-          kind,
-          top: cm(round4(hit.point.y)),
-          left: cm(round4(hit.point.x)),
-          width: size.width,
-          height: size.height,
-          ...(kind === 'textbox' ? { text: '' } : {}),
-        },
-      }).then((result) => {
-        if (result?.ok && result.id) setSelectedId(result.id);
-      });
-    },
-    [doc, sendCommand],
-  );
-
-  /** Click en la toolbox: inserta al principio del cuerpo. */
-  const insertItem = useCallback(
-    (kind: NewItemSpec['kind']): void => {
-      if (!doc) return;
-      insertAt(kind, {
-        scope: { kind: 'body' },
-        index: doc.projection.page.body.items.length,
-        point: { x: 2, y: 2 },
-      });
-    },
-    [doc, insertAt],
-  );
-
-  const duplicateSelected = useCallback((): void => {
-    if (!selectedItem) return;
-    void sendCommand({ cmd: 'duplicateItem', id: selectedItem.id }).then((result) => {
-      if (result?.ok && result.id) setSelectedId(result.id);
-    });
-  }, [selectedItem, sendCommand]);
-
-  const deleteSelected = useCallback((): void => {
-    if (!selectedItem) return;
-    flushRef.current();
-    void sendCommand({ cmd: 'deleteItem', id: selectedItem.id }).then(() => setSelectedId(null));
-  }, [selectedItem, sendCommand]);
-
-  /* --------------------------- portapapeles ------------------------------- */
-
-  const copySelected = useCallback((): void => {
-    if (!doc || !selectedItem) return;
-    const id = selectedItem.id;
-    void window.api.copy(doc.sessionId, id).then((result) => {
-      if (!result.ok) {
-        setError(`${result.code}: ${result.message ?? 'no se pudo copiar'}`);
-        return;
-      }
-      setHasClipboard(true);
-      setStatus(`Copiado: ${id}`);
-    });
-  }, [doc, selectedItem]);
-
-  const cutSelected = useCallback((): void => {
-    if (!doc || !selectedItem) return;
-    const id = selectedItem.id;
-    flushRef.current();
-    void window.api.cut(doc.sessionId, id).then((result) => {
-      if (!result.ok) {
-        setError(`${result.code}: ${result.message ?? 'no se pudo cortar'}`);
-        return;
-      }
-      setHasClipboard(true);
-      setSelectedId(null);
-      setStatus(`Cortado: ${id}`);
-    });
-  }, [doc, selectedItem]);
-
-  const pasteAt = useCallback(
-    (scope: ScopeRef, index: number): void => {
-      if (!doc) return;
-      void window.api.paste(doc.sessionId, scope, index).then((result) => {
-        if (!result.ok) {
-          setError(`${result.code}: ${result.message ?? 'no se pudo pegar'}`);
-          return;
-        }
-        if (result.id) setSelectedId(result.id);
-        setStatus(`Pegado: ${result.id ?? ''}`);
-      });
-    },
-    [doc],
-  );
-
-  /* ------------------- página y código (Propiedades del informe) ---------- */
-
-  const setPageSize = useCallback(
-    (width: Length, height: Length): void => {
-      if (!doc) return;
-      setDoc((current) =>
-        current
-          ? {
-              ...current,
-              projection: {
-                ...current.projection,
-                page: { ...current.projection.page, width, height },
-              },
-            }
-          : current,
-      );
-      void sendCommand({ cmd: 'setPageSize', width, height });
-    },
-    [doc, sendCommand],
-  );
-
-  const setPageMargins = useCallback(
-    (margins: { top: Length; bottom: Length; left: Length; right: Length }): void => {
-      if (!doc) return;
-      setDoc((current) =>
-        current
-          ? {
-              ...current,
-              projection: { ...current.projection, page: { ...current.projection.page, margins } },
-            }
-          : current,
-      );
-      void sendCommand({ cmd: 'setPageMargins', ...margins });
-    },
-    [doc, sendCommand],
-  );
-
-  const setReportCode = useCallback(
-    (code: string): void => {
-      if (!doc) return;
-      setDoc((current) =>
-        current
-          ? {
-              ...current,
-              projection: {
-                ...current.projection,
-                meta: {
-                  ...current.projection.meta,
-                  code: { ...current.projection.meta.code, text: code },
-                },
-              },
-            }
-          : current,
-      );
-      void sendCommand({ cmd: 'setReportCode', code });
-    },
-    [doc, sendCommand],
-  );
-
-  /* -------------------------- paleta de comandos -------------------------- */
-
-  /** Salta a un elemento (paleta Ctrl+K): lo selecciona y lo trae a la vista. */
-  const selectAndReveal = useCallback((id: string): void => {
-    setSelectedId(id);
-    setReveal({ id, nonce: Date.now() });
-  }, []);
-
-  /**
-   * Elige una variable (panel o paleta): si hay un editor de expresiones con
-   * foco se inserta en el cursor; si no, se copia al portapapeles.
-   */
-  const pickExpression = useCallback((expression: string, name: string): void => {
-    if (insertIntoExpressionEditor(expression)) {
-      setStatus(`${name} insertada en el editor`);
-      return;
-    }
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(expression);
-    }
-    setStatus(`${name} copiada al portapapeles: ${expression}`);
-  }, []);
-
-  const undo = useCallback(async (): Promise<void> => {
-    if (!doc) return;
-    flushRef.current();
-    const result = await window.api.undo(doc.sessionId);
-    if (!result.ok) setError(`${result.code}: ${result.message ?? 'no se pudo deshacer'}`);
-    else setStatus(`Deshecho (v${result.version ?? '?'})`);
-  }, [doc]);
-
-  const redo = useCallback(async (): Promise<void> => {
-    if (!doc) return;
-    flushRef.current();
-    const result = await window.api.redo(doc.sessionId);
-    if (!result.ok) setError(`${result.code}: ${result.message ?? 'no se pudo rehacer'}`);
-    else setStatus(`Rehecho (v${result.version ?? '?'})`);
-  }, [doc]);
-
-  /** Handler global de teclado: ve el estado actual sin re-suscribir listeners. */
-  const onKeyDown = useEffectEvent((event: KeyboardEvent): void => {
-    const key = event.key.toLowerCase();
-
-    // Ctrl+K es global (también mientras se escribe en un panel).
-    if ((event.ctrlKey || event.metaKey) && key === 'k') {
-      event.preventDefault();
-      setPaletteOpen((value) => !value);
-      return;
-    }
-
-    const target = event.target as HTMLElement | null;
-    if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-    if (!doc) return;
-
-    if ((event.ctrlKey || event.metaKey) && key === 'z') {
-      event.preventDefault();
-      if (event.shiftKey) void redo();
-      else void undo();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && key === 'y') {
-      event.preventDefault();
-      void redo();
-      return;
-    }
-    if (event.key.startsWith('Arrow') && selectedItem) {
-      event.preventDefault();
-      const step = NUDGE_PT_CM * (event.shiftKey ? 10 : 1);
-      if (event.key === 'ArrowUp') nudge(0, -step);
-      else if (event.key === 'ArrowDown') nudge(0, step);
-      else if (event.key === 'ArrowLeft') nudge(-step, 0);
-      else if (event.key === 'ArrowRight') nudge(step, 0);
-      return;
-    }
-    if (event.key === 'Delete' && selectedItem) {
-      event.preventDefault();
-      deleteSelected();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && key === 'd' && selectedItem) {
-      event.preventDefault();
-      duplicateSelected();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && key === 'c' && selectedItem) {
-      event.preventDefault();
-      copySelected();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && key === 'x' && selectedItem) {
-      event.preventDefault();
-      cutSelected();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && key === 'v') {
-      event.preventDefault();
-      pasteAt({ kind: 'body' }, doc.projection.page.body.items.length);
-    }
+  useGlobalKeys({
+    hasDocument: doc !== null,
+    hasSelection: selectedItem !== undefined,
+    bodyIndex: doc?.projection.page.body.items.length ?? 0,
+    onTogglePalette: () => setPaletteOpen((value) => !value),
+    onUndo: () => void core.undo(),
+    onRedo: () => void core.redo(),
+    onNudge: items.nudge,
+    onFlushNudge: items.flushNudge,
+    onDelete: items.deleteSelected,
+    onDuplicate: items.duplicateSelected,
+    onCopy: items.copySelected,
+    onCut: items.cutSelected,
+    onPasteAtBody: (index) => items.pasteAt({ kind: 'body' }, index),
   });
-
-  const onKeyUp = useEffectEvent((event: KeyboardEvent): void => {
-    if (event.key.startsWith('Arrow')) flushRef.current();
-  });
-
-  useEffect(() => {
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, []);
-
-  const open = async (): Promise<void> => {
-    setError(null);
-    const picked = await window.api.pickFile();
-    if (!picked.ok || !picked.path) return;
-
-    const result = await window.api.openFile(picked.path);
-    if (!result.ok) {
-      setError(`${result.code}: ${result.message ?? 'error al abrir'}`);
-      return;
-    }
-    setDoc({ sessionId: result.sessionId, path: picked.path, projection: result.projection });
-    setSelectedId(null);
-    setDirty(false);
-    setConflict(null);
-    setStatus(`Abierto: ${picked.path}`);
-  };
-
-  const save = async (): Promise<void> => {
-    if (!doc) return;
-    setError(null);
-    const result = await window.api.save(doc.sessionId);
-    if (!result.ok) {
-      setError(`${result.code}: ${result.message ?? 'error al guardar'}`);
-      return;
-    }
-    setConflict(null);
-    setStatus(
-      result.bytesIdentical
-        ? `Guardado — bytes idénticos al original ✓ (${result.path})`
-        : `Guardado: ${result.path}`,
-    );
-  };
-
-  const close = async (force = false): Promise<void> => {
-    if (!doc) return;
-    const result = await window.api.close(doc.sessionId, force);
-
-    // Hay cambios sin guardar: se pregunta antes de cerrar (una sola vez).
-    if (!result.ok && 'needsConfirmation' in result) {
-      const confirmed = window.confirm(
-        'Este informe tiene cambios sin guardar. ¿Cerrar de todos modos? (se perderán)',
-      );
-      if (confirmed) await close(true);
-      return;
-    }
-
-    if (!result.ok) {
-      if ('code' in result) {
-        setError(`${result.code}: ${result.message ?? 'no se pudo cerrar'}`);
-      } else {
-        setError('No se pudo cerrar el documento.');
-      }
-      return;
-    }
-    setDoc(null);
-    setSelectedId(null);
-    setDirty(false);
-    setConflict(null);
-    setStatus('Documento cerrado.');
-  };
 
   /** Acciones que ofrece la paleta (Ctrl+K). */
-  const runPaletteAction = (action: PaletteActionId): void => {
-    switch (action) {
-      case 'open':
-        void open();
-        break;
-      case 'save':
-        void save();
-        break;
-      case 'undo':
-        void undo();
-        break;
-      case 'redo':
-        void redo();
-        break;
-      case 'toggle-variables':
-        setShowVariables((value) => !value);
-        break;
-      case 'report-properties':
-        setPropertiesOpen(true);
-        break;
-      case 'insert:textbox':
-        insertItem('textbox');
-        break;
-      case 'insert:rectangle':
-        insertItem('rectangle');
-        break;
-      case 'insert:line':
-        insertItem('line');
-        break;
-      case 'insert:image':
-        insertItem('image');
-        break;
-    }
-  };
+  const runPaletteAction = paletteRunner({
+    open: () => void core.open(),
+    save: () => void core.save(),
+    undo: () => void core.undo(),
+    redo: () => void core.redo(),
+    toggleVariables: () => setShowVariables((value) => !value),
+    reportProperties: () => setPropertiesOpen(true),
+    insertTextbox: () => items.insertItem('textbox'),
+    insertRectangle: () => items.insertItem('rectangle'),
+    insertLine: () => items.insertItem('line'),
+    insertImage: () => items.insertItem('image'),
+  });
+
+  /* Acciones del JSX (los hooks ya resuelven la lógica). */
+  const { open, save, close, undo, redo } = core;
+  const {
+    setSelectedId,
+    insertItem,
+    insertAt,
+    duplicateSelected,
+    deleteSelected,
+    copySelected,
+    cutSelected,
+    pasteAt,
+    moveItem,
+    setItemLocation,
+    setItemSize,
+    setItemStyle,
+    setImageOptions,
+    setRunText,
+    setPageSize,
+    setPageMargins,
+    setReportCode,
+    hasClipboard,
+    reveal,
+    selectAndReveal,
+  } = items;
 
   return (
     <TooltipProvider>
       <div className="flex h-full flex-col bg-background">
-        <header className="flex items-center gap-1.5 border-b bg-background px-3 py-1.5">
-          <span className="mr-2 text-sm font-semibold">RDLC Report Designer</span>
-
-          <Button variant="outline" size="sm" onClick={() => void open()}>
-            <FolderOpen data-icon="inline-start" />
-            Abrir…
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => void save()} disabled={!doc}>
-            <Save data-icon="inline-start" />
-            Guardar
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => void close()} disabled={!doc}>
-            <X data-icon="inline-start" />
-            Cerrar
-          </Button>
-
-          <Separator orientation="vertical" className="mx-1 h-5" />
-
-          <Button variant="ghost" size="sm" onClick={() => setPropertiesOpen(true)} disabled={!doc}>
-            <Settings2 data-icon="inline-start" />
-            Informe…
-          </Button>
-          <Button
-            variant={showVariables ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setShowVariables((value) => !value)}
-            disabled={!doc}
-          >
-            <Variable data-icon="inline-start" />
-            Variables
-          </Button>
-
-          <Separator orientation="vertical" className="mx-1 h-5" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!doc}
-                draggable={Boolean(doc)}
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(ITEM_DRAG_TYPE, 'textbox');
-                  event.dataTransfer.effectAllowed = 'copy';
-                }}
-                onClick={() => insertItem('textbox')}
-                aria-label="Insertar textbox"
-              >
-                <Type />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Insertar textbox</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!doc}
-                draggable={Boolean(doc)}
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(ITEM_DRAG_TYPE, 'rectangle');
-                  event.dataTransfer.effectAllowed = 'copy';
-                }}
-                onClick={() => insertItem('rectangle')}
-                aria-label="Insertar rectángulo"
-              >
-                <Square />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Insertar rectángulo</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!doc}
-                draggable={Boolean(doc)}
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(ITEM_DRAG_TYPE, 'line');
-                  event.dataTransfer.effectAllowed = 'copy';
-                }}
-                onClick={() => insertItem('line')}
-                aria-label="Insertar línea"
-              >
-                <Minus />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Insertar línea</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!doc}
-                draggable={Boolean(doc)}
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(ITEM_DRAG_TYPE, 'image');
-                  event.dataTransfer.effectAllowed = 'copy';
-                }}
-                onClick={() => insertItem('image')}
-                aria-label="Insertar imagen"
-              >
-                <Image />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Insertar imagen</TooltipContent>
-          </Tooltip>
-
-          <Separator orientation="vertical" className="mx-1 h-5" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!selectedItem}
-                onClick={duplicateSelected}
-                aria-label="Duplicar (Ctrl+D)"
-              >
-                <Copy />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Duplicar (Ctrl+D)</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!selectedItem}
-                onClick={deleteSelected}
-                aria-label="Eliminar (Supr)"
-              >
-                <Trash2 />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Eliminar (Supr)</TooltipContent>
-          </Tooltip>
-
-          <Separator orientation="vertical" className="mx-1 h-5" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" onClick={() => void undo()} disabled={!doc}>
-                <Undo2 data-icon="inline-start" />
-                Deshacer
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Ctrl+Z</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" onClick={() => void redo()} disabled={!doc}>
-                <Redo2 data-icon="inline-start" />
-                Rehacer
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Ctrl+Shift+Z o Ctrl+Y</TooltipContent>
-          </Tooltip>
-
-          <div className="flex-1" />
-
-          {selectedId ? (
-            <Badge variant="secondary" className="font-mono">
-              {selectedId}
-            </Badge>
-          ) : null}
-
-          <Separator orientation="vertical" className="mx-1 h-5" />
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setZoom((z) => Math.max(0.2, z - 0.1))}
-              aria-label="Reducir zoom"
-            >
-              <Minus />
-            </Button>
-            <span className="w-10 text-center text-xs tabular-nums">{Math.round(zoom * 100)}%</span>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setZoom((z) => Math.min(2, z + 0.1))}
-              aria-label="Aumentar zoom"
-            >
-              <Plus />
-            </Button>
-          </div>
-        </header>
+      <EditorToolbar
+        hasDocument={doc !== null}
+        hasSelection={selectedItem !== undefined}
+        selectedId={selectedId}
+        zoom={zoom}
+        showVariables={showVariables}
+        onOpen={() => void open()}
+        onSave={() => void save()}
+        onClose={() => void close()}
+        onOpenProperties={() => setPropertiesOpen(true)}
+        onToggleVariables={() => setShowVariables((value) => !value)}
+        onInsert={insertItem}
+        onDuplicate={duplicateSelected}
+        onDelete={deleteSelected}
+        onUndo={() => void undo()}
+        onRedo={() => void redo()}
+        onZoomChange={setZoom}
+      />
 
         {/* Barra de formato de texto (ribbon), bajo la toolbar principal. */}
         <FormatToolbar
@@ -1037,153 +164,48 @@ export function App(): ReactNode {
             </aside>
           ) : null}
 
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <div className="flex min-h-0 flex-1 flex-col">
-                {doc ? (
-                  <>
-                    <CanvasPreview
-                      projection={doc.projection}
-                      zoom={zoom}
-                      selectedId={selectedId}
-                      onSelect={setSelectedId}
-                      onMoveItem={moveItem}
-                      onZoomChange={setZoom}
-                      onContextMenuHit={(hit) => {
-                        setMenuHit(hit);
-                        // Como en VS/RB: el click derecho selecciona lo que hay debajo.
-                        setSelectedId(hit.item?.id ?? null);
-                      }}
-                      onDropItem={(kind, hit) => insertAt(kind, hit)}
-                      reveal={reveal}
-                    />
-                  </>
-                ) : (
-                  <div className="m-auto max-w-lg text-center text-sm text-muted-foreground">
-                    <p>Sin documento abierto.</p>
-                    <p className="mt-2">
-                      Flujo F1: abre un .rdlc, arrastra un tipo de elemento desde la barra al
-                      lienzo (o haz click derecho para insertar), selecciona un elemento y muévelo
-                      (imán de 0,1 cm; Shift lo ignora), edita su texto o expresión en el panel
-                      derecho, deshaz con Ctrl+Z y guarda: solo cambian los valores editados.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </ContextMenuTrigger>
-
-            <ContextMenuContent className="w-56">
-              <ContextMenuLabel>{menuHit?.item ? menuHit.item.id : 'Lienzo'}</ContextMenuLabel>
-              <ContextMenuSeparator />
-
-              {/* Acciones del item ARRIBA (como en VS Code/Explorer): sobre un
-                  item hay grupo de portapapeles; en vacío solo pegar. */}
-              {menuHit?.item ? (
-                <>
-                  <ContextMenuItem onSelect={cutSelected}>
-                    Cortar
-                    <ContextMenuShortcut>Ctrl+X</ContextMenuShortcut>
-                  </ContextMenuItem>
-                  <ContextMenuItem onSelect={copySelected}>
-                    Copiar
-                    <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    disabled={!hasClipboard}
-                    onSelect={() => {
-                      if (menuHit) pasteAt(menuHit.scope, menuHit.index);
-                    }}
-                  >
-                    Pegar
-                    <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
-                  </ContextMenuItem>
-                  <ContextMenuItem onSelect={duplicateSelected}>
-                    Duplicar
-                    <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem variant="destructive" onSelect={deleteSelected}>
-                    Eliminar
-                    <ContextMenuShortcut>Supr</ContextMenuShortcut>
-                  </ContextMenuItem>
-                </>
-              ) : (
-                <ContextMenuItem
-                  disabled={!hasClipboard}
-                  onSelect={() => {
-                    if (menuHit) pasteAt(menuHit.scope, menuHit.index);
-                  }}
-                >
-                  Pegar
-                  <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
-                </ContextMenuItem>
-              )}
-
-              <ContextMenuSeparator />
-              <ContextMenuSub>
-                <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
-                <ContextMenuSubContent>
-                  {(['textbox', 'rectangle', 'line', 'image'] as const).map((kind) => (
-                    <ContextMenuItem
-                      key={kind}
-                      onSelect={() => {
-                        if (menuHit) insertAt(kind, menuHit);
-                      }}
-                    >
-                      {ITEM_KIND_LABELS[kind]}
-                    </ContextMenuItem>
-                  ))}
-                </ContextMenuSubContent>
-              </ContextMenuSub>
-            </ContextMenuContent>
-          </ContextMenu>
+          <CanvasArea
+            projection={doc?.projection ?? null}
+            zoom={zoom}
+            selectedId={selectedId}
+            menuHit={menuHit}
+            hasClipboard={hasClipboard}
+            reveal={reveal}
+            onSelect={setSelectedId}
+            onContextMenuHit={(hit) => {
+              setMenuHit(hit);
+              // Como en VS/RB: el click derecho selecciona lo que hay debajo.
+              setSelectedId(hit.item?.id ?? null);
+            }}
+            onZoomChange={setZoom}
+            onMoveItem={moveItem}
+            onInsertAt={insertAt}
+            onDuplicate={duplicateSelected}
+            onCopy={copySelected}
+            onCut={cutSelected}
+            onPasteAt={pasteAt}
+            onDelete={deleteSelected}
+          />
 
           <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
-            {selectedItem ? (
-              <>
-                <PropertiesPanel
-                  item={selectedItem}
-                  onSetLocation={setItemLocation}
-                  onSetSize={setItemSize}
-                />
-                {selectedItem.kind === 'textbox' ? (
-                  <TextPanel item={selectedItem} onSetText={setRunText} onSetStyle={setItemStyle} />
-                ) : null}
-                {selectedItem.kind === 'image' ? (
-                  <ImagePanel
-                    item={selectedItem}
-                    onSetImageOptions={setImageOptions}
-                    onSetStyle={setItemStyle}
-                  />
-                ) : null}
-              </>
-            ) : (
-              <p className="p-4 text-xs text-muted-foreground">
-                Selecciona un elemento en el lienzo para editar sus propiedades.
-              </p>
-            )}
+            <ItemPanels
+              item={selectedItem}
+              onSetLocation={setItemLocation}
+              onSetSize={setItemSize}
+              onSetStyle={setItemStyle}
+              onSetText={setRunText}
+              onSetImageOptions={setImageOptions}
+            />
           </aside>
         </main>
 
-        <footer className="flex items-center gap-3 border-t bg-background px-3 py-1 text-xs text-muted-foreground">
-          <span className="truncate">{status}</span>
-          {doc ? (
-            <span className="ml-auto flex shrink-0 items-center gap-3">
-              <span className="max-w-[340px] truncate font-medium text-foreground" title={doc.path}>
-                {doc.path}
-                {dirty ? <span className="text-amber-600"> *</span> : null}
-              </span>
-              {stats ? (
-                <span>
-                  {stats.total} elementos · {formatKinds(stats.byKind)}
-                </span>
-              ) : null}
-              {reloads > 0 ? (
-                <span className="text-amber-600">{reloads} recarga(s) externa(s)</span>
-              ) : null}
-            </span>
-          ) : null}
-        </footer>
+        <StatusBar
+          status={status}
+          path={doc?.path ?? null}
+          dirty={dirty}
+          stats={stats ? `${stats.total} elementos · ${formatKinds(stats.byKind)}` : null}
+          reloads={reloads}
+        />
       </div>
 
       {doc ? (

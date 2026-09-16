@@ -34,7 +34,7 @@ si el backend necesita validar sintaxis, el catálogo se moverá a `contracts`.
 | **Atajos** | Ctrl+C / Ctrl+X / Ctrl+V (pegar en el cuerpo) además de los existentes Ctrl+D / Supr / flechas |
 | **Posición normalizada al insertar** | `insertItem` clampa la posición a la banda (un item soltado fuera del cuerpo entra en él), igual que hace el drag |
 
-### 🧹 Pasada de `react-doctor` (51 → 75, 0 errores)
+### 🧹 Pasadas de `react-doctor` (51 → 81, 0 errores)
 
 Corregido: refs mutadas durante el render (contadores de debug), listener global de
 teclado con `useEffectEvent` (sin re-suscripción), borradores de los paneles derivados
@@ -45,16 +45,24 @@ tiradores, los `*Variants` de shadcn ya no se exportan (rompían Fast Refresh) y
 **Monaco se carga en diferido** (el host se importa con `import()`; el bundle inicial
 baja de 9,2 MB a 1,9 MB y Monaco vive en su chunk de 7,2 MB, además con su CSS aparte).
 
-**Pendiente del doctor** (avisos, no errores):
-- `App.tsx`, `CanvasPreview.tsx` e `ImagePanel.tsx` son componentes grandes/complejos:
-  toca partirlos (p. ej. `useEditorSession` + `EditorToolbar`/`CanvasArea`, y las
-  secciones del panel de imagen en componentes). Refactor pendiente, sin bugs.
-- Falsos positivos documentados: `prefer-dynamic-import` sobre
-  `lib/monacoSetup.ts:2` (el módulo **es** diferido: el build lo deja en
-  `monacoSetup-*.js`) y `no-adjust-state-on-prop-change` en el marco de selección
-  del lienzo (se mide del nodo Konva real: es imperativo a propósito).
-- `no-set-state-after-await-in-effect` en el efecto de apertura pendiente: está
-  guardado con `cancelled`, pero la regla no lo detecta.
+**Refactor estructural** (para los avisos de tamaño/complejidad, ya resueltos):
+`App.tsx` pasa de ~1.100 a ~250 líneas y ahora es composición de
+`useDocumentCore` (ciclo de vida del fichero: abrir/guardar/cerrar/undo/redo, eventos),
+`useItemEditing` (selección, geometría, estilo, insertar/duplicar/borrar, portapapeles,
+página/código, *nudge*) y `useGlobalKeys` (atajos), más `EditorToolbar`, `CanvasArea`,
+`ItemPanels` y `StatusBar`. El lienzo se parte en `Paper` (papel + bandas + items),
+`SelectionFrame` (marco y tiradores), `Ruler`, `ItemView` (nodo Konva y contenido por
+tipo) y `bands.ts` (geometría de bandas, compartida con el hit-test). El panel de
+imagen se divide en secciones y la paleta ejecuta acciones por tabla
+(`paletteRunner`), sin `switch`.
+
+**Pendiente del doctor** (2 avisos, ambos revisados y aceptados):
+- `no-adjust-state-on-prop-change` en el marco de selección del lienzo: se mide del
+  nodo Konva real **a propósito** (un item dentro de una celda de Tablix no declara
+  geometría propia; el modelo no puede dar su rect sin duplicar la disposición).
+- `prefer-dynamic-import` sobre `lib/monacoSetup.ts:2`: falso positivo; el módulo
+  **es** diferido y el build lo deja en `monacoSetup-*.js` (7,2 MB) aparte del
+  `index-*.js` (1,9 MB).
 
 ## ✅ Corrección de bugs (sesión 2026-09-16)
 

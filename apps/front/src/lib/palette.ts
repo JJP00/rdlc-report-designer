@@ -93,3 +93,36 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   { id: 'insert:line', label: 'Insertar línea', group: 'Insertar' },
   { id: 'insert:image', label: 'Insertar imagen', group: 'Insertar' },
 ];
+
+/** Qué hacer con cada acción (lo cablea el shell del editor). */
+export interface PaletteActionHandlers {
+  open: () => void;
+  save: () => void;
+  undo: () => void;
+  redo: () => void;
+  toggleVariables: () => void;
+  reportProperties: () => void;
+  insertTextbox: () => void;
+  insertRectangle: () => void;
+  insertLine: () => void;
+  insertImage: () => void;
+}
+
+/** Ejecutor de acciones de la paleta (sin `switch` en el componente). */
+export function paletteRunner(
+  handlers: PaletteActionHandlers,
+): (action: PaletteActionId) => void {
+  const map: Record<PaletteActionId, () => void> = {
+    open: handlers.open,
+    save: handlers.save,
+    undo: handlers.undo,
+    redo: handlers.redo,
+    'toggle-variables': handlers.toggleVariables,
+    'report-properties': handlers.reportProperties,
+    'insert:textbox': handlers.insertTextbox,
+    'insert:rectangle': handlers.insertRectangle,
+    'insert:line': handlers.insertLine,
+    'insert:image': handlers.insertImage,
+  };
+  return (action) => map[action]();
+}
