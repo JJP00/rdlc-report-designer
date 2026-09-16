@@ -61,8 +61,27 @@ $env:RDLC_BENCH='972'; pnpm --filter @rdlc-designer/back dev
 El resultado (`[bench] {...}`) sale en consola/log y el estado actual está
 documentado en [`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-lienzo.md).
 
+### Modo QA (capturas y guiones sobre la app real)
 
-## Estado (Fase 0 cerrada · Fase 1 en curso — sesión 2026-09-14)
+Electron puede abrir un `.rdlc`, ejecutar un guion en el renderer y sacar una captura,
+sin tocar nada a mano (es como se verifican los cambios de lienzo: arrastres reales,
+`getIntersection`, etc.):
+
+```bash
+$env:RDLC_OPEN='C:\ruta\al\informe.rdlc'    # fichero a abrir al arrancar
+$env:RDLC_SHOT='C:\ruta\salida.png'         # captura al terminar
+$env:RDLC_SHOT_DELAY='6000'                 # ms antes de ejecutar el guion
+$env:RDLC_SHOT_SCRIPT=(Get-Content guion.js -Raw)  # JS a evaluar en el renderer
+$env:RDLC_SHOT_QUIT='1'                     # cerrar al acabar
+pnpm --filter @rdlc-designer/back dev
+```
+
+El renderer reenvía su consola al log (`[renderer] …`), y en dev expone ganchos para los
+guiones: `__rdlcSelection` (rect del elemento seleccionado en px de papel + zoom),
+`__rdlcResizeHandle`, `__rdlcTablixSeparator` y `__rdlcStage` (el `Konva.Stage`, para
+`getIntersection` o para trazar eventos). Detalles en el pendientes.
+
+## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-16)
 
 **Fase 0 (spike round-trip) — cerrada:**
 
@@ -97,5 +116,15 @@ documentado en [`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-l
       alcanzar tablas anidadas.
 - [ ] **Tablix visual completo** (F2): celdas, filas/columnas y grupos con totales · [ ] Matrix (F3).
 
-Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).
+**Calidad (sesión 2026-09-16):**
 
+- [x] **Pendientes M1–M7** cerrados (id al duplicar, aviso al cerrar, motivo de recarga,
+      zIndex en pintado y hit-test, `<Code>` vacío, nombres elegidos por el backend,
+      limpieza de la selección tras undo/redo).
+- [x] **`react-doctor` 51 → 82 con 0 errores**: `App` partido en
+      `useDocumentCore`/`useItemEditing`/`useGlobalKeys` + `EditorToolbar`, `CanvasArea`,
+      `ItemPanels`, `StatusBar`; el lienzo en `Paper`/`SelectionFrame`/`Ruler`/`ItemView`.
+      Quedan 3 avisos revisados y aceptados (documentados en el pendientes).
+- [x] **199 tests** (136 back + 63 front) y `typecheck` limpio.
+
+Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).
