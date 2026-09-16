@@ -1,6 +1,6 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
 import type { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
-import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
+import type { RdlcDocument, RdlcNode } from '../../domain/document/tree/RdlcNode.js';
 import type { Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 
@@ -38,6 +38,11 @@ export interface ISessionService {
 
   /** Acceso de edición: el DOM + índice de nombres de la sesión. */
   getEditTarget(sessionId: string): Either<DomainError, EditTarget>;
+
+  /** Guarda un clon desprendido del item en el portapapeles de la sesión. */
+  copyToClipboard(sessionId: string, id: string): Either<DomainError, void>;
+  /** Subárbol del portapapeles (desprendido), si lo hay. */
+  clipboardOf(sessionId: string): RdlcNode | undefined;
   /** Reconstruye el índice tras comandos que cambian estructura o límites. */
   rebuildIndex(sessionId: string): void;
   /** Mutación aplicada: sube la versión, marca dirty y emite eventos. */

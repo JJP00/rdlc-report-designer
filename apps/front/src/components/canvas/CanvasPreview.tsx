@@ -1,15 +1,22 @@
 import type {
   ItemDto,
   Length,
+  NewItemSpec,
   ProjectionDto,
+  RectangleDto,
   RegionDto,
+  ScopeRef,
   StyleDto,
   TablixDto,
+  TextboxDto,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
 import { computeDragEnd } from '@/lib/drag';
+import type { CanvasHit } from '@/lib/hit';
+import { hitTestItems } from '@/lib/hit';
+import { toCm } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
 
 export const PX_PER_CM = 96 / 2.54;
@@ -31,6 +38,17 @@ function toPx(length: Length): number {
   }
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+/** Scope del contrato para cada banda del papel. */
+function scopeOfBand(key: string): ScopeRef {
+  if (key === 'header') return { kind: 'pageHeader' };
+  if (key === 'footer') return { kind: 'pageFooter' };
+  return { kind: 'body' };
+}
+
 export interface CanvasPreviewProps {
   projection: ProjectionDto;
   zoom: number;
@@ -40,7 +58,14 @@ export interface CanvasPreviewProps {
   onMoveItem?: (id: string, top: Length, left: Length) => void;
   /** Zoom con Ctrl/Cmd + rueda. */
   onZoomChange?: (zoom: number) => void;
+  /** Click derecho sobre el lienzo: el item/contenedor bajo el cursor. */
+  onContextMenuHit?: (hit: CanvasHit) => void;
+  /** Un item de la toolbox soltado en el lienzo. */
+  onDropItem?: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
 }
+
+/** MIME propio del drag desde la toolbox (el navegador lo pasa a minúsculas). */
+export const ITEM_DRAG_TYPE = 'application/x-rdlc-item';
 
 /**
  * Lienzo del diseñador. El escenario es el **papel** (A4 u otro): dentro se
@@ -55,13 +80,17 @@ export function CanvasPreview({
   onSelect,
   onMoveItem,
   onZoomChange,
+  onContextMenuHit,
+  onDropItem,
 }: CanvasPreviewProps): ReactNode {
-  // Dev: detector de bucles de render.
+  // Dev: detector de bucles de render (cuenta renders confirmados, tras pintar).
   const renders = useRef(0);
-  renders.current += 1;
-  if (import.meta.env.DEV && renders.current % 100 === 0) {
-    console.log(`[debug] CanvasPreview renders: ${renders.current}`);
-  }
+  useEffect(() => {
+    renders.current += 1;
+    if (import.meta.env.DEV && renders.current % 100 === 0) {
+      console.log(`[debug] CanvasPreview renders: ${renders.current}`);
+    }
+  });
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const [selectionRect, setSelectionRect] = useState<{
@@ -136,8 +165,62 @@ export function CanvasPreview({
   const stageWidth = sheetWidth * zoom;
   const stageHeight = sheetHeight * zoom;
 
+  /**
+   * Traduce un evento del DOM (drop, click derecho) a `CanvasHit`: px de
+   * pantalla → px de papel (÷ zoom) → banda → cm relativos a la banda.
+   * Fuera de las bandas cae al cuerpo (el backend acaba de normalizar).
+   */
+  const hitAt = (event: { clientX: number; clientY: number }): CanvasHit | undefined => {
+    const stage = stageRef.current;
+    if (!stage) return undefined;
+
+    const rect = stage.container().getBoundingClientRect();
+    const contentX = (event.clientX - rect.left) / zoom;
+    const contentY = (event.clientY - rect.top) / zoom;
+    if (contentX < 0 || contentY < 0 || contentX > sheetWidth || contentY > sheetHeight) {
+      return undefined;
+    }
+
+    const band =
+      [...visibleBands]
+        .reverse()
+        .find(
+          (candidate) =>
+            contentX >= candidate.x &&
+            contentX <= candidate.x + reportWidth &&
+            contentY >= candidate.y &&
+            contentY <= candidate.y + toPx(candidate.region.height),
+        ) ?? bands.find((candidate) => candidate.key === 'body');
+    if (!band) return undefined;
+
+    const point = {
+      x: clamp((contentX - band.x) / PX_PER_CM, 0, toCm(band.region.width)),
+      y: clamp((contentY - band.y) / PX_PER_CM, 0, toCm(band.region.height)),
+    };
+    return hitTestItems(band.region.items, point, scopeOfBand(band.key));
+  };
+
   return (
-    <div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6">
+    <div
+      className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
+      onContextMenu={(event) => {
+        const hit = hitAt(event);
+        if (hit) onContextMenuHit?.(hit);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes(ITEM_DRAG_TYPE)) return;
+        // Sin preventDefault el navegador no permite soltar aquí.
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }}
+      onDrop={(event) => {
+        const kind = event.dataTransfer.getData(ITEM_DRAG_TYPE);
+        if (!kind || !onDropItem) return;
+        event.preventDefault();
+        const hit = hitAt(event);
+        if (hit) onDropItem(kind as NewItemSpec['kind'], hit);
+      }}
+    >
       <div
         className="relative"
         style={{ width: RULER_PX + stageWidth, height: RULER_PX + stageHeight }}
@@ -240,9 +323,9 @@ export function CanvasPreview({
                     strokeScaleEnabled={false}
                     fillEnabled={false}
                   />
-                  {cornerPoints(selectionRect).map(([hx, hy], index) => (
+                  {cornerPoints(selectionRect).map(([hx, hy]) => (
                     <Rect
-                      key={index}
+                      key={`${hx}-${hy}`}
                       x={hx - 4 / zoom}
                       y={hy - 4 / zoom}
                       width={8 / zoom}
@@ -275,13 +358,39 @@ function Ruler({
 }): ReactNode {
   const cmPx = PX_PER_CM * zoom;
   const maxCm = lengthPx / cmPx;
-
-  // Milímetro a milímetro; el texto (en negrita) se agrupa si el zoom es bajo
-  // para que no se solapen las etiquetas.
-  const tickStep = 0.1;
   const labelStep = zoom >= 0.5 ? 1 : zoom >= 0.3 ? 2 : 5;
 
+  return (
+    <div
+      className="absolute border-b border-r bg-muted"
+      style={
+        orientation === 'horizontal'
+          ? { left: RULER_PX, top: 0, width: lengthPx, height: RULER_PX }
+          : { left: 0, top: RULER_PX, width: RULER_PX, height: lengthPx }
+      }
+    >
+      {buildTicks({ orientation, maxCm, cmPx, labelStep })}
+    </div>
+  );
+}
+
+/**
+ * Marcas de la regla: milímetro a milímetro; la etiqueta (en negrita) manda en
+ * grosor y se agrupa a pasos mayores si el zoom es bajo para no solaparse.
+ */
+function buildTicks({
+  orientation,
+  maxCm,
+  cmPx,
+  labelStep,
+}: {
+  orientation: 'horizontal' | 'vertical';
+  maxCm: number;
+  cmPx: number;
+  labelStep: number;
+}): ReactNode[] {
   const ticks: ReactNode[] = [];
+  const tickStep = 0.1;
   const count = Math.floor(maxCm / tickStep + 1e-9);
 
   for (let index = 0; index <= count; index += 1) {
@@ -329,18 +438,7 @@ function Ruler({
     }
   }
 
-  return (
-    <div
-      className="absolute border-b border-r bg-muted"
-      style={
-        orientation === 'horizontal'
-          ? { left: RULER_PX, top: 0, width: lengthPx, height: RULER_PX }
-          : { left: 0, top: RULER_PX, width: RULER_PX, height: lengthPx }
-      }
-    >
-      {ticks}
-    </div>
-  );
+  return ticks;
 }
 
 function isMultiple(value: number, step: number): boolean {
@@ -541,6 +639,7 @@ function ItemView({
   );
 }
 
+/** Contenido del item según su tipo (un componente por tipo, sin switch gigante). */
 function renderContent(
   item: ItemDto,
   style: StyleDto | undefined,
@@ -552,87 +651,131 @@ function renderContent(
   onMoveItem?: (id: string, top: Length, left: Length) => void,
 ): ReactNode {
   switch (item.kind) {
-    case 'textbox': {
-      const text = item.paragraphs
-        .map((paragraph) => paragraph.runs.map(runDisplayText).join(''))
-        .join('\n');
-      const padding = style?.padding;
-      const padLeft = padding?.left ? toPx(padding.left) : 2;
-      const padRight = padding?.right ? toPx(padding.right) : 2;
-      const padTop = padding?.top ? toPx(padding.top) : 1;
-      const padBottom = padding?.bottom ? toPx(padding.bottom) : 1;
+    case 'textbox':
       return (
-        <>
-          {/* El grupo recorta el contenido; NO puede ser listening=false o el
-              texto/rect no serían clicables (hit-testing de Konva). */}
-          <Group clip={{ x: 0, y: 0, width, height }}>
-            <Rect
-              width={width}
-              height={height}
-              fill={style?.backgroundColor ?? '#ffffff'}
-              stroke="#e5e7eb"
-              strokeWidth={0.5}
-            />
-            <KonvaText
-              text={text}
-              x={padLeft}
-              y={padTop}
-              width={Math.max(width - padLeft - padRight, 0)}
-              height={Math.max(height - padTop - padBottom, 0)}
-              fontSize={fontSize}
-              fontStyle={fontStyle || 'normal'}
-              fontFamily={style?.fontFamily ?? 'Segoe UI'}
-              fill={style?.color ?? '#111827'}
-              align={(style?.textAlign ?? 'Left').toLowerCase() as 'left' | 'center' | 'right'}
-              verticalAlign={
-                (style?.verticalAlign ?? 'Top').toLowerCase() as 'top' | 'middle' | 'bottom'
-              }
-              wrap="none"
-              ellipsis
-            />
-          </Group>
-        </>
+        <TextboxContent
+          item={item}
+          style={style}
+          width={width}
+          height={height}
+          fontSize={fontSize}
+          fontStyle={fontStyle}
+        />
       );
-    }
-
     case 'rectangle':
-      return (
-        <>
-          {/* fill transparente (no undefined): sin fill, el área no es clicable. */}
-          <Rect
-            width={width}
-            height={height}
-            fill={item.style?.backgroundColor ?? 'rgba(0,0,0,0)'}
-            stroke="#9ca3af"
-            strokeWidth={0.5}
-          />
-          {item.children.map((child) => (
-            <ItemView
-              key={child.id}
-              item={child}
-              onSelect={onSelect}
-              onMoveItem={onMoveItem}
-              draggable={onMoveItem !== undefined}
-              /* Sin bounds: el contenedor no es un límite duro en RDL. */
-            />
-          ))}
-        </>
-      );
-
+      return <RectangleContent item={item} onSelect={onSelect} onMoveItem={onMoveItem} width={width} height={height} />;
     case 'line':
-      return <Line points={[0, 0, width, height]} stroke="#111827" hitStrokeWidth={8} />;
-
+      return <LineContent width={width} height={height} />;
     case 'image':
       return <ImagePlaceholder width={width} height={height} source={item.source} />;
-
     case 'tablix':
       return <TablixContent item={item} onSelect={onSelect} onMoveItem={onMoveItem} />;
-
-    case 'unknown':
-      return (
-        <Rect width={width} height={height} fill="rgba(0,0,0,0)" stroke="#f59e0b" dash={[6, 3]} />
-      );
+    default:
+      return <UnknownContent width={width} height={height} />;
   }
+}
+
+function TextboxContent({
+  item,
+  style,
+  width,
+  height,
+  fontSize,
+  fontStyle,
+}: {
+  item: TextboxDto;
+  style: StyleDto | undefined;
+  width: number;
+  height: number;
+  fontSize: number;
+  fontStyle: string;
+}): ReactNode {
+  const text = item.paragraphs.map((paragraph) => paragraph.runs.map(runDisplayText).join('')).join('\n');
+  const padding = style?.padding;
+  const padLeft = padding?.left ? toPx(padding.left) : 2;
+  const padRight = padding?.right ? toPx(padding.right) : 2;
+  const padTop = padding?.top ? toPx(padding.top) : 1;
+  const padBottom = padding?.bottom ? toPx(padding.bottom) : 1;
+
+  return (
+    <>
+      {/* El grupo recorta el contenido; NO puede ser listening=false o el
+          texto/rect no serían clicables (hit-testing de Konva). */}
+      <Group clip={{ x: 0, y: 0, width, height }}>
+        <Rect
+          width={width}
+          height={height}
+          fill={style?.backgroundColor ?? '#ffffff'}
+          stroke="#e5e7eb"
+          strokeWidth={0.5}
+        />
+        <KonvaText
+          text={text}
+          x={padLeft}
+          y={padTop}
+          width={Math.max(width - padLeft - padRight, 0)}
+          height={Math.max(height - padTop - padBottom, 0)}
+          fontSize={fontSize}
+          fontStyle={fontStyle || 'normal'}
+          fontFamily={style?.fontFamily ?? 'Segoe UI'}
+          fill={style?.color ?? '#111827'}
+          align={(style?.textAlign ?? 'Left').toLowerCase() as 'left' | 'center' | 'right'}
+          verticalAlign={
+            (style?.verticalAlign ?? 'Top').toLowerCase() as 'top' | 'middle' | 'bottom'
+          }
+          wrap="none"
+          ellipsis
+        />
+      </Group>
+    </>
+  );
+}
+
+function RectangleContent({
+  item,
+  width,
+  height,
+  onSelect,
+  onMoveItem,
+}: {
+  item: RectangleDto;
+  width: number;
+  height: number;
+  onSelect?: (id: string | null) => void;
+  onMoveItem?: (id: string, top: Length, left: Length) => void;
+}): ReactNode {
+  return (
+    <>
+      {/* fill transparente (no undefined): sin fill, el área no es clicable. */}
+      <Rect
+        width={width}
+        height={height}
+        fill={item.style?.backgroundColor ?? 'rgba(0,0,0,0)'}
+        stroke="#9ca3af"
+        strokeWidth={0.5}
+      />
+      {item.children.map((child) => (
+        <ItemView
+          key={child.id}
+          item={child}
+          onSelect={onSelect}
+          onMoveItem={onMoveItem}
+          draggable={onMoveItem !== undefined}
+          /* Sin bounds: el contenedor no es un límite duro en RDL. */
+        />
+      ))}
+    </>
+  );
+}
+
+function LineContent({ width, height }: { width: number; height: number }): ReactNode {
+  return <Line points={[0, 0, width, height]} stroke="#111827" hitStrokeWidth={8} />;
+}
+
+function UnknownContent({ width, height }: { width: number; height: number }): ReactNode {
+  return (
+    <Rect width={width} height={height} fill="rgba(0,0,0,0)" stroke="#f59e0b" dash={[6, 3]} />
+  );
 }
 
 /**
@@ -741,11 +884,11 @@ function TablixContent({
 
   const grid: ReactNode[] = [];
   let cx = 0;
-  columns.forEach((columnWidth, index) => {
+  columns.forEach((columnWidth) => {
     cx += columnWidth;
     grid.push(
       <Line
-        key={`v${index}`}
+        key={`v${cx}`}
         points={[cx, 0, cx, totalHeight]}
         stroke="#d1d5db"
         strokeWidth={0.5}
@@ -754,11 +897,11 @@ function TablixContent({
     );
   });
   let cy = 0;
-  rows.forEach((rowHeight, index) => {
+  rows.forEach((rowHeight) => {
     cy += rowHeight;
     grid.push(
       <Line
-        key={`h${index}`}
+        key={`h${cy}`}
         points={[0, cy, totalWidth, cy]}
         stroke="#d1d5db"
         strokeWidth={0.5}

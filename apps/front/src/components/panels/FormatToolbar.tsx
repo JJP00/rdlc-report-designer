@@ -83,6 +83,7 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
         <select
           className="h-7 max-w-[130px] rounded-md border bg-background px-1 text-xs"
           value={style?.fontFamily ?? 'Arial'}
+          aria-label="Fuente"
           onChange={(event) => onSetStyle({ fontFamily: event.target.value })}
         >
           {options.map((family) => (

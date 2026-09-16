@@ -53,13 +53,18 @@ const PADDING_SIDES = [
  * (radios) y padding. El ToolTip no se ofrece (no se usa en BC).
  */
 export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelProps): ReactNode {
-  const [value, setValue] = useState(item.value ?? '');
-  const [mimeType, setMimeType] = useState(item.mimeType ?? 'image/png');
+  // Borrador por campo: mientras el usuario escribe manda el borrador; al
+  // confirmar (o al cambiar de item) vuelve a derivarse de la proyección. Sin
+  // efectos de sincronización: un cambio externo ya no pisa lo que se escribe.
+  const [draft, setDraft] = useState<{ id: string; value?: string; mimeType?: string } | null>(null);
+  const value = draft?.id === item.id ? (draft.value ?? item.value ?? '') : (item.value ?? '');
+  const mimeType =
+    draft?.id === item.id ? (draft.mimeType ?? item.mimeType ?? 'image/png') : (item.mimeType ?? 'image/png');
 
-  useEffect(() => {
-    setValue(item.value ?? '');
-    setMimeType(item.mimeType ?? 'image/png');
-  }, [item.id, item.value, item.mimeType]);
+  const editValue = (next: string): void => setDraft({ id: item.id, value: next, mimeType: draft?.mimeType });
+  const commitValue = (): void => setDraft(null);
+  const editMime = (next: string): void => setDraft({ id: item.id, value: draft?.value, mimeType: next });
+  const commitMime = (): void => setDraft(null);
 
   const valueIsExpression = value.trimStart().startsWith('=');
   const mimeIsExpression = mimeType.trimStart().startsWith('=');
@@ -79,6 +84,7 @@ export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelPr
         <select
           className="h-7 rounded-md border bg-background px-1 text-xs"
           value={item.source ?? 'Database'}
+          aria-label="Origen de la imagen"
           onChange={(event) =>
             onSetImageOptions({ source: event.target.value as ImageOptionsPatch['source'] })
           }
@@ -100,7 +106,7 @@ export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelPr
             active={valueIsExpression}
             onToggle={(next) => {
               const updated = next ? ensureExpression(value) : stripExpression(value);
-              setValue(updated);
+              editValue(updated);
               onSetImageOptions({ value: updated });
             }}
           />
@@ -109,12 +115,17 @@ export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelPr
           className="h-7 font-mono text-xs"
           placeholder={item.source === 'External' ? 'https://…' : '=Fields!Picture.Value'}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          aria-label="Valor de la imagen"
+          onChange={(event) => editValue(event.target.value)}
           onBlur={() => {
             if (value !== (item.value ?? '')) onSetImageOptions({ value });
+            commitValue();
           }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && value !== (item.value ?? '')) onSetImageOptions({ value });
+            if (event.key === 'Enter' && value !== (item.value ?? '')) {
+              onSetImageOptions({ value });
+              commitValue();
+            }
           }}
         />
       </div>
@@ -127,7 +138,7 @@ export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelPr
             active={mimeIsExpression}
             onToggle={(next) => {
               const updated = next ? ensureExpression(mimeType) : stripExpression(mimeType);
-              setMimeType(updated);
+              editMime(updated);
               onSetImageOptions({ mimeType: updated });
             }}
           />
@@ -136,15 +147,18 @@ export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelPr
           <Input
             className="h-7 font-mono text-xs"
             value={mimeType}
-            onChange={(event) => setMimeType(event.target.value)}
+            aria-label="Tipo MIME (expresión)"
+            onChange={(event) => editMime(event.target.value)}
             onBlur={() => {
               if (mimeType !== (item.mimeType ?? '')) onSetImageOptions({ mimeType });
+              commitMime();
             }}
           />
         ) : (
           <select
             className="h-7 rounded-md border bg-background px-1 font-mono text-xs"
             value={mimeType}
+            aria-label="Tipo MIME"
             onChange={(event) => onSetImageOptions({ mimeType: event.target.value })}
           >
             {mimeOptions.map((mime) => (
@@ -248,16 +262,14 @@ function PaddingField({
   value: number;
   onCommit: (value: number) => void;
 }): ReactNode {
-  const [text, setText] = useState(String(value));
-
-  useEffect(() => {
-    setText(String(value));
-  }, [value]);
+  // Borrador mientras se teclea; el resto del tiempo manda la proyección.
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? String(value);
 
   const commit = (): void => {
     const parsed = Number.parseFloat(text.replace(',', '.'));
-    if (Number.isFinite(parsed) && parsed !== value) onCommit(parsed);
-    else setText(String(value));
+    if (draft !== null && Number.isFinite(parsed) && parsed !== value) onCommit(parsed);
+    setDraft(null);
   };
 
   return (
@@ -266,7 +278,8 @@ function PaddingField({
       <Input
         className="h-7 text-xs tabular-nums"
         value={text}
-        onChange={(event) => setText(event.target.value)}
+        aria-label={label}
+        onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') commit();

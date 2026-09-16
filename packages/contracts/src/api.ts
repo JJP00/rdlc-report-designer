@@ -1,4 +1,4 @@
-import type { RdlcCommand } from './commands.js';
+import type { RdlcCommand, ScopeRef } from './commands.js';
 import type {
   CloseResult,
   CommandResult,
@@ -31,6 +31,15 @@ export interface RdlcApi {
   executeCommand(sessionId: string, command: RdlcCommand): Promise<CommandResult>;
   undo(sessionId: string): Promise<CommandResult>;
   redo(sessionId: string): Promise<CommandResult>;
+
+  /**
+   * Portapapeles de items (vive en el backend: guarda el subárbol XML exacto).
+   * `cut` = copiar + `deleteItem` (un solo paso de undo).
+   */
+  copy(sessionId: string, id: string): Promise<CommandResult>;
+  cut(sessionId: string, id: string): Promise<CommandResult>;
+  /** Pega un clon con nombres nuevos en `scope[index]`; devuelve `id` nuevo. */
+  paste(sessionId: string, scope: ScopeRef, index: number): Promise<CommandResult>;
 
   /** Cambio externo del fichero (watcher) o snapshot tras undo/redo. */
   onDocumentChanged(callback: (event: DocumentChangedEvent) => void): () => void;

@@ -6,6 +6,7 @@ import type { CommandContext, CommandOutcome, DomainCommand } from './CommandCon
 import { applyDeleteItem } from './deleteItem.js';
 import { applyDuplicateItem } from './duplicateItem.js';
 import { applyInsertItem } from './insertItem.js';
+import { applyInsertClone } from './insertClone.js';
 import { applySetLocation } from './setLocation.js';
 import { applySetPageMargins } from './setPageMargins.js';
 import { applySetPageSize } from './setPageSize.js';
@@ -62,6 +63,8 @@ export function applyCommand(
       command.node.setText(command.value);
       return right({ inverse: [] });
     }
+    case 'insertClone':
+      return applyInsertClone(ctx, command);
 
     default:
       return left(

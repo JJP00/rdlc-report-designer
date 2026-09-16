@@ -17,17 +17,17 @@ import type { RdlcSerializerPort } from '../ports/out/RdlcSerializerPort.js';
 import { RDLC_SERIALIZER_PORT } from '../ports/out/RdlcSerializerPort.js';
 import type { XmlSchemaValidatorPort } from '../ports/out/XmlSchemaValidatorPort.js';
 import { XML_SCHEMA_VALIDATOR_PORT } from '../ports/out/XmlSchemaValidatorPort.js';
-import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
+import type { RdlcDocument, RdlcNode } from '../../domain/document/tree/RdlcNode.js';
 import { left, right, type Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 import {
+  CommandRejectedError,
   FileNotFoundError,
   InvalidXmlError,
   IoError,
   UnknownSessionError,
   ValidationFailedError,
-} from '../../shared/domainError.js';
-import type {
+} from '../../shared/domainError.js';import type {
   EditTarget,
   ISessionService,
   OpenSessionResult,
@@ -49,6 +49,8 @@ interface Session {
   lastWriteMs: number;
   /** true mientras escribimos: el watcher ignora esos eventos. */
   writing: boolean;
+  /** Subárbol desprendido copiado/cortado (portapapeles de la sesión). */
+  clipboard?: RdlcNode;
   unwatch?: Unwatch;
 }
 
@@ -168,6 +170,26 @@ export class SessionService implements ISessionService {
     return right({ document: session.document, index: session.index });
   }
 
+  /**
+   * Guarda un subárbol **desprendido** en el portapapeles de la sesión: al
+   * clonar se pierde el vínculo con el documento, así que pegarlo más tarde (o
+   * tras deshacer el borrado) no depende de que el original siga existiendo.
+   */
+  copyToClipboard(sessionId: string, id: string): Either<DomainError, void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return left(UnknownSessionError.create(sessionId));
+
+    const node = session.index.get(id);
+    if (!node) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+
+    session.clipboard = node.clone();
+    return right(undefined);
+  }
+
+  clipboardOf(sessionId: string): RdlcNode | undefined {
+    return this.sessions.get(sessionId)?.clipboard;
+  }
+
   rebuildIndex(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
@@ -227,6 +249,8 @@ export class SessionService implements ISessionService {
       session.document = doc;
       session.index = DocumentIndex.build(doc.root);
       session.originalBytes = bytes;
+      // El portapapeles guardaba nodos del documento anterior: se descarta.
+      session.clipboard = undefined;
       session.version += 1;
       session.lastWriteMs = stat.mtimeMs;
 

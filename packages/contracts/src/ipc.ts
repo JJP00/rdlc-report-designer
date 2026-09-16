@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { commandSchema } from './commands.js';
+import { commandSchema, scopeRefSchema } from './commands.js';
 import type { ItemDto } from './projection.js';
 import { projectionSchema } from './projection.js';
 
@@ -18,6 +18,9 @@ export const IPC_CHANNELS = {
   executeCommand: 'rdlc:executeCommand',
   undo: 'rdlc:undo',
   redo: 'rdlc:redo',
+  copy: 'rdlc:copy',
+  cut: 'rdlc:cut',
+  paste: 'rdlc:paste',
 } as const;
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
@@ -72,6 +75,22 @@ export const executeCommandRequestSchema = z
   .object({ sessionId: z.string().min(1), command: commandSchema })
   .strict();
 export type ExecuteCommandRequest = z.infer<typeof executeCommandRequestSchema>;
+
+/** Copiar/cortar: identifican el item origen. */
+export const clipboardSourceRequestSchema = z
+  .object({ sessionId: z.string().min(1), id: z.string().min(1) })
+  .strict();
+export type ClipboardSourceRequest = z.infer<typeof clipboardSourceRequestSchema>;
+
+/** Pegar: destino (scope + posición) del contenido del portapapeles. */
+export const pasteRequestSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    scope: scopeRefSchema,
+    index: z.number().int().nonnegative(),
+  })
+  .strict();
+export type PasteRequest = z.infer<typeof pasteRequestSchema>;
 
 /* ---------------------- Respuestas (backend → front) --------------------- */
 

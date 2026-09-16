@@ -73,14 +73,13 @@ function RunField({
   value: string;
   onCommit: (value: string) => void;
 }): ReactNode {
-  const [text, setText] = useState(value);
-
-  useEffect(() => {
-    setText(value);
-  }, [value]);
+  // Borrador mientras se teclea: un cambio de la proyección no pisa el texto.
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? value;
 
   const commit = (): void => {
-    if (text !== value) onCommit(text);
+    if (draft !== null && draft !== value) onCommit(draft);
+    setDraft(null);
   };
 
   const isExpression = value.trimStart().startsWith('=');
@@ -105,7 +104,8 @@ function RunField({
       <Input
         className="h-7 font-mono text-xs"
         value={text}
-        onChange={(event) => setText(event.target.value)}
+        aria-label={`Valor del run ${index}`}
+        onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') commit();

@@ -48,29 +48,44 @@ export function ReportPropertiesDialog({
   onSetPageMargins,
   onSetReportCode,
 }: ReportPropertiesDialogProps): ReactNode {
-  const [width, setWidth] = useState(toCm(projection.page.width));
-  const [height, setHeight] = useState(toCm(projection.page.height));
-  const [margins, setMargins] = useState({
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Propiedades del informe</DialogTitle>
+          <DialogDescription>
+            Configuración de página y código VB del informe ({projection.reportName}).
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* El formulario se monta al abrir: los borradores parten del documento
+            y no se pierden cuando llega una proyección nueva mientras se edita. */}
+        <ReportPropertiesForm
+          projection={projection}
+          onSetPageSize={onSetPageSize}
+          onSetPageMargins={onSetPageMargins}
+          onSetReportCode={onSetReportCode}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReportPropertiesForm({
+  projection,
+  onSetPageSize,
+  onSetPageMargins,
+  onSetReportCode,
+}: Omit<ReportPropertiesDialogProps, 'open' | 'onOpenChange'>): ReactNode {
+  const [width, setWidth] = useState(() => toCm(projection.page.width));
+  const [height, setHeight] = useState(() => toCm(projection.page.height));
+  const [margins, setMargins] = useState(() => ({
     top: toCm(projection.page.margins.top),
     bottom: toCm(projection.page.margins.bottom),
     left: toCm(projection.page.margins.left),
     right: toCm(projection.page.margins.right),
-  });
-  const [code, setCode] = useState(projection.meta.code.text);
-
-  // Sincroniza con el documento al abrir (o cuando cambia por fuera).
-  useEffect(() => {
-    if (!open) return;
-    setWidth(toCm(projection.page.width));
-    setHeight(toCm(projection.page.height));
-    setMargins({
-      top: toCm(projection.page.margins.top),
-      bottom: toCm(projection.page.margins.bottom),
-      left: toCm(projection.page.margins.left),
-      right: toCm(projection.page.margins.right),
-    });
-    setCode(projection.meta.code.text);
-  }, [open, projection]);
+  }));
+  const [code, setCode] = useState(() => projection.meta.code.text);
 
   const landscape = width > height;
   const toggleOrientation = (): void => {
@@ -89,105 +104,95 @@ export function ReportPropertiesDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Propiedades del informe</DialogTitle>
-          <DialogDescription>
-            Configuración de página y código VB del informe ({projection.reportName}).
-          </DialogDescription>
-        </DialogHeader>
+    <Tabs defaultValue="page">
+      <TabsList>
+        <TabsTrigger value="page">Configurar página</TabsTrigger>
+        <TabsTrigger value="code">Código</TabsTrigger>
+      </TabsList>
 
-        <Tabs defaultValue="page">
-          <TabsList>
-            <TabsTrigger value="page">Configurar página</TabsTrigger>
-            <TabsTrigger value="code">Código</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="page" className="flex flex-col gap-4 pt-2">
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Papel</Label>
-              <div className="flex gap-2">
-                {PAPER_PRESETS.map((preset) => (
-                  <Button
-                    key={preset.name}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setWidth(preset.width);
-                      setHeight(preset.height);
-                    }}
-                  >
-                    {preset.name}
-                  </Button>
-                ))}
-                <Button type="button" variant="outline" size="sm" onClick={toggleOrientation}>
-                  {landscape ? 'Vertical' : 'Horizontal'}
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <NumberField label="Ancho (cm)" value={width} onChange={setWidth} />
-              <NumberField label="Alto (cm)" value={height} onChange={setHeight} />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs text-muted-foreground">Márgenes (cm)</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <NumberField
-                  label="Superior"
-                  value={margins.top}
-                  onChange={(value) => setMargins((m) => ({ ...m, top: value }))}
-                />
-                <NumberField
-                  label="Inferior"
-                  value={margins.bottom}
-                  onChange={(value) => setMargins((m) => ({ ...m, bottom: value }))}
-                />
-                <NumberField
-                  label="Izquierdo"
-                  value={margins.left}
-                  onChange={(value) => setMargins((m) => ({ ...m, left: value }))}
-                />
-                <NumberField
-                  label="Derecho"
-                  value={margins.right}
-                  onChange={(value) => setMargins((m) => ({ ...m, right: value }))}
-                />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button onClick={applyPage}>Aplicar</Button>
-            </DialogFooter>
-          </TabsContent>
-
-          <TabsContent value="code" className="flex flex-col gap-2 pt-2">
-            <p className="text-xs text-muted-foreground">
-              Bloque <code>&lt;Code&gt;</code> VB (funciones <code>Code.</code>). Se reemplaza como
-              un todo: un paso de undo.
-            </p>
-            <Textarea
-              className="field-sizing-fixed h-[380px] max-h-[55vh] resize-y overflow-auto font-mono text-xs"
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              spellCheck={false}
-            />
-            <DialogFooter>
+      <TabsContent value="page" className="flex flex-col gap-4 pt-2">
+        <div className="flex flex-col gap-2">
+          <Label className="text-xs text-muted-foreground">Papel</Label>
+          <div className="flex gap-2">
+            {PAPER_PRESETS.map((preset) => (
               <Button
+                key={preset.name}
+                type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => {
-                  onSetReportCode(code);
+                  setWidth(preset.width);
+                  setHeight(preset.height);
                 }}
               >
-                Aplicar
+                {preset.name}
               </Button>
-            </DialogFooter>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={toggleOrientation}>
+              {landscape ? 'Vertical' : 'Horizontal'}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField label="Ancho (cm)" value={width} onChange={setWidth} />
+          <NumberField label="Alto (cm)" value={height} onChange={setHeight} />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label className="text-xs text-muted-foreground">Márgenes (cm)</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <NumberField
+              label="Superior"
+              value={margins.top}
+              onChange={(value) => setMargins((m) => ({ ...m, top: value }))}
+            />
+            <NumberField
+              label="Inferior"
+              value={margins.bottom}
+              onChange={(value) => setMargins((m) => ({ ...m, bottom: value }))}
+            />
+            <NumberField
+              label="Izquierdo"
+              value={margins.left}
+              onChange={(value) => setMargins((m) => ({ ...m, left: value }))}
+            />
+            <NumberField
+              label="Derecho"
+              value={margins.right}
+              onChange={(value) => setMargins((m) => ({ ...m, right: value }))}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button onClick={applyPage}>Aplicar</Button>
+        </DialogFooter>
+      </TabsContent>
+
+      <TabsContent value="code" className="flex flex-col gap-2 pt-2">
+        <p className="text-xs text-muted-foreground">
+          Bloque <code>&lt;Code&gt;</code> VB (funciones <code>Code.</code>). Se reemplaza como un
+          todo: un paso de undo.
+        </p>
+        <Textarea
+          className="field-sizing-fixed h-[380px] max-h-[55vh] resize-y overflow-auto font-mono text-xs"
+          value={code}
+          aria-label="Código VB del informe"
+          onChange={(event) => setCode(event.target.value)}
+          spellCheck={false}
+        />
+        <DialogFooter>
+          <Button
+            onClick={() => {
+              onSetReportCode(code);
+            }}
+          >
+            Aplicar
+          </Button>
+        </DialogFooter>
+      </TabsContent>
+    </Tabs>
   );
 }
 

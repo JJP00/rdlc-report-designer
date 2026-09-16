@@ -82,6 +82,8 @@ documentado en [`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-l
 - [x] Lienzo: papel + márgenes + bandas, reglas mm/cm, selección, drag con imán,
       flechas 1pt/10pt, zoom Ctrl+rueda, placeholder de imágenes.
 - [x] Insertar / duplicar / eliminar items; auto-crecimiento del contenedor.
+- [x] **Insertar arrastrando desde la toolbar + menú contextual** (insertar, duplicar,
+      copiar, cortar, pegar, eliminar) con portapapeles en el backend.
 - [x] Paneles: propiedades, texto/expresión, imagen (origen/MIME/tamaño/padding),
       variables (búsqueda + colapsables), Propiedades del informe (página + Código VB).
 - [x] Barra de formato con **fuentes del sistema** (registro de Windows vía IPC).

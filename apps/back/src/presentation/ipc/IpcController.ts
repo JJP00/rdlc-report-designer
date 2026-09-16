@@ -1,7 +1,9 @@
 import {
   IPC_CHANNELS,
+  clipboardSourceRequestSchema,
   executeCommandRequestSchema,
   openFileRequestSchema,
+  pasteRequestSchema,
   sessionRequestSchema,
   type CloseResult,
   type CommandResult,
@@ -126,6 +128,33 @@ export class IpcController {
         sessionRequestSchema,
         payload,
         (req) => Promise.resolve(this.commands.redo(req.sessionId)),
+        (value: CommandResult): CommandResult => value,
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.copy, (_event, payload) =>
+      this.handle(
+        clipboardSourceRequestSchema,
+        payload,
+        (req) => Promise.resolve(this.commands.copy(req.sessionId, req.id)),
+        (value: CommandResult): CommandResult => value,
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.cut, (_event, payload) =>
+      this.handle(
+        clipboardSourceRequestSchema,
+        payload,
+        (req) => Promise.resolve(this.commands.cut(req.sessionId, req.id)),
+        (value: CommandResult): CommandResult => value,
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.paste, (_event, payload) =>
+      this.handle(
+        pasteRequestSchema,
+        payload,
+        (req) => Promise.resolve(this.commands.paste(req.sessionId, req.scope, req.index)),
         (value: CommandResult): CommandResult => value,
       ),
     );

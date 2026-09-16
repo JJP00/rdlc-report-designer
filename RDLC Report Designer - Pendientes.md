@@ -1,10 +1,34 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
-> **Sesión 2026-09-16** — pasada de corrección sobre Fase 1: se cerraron **6 fallos
-> silenciosos** (el comando devolvía `ok` pero el efecto se perdía). Siguiente bloque:
-> **insertar arrastrando desde la toolbar** y **menú contextual** en el lienzo
-> (Insertar / Cortar / Copiar / Pegar / Duplicar / Eliminar). Los pendientes menores
-> que quedaron abiertos están al final de esta sección.
+> **Sesión 2026-09-16** — corrección de **6 fallos silenciosos** + **insertar
+> arrastrando desde la toolbar** y **menú contextual** en el lienzo (Insertar /
+> Duplicar / Copiar / Cortar / Pegar / Eliminar). Pasada de `react-doctor`
+> (51 → 77, 0 errores). Lo siguiente: **Ctrl+K** (buscador) + **Monaco**, y de
+> paso partir `App.tsx` (es el único aviso grande que queda del doctor).
+
+## ✨ Nuevo en la sesión (2026-09-16): insertar arrastrando + menú contextual
+
+| Pieza | Detalle |
+|---|---|
+| **Toolbox con drag&drop real** | Los botones de la toolbar son arrastrables (`application/x-rdlc-item`): al soltar en el lienzo el item nace **en el punto donde se suelta** (y dentro del rectángulo si se suelta sobre uno). El click sigue insertando al principio del cuerpo |
+| **Hit-test del lienzo** (`lib/hit.ts`) | Función pura sobre la proyección: devuelve el item de arriba, el contenedor de inserción (rectángulo más interno) y el punto en cm relativo a ese contenedor. 7 tests |
+| **Menú contextual** (radix `context-menu`) | Click derecho en el lienzo: *Insertar → Textbox/Rectángulo/Línea/Imagen* (en el punto), *Duplicar*, *Copiar*, *Cortar*, *Pegar*, *Eliminar*. El click derecho también selecciona lo que hay debajo |
+| **Portapapeles en el backend** | `copy`/`cut`/`paste` como **métodos de la API** (no comandos: copiar no muta el documento). El portapapeles guarda un **clon desprendido** con el XML exacto; cada pegado clona y **renombra** el subárbol (mismo helper que duplicar). `cut` = copiar + `deleteItem` (un solo undo). La recarga externa lo descarta. 6 tests |
+| **Atajos** | Ctrl+C / Ctrl+X / Ctrl+V (pegar en el cuerpo) además de los existentes Ctrl+D / Supr / flechas |
+| **Posición normalizada al insertar** | `insertItem` clampa la posición a la banda (un item soltado fuera del cuerpo entra en él), igual que hace el drag |
+
+### 🧹 Pasada de `react-doctor` (51 → 77, 0 errores)
+
+Corregido: refs mutadas durante el render (contadores de debug), listener global de
+teclado con `useEffectEvent` (sin re-suscripción), borradores de los paneles derivados
+del item en vez de efectos prop→state (ya no se pierde lo que se escribe si llega una
+proyección nueva; también arregla el borrador del código VB), `aria-label` en botones
+de icono y controles, `useState(() => …)` perezosos, claves por identidad en reglas y
+tiradores, y los `*Variants` de shadcn ya no se exportan (rompían Fast Refresh).
+
+**Pendiente del doctor** (avisos, no errores): `App.tsx` sigue siendo un componente
+grande y complejo (partirlo en `useEditorSession` + `EditorToolbar`/`CanvasArea`),
+y el marco de selección del lienzo usa estado medido del nodo Konva (imperativo).
 
 ## ✅ Corrección de bugs (sesión 2026-09-16)
 

@@ -2,8 +2,10 @@ import type {
   CommandResult,
   ItemDto,
   Length,
+  NewItemSpec,
   ProjectionDto,
   RdlcCommand,
+  ScopeRef,
   StyleDto,
   StylePatch,
   TextboxDto,
@@ -24,8 +26,8 @@ import {
   Variable,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CanvasPreview } from '@/components/canvas/CanvasPreview';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CanvasPreview, ITEM_DRAG_TYPE } from '@/components/canvas/CanvasPreview';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
 import { ImagePanel, type ImageOptionsPatch } from '@/components/panels/ImagePanel';
 import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
@@ -34,6 +36,18 @@ import { TextPanel } from '@/components/panels/TextPanel';
 import { VariablesPanel } from '@/components/panels/VariablesPanel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -46,11 +60,27 @@ import {
   toCm,
 } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
+import type { CanvasHit } from '@/lib/hit';
 
 /** Paso de las flechas: 1pt (Shift = 10pt). */
 const NUDGE_PT_CM = 2.54 / 72;
 /** Racha de flechas: se agrupa en UN comando (un paso de undo). */
 const NUDGE_BURST_MS = 400;
+
+/** Tamaño con el que nace cada item insertado. */
+const NEW_ITEM_SIZES: Record<NewItemSpec['kind'], { width: Length; height: Length }> = {
+  textbox: { width: { value: 5, unit: 'cm' }, height: { value: 1, unit: 'cm' } },
+  rectangle: { width: { value: 5, unit: 'cm' }, height: { value: 1, unit: 'cm' } },
+  line: { width: { value: 4, unit: 'cm' }, height: { value: 0, unit: 'cm' } },
+  image: { width: { value: 3, unit: 'cm' }, height: { value: 2, unit: 'cm' } },
+};
+
+const ITEM_KIND_LABELS: Record<NewItemSpec['kind'], string> = {
+  textbox: 'Textbox',
+  rectangle: 'Rectángulo',
+  line: 'Línea',
+  image: 'Imagen',
+};
 
 function round4(value: number): number {
   return Math.round(value * 10000) / 10000;
@@ -63,13 +93,6 @@ interface OpenDocument {
 }
 
 export function App(): ReactNode {
-  // Dev: detector de bucles de render (se elimina del bundle de producción).
-  const renders = useRef(0);
-  renders.current += 1;
-  if (import.meta.env.DEV && renders.current % 50 === 0) {
-    console.log(`[debug] App renders: ${renders.current}`);
-  }
-
   const [doc, setDoc] = useState<OpenDocument | null>(null);
   const [status, setStatus] = useState('Listo. Abre un .rdlc exportado de Business Central.');
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +103,9 @@ export function App(): ReactNode {
   const [conflict, setConflict] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
+  /** Último hit del click derecho: destino de "Insertar" y de "Pegar". */
+  const [menuHit, setMenuHit] = useState<CanvasHit | null>(null);
+  const [hasClipboard, setHasClipboard] = useState(false);
 
   // Sin preload (p. ej. abriendo el renderer en un navegador) no hay backend IPC.
   const hasBackend = typeof window !== 'undefined' && window.api !== undefined;
@@ -397,8 +423,9 @@ export function App(): ReactNode {
 
   /* ------------------ insertar / duplicar / eliminar items --------------- */
 
+  /** Nombre libre del tipo pedido (`Textbox17`), calculado en el front. */
   const nextFreeName = useCallback(
-    (kind: 'textbox' | 'rectangle' | 'line' | 'image'): string => {
+    (kind: NewItemSpec['kind']): string => {
       const prefix =
         kind === 'textbox'
           ? 'Textbox'
@@ -416,22 +443,23 @@ export function App(): ReactNode {
     [doc],
   );
 
-  const insertItem = useCallback(
-    (kind: 'textbox' | 'rectangle' | 'line' | 'image'): void => {
+  /** Inserta un item nuevo en el punto/scope indicado (drop o menú contextual). */
+  const insertAt = useCallback(
+    (kind: NewItemSpec['kind'], hit: CanvasHit): void => {
       if (!doc) return;
       const name = nextFreeName(kind);
-      const index = doc.projection.page.body.items.length;
+      const size = NEW_ITEM_SIZES[kind];
       void sendCommand({
         cmd: 'insertItem',
-        scope: { kind: 'body' },
-        index,
+        scope: hit.scope,
+        index: hit.index,
         item: {
           kind,
           name,
-          top: { value: 2, unit: 'cm' },
-          left: { value: 2, unit: 'cm' },
-          width: { value: kind === 'line' ? 4 : 5, unit: 'cm' },
-          height: { value: kind === 'line' ? 0 : 1, unit: 'cm' },
+          top: cm(round4(hit.point.y)),
+          left: cm(round4(hit.point.x)),
+          width: size.width,
+          height: size.height,
           ...(kind === 'textbox' ? { text: '' } : {}),
         },
       }).then((result) => {
@@ -439,6 +467,19 @@ export function App(): ReactNode {
       });
     },
     [doc, nextFreeName, sendCommand],
+  );
+
+  /** Click en la toolbox: inserta al principio del cuerpo. */
+  const insertItem = useCallback(
+    (kind: NewItemSpec['kind']): void => {
+      if (!doc) return;
+      insertAt(kind, {
+        scope: { kind: 'body' },
+        index: doc.projection.page.body.items.length,
+        point: { x: 2, y: 2 },
+      });
+    },
+    [doc, insertAt],
   );
 
   const duplicateSelected = useCallback((): void => {
@@ -450,8 +491,54 @@ export function App(): ReactNode {
 
   const deleteSelected = useCallback((): void => {
     if (!selectedItem) return;
+    flushRef.current();
     void sendCommand({ cmd: 'deleteItem', id: selectedItem.id }).then(() => setSelectedId(null));
   }, [selectedItem, sendCommand]);
+
+  /* --------------------------- portapapeles ------------------------------- */
+
+  const copySelected = useCallback((): void => {
+    if (!doc || !selectedItem) return;
+    const id = selectedItem.id;
+    void window.api.copy(doc.sessionId, id).then((result) => {
+      if (!result.ok) {
+        setError(`${result.code}: ${result.message ?? 'no se pudo copiar'}`);
+        return;
+      }
+      setHasClipboard(true);
+      setStatus(`Copiado: ${id}`);
+    });
+  }, [doc, selectedItem]);
+
+  const cutSelected = useCallback((): void => {
+    if (!doc || !selectedItem) return;
+    const id = selectedItem.id;
+    flushRef.current();
+    void window.api.cut(doc.sessionId, id).then((result) => {
+      if (!result.ok) {
+        setError(`${result.code}: ${result.message ?? 'no se pudo cortar'}`);
+        return;
+      }
+      setHasClipboard(true);
+      setSelectedId(null);
+      setStatus(`Cortado: ${id}`);
+    });
+  }, [doc, selectedItem]);
+
+  const pasteAt = useCallback(
+    (scope: ScopeRef, index: number): void => {
+      if (!doc) return;
+      void window.api.paste(doc.sessionId, scope, index).then((result) => {
+        if (!result.ok) {
+          setError(`${result.code}: ${result.message ?? 'no se pudo pegar'}`);
+          return;
+        }
+        if (result.id) setSelectedId(result.id);
+        setStatus(`Pegado: ${result.id ?? ''}`);
+      });
+    },
+    [doc],
+  );
 
   /* ------------------- página y código (Propiedades del informe) ---------- */
 
@@ -528,55 +615,71 @@ export function App(): ReactNode {
     else setStatus(`Rehecho (v${result.version ?? '?'})`);
   }, [doc]);
 
+  /** Handler global de teclado: ve el estado actual sin re-suscribir listeners. */
+  const onKeyDown = useEffectEvent((event: KeyboardEvent): void => {
+    const target = event.target as HTMLElement | null;
+    if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    if (!doc) return;
+
+    const key = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && key === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) void redo();
+      else void undo();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'y') {
+      event.preventDefault();
+      void redo();
+      return;
+    }
+    if (event.key.startsWith('Arrow') && selectedItem) {
+      event.preventDefault();
+      const step = NUDGE_PT_CM * (event.shiftKey ? 10 : 1);
+      if (event.key === 'ArrowUp') nudge(0, -step);
+      else if (event.key === 'ArrowDown') nudge(0, step);
+      else if (event.key === 'ArrowLeft') nudge(-step, 0);
+      else if (event.key === 'ArrowRight') nudge(step, 0);
+      return;
+    }
+    if (event.key === 'Delete' && selectedItem) {
+      event.preventDefault();
+      deleteSelected();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'd' && selectedItem) {
+      event.preventDefault();
+      duplicateSelected();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'c' && selectedItem) {
+      event.preventDefault();
+      copySelected();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'x' && selectedItem) {
+      event.preventDefault();
+      cutSelected();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'v') {
+      event.preventDefault();
+      pasteAt({ kind: 'body' }, doc.projection.page.body.items.length);
+    }
+  });
+
+  const onKeyUp = useEffectEvent((event: KeyboardEvent): void => {
+    if (event.key.startsWith('Arrow')) flushRef.current();
+  });
+
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      const target = event.target as HTMLElement | null;
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      if (!doc) return;
-
-      const key = event.key.toLowerCase();
-      if ((event.ctrlKey || event.metaKey) && key === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) void redo();
-        else void undo();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && key === 'y') {
-        event.preventDefault();
-        void redo();
-        return;
-      }
-      if (event.key.startsWith('Arrow') && selectedItem) {
-        event.preventDefault();
-        const step = NUDGE_PT_CM * (event.shiftKey ? 10 : 1);
-        if (event.key === 'ArrowUp') nudge(0, -step);
-        else if (event.key === 'ArrowDown') nudge(0, step);
-        else if (event.key === 'ArrowLeft') nudge(-step, 0);
-        else if (event.key === 'ArrowRight') nudge(step, 0);
-        return;
-      }
-      if (event.key === 'Delete' && selectedItem) {
-        event.preventDefault();
-        deleteSelected();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && key === 'd' && selectedItem) {
-        event.preventDefault();
-        duplicateSelected();
-      }
-    };
-
-    const handleKeyUp = (event: KeyboardEvent): void => {
-      if (event.key.startsWith('Arrow')) flushRef.current();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
     };
-  }, [doc, undo, redo, nudge, selectedItem, deleteSelected, duplicateSelected]);
+  }, []);
 
   const open = async (): Promise<void> => {
     setError(null);
@@ -672,7 +775,13 @@ export function App(): ReactNode {
                 variant="ghost"
                 size="icon-sm"
                 disabled={!doc}
+                draggable={Boolean(doc)}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(ITEM_DRAG_TYPE, 'textbox');
+                  event.dataTransfer.effectAllowed = 'copy';
+                }}
                 onClick={() => insertItem('textbox')}
+                aria-label="Insertar textbox"
               >
                 <Type />
               </Button>
@@ -685,7 +794,13 @@ export function App(): ReactNode {
                 variant="ghost"
                 size="icon-sm"
                 disabled={!doc}
+                draggable={Boolean(doc)}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(ITEM_DRAG_TYPE, 'rectangle');
+                  event.dataTransfer.effectAllowed = 'copy';
+                }}
                 onClick={() => insertItem('rectangle')}
+                aria-label="Insertar rectángulo"
               >
                 <Square />
               </Button>
@@ -698,7 +813,13 @@ export function App(): ReactNode {
                 variant="ghost"
                 size="icon-sm"
                 disabled={!doc}
+                draggable={Boolean(doc)}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(ITEM_DRAG_TYPE, 'line');
+                  event.dataTransfer.effectAllowed = 'copy';
+                }}
                 onClick={() => insertItem('line')}
+                aria-label="Insertar línea"
               >
                 <Minus />
               </Button>
@@ -711,7 +832,13 @@ export function App(): ReactNode {
                 variant="ghost"
                 size="icon-sm"
                 disabled={!doc}
+                draggable={Boolean(doc)}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(ITEM_DRAG_TYPE, 'image');
+                  event.dataTransfer.effectAllowed = 'copy';
+                }}
                 onClick={() => insertItem('image')}
+                aria-label="Insertar imagen"
               >
                 <Image />
               </Button>
@@ -728,6 +855,7 @@ export function App(): ReactNode {
                 size="icon-sm"
                 disabled={!selectedItem}
                 onClick={duplicateSelected}
+                aria-label="Duplicar (Ctrl+D)"
               >
                 <Copy />
               </Button>
@@ -741,6 +869,7 @@ export function App(): ReactNode {
                 size="icon-sm"
                 disabled={!selectedItem}
                 onClick={deleteSelected}
+                aria-label="Eliminar (Supr)"
               >
                 <Trash2 />
               </Button>
@@ -783,6 +912,7 @@ export function App(): ReactNode {
               variant="ghost"
               size="icon-sm"
               onClick={() => setZoom((z) => Math.max(0.2, z - 0.1))}
+              aria-label="Reducir zoom"
             >
               <Minus />
             </Button>
@@ -791,6 +921,7 @@ export function App(): ReactNode {
               variant="ghost"
               size="icon-sm"
               onClick={() => setZoom((z) => Math.min(2, z + 0.1))}
+              aria-label="Aumentar zoom"
             >
               <Plus />
             </Button>
@@ -833,29 +964,87 @@ export function App(): ReactNode {
             </aside>
           ) : null}
 
-          <div className="flex min-h-0 flex-1 flex-col">
-            {doc ? (
-              <>
-                <CanvasPreview
-                  projection={doc.projection}
-                  zoom={zoom}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  onMoveItem={moveItem}
-                  onZoomChange={setZoom}
-                />
-              </>
-            ) : (
-              <div className="m-auto max-w-lg text-center text-sm text-muted-foreground">
-                <p>Sin documento abierto.</p>
-                <p className="mt-2">
-                  Flujo F1: abre un .rdlc, selecciona un elemento y arrástralo (imán de 0,1 cm;
-                  Shift lo ignora), edita su texto o expresión en el panel derecho, deshaz con
-                  Ctrl+Z y guarda: solo cambian los valores editados.
-                </p>
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <div className="flex min-h-0 flex-1 flex-col">
+                {doc ? (
+                  <>
+                    <CanvasPreview
+                      projection={doc.projection}
+                      zoom={zoom}
+                      selectedId={selectedId}
+                      onSelect={setSelectedId}
+                      onMoveItem={moveItem}
+                      onZoomChange={setZoom}
+                      onContextMenuHit={(hit) => {
+                        setMenuHit(hit);
+                        // Como en VS/RB: el click derecho selecciona lo que hay debajo.
+                        setSelectedId(hit.item?.id ?? null);
+                      }}
+                      onDropItem={(kind, hit) => insertAt(kind, hit)}
+                    />
+                  </>
+                ) : (
+                  <div className="m-auto max-w-lg text-center text-sm text-muted-foreground">
+                    <p>Sin documento abierto.</p>
+                    <p className="mt-2">
+                      Flujo F1: abre un .rdlc, arrastra un tipo de elemento desde la barra al
+                      lienzo (o haz click derecho para insertar), selecciona un elemento y muévelo
+                      (imán de 0,1 cm; Shift lo ignora), edita su texto o expresión en el panel
+                      derecho, deshaz con Ctrl+Z y guarda: solo cambian los valores editados.
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </ContextMenuTrigger>
+
+            <ContextMenuContent className="w-56">
+              <ContextMenuLabel>{menuHit?.item ? menuHit.item.id : 'Lienzo'}</ContextMenuLabel>
+              <ContextMenuSeparator />
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
+                <ContextMenuSubContent>
+                  {(['textbox', 'rectangle', 'line', 'image'] as const).map((kind) => (
+                    <ContextMenuItem
+                      key={kind}
+                      onSelect={() => {
+                        if (menuHit) insertAt(kind, menuHit);
+                      }}
+                    >
+                      {ITEM_KIND_LABELS[kind]} en el lienzo
+                    </ContextMenuItem>
+                  ))}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+              <ContextMenuSeparator />
+              <ContextMenuItem disabled={!selectedItem} onSelect={duplicateSelected}>
+                Duplicar
+                <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem disabled={!selectedItem} onSelect={copySelected}>
+                Copiar
+                <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem disabled={!selectedItem} onSelect={cutSelected}>
+                Cortar
+                <ContextMenuShortcut>Ctrl+X</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={!hasClipboard}
+                onSelect={() => {
+                  if (menuHit) pasteAt(menuHit.scope, menuHit.index);
+                }}
+              >
+                Pegar
+                <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem variant="destructive" disabled={!selectedItem} onSelect={deleteSelected}>
+                Eliminar
+                <ContextMenuShortcut>Supr</ContextMenuShortcut>
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
 
           <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
             {selectedItem ? (

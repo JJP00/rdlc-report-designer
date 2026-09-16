@@ -1,30 +1,40 @@
 import { Injectable, Inject } from '@nestjs/common';
-import type { CommandResult, RdlcCommand } from '@rdlc-designer/contracts';
+import type { CommandResult, RdlcCommand, ScopeRef } from '@rdlc-designer/contracts';
 import { applyCommand } from '../../domain/document/commands/applyCommand.js';
 import { inverseCommands } from '../../domain/document/commands/CommandContext.js';
-import type { DomainCommand } from '../../domain/document/commands/CommandContext.js';
+import type {
+  CommandOutcome,
+  DomainCommand,
+} from '../../domain/document/commands/CommandContext.js';
 import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
 import { left, right, type Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
+import { CommandRejectedError } from '../../shared/domainError.js';
 import type { ICommandService } from './ICommandService.js';
 import type { ISessionService } from './ISessionService.js';
 import { SESSION_SERVICE } from './ISessionService.js';
 
 interface JournalEntry {
-  command: RdlcCommand;
+  command: DomainCommand;
   /** Inversos en orden de aplicación; el undo los aplica al revés. */
   inverse: DomainCommand[];
 }
 
 /** Comandos que cambian la estructura/límites: obligan a reconstruir el índice. */
-const STRUCTURAL_COMMANDS = new Set<RdlcCommand['cmd']>([
+const STRUCTURAL_COMMANDS = new Set<string>([
   'setPageSize',
   'setPageMargins',
   'setReportCode',
   'insertItem',
   'duplicateItem',
   'deleteItem',
+  // Interno del pegado: inserta subárbol (mismos efectos que insertItem).
+  'insertClone',
 ]);
+
+function isStructural(command: { cmd: string }): boolean {
+  return STRUCTURAL_COMMANDS.has(command.cmd);
+}
 
 interface SessionJournal {
   /**
@@ -49,32 +59,54 @@ export class CommandService implements ICommandService {
   constructor(@Inject(SESSION_SERVICE) private readonly sessions: ISessionService) {}
 
   execute(sessionId: string, command: RdlcCommand): Either<DomainError, CommandResult> {
-    const target = this.sessions.getEditTarget(sessionId);
-    if (target.isLeft()) return left(target.value);
-
-    const applied = applyCommand(
-      { root: target.value.document.root, index: target.value.index },
-      command,
-    );
+    const applied = this.applyAndJournal(sessionId, command);
     if (applied.isLeft()) return left(applied.value);
 
-    const journal = this.journal(sessionId, target.value.document);
-    journal.undoStack.push({ command, inverse: inverseCommands(applied.value) });
-    journal.redoStack.length = 0;
+    return right(
+      applied.value.outcome.applied
+        ? { ok: true, version: applied.value.version, applied: applied.value.outcome.applied }
+        : { ok: true, version: applied.value.version },
+    );
+  }
 
-    if (STRUCTURAL_COMMANDS.has(command.cmd)) this.sessions.rebuildIndex(sessionId);
+  /**
+   * Copiar no toca el documento: no entra en el journal (no hay nada que
+   * deshacer, y marcar dirty por copiar sería mentira).
+   */
+  copy(sessionId: string, id: string): Either<DomainError, CommandResult> {
+    const copied = this.sessions.copyToClipboard(sessionId, id);
+    if (copied.isLeft()) return left(copied.value);
+    return right({ ok: true, version: this.sessions.versionOf(sessionId) });
+  }
 
-    // Los comandos estructurales (página, código) reenvían la proyección:
-    // el front refresca límites y funciones de <Code> sin esperar al reload.
-    // Algunos comandos (p. ej. `setStyle`) lo piden cuando tocaron partes que
-    // `applied` no puede expresar.
-    const version = this.sessions.touch(sessionId, {
-      snapshotOut: STRUCTURAL_COMMANDS.has(command.cmd) || applied.value.snapshotOut === true,
+  /**
+   * Cortar = copiar al portapapeles + eliminar. El borrado es un comando normal,
+   * así que un solo Ctrl+Z devuelve el item a su sitio.
+   */
+  cut(sessionId: string, id: string): Either<DomainError, CommandResult> {
+    const copied = this.sessions.copyToClipboard(sessionId, id);
+    if (copied.isLeft()) return left(copied.value);
+    return this.execute(sessionId, { cmd: 'deleteItem', id });
+  }
+
+  /**
+   * Pegar: inserta un clon del portapapeles (con nombres nuevos) en
+   * `scope[index]`. El clon se crea en cada pegado, así que se puede pegar
+   * varias veces y deshacer cada paso.
+   */
+  paste(sessionId: string, scope: ScopeRef, index: number): Either<DomainError, CommandResult> {
+    const source = this.sessions.clipboardOf(sessionId);
+    if (!source) return left(CommandRejectedError.create('El portapapeles está vacío'));
+
+    const applied = this.applyAndJournal(sessionId, { cmd: 'insertClone', scope, index, source });
+    if (applied.isLeft()) return left(applied.value);
+
+    return right({
+      ok: true,
+      version: applied.value.version,
+      id: applied.value.outcome.applied?.[0]?.id,
+      ...(applied.value.outcome.applied ? { applied: applied.value.outcome.applied } : {}),
     });
-    const result: CommandResult = applied.value.applied
-      ? { ok: true, version, applied: applied.value.applied }
-      : { ok: true, version };
-    return right(result);
   }
 
   undo(sessionId: string): Either<DomainError, CommandResult> {
@@ -97,7 +129,7 @@ export class CommandService implements ICommandService {
     }
 
     journal.redoStack.push({ command: entry.command, inverse: [...entry.inverse] });
-    if (STRUCTURAL_COMMANDS.has(entry.command.cmd)) this.sessions.rebuildIndex(sessionId);
+    if (isStructural(entry.command)) this.sessions.rebuildIndex(sessionId);
     const version = this.sessions.touch(sessionId, { snapshotOut: true });
     return right({ ok: true, version });
   }
@@ -120,7 +152,7 @@ export class CommandService implements ICommandService {
     }
 
     journal.undoStack.push({ command: entry.command, inverse: inverseCommands(applied.value) });
-    if (STRUCTURAL_COMMANDS.has(entry.command.cmd)) this.sessions.rebuildIndex(sessionId);
+    if (isStructural(entry.command)) this.sessions.rebuildIndex(sessionId);
     const version = this.sessions.touch(sessionId, { snapshotOut: true });
     return right({ ok: true, version });
   }
@@ -128,6 +160,37 @@ export class CommandService implements ICommandService {
   /** El journal se descarta al cerrar la sesión (la pila no sobrevive). */
   drop(sessionId: string): void {
     this.journals.delete(sessionId);
+  }
+
+  /** Aplica un comando al documento, lo apunta en el journal y toca la sesión. */
+  private applyAndJournal(
+    sessionId: string,
+    command: DomainCommand,
+  ): Either<DomainError, { outcome: CommandOutcome; version: number }> {
+    const target = this.sessions.getEditTarget(sessionId);
+    if (target.isLeft()) return left(target.value);
+
+    const applied = applyCommand(
+      { root: target.value.document.root, index: target.value.index },
+      command,
+    );
+    if (applied.isLeft()) return left(applied.value);
+
+    const journal = this.journal(sessionId, target.value.document);
+    journal.undoStack.push({ command, inverse: inverseCommands(applied.value) });
+    journal.redoStack.length = 0;
+
+    if (isStructural(command)) this.sessions.rebuildIndex(sessionId);
+
+    // Los comandos estructurales (página, código, pegar) reenvían la proyección:
+    // el front refresca límites y funciones de <Code> sin esperar al reload.
+    // Algunos comandos (p. ej. `setStyle`) lo piden cuando tocan partes que
+    // `applied` no puede expresar.
+    const version = this.sessions.touch(sessionId, {
+      snapshotOut: isStructural(command) || applied.value.snapshotOut === true,
+    });
+
+    return right({ outcome: applied.value, version });
   }
 
   /**

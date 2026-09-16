@@ -3,8 +3,8 @@ import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import { readLength } from '../geometry/geometry.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
+import { insertCloneAt } from './cloneInsert.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
-import { nextItemName } from './insertItem.js';
 
 export type DuplicateItemCommand = Extract<RdlcCommand, { cmd: 'duplicateItem' }>;
 
@@ -21,57 +21,21 @@ export function applyDuplicateItem(
     return left(CommandRejectedError.create(`El elemento '${command.id}' no tiene contenedor`));
   }
 
-  const name = command.name ?? nextItemName(ctx, kindOf(source));
-  if (ctx.index.has(name)) {
-    return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${name}'`));
+  if (command.name && ctx.index.has(command.name)) {
+    return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${command.name}'`));
   }
-
-  const clone = source.clone();
-  clone.setAttribute('Name', name);
-  syncDefaultName(clone, command.id, name);
-
-  // Los hijos copiados conservan los nombres del original: sin renombrarlos
-  // habría dos nodos con el mismo `Name` (el índice se queda con uno y BC
-  // desorienta sus referencias).
-  const taken = new Set<string>([name]);
-  renameDescendants(ctx, clone, taken);
 
   // Justo después del original, respetando el orden de los hermanos.
   const siblings = container.children();
-  const index = siblings.findIndex((sibling) => sibling.equals(source));
-  container.insertChildAt(clone, index === -1 ? siblings.length : index + 1);
+  const position = siblings.findIndex((sibling) => sibling.equals(source));
+  const index = position === -1 ? siblings.length : position + 1;
+
+  const { name, clone } = insertCloneAt(ctx, container, source, index, command.name);
 
   return right({
     inverse: [{ cmd: 'removeNode', node: clone }],
     applied: [{ id: name, values: geometryOf(clone) }],
   });
-}
-
-/** Renombra a nombres libres todos los descendientes con `Name` del clon. */
-function renameDescendants(ctx: CommandContext, node: RdlcNode, taken: Set<string>): void {
-  for (const child of node.children()) {
-    const oldName = child.attribute('Name');
-    if (oldName !== undefined) {
-      const newName = nextItemName(ctx, child.tagName.toLowerCase(), taken);
-      child.setAttribute('Name', newName);
-      taken.add(newName);
-      syncDefaultName(child, oldName, newName);
-    }
-    renameDescendants(ctx, child, taken);
-  }
-}
-
-/** `<rd:DefaultName>` espeja el `Name` del item (lo usa Report Builder). */
-function syncDefaultName(item: RdlcNode, oldName: string, newName: string): void {
-  for (const child of item.children()) {
-    if (child.tagName === 'rd:DefaultName' && child.text() === oldName) {
-      child.setText(newName);
-    }
-  }
-}
-
-function kindOf(node: RdlcNode): string {
-  return node.tagName.toLowerCase();
 }
 
 function geometryOf(node: RdlcNode): Record<string, unknown> {

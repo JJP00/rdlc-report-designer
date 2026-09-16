@@ -137,6 +137,37 @@ describe('F1 · insertItem', () => {
     expect(inside.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toContain('Name="TextboxDentro"');
   });
+
+  it('normaliza la posición: un item soltado fuera de la banda entra en ella', () => {
+    const { doc, index } = open('PalletOutput.rdlc');
+    const body = index.bounds().body;
+
+    const result = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'insertItem',
+        scope: { kind: 'body' },
+        index: 0,
+        item: {
+          kind: 'textbox',
+          name: 'TextboxBorde',
+          // Muy a la derecha y por debajo del final del cuerpo.
+          top: { value: 999, unit: 'cm' },
+          left: { value: 999, unit: 'cm' },
+          width: { value: 5, unit: 'cm' },
+          height: { value: 1, unit: 'cm' },
+        },
+      },
+    );
+    expect(result.isRight()).toBe(true);
+    if (!result.isRight()) return;
+
+    const applied = appliedOf(result.value, 'TextboxBorde');
+    expect(applied).toMatchObject({
+      top: { value: body.height.value - 1, unit: 'cm' },
+      left: { value: body.width.value - 5, unit: 'cm' },
+    });
+  });
 });
 
 describe('F1 · duplicateItem', () => {
@@ -247,8 +278,7 @@ describe('F1 · deleteItem', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('eliminar y volver a eliminar el mismo id falla (no hay elemento)', () => {
-    const { doc, index } = open('PalletOutput.rdlc');
+  it('eliminar y volver a eliminar el mismo id falla (no hay elemento)', () => {    const { doc, index } = open('PalletOutput.rdlc');
     applyCommand({ root: doc.root, index }, { cmd: 'deleteItem', id: 'Textbox25' });
     // El caso de uso real reconstruye el índice tras comandos estructurales.
     const rebuilt = DocumentIndex.build(doc.root);

@@ -35,11 +35,29 @@ export interface SetNodeTextCommand {
   readonly value: string;
 }
 
-export type InternalCommand = RemoveNodeCommand | RestoreNodeCommand | SetNodeTextCommand;
+/**
+ * Pega un clon del portapapeles: el nodo origen vive **desprendido** del
+ * documento (lo guardó `copy`/`cut`), así que cada pegado clona y renombra.
+ */
+export interface InsertCloneCommand {
+  readonly cmd: 'insertClone';
+  readonly scope: ScopeRef;
+  readonly index: number;
+  readonly source: RdlcNode;
+}
+
+export type InternalCommand =
+  | RemoveNodeCommand
+  | RestoreNodeCommand
+  | SetNodeTextCommand
+  | InsertCloneCommand;
 
 export function isInternalCommand(command: { cmd: string }): command is InternalCommand {
   return (
-    command.cmd === 'removeNode' || command.cmd === 'restoreNode' || command.cmd === 'setNodeText'
+    command.cmd === 'removeNode' ||
+    command.cmd === 'restoreNode' ||
+    command.cmd === 'setNodeText' ||
+    command.cmd === 'insertClone'
   );
 }
 

@@ -73,19 +73,17 @@ function LengthField({
   value: number;
   onCommit: (valueCm: number) => void;
 }): ReactNode {
-  const [text, setText] = useState(format(value));
-
-  useEffect(() => {
-    setText(format(value));
-  }, [value]);
+  // Borrador mientras se teclea; el resto del tiempo manda la proyección
+  // (arrastrar el item actualiza estos campos sin pisar lo que se escribe).
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? format(value);
 
   const commit = (): void => {
     const parsed = Number.parseFloat(text.replace(',', '.'));
-    if (Number.isFinite(parsed) && Math.abs(parsed - value) > 1e-9) {
+    if (draft !== null && Number.isFinite(parsed) && Math.abs(parsed - value) > 1e-9) {
       onCommit(parsed);
-    } else {
-      setText(format(value));
     }
+    setDraft(null);
   };
 
   return (
@@ -94,7 +92,8 @@ function LengthField({
       <Input
         className="h-7 text-xs tabular-nums"
         value={text}
-        onChange={(event) => setText(event.target.value)}
+        aria-label={label}
+        onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') commit();

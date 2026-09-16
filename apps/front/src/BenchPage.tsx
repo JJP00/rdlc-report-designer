@@ -17,8 +17,14 @@ export function BenchPage({ count }: { count: number }): ReactNode {
   const [offset, setOffset] = useState(0);
   const [phase, setPhase] = useState<'montando' | 'midiendo' | 'hecho'>('montando');
   const [result, setResult] = useState<BenchResult | null>(null);
-  const mountAt = useRef(performance.now());
+  // Momento de montaje: se toma en un efecto (no en render) para no escribir
+  // refs durante el render; el efecto que mide corre después.
+  const mountAt = useRef<number>(0);
   const firstPaintAt = useRef<number>(0);
+
+  useEffect(() => {
+    mountAt.current = performance.now();
+  }, []);
 
   const movedId = base.page.body.items[0]?.id ?? '';
   const projection = useMemo(() => {

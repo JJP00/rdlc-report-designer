@@ -14,6 +14,7 @@ import {
   type RdlcApi,
   type RdlcCommand,
   type SaveResult,
+  type ScopeRef,
 } from '@rdlc-designer/contracts';
 
 /**
@@ -53,6 +54,15 @@ const api: RdlcApi = {
 
   redo: (sessionId: string): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.redo, { sessionId }),
+
+  copy: (sessionId: string, id: string): Promise<CommandResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.copy, { sessionId, id }),
+
+  cut: (sessionId: string, id: string): Promise<CommandResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.cut, { sessionId, id }),
+
+  paste: (sessionId: string, scope: ScopeRef, index: number): Promise<CommandResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.paste, { sessionId, scope, index }),
 
   onDocumentChanged: (callback: (event: DocumentChangedEvent) => void): (() => void) =>
     subscribe(IPC_EVENTS.documentChanged, callback),
