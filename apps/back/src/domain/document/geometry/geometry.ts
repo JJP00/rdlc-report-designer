@@ -195,6 +195,29 @@ export function writeLength(node: RdlcNode, tagName: string, length: Length): vo
   insertCanonical(node, tagName, node.createElement(tagName, formatLength(length)));
 }
 
+/**
+ * Como `writeLength` pero anotando en `created` los tags que **no existían**.
+ *
+ * Los items dentro de una celda de Tablix no declaran `Top`/`Left` (los pone la
+ * celda): si un comando los necesita, los crea, y el inverso debe **quitarlos**
+ * para no dejar etiquetas nuevas en el fichero.
+ */
+export function writeLengthTracking(
+  node: RdlcNode,
+  tagName: string,
+  length: Length,
+  created: RdlcNode[],
+): void {
+  const existing = node.child(tagName);
+  if (existing) {
+    existing.setText(formatLength(length));
+    return;
+  }
+  const child = node.createElement(tagName, formatLength(length));
+  insertCanonical(node, tagName, child);
+  created.push(child);
+}
+
 /** Inserta un hijo respetando el orden canónico del XSD dentro de su contenedor. */
 export function insertCanonical(parent: RdlcNode, tagName: string, child: RdlcNode): void {
   const order = orderFor(parent.tagName);

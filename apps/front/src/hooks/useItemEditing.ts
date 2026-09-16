@@ -54,6 +54,8 @@ export interface ItemEditing {
   moveItem: (id: string, top: Length, left: Length) => void;
   setItemLocation: (top: Length, left: Length) => void;
   setItemSize: (width: Length, height: Length) => void;
+  /** Mueve y redimensiona a la vez (tiradores): un paso de undo. */
+  resizeItem: (id: string, box: { top: Length; left: Length; width: Length; height: Length }) => void;
   setItemStyle: (patch: StylePatch) => void;
   setImageOptions: (patch: ImageOptionsPatch) => void;
   setRunText: (p: number, r: number, value: string) => void;
@@ -202,6 +204,30 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       );
     },
     [reconcile, selectedItem, sendCommand, updateProjection],
+  );
+
+  /**
+   * Mover y redimensionar a la vez (tiradores de la selección): **un solo
+   * comando**, así el undo es un paso aunque cambien posición y tamaño.
+   *
+   * Un Tablix no tiene caja propia útil: su tamaño es la **rejilla** (columnas y
+   * filas), así que se manda `resizeTable` (reparto proporcional) y el front no
+   * hace optimismo: el backend devuelve la proyección con la rejilla nueva.
+   */
+  const resizeItem = useCallback(
+    (id: string, box: { top: Length; left: Length; width: Length; height: Length }): void => {
+      const item = doc ? findItem(doc.projection, id) : undefined;
+      if (item?.kind === 'tablix') {
+        void sendCommand({ cmd: 'resizeTable', id, ...box });
+        return;
+      }
+
+      updateProjection((projection) => patchItem(projection, id, box));
+      void sendCommand({ cmd: 'setBounds', id, ...box }).then((result) =>
+        reconcile(result?.ok ? result.applied : undefined),
+      );
+    },
+    [doc, reconcile, sendCommand, updateProjection],
   );
 
   const setItemStyle = useCallback(
@@ -424,6 +450,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     moveItem,
     setItemLocation,
     setItemSize,
+    resizeItem,
     setItemStyle,
     setImageOptions,
     setRunText,

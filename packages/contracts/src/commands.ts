@@ -86,6 +86,16 @@ const setSize = z.object({
   height: lengthSchema,
 });
 
+/** Mover y redimensionar a la vez (tiradores de la selección) = 1 paso de undo. */
+const setBounds = z.object({
+  cmd: z.literal('setBounds'),
+  id: z.string().min(1),
+  top: lengthSchema,
+  left: lengthSchema,
+  width: lengthSchema,
+  height: lengthSchema,
+});
+
 const setZIndex = z.object({
   cmd: z.literal('setZIndex'),
   id: z.string().min(1),
@@ -208,11 +218,42 @@ const setImageOptions = z.object({
   sizing: z.string().nullable().optional(),
 });
 
+const resizeTable = z.object({
+  cmd: z.literal('resizeTable'),
+  id: z.string().min(1),
+  top: lengthSchema,
+  left: lengthSchema,
+  /** Ancho total de la rejilla (se reparte entre las columnas). */
+  width: lengthSchema,
+  /** Alto total de la rejilla (se reparte entre las filas). */
+  height: lengthSchema,
+});
+
+const resizeColumn = z.object({
+  cmd: z.literal('resizeColumn'),
+  id: z.string().min(1),
+  /** Índice de columna (0-based) dentro del `TablixBody`. */
+  column: z.number().int().nonnegative(),
+  width: lengthSchema,
+});
+
+const resizeRow = z.object({
+  cmd: z.literal('resizeRow'),
+  id: z.string().min(1),
+  /** Índice de fila (0-based) dentro del `TablixBody`. */
+  row: z.number().int().nonnegative(),
+  height: lengthSchema,
+});
+
 /* ------------------------------ Unión ----------------------------------- */
 
 export const commandSchema = z.discriminatedUnion('cmd', [
   setLocation,
   setSize,
+  setBounds,
+  resizeTable,
+  resizeColumn,
+  resizeRow,
   setZIndex,
   setName,
   setVisibility,

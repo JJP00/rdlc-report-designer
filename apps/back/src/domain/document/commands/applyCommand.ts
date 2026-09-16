@@ -8,6 +8,8 @@ import { applyDuplicateItem } from './duplicateItem.js';
 import { applyInsertItem } from './insertItem.js';
 import { applyInsertClone } from './insertClone.js';
 import { applySetLocation } from './setLocation.js';
+import { applySetBounds } from './setBounds.js';
+import { applyResizeColumn, applyResizeRow, applyResizeTable } from './resizeTablix.js';
 import { applySetPageMargins } from './setPageMargins.js';
 import { applySetPageSize } from './setPageSize.js';
 import { applySetImageOptions } from './setImageOptions.js';
@@ -30,6 +32,14 @@ export function applyCommand(
       return applySetLocation(ctx, command);
     case 'setSize':
       return applySetSize(ctx, command);
+    case 'setBounds':
+      return applySetBounds(ctx, command);
+    case 'resizeTable':
+      return applyResizeTable(ctx, command);
+    case 'resizeColumn':
+      return applyResizeColumn(ctx, command);
+    case 'resizeRow':
+      return applyResizeRow(ctx, command);
     case 'setText':
       return applySetText(ctx, command);
     case 'setStyle':

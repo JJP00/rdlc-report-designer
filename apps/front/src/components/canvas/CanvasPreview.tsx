@@ -1,12 +1,11 @@
 import type { ItemDto, Length, NewItemSpec, ProjectionDto, ScopeRef } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Stage } from 'react-konva';
 import { ITEM_DRAG_TYPE } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
-import { findItemInList, toCm } from '@/lib/projection';
-import { Paper } from './Paper';
+import { cm, findItemInList, toCm } from '@/lib/projection';import { Paper } from './Paper';
 import { Ruler } from './Ruler';
 import { SelectionFrame } from './SelectionFrame';
 import { bandAt, paperLayout } from './bands';
@@ -26,6 +25,8 @@ export interface CanvasPreviewProps {
   onSelect?: (id: string | null) => void;
   /** Se llama al soltar un drag con la posición ya normalizada (cm). */
   onMoveItem?: (id: string, top: Length, left: Length) => void;
+  /** Se llama al soltar un tirador con la caja normalizada (cm). */
+  onResizeItem?: (id: string, box: { top: Length; left: Length; width: Length; height: Length }) => void;
   /** Zoom con Ctrl/Cmd + rueda. */
   onZoomChange?: (zoom: number) => void;
   /** Click derecho sobre el lienzo: el item/contenedor bajo el cursor. */
@@ -48,6 +49,7 @@ export function CanvasPreview({
   selectedId,
   onSelect,
   onMoveItem,
+  onResizeItem,
   onZoomChange,
   onContextMenuHit,
   onDropItem,
@@ -83,11 +85,65 @@ export function CanvasPreview({
       setSelectionRect(null);
       return;
     }
-    setSelectionRect(node.getClientRect({ relativeTo: stage }));
+    const rect = node.getClientRect({ relativeTo: stage });
+    setSelectionRect(rect);
+
+    // QA/diagnóstico (solo dev): permite a los guiones de captura saber dónde
+    // están los tiradores y comprobar un arrastre real.
+    if (import.meta.env.DEV) {
+      (
+        window as Window & {
+          __rdlcSelection?: { rect: typeof rect; zoom: number } | null;
+        }
+      ).__rdlcSelection = { rect, zoom };
+    }
   }, [selectedId, projection, zoom]);
 
   const layout = paperLayout(projection);
   const visibleBands = layout.bands.filter((band) => band.visible);
+
+  /**
+   * Caja del item seleccionado (cm) y límites de su banda, para los tiradores.
+   * Un Tablix no tiene caja propia: manda la **rejilla** (suma de columnas y
+   * filas), que es lo que se redimensiona. Los items desconocidos no se tocan.
+   */
+  const selectedFrame = useMemo(() => {
+    if (!selectedId) return undefined;
+    for (const band of layout.bands) {
+      const item = findItemInList(band.region.items, selectedId);
+      if (!item) continue;
+      const isDirectChild = band.region.items.some((candidate) => candidate.id === selectedId);
+      const bounds = isDirectChild
+        ? { width: toCm(band.region.width), height: toCm(band.region.height) }
+        : undefined;
+
+      if (item.kind === 'unknown') return { box: undefined, bounds };
+      if (item.kind === 'tablix') {
+        const columns = item.body.columns.reduce((acc, column) => acc + toCm(column), 0);
+        const rows = item.body.rows.reduce((acc, row) => acc + toCm(row.height), 0);
+        return {
+          box: {
+            top: toCm(item.top),
+            left: toCm(item.left),
+            width: round4(columns),
+            height: round4(rows),
+          },
+          bounds,
+        };
+      }
+
+      return {
+        box: {
+          top: toCm(item.top),
+          left: toCm(item.left),
+          width: toCm(item.width),
+          height: toCm(item.height),
+        },
+        bounds,
+      };
+    }
+    return undefined;
+  }, [layout, selectedId]);
 
   const stageWidth = layout.sheetWidth * zoom;
   const stageHeight = layout.sheetHeight * zoom;
@@ -209,7 +265,23 @@ export function CanvasPreview({
               draggable={onMoveItem !== undefined}
             />
 
-            <SelectionFrame rect={selectionRect} zoom={zoom} />
+            <SelectionFrame
+              rect={selectionRect}
+              zoom={zoom}
+              {...(selectedFrame?.box ? { box: selectedFrame.box } : {})}
+              {...(selectedFrame?.bounds ? { bounds: selectedFrame.bounds } : {})}
+              {...(onResizeItem && selectedId
+                ? {
+                    onResize: (box: { top: number; left: number; width: number; height: number }) =>
+                      onResizeItem(selectedId, {
+                        top: cm(box.top),
+                        left: cm(box.left),
+                        width: cm(box.width),
+                        height: cm(box.height),
+                      }),
+                  }
+                : {})}
+            />
           </Stage>
         </div>
       </div>
@@ -219,4 +291,8 @@ export function CanvasPreview({
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function round4(value: number): number {
+  return Math.round(value * 10000) / 10000;
 }

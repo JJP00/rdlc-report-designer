@@ -98,6 +98,7 @@ export function App(): ReactNode {
     moveItem,
     setItemLocation,
     setItemSize,
+    resizeItem,
     setItemStyle,
     setImageOptions,
     setRunText,
@@ -179,6 +180,7 @@ export function App(): ReactNode {
             }}
             onZoomChange={setZoom}
             onMoveItem={moveItem}
+            onResizeItem={resizeItem}
             onInsertAt={insertAt}
             onDuplicate={duplicateSelected}
             onCopy={copySelected}

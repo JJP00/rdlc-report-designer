@@ -46,7 +46,6 @@ export function ExpressionEditor({
 
     let cancelled = false;
     let handles: ExpressionEditorHandles | null = null;
-
     void (async () => {
       const host = await import('@/lib/monacoSetup');
       if (cancelled) return;

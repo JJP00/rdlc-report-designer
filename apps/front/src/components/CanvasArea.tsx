@@ -30,6 +30,8 @@ export interface CanvasAreaProps {
   onContextMenuHit: (hit: CanvasHit) => void;
   onZoomChange: (zoom: number) => void;
   onMoveItem: (id: string, top: Length, left: Length) => void;
+  /** Tiradores de la selección: mover + redimensionar en un comando. */
+  onResizeItem: (id: string, box: { top: Length; left: Length; width: Length; height: Length }) => void;
   onInsertAt: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
   onDuplicate: () => void;
   onCopy: () => void;
@@ -50,6 +52,7 @@ export function CanvasArea({
   onContextMenuHit,
   onZoomChange,
   onMoveItem,
+  onResizeItem,
   onInsertAt,
   onDuplicate,
   onCopy,
@@ -75,6 +78,7 @@ export function CanvasArea({
               onZoomChange={onZoomChange}
               onContextMenuHit={onContextMenuHit}
               onDropItem={onInsertAt}
+              onResizeItem={onResizeItem}
               reveal={reveal}
             />
           ) : (
