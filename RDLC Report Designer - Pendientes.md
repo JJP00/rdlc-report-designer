@@ -8,6 +8,20 @@
 > Lo siguiente: Tablix visual (F2) o los pendientes M1–M7; y de paso partir
 > `App.tsx` (es el único aviso grande que deja `react-doctor`).
 
+## ✨ Nuevo (3.er bloque, 2026-09-16): redimensionar con el cursor (F2, parte 1)
+
+| Pieza | Detalle |
+|---|---|
+| **Tiradores de selección** | 8 tiradores (esquinas + lados) con su cursor, imán de 0,1 cm (Shift lo ignora) y vista previa del recuadro mientras se arrastra. Se ocultan para items desconocidos |
+| **Items normales** | Un tirador mueve y redimensiona a la vez con **`setBounds`** (un solo paso de undo, aunque cambien posición y tamaño) |
+| **Tablas (Tablix)** | Manda la **rejilla**: `resizeTable` reparte el cambio **proporcionalmente** entre columnas y filas, mueve el Tablix y sincroniza su `Width/Height` declarado. Igual que Report Builder, se coge la tabla entera y se estira desde cualquier tirador |
+| **Primitivas** | `resizeColumn` / `resizeRow` (columna/fila exacta) listas para los **separadores internos** de la rejilla (siguiente paso) |
+| **Byte-exactitud** | El dominio no inventa etiquetas: `Top/Left/Width/Height` que se crean al mover un item de una celda se **quitan** al deshacer, y los tags existentes vuelven a su **texto exacto** (`setNodeText`) |
+| **QA** | `lib/resize.ts` con 8 tests, `setBounds` con 3 y `resizeTable` con 7 (incluye undo byte-exacto). Hooks de dev (`__rdlcSelection`, `__rdlcResizeHandle`) para guiones de captura: arrastre real verificado → `resizeTable aplicado` |
+
+Pendiente de F2 (siguiente): **separadores internos** de la rejilla (resize de una columna/fila),
+selección de celda + panel de estructura (añadir/quitar fila/columna) y **grupos de fila con totales**.
+
 ## ✨ Nuevo (2.º bloque, 2026-09-16): Ctrl+K + Monaco
 
 | Pieza | Detalle |
