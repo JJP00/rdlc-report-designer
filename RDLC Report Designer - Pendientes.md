@@ -1,12 +1,29 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
-> **Sesión 2026-09-16 · 2.º bloque** — **Ctrl+K** (paleta de comandos: elementos,
-> variables y acciones) y **Monaco** para las expresiones: resaltado VB-like,
-> autocompletado con campos/parámetros/funciones de `<Code>`/Globals!/User! y
-> funciones RDL, e inserción de variables **en la posición del cursor**.
-> Verificado end-to-end con el modo QA (`RDLC_SHOT_SCRIPT` + captura).
-> Lo siguiente: Tablix visual (F2) o los pendientes M1–M7; y de paso partir
-> `App.tsx` (es el único aviso grande que deja `react-doctor`).
+> **Sesión 2026-09-16 · 4.º bloque (cierre)** — **F2 parte 2**: redimensionar con el
+> cursor (8 tiradores, `setBounds`/`resizeTable` en un solo undo), **separadores
+> internos** de columna/fila de la rejilla, y arreglo del **click dentro de las
+> tablas**: ahora un click selecciona el elemento más anidado a la primera (el borde
+> del Tablix se llevaba todos los clicks porque en Konva el área de hit por defecto
+> de un `Rect` es toda su superficie). Además **Esc sube un nivel** de jerarquía
+> (tablas internas) y el menú contextual tiene *Seleccionar contenedor*.
+> Verificado con el modo QA y `stage.getIntersection()` sobre `SalesCreditMemoESP.rdlc`.
+> Estado: **199 tests** verdes (136 back + 63 front), `typecheck` limpio y
+> `react-doctor` **82/100 con 0 errores**.
+> **Lo siguiente (F2, parte 3)**: selección de **celda**, panel/árbol de **estructura**
+> (añadir/quitar fila y columna sincronizando `TablixBody` **y** `TablixRowHierarchy`)
+> y **grupos de fila con totales**.
+
+## 🧠 Lecciones de Konva (para no repetirlas)
+
+| Regla | Detalle |
+|---|---|
+| **Área de hit de un `Rect`** | Por defecto es **toda su superficie**, no solo el trazo: un rect envolvente para «pinchar el borde» se traga los clicks del interior. Para un anillo hace falta un `hitFunc` propio (4 `rect()` + `fillStrokeShape`) |
+| **Parámetros del hitFunc** | `fillStrokeShape` rellena con el *color de hit* aunque no haya `fill`: en el lienzo de hit todo lo dibujado es hitable |
+| **Capa de selección** | Los tiradores y separadores viven en una capa encima: mientras hay algo seleccionado, tapan los clicks de lo que hay debajo (igual que RB) |
+| **Medir el marco** | `getClientRect()` incluye **todos** los descendientes: cualquier adorno que sobresalga (anillos, sombras) infla el marco y desalinea tiradores/separadores |
+| **No re-renderizar en un drag** | Re-renderizar un componente mientras Konva arrastra uno de sus nodos lo desmonta y mata el drag (las vistas previas van por refs) |
+| **Hooks de QA (solo dev)** | `__rdlcSelection` (rect en px de papel + zoom), `__rdlcResizeHandle`, `__rdlcTablixSeparator` y `__rdlcStage` (para `getIntersection` y para trazar eventos parcheando `_fireAndBubble`) |
 
 ## ✨ Nuevo (3.er bloque, 2026-09-16): redimensionar con el cursor (F2, parte 1)
 
@@ -22,8 +39,9 @@
 | **Byte-exactitud** | El dominio no inventa etiquetas: `Top/Left/Width/Height` que se crean al mover un item de una celda se **quitan** al deshacer, y los tags existentes vuelven a su **texto exacto** (`setNodeText`) |
 | **QA** | `lib/resize.ts` con 8 tests, `setBounds` con 3 y `resizeTable` con 7 (incluye undo byte-exacto). Hooks de dev (`__rdlcSelection`, `__rdlcResizeHandle`, `__rdlcStage`) para guiones de captura: arrastre real verificado → `resizeTable aplicado`; y verificado con `getIntersection` que un click dentro de una tabla llega al elemento más anidado |
 
-Pendiente de F2 (siguiente): **separadores internos** de la rejilla (resize de una columna/fila),
-selección de celda + panel de estructura (añadir/quitar fila/columna) y **grupos de fila con totales**.
+Pendiente de F2 (parte 3, siguiente): **selección de celda** + panel/árbol de
+**estructura** (añadir/quitar fila y columna, sincronizando `TablixBody` **y**
+`TablixRowHierarchy`) y **grupos de fila con totales**.
 
 ## ✨ Nuevo (2.º bloque, 2026-09-16): Ctrl+K + Monaco
 
