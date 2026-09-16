@@ -1001,6 +1001,51 @@ export function App(): ReactNode {
             <ContextMenuContent className="w-56">
               <ContextMenuLabel>{menuHit?.item ? menuHit.item.id : 'Lienzo'}</ContextMenuLabel>
               <ContextMenuSeparator />
+
+              {/* Acciones del item ARRIBA (como en VS Code/Explorer): sobre un
+                  item hay grupo de portapapeles; en vacío solo pegar. */}
+              {menuHit?.item ? (
+                <>
+                  <ContextMenuItem onSelect={cutSelected}>
+                    Cortar
+                    <ContextMenuShortcut>Ctrl+X</ContextMenuShortcut>
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={copySelected}>
+                    Copiar
+                    <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    disabled={!hasClipboard}
+                    onSelect={() => {
+                      if (menuHit) pasteAt(menuHit.scope, menuHit.index);
+                    }}
+                  >
+                    Pegar
+                    <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={duplicateSelected}>
+                    Duplicar
+                    <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem variant="destructive" onSelect={deleteSelected}>
+                    Eliminar
+                    <ContextMenuShortcut>Supr</ContextMenuShortcut>
+                  </ContextMenuItem>
+                </>
+              ) : (
+                <ContextMenuItem
+                  disabled={!hasClipboard}
+                  onSelect={() => {
+                    if (menuHit) pasteAt(menuHit.scope, menuHit.index);
+                  }}
+                >
+                  Pegar
+                  <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
+                </ContextMenuItem>
+              )}
+
+              <ContextMenuSeparator />
               <ContextMenuSub>
                 <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
                 <ContextMenuSubContent>
@@ -1011,38 +1056,11 @@ export function App(): ReactNode {
                         if (menuHit) insertAt(kind, menuHit);
                       }}
                     >
-                      {ITEM_KIND_LABELS[kind]} en el lienzo
+                      {ITEM_KIND_LABELS[kind]}
                     </ContextMenuItem>
                   ))}
                 </ContextMenuSubContent>
               </ContextMenuSub>
-              <ContextMenuSeparator />
-              <ContextMenuItem disabled={!selectedItem} onSelect={duplicateSelected}>
-                Duplicar
-                <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>
-              </ContextMenuItem>
-              <ContextMenuItem disabled={!selectedItem} onSelect={copySelected}>
-                Copiar
-                <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
-              </ContextMenuItem>
-              <ContextMenuItem disabled={!selectedItem} onSelect={cutSelected}>
-                Cortar
-                <ContextMenuShortcut>Ctrl+X</ContextMenuShortcut>
-              </ContextMenuItem>
-              <ContextMenuItem
-                disabled={!hasClipboard}
-                onSelect={() => {
-                  if (menuHit) pasteAt(menuHit.scope, menuHit.index);
-                }}
-              >
-                Pegar
-                <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem variant="destructive" disabled={!selectedItem} onSelect={deleteSelected}>
-                Eliminar
-                <ContextMenuShortcut>Supr</ContextMenuShortcut>
-              </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
 
