@@ -21,26 +21,22 @@ export function cm(value: number): Length {
 
 /** Busca un item por id en todas las regiones (incluye anidados y celdas). */
 export function findItem(projection: ProjectionDto, id: string): ItemDto | undefined {
-  const regions = [projection.page.header, projection.page.body, projection.page.footer];
-  for (const region of regions) {
-    const found = findIn(region.items, id);
-    if (found) return found;
-  }
-  return undefined;
+  return flattenItems(projection).find((item) => item.id === id);
 }
 
-function findIn(items: ItemDto[], id: string): ItemDto | undefined {
+/** Busca un item por id dentro de una lista (anidados y celdas incluidos). */
+export function findItemInList(items: ItemDto[], id: string): ItemDto | undefined {
   for (const item of items) {
     if (item.id === id) return item;
     if (item.kind === 'rectangle') {
-      const found = findIn(item.children, id);
+      const found = findItemInList(item.children, id);
       if (found) return found;
     }
     if (item.kind === 'tablix') {
       for (const row of item.body.rows) {
         for (const cell of row.cells) {
           if (cell?.content) {
-            const found = findIn([cell.content], id);
+            const found = findItemInList([cell.content], id);
             if (found) return found;
           }
         }
@@ -48,6 +44,33 @@ function findIn(items: ItemDto[], id: string): ItemDto | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Todos los items de la proyección en orden de documento (regiones, hijos de
+ * rectángulos y contenido de celdas de Tablix incluidos).
+ */
+export function flattenItems(projection: ProjectionDto): ItemDto[] {
+  const items: ItemDto[] = [];
+
+  const walk = (list: ItemDto[]): void => {
+    for (const item of list) {
+      items.push(item);
+      if (item.kind === 'rectangle') walk(item.children);
+      if (item.kind === 'tablix') {
+        for (const row of item.body.rows) {
+          for (const cell of row.cells) {
+            if (cell?.content) walk([cell.content]);
+          }
+        }
+      }
+    }
+  };
+
+  walk(projection.page.header.items);
+  walk(projection.page.body.items);
+  walk(projection.page.footer.items);
+  return items;
 }
 
 /** Devuelve una copia de la proyección con el item parcheado (inmutable). */
@@ -90,31 +113,18 @@ export function patchItem(
   };
 }
 
-export function countItems(projection: ProjectionDto): {  total: number;
+export function countItems(projection: ProjectionDto): {
+  total: number;
   byKind: Record<string, number>;
 } {
+  const items = flattenItems(projection);
   const byKind: Record<string, number> = {};
-  let total = 0;
 
-  const walk = (items: ItemDto[]): void => {
-    for (const item of items) {
-      total += 1;
-      byKind[item.kind] = (byKind[item.kind] ?? 0) + 1;
-      if (item.kind === 'rectangle') walk(item.children);
-      if (item.kind === 'tablix') {
-        for (const row of item.body.rows) {
-          for (const cell of row.cells) {
-            if (cell?.content) walk([cell.content]);
-          }
-        }
-      }
-    }
-  };
+  for (const item of items) {
+    byKind[item.kind] = (byKind[item.kind] ?? 0) + 1;
+  }
 
-  walk(projection.page.header.items);
-  walk(projection.page.body.items);
-  walk(projection.page.footer.items);
-  return { total, byKind };
+  return { total: items.length, byKind };
 }
 
 export function formatKinds(byKind: Record<string, number>): string {
@@ -125,24 +135,5 @@ export function formatKinds(byKind: Record<string, number>): string {
 
 /** Todos los ids usados en la proyección (para proponer nombres libres). */
 export function collectIds(projection: ProjectionDto): Set<string> {
-  const ids = new Set<string>();
-
-  const walk = (items: ItemDto[]): void => {
-    for (const item of items) {
-      ids.add(item.id);
-      if (item.kind === 'rectangle') walk(item.children);
-      if (item.kind === 'tablix') {
-        for (const row of item.body.rows) {
-          for (const cell of row.cells) {
-            if (cell?.content) walk([cell.content]);
-          }
-        }
-      }
-    }
-  };
-
-  walk(projection.page.header.items);
-  walk(projection.page.body.items);
-  walk(projection.page.footer.items);
-  return ids;
+  return new Set(flattenItems(projection).map((item) => item.id));
 }

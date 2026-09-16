@@ -7,31 +7,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { VARIABLE_GROUPS, variableEntries, type VariableEntry } from '@/lib/variables';
 
 interface VariablesPanelProps {
   meta: ReportMetaDto;
   /** Copia la expresión al portapapeles después de insertarla en el estado. */
   onPick?: (expression: string) => void;
 }
-
-interface VariableEntry {
-  group: string;
-  name: string;
-  expression: string;
-  detail?: string;
-}
-
-/** Globals y User son listas estáticas del estándar RDL. */
-const GLOBALS = [
-  'PageNumber',
-  'TotalPages',
-  'ExecutionTime',
-  'ReportName',
-  'PageName',
-  'RenderFormat',
-];
-
-const USER_FIELDS = ['UserID', 'Language'];
 
 /**
  * Lista de variables del informe con buscador y **grupos colapsables**:
@@ -42,45 +24,10 @@ const USER_FIELDS = ['UserID', 'Language'];
 export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
-    'Campos (Fields!)': true,
+    [VARIABLE_GROUPS.fields]: true,
   });
 
-  const entries = useMemo<VariableEntry[]>(() => {
-    const fields = meta.fields.map((field) => ({
-      group: 'Campos (Fields!)',
-      name: field.name,
-      expression: `=Fields!${field.name}.Value`,
-      detail: field.dataType,
-    }));
-
-    const parameters = meta.parameters.map((parameter) => ({
-      group: 'Parámetros',
-      name: parameter.name,
-      expression: `=Parameters!${parameter.name}.Value`,
-      detail: parameter.dataType,
-    }));
-
-    const functions = meta.code.functions.map((fn) => ({
-      group: 'Funciones Code.',
-      name: fn.name,
-      expression: `=Code.${fn.name}(`,
-      detail: fn.parameters?.join(', '),
-    }));
-
-    const globals = GLOBALS.map((name) => ({
-      group: 'Globals!',
-      name,
-      expression: `=Globals!${name}.Value`,
-    }));
-
-    const user = USER_FIELDS.map((name) => ({
-      group: 'User!',
-      name,
-      expression: `=User!${name}`,
-    }));
-
-    return [...fields, ...parameters, ...functions, ...globals, ...user];
-  }, [meta]);
+  const entries = useMemo<VariableEntry[]>(() => variableEntries(meta), [meta]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();

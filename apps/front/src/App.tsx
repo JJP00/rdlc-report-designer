@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CanvasPreview, ITEM_DRAG_TYPE } from '@/components/canvas/CanvasPreview';
+import { CommandPalette } from '@/components/panels/CommandPalette';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
 import { ImagePanel, type ImageOptionsPatch } from '@/components/panels/ImagePanel';
 import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
@@ -61,6 +62,7 @@ import {
 } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
 import type { CanvasHit } from '@/lib/hit';
+import type { PaletteActionId } from '@/lib/palette';
 
 /** Paso de las flechas: 1pt (Shift = 10pt). */
 const NUDGE_PT_CM = 2.54 / 72;
@@ -106,6 +108,9 @@ export function App(): ReactNode {
   /** Último hit del click derecho: destino de "Insertar" y de "Pegar". */
   const [menuHit, setMenuHit] = useState<CanvasHit | null>(null);
   const [hasClipboard, setHasClipboard] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  /** Elemento al que la paleta quiere llevar la vista (nonce para repetir). */
+  const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
 
   // Sin preload (p. ej. abriendo el renderer en un navegador) no hay backend IPC.
   const hasBackend = typeof window !== 'undefined' && window.api !== undefined;
@@ -599,6 +604,25 @@ export function App(): ReactNode {
     [doc, sendCommand],
   );
 
+  /* -------------------------- paleta de comandos -------------------------- */
+
+  /** Salta a un elemento (paleta Ctrl+K): lo selecciona y lo trae a la vista. */
+  const selectAndReveal = useCallback((id: string): void => {
+    setSelectedId(id);
+    setReveal({ id, nonce: Date.now() });
+  }, []);
+
+  /**
+   * Elige una variable de la paleta. Hoy copia al portapapeles; con Monaco se
+   * insertará en la posición del cursor del editor activo.
+   */
+  const pickExpression = useCallback((expression: string, name: string): void => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(expression);
+    }
+    setStatus(`${name} copiada al portapapeles: ${expression}`);
+  }, []);
+
   const undo = useCallback(async (): Promise<void> => {
     if (!doc) return;
     flushRef.current();
@@ -617,11 +641,19 @@ export function App(): ReactNode {
 
   /** Handler global de teclado: ve el estado actual sin re-suscribir listeners. */
   const onKeyDown = useEffectEvent((event: KeyboardEvent): void => {
+    const key = event.key.toLowerCase();
+
+    // Ctrl+K es global (también mientras se escribe en un panel).
+    if ((event.ctrlKey || event.metaKey) && key === 'k') {
+      event.preventDefault();
+      setPaletteOpen((value) => !value);
+      return;
+    }
+
     const target = event.target as HTMLElement | null;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
     if (!doc) return;
 
-    const key = event.key.toLowerCase();
     if ((event.ctrlKey || event.metaKey) && key === 'z') {
       event.preventDefault();
       if (event.shiftKey) void redo();
@@ -730,6 +762,42 @@ export function App(): ReactNode {
     setDirty(false);
     setConflict(null);
     setStatus('Documento cerrado.');
+  };
+
+  /** Acciones que ofrece la paleta (Ctrl+K). */
+  const runPaletteAction = (action: PaletteActionId): void => {
+    switch (action) {
+      case 'open':
+        void open();
+        break;
+      case 'save':
+        void save();
+        break;
+      case 'undo':
+        void undo();
+        break;
+      case 'redo':
+        void redo();
+        break;
+      case 'toggle-variables':
+        setShowVariables((value) => !value);
+        break;
+      case 'report-properties':
+        setPropertiesOpen(true);
+        break;
+      case 'insert:textbox':
+        insertItem('textbox');
+        break;
+      case 'insert:rectangle':
+        insertItem('rectangle');
+        break;
+      case 'insert:line':
+        insertItem('line');
+        break;
+      case 'insert:image':
+        insertItem('image');
+        break;
+    }
   };
 
   return (
@@ -982,6 +1050,7 @@ export function App(): ReactNode {
                         setSelectedId(hit.item?.id ?? null);
                       }}
                       onDropItem={(kind, hit) => insertAt(kind, hit)}
+                      reveal={reveal}
                     />
                   </>
                 ) : (
@@ -1122,6 +1191,16 @@ export function App(): ReactNode {
           onSetReportCode={setReportCode}
         />
       ) : null}
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        projection={doc?.projection ?? null}
+        hasDocument={doc !== null}
+        onSelectItem={selectAndReveal}
+        onPickExpression={pickExpression}
+        onAction={runPaletteAction}
+      />
     </TooltipProvider>
   );
 }

@@ -17,6 +17,7 @@ import { computeDragEnd } from '@/lib/drag';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
 import { toCm } from '@/lib/projection';
+import { findItemInList } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
 import { runDisplayText } from '@/lib/text';
 
@@ -63,6 +64,8 @@ export interface CanvasPreviewProps {
   onContextMenuHit?: (hit: CanvasHit) => void;
   /** Un item de la toolbox soltado en el lienzo. */
   onDropItem?: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
+  /** Petición de llevar un elemento a la vista (paleta Ctrl+K). */
+  reveal?: { id: string; nonce: number } | null;
 }
 
 /** MIME propio del drag desde la toolbox (el navegador lo pasa a minúsculas). */
@@ -83,6 +86,7 @@ export function CanvasPreview({
   onZoomChange,
   onContextMenuHit,
   onDropItem,
+  reveal,
 }: CanvasPreviewProps): ReactNode {
   // Dev: detector de bucles de render (cuenta renders confirmados, tras pintar).
   const renders = useRef(0);
@@ -94,6 +98,7 @@ export function CanvasPreview({
   });
 
   const stageRef = useRef<Konva.Stage | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [selectionRect, setSelectionRect] = useState<{
     x: number;
     y: number;
@@ -166,6 +171,33 @@ export function CanvasPreview({
   const stageWidth = sheetWidth * zoom;
   const stageHeight = sheetHeight * zoom;
 
+  // Bandas actuales en un ref: el efecto de "traer a la vista" no debe
+  // re-ejecutarse en cada render (las bandas son un array nuevo cada vez).
+  const bandsRef = useRef(visibleBands);
+  useEffect(() => {
+    bandsRef.current = visibleBands;
+  });
+
+  // Trae a la vista el elemento pedido (paleta Ctrl+K) con un margen cómodo.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !reveal) return;
+
+    for (const band of bandsRef.current) {
+      const item = findItemInList(band.region.items, reveal.id);
+      if (!item) continue;
+
+      const x = RULER_PX + (band.x + toPx(item.left)) * zoom;
+      const y = RULER_PX + (band.y + toPx(item.top)) * zoom;
+      container.scrollTo({
+        left: Math.max(0, x - 120),
+        top: Math.max(0, y - 120),
+        behavior: 'smooth',
+      });
+      return;
+    }
+  }, [reveal, zoom]);
+
   /**
    * Traduce un evento del DOM (drop, click derecho) a `CanvasHit`: px de
    * pantalla → px de papel (÷ zoom) → banda → cm relativos a la banda.
@@ -203,6 +235,7 @@ export function CanvasPreview({
 
   return (
     <div
+      ref={scrollRef}
       className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
       onContextMenu={(event) => {
         const hit = hitAt(event);
