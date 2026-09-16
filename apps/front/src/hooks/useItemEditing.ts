@@ -56,6 +56,9 @@ export interface ItemEditing {
   setItemSize: (width: Length, height: Length) => void;
   /** Mueve y redimensiona a la vez (tiradores): un paso de undo. */
   resizeItem: (id: string, box: { top: Length; left: Length; width: Length; height: Length }) => void;
+  /** Separadores de la rejilla del Tablix. */
+  resizeColumn: (id: string, column: number, width: Length) => void;
+  resizeRow: (id: string, row: number, height: Length) => void;
   setItemStyle: (patch: StylePatch) => void;
   setImageOptions: (patch: ImageOptionsPatch) => void;
   setRunText: (p: number, r: number, value: string) => void;
@@ -432,6 +435,25 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [doc, sendCommand, updateProjection],
   );
 
+  /**
+   * Redimensionar una columna/fila de la rejilla (separadores internos del
+   * Tablix). No hay optimismo: el comando devuelve la proyección con la rejilla
+   * nueva (`snapshotOut`).
+   */
+  const resizeColumn = useCallback(
+    (id: string, column: number, width: Length): void => {
+      void sendCommand({ cmd: 'resizeColumn', id, column, width });
+    },
+    [sendCommand],
+  );
+
+  const resizeRow = useCallback(
+    (id: string, row: number, height: Length): void => {
+      void sendCommand({ cmd: 'resizeRow', id, row, height });
+    },
+    [sendCommand],
+  );
+
   /* -------------------------------- paleta -------------------------------- */
 
   const selectAndReveal = useCallback((id: string): void => {
@@ -451,6 +473,8 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setItemLocation,
     setItemSize,
     resizeItem,
+    resizeColumn,
+    resizeRow,
     setItemStyle,
     setImageOptions,
     setRunText,

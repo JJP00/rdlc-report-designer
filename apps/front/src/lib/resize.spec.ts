@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeResize, MIN_SIZE_CM, type BoxCm } from './resize';
+import { computeResize, MIN_SIZE_CM, resizeBoundary, type BoxCm } from './resize';
 
 /** Redimensionado con tiradores: tamaño mínimo, imán y límites. */
 
@@ -77,5 +77,28 @@ describe('computeResize', () => {
     const result = computeResize({ handle: 'nw', start: box, dxCm: -5, dyCm: -5, ...noSnap });
     expect(result.left).toBe(0);
     expect(result.top).toBe(0);
+  });
+});
+
+describe('resizeBoundary', () => {
+  it('aplica el desplazamiento de la frontera y lo imanta a 0,1 cm', () => {
+    expect(resizeBoundary({ value: 3, unit: 'cm' }, 1.5)).toEqual({ value: 4.5, unit: 'cm' });
+    expect(resizeBoundary({ value: 3, unit: 'cm' }, -1)).toEqual({ value: 2, unit: 'cm' });
+    // 3 + 0.34 → 3.34 → imán → 3.3
+    expect(resizeBoundary({ value: 3, unit: 'cm' }, 0.34)).toEqual({ value: 3.3, unit: 'cm' });
+  });
+
+  it('con `snapCm: null` no imanta (Shift)', () => {
+    expect(resizeBoundary({ value: 3, unit: 'cm' }, 0.34, null)).toEqual({ value: 3.34, unit: 'cm' });
+  });
+
+  it('no baja del tamaño mínimo', () => {
+    expect(resizeBoundary({ value: 0.2, unit: 'cm' }, -5).value).toBe(MIN_SIZE_CM);
+  });
+
+  it('respeta la unidad del fichero (mm) sin mezclarla', () => {
+    // 10mm (1cm) + 0.37cm = 1.37cm → imán 1.4cm → 14mm
+    expect(resizeBoundary({ value: 10, unit: 'mm' }, 0.37)).toEqual({ value: 14, unit: 'mm' });
+    expect(resizeBoundary({ value: 20, unit: 'mm' }, 0.1, null)).toEqual({ value: 21, unit: 'mm' });
   });
 });

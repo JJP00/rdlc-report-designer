@@ -7,11 +7,27 @@
  * (Shift lo desactiva).
  */
 
+import type { Length } from '@rdlc-designer/contracts';
+
 export const RESIZE_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
 export type ResizeHandle = (typeof RESIZE_HANDLES)[number];
 
 /** Tamaño mínimo de un item (el mismo que usa el dominio al clamar). */
 export const MIN_SIZE_CM = 0.05;
+
+/** Convierte un `Length` a cm (evita depender de lib/projection). */
+function toCm(length: Length): number {
+  switch (length.unit) {
+    case 'cm':
+      return length.value;
+    case 'mm':
+      return length.value / 10;
+    case 'in':
+      return length.value * 2.54;
+    case 'pt':
+      return (length.value * 2.54) / 72;
+  }
+}
 
 export interface BoxCm {
   top: number;
@@ -112,6 +128,35 @@ export function computeResize(input: ResizeInput): BoxCm {
     width: round4(width),
     height: round4(height),
   };
+}
+
+/** Ancho/alto de una frontera de la rejilla tras arrastrarla (nunca < mínimo). */
+export function resizeBoundary(
+  current: Length,
+  deltaCm: number,
+  snapCm: number | null = 0.1,
+): Length {
+  let cm = toCm(current) + deltaCm;
+  if (snapCm !== null && snapCm > 0) cm = Math.round(cm / snapCm) * snapCm;
+  // El mínimo se aplica al final: el imán no puede dejarlo por debajo.
+  cm = Math.max(cm, MIN_SIZE_CM);
+
+  const value = fromCm(cm, current.unit);
+  return { value: Math.round(value * 10000) / 10000, unit: current.unit };
+}
+
+/** cm → unidad de la longitud (para no mezclar unidades al devolver). */
+function fromCm(cm: number, unit: Length['unit']): number {
+  switch (unit) {
+    case 'cm':
+      return cm;
+    case 'mm':
+      return cm * 10;
+    case 'in':
+      return cm / 2.54;
+    case 'pt':
+      return (cm / 2.54) * 72;
+  }
 }
 
 function snapValue(value: number, step: number): number {

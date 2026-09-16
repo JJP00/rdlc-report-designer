@@ -36,9 +36,25 @@ export function findItem(projection: ProjectionDto, id: string): ItemDto | undef
   return flattenItems(projection).find((item) => item.id === id);
 }
 
+/**
+ * true si el item es el **contenido directo de una celda** de Tablix: ahí manda
+ * la celda (su tamaño lo pone la fila/columna), así que no se redimensiona con
+ * tiradores — se redimensiona la columna o la fila.
+ */
+export function isCellContent(projection: ProjectionDto, id: string): boolean {
+  for (const item of flattenItems(projection)) {
+    if (item.kind !== 'tablix') continue;
+    for (const row of item.body.rows) {
+      for (const cell of row.cells) {
+        if (cell?.content?.id === id) return true;
+      }
+    }
+  }
+  return false;
+}
+
 /** Busca un item por id dentro de una lista (anidados y celdas incluidos). */
-export function findItemInList(items: ItemDto[], id: string): ItemDto | undefined {
-  for (const item of items) {
+export function findItemInList(items: ItemDto[], id: string): ItemDto | undefined {  for (const item of items) {
     if (item.id === id) return item;
     if (item.kind === 'rectangle') {
       const found = findItemInList(item.children, id);

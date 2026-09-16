@@ -5,7 +5,7 @@ import { Stage } from 'react-konva';
 import { ITEM_DRAG_TYPE } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
-import { cm, findItemInList, toCm } from '@/lib/projection';import { Paper } from './Paper';
+import { cm, findItemInList, isCellContent, toCm } from '@/lib/projection';import { Paper } from './Paper';
 import { Ruler } from './Ruler';
 import { SelectionFrame } from './SelectionFrame';
 import { bandAt, paperLayout } from './bands';
@@ -27,6 +27,9 @@ export interface CanvasPreviewProps {
   onMoveItem?: (id: string, top: Length, left: Length) => void;
   /** Se llama al soltar un tirador con la caja normalizada (cm). */
   onResizeItem?: (id: string, box: { top: Length; left: Length; width: Length; height: Length }) => void;
+  /** Redimensionar una columna/fila de la rejilla (separadores internos). */
+  onResizeColumn?: (id: string, column: number, width: Length) => void;
+  onResizeRow?: (id: string, row: number, height: Length) => void;
   /** Zoom con Ctrl/Cmd + rueda. */
   onZoomChange?: (zoom: number) => void;
   /** Click derecho sobre el lienzo: el item/contenedor bajo el cursor. */
@@ -50,6 +53,8 @@ export function CanvasPreview({
   onSelect,
   onMoveItem,
   onResizeItem,
+  onResizeColumn,
+  onResizeRow,
   onZoomChange,
   onContextMenuHit,
   onDropItem,
@@ -89,13 +94,29 @@ export function CanvasPreview({
     setSelectionRect(rect);
 
     // QA/diagnóstico (solo dev): permite a los guiones de captura saber dónde
-    // están los tiradores y comprobar un arrastre real.
+    // están los tiradores, el primer separador de la rejilla y comprobar un
+    // arrastre real.
     if (import.meta.env.DEV) {
       (
         window as Window & {
           __rdlcSelection?: { rect: typeof rect; zoom: number } | null;
         }
       ).__rdlcSelection = { rect, zoom };
+
+      const separator = stage.findOne((candidate: Konva.Node) => candidate.name() === 'separator');
+      const points = (separator?.getAttr('points') as number[] | undefined) ?? [];
+      if (separator && points.length >= 4) {
+        const absolute = separator
+          .getAbsoluteTransform()
+          .point({ x: points[0] ?? 0, y: ((points[3] ?? 0) + (points[1] ?? 0)) / 2 });
+        const container = stage.container().getBoundingClientRect();
+        (
+          window as Window & { __rdlcTablixSeparator?: { x: number; y: number } | null }
+        ).__rdlcTablixSeparator = {
+          x: container.left + absolute.x,
+          y: container.top + absolute.y,
+        };
+      }
     }
   }, [selectedId, projection, zoom]);
 
@@ -109,6 +130,8 @@ export function CanvasPreview({
    */
   const selectedFrame = useMemo(() => {
     if (!selectedId) return undefined;
+    // El contenido directo de una celda no se redimensiona: manda la celda.
+    if (hideHandles(projection, selectedId)) return { box: undefined, bounds: undefined };
     for (const band of layout.bands) {
       const item = findItemInList(band.region.items, selectedId);
       if (!item) continue;
@@ -129,6 +152,7 @@ export function CanvasPreview({
             height: round4(rows),
           },
           bounds,
+          grid: { columns: item.body.columns, rows: item.body.rows.map((row) => row.height) },
         };
       }
 
@@ -143,7 +167,7 @@ export function CanvasPreview({
       };
     }
     return undefined;
-  }, [layout, selectedId]);
+  }, [layout, projection, selectedId]);
 
   const stageWidth = layout.sheetWidth * zoom;
   const stageHeight = layout.sheetHeight * zoom;
@@ -262,6 +286,8 @@ export function CanvasPreview({
               selectedId={selectedId}
               onSelect={onSelect}
               onMoveItem={onMoveItem}
+              onResizeColumn={onResizeColumn}
+              onResizeRow={onResizeRow}
               draggable={onMoveItem !== undefined}
             />
 
@@ -270,6 +296,17 @@ export function CanvasPreview({
               zoom={zoom}
               {...(selectedFrame?.box ? { box: selectedFrame.box } : {})}
               {...(selectedFrame?.bounds ? { bounds: selectedFrame.bounds } : {})}
+              {...(selectedFrame && 'grid' in selectedFrame && selectedFrame.grid
+                ? {
+                    grid: selectedFrame.grid,
+                    ...(onResizeColumn
+                      ? { onResizeColumn: (column: number, width: Length) => onResizeColumn(selectedId!, column, width) }
+                      : {}),
+                    ...(onResizeRow
+                      ? { onResizeRow: (row: number, height: Length) => onResizeRow(selectedId!, row, height) }
+                      : {}),
+                  }
+                : {})}
               {...(onResizeItem && selectedId
                 ? {
                     onResize: (box: { top: number; left: number; width: number; height: number }) =>
@@ -287,6 +324,11 @@ export function CanvasPreview({
       </div>
     </div>
   );
+}
+
+/** Caja por la que se mide el marco: el item y si es contenido de una celda. */
+function hideHandles(projection: ProjectionDto, id: string): boolean {
+  return isCellContent(projection, id);
 }
 
 function round2(value: number): number {

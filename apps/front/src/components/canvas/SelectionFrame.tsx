@@ -1,8 +1,9 @@
 import type Konva from 'konva';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Layer, Rect } from 'react-konva';
-import { computeResize, RESIZE_HANDLES, type BoxCm, type ResizeHandle } from '@/lib/resize';
-import { PX_PER_CM } from './geometry';
+import { Layer, Line, Rect } from 'react-konva';
+import type { Length } from '@rdlc-designer/contracts';
+import { computeResize, resizeBoundary, RESIZE_HANDLES, type BoxCm, type ResizeHandle } from '@/lib/resize';
+import { PX_PER_CM, toPx } from './geometry';
 
 export interface SelectionFrameProps {
   /** Rectángulo en px de papel (medido del nodo Konva real). */
@@ -14,6 +15,13 @@ export interface SelectionFrameProps {
   bounds?: { width: number; height: number };
   /** Se llama al soltar un tirador con la caja ya normalizada (cm). */
   onResize?: (box: BoxCm) => void;
+  /**
+   * Rejilla del Tablix seleccionado: dibuja los **separadores internos** de
+   * columnas/filas (redimensionado de una sola columna o fila, como en RB).
+   */
+  grid?: { columns: Length[]; rows: Length[] } | null;
+  onResizeColumn?: (column: number, width: Length) => void;
+  onResizeRow?: (row: number, height: Length) => void;
 }
 
 /** Cursores por tirador (feedback al pasar el ratón). */
@@ -38,7 +46,16 @@ const CURSORS: Record<ResizeHandle, string> = {
  * re-renderizara, el tirador que se está arrastrando se desmontaría y Konva
  * perdería el drag (bug real que cazó el test automatizado).
  */
-export function SelectionFrame({ rect, zoom, box, bounds, onResize }: SelectionFrameProps): ReactNode {
+export function SelectionFrame({
+  rect,
+  zoom,
+  box,
+  bounds,
+  onResize,
+  grid,
+  onResizeColumn,
+  onResizeRow,
+}: SelectionFrameProps): ReactNode {
   const dragStart = useRef<{ pointer: { x: number; y: number }; box: BoxCm } | null>(null);
   const frameRef = useRef<Konva.Rect | null>(null);
   const previewRef = useRef<Konva.Rect | null>(null);
@@ -61,6 +78,9 @@ export function SelectionFrame({ rect, zoom, box, bounds, onResize }: SelectionF
 
   const size = 8 / zoom;
   const resizable = box !== undefined && onResize !== undefined;
+  // Posiciones acumuladas de los separadores (en px de papel), calculadas una vez.
+  const columnOffsets = grid ? cumulative(grid.columns) : [];
+  const rowOffsets = grid ? cumulative(grid.rows) : [];
 
   const resizeFrom = (
     handle: ResizeHandle,
@@ -132,9 +152,40 @@ export function SelectionFrame({ rect, zoom, box, bounds, onResize }: SelectionF
         listening={false}
       />
 
+      {/* Separadores internos de la rejilla (solo con el Tablix seleccionado). */}
+      {grid && onResizeColumn
+        ? columnOffsets.slice(0, -1).map((offset, index) => (
+            <GridSeparator
+              key={`vc${offset}`}
+              orientation="vertical"
+              position={rect.x + offset}
+              length={rect.height}
+              zoom={zoom}
+              onDragged={(deltaCm) => {
+                const width = resizeBoundary(grid.columns[index]!, deltaCm, 0.1);
+                onResizeColumn(index, width);
+              }}
+            />
+          ))
+        : null}
+      {grid && onResizeRow
+        ? rowOffsets.slice(0, -1).map((offset, index) => (
+            <GridSeparator
+              key={`hr${offset}`}
+              orientation="horizontal"
+              position={rect.y + offset}
+              length={rect.width}
+              zoom={zoom}
+              onDragged={(deltaCm) => {
+                const height = resizeBoundary(grid.rows[index]!, deltaCm, 0.1);
+                onResizeRow(index, height);
+              }}
+            />
+          ))
+        : null}
+
       {resizable
-        ? RESIZE_HANDLES.map((handle) => {
-            const [x, y] = handlePosition(handle, rect);
+        ? RESIZE_HANDLES.map((handle) => {            const [x, y] = handlePosition(handle, rect);
             return (
               <Rect
                 key={handle}
@@ -195,9 +246,67 @@ export function SelectionFrame({ rect, zoom, box, bounds, onResize }: SelectionF
   );
 }
 
+/** Sumas acumuladas de las longitudes (en px de papel). */
+function cumulative(lengths: Length[]): number[] {
+  const result: number[] = [];
+  let total = 0;
+  for (const length of lengths) {
+    total += toPx(length);
+    result.push(total);
+  }
+  return result;
+}
+
+/**
+ * Separador interno de la rejilla: se arrastra en su eje y avisa del delta en cm
+ * (el nodo vuelve a su sitio; la posición la fija la proyección al actualizarse).
+ */
+function GridSeparator({
+  orientation,
+  position,
+  length,
+  zoom,
+  onDragged,
+}: {
+  orientation: 'vertical' | 'horizontal';
+  position: number;
+  length: number;
+  zoom: number;
+  onDragged: (deltaCm: number) => void;
+}): ReactNode {
+  const vertical = orientation === 'vertical';
+  return (
+    <Line
+      name="separator"
+      points={vertical ? [position, 0, position, length] : [0, position, length, position]}
+      stroke="#93c5fd"
+      strokeWidth={1}
+      hitStrokeWidth={8}
+      draggable
+      dragBoundFunc={(point) => (vertical ? { x: point.x, y: 0 } : { x: 0, y: point.y })}
+      onMouseEnter={(event) => {
+        event.target.getStage()!.container().style.cursor = vertical ? 'ew-resize' : 'ns-resize';
+      }}
+      onMouseLeave={(event) => {
+        event.target.getStage()!.container().style.cursor = '';
+      }}
+      onDragStart={(event) => {
+        event.cancelBubble = true;
+      }}
+      onDragEnd={(event) => {
+        event.cancelBubble = true;
+        const node = event.target;
+        const scale = node.getStage()?.scaleX() ?? 1;
+        const delta = (vertical ? node.x() : node.y()) / scale / PX_PER_CM;
+        node.position({ x: 0, y: 0 });
+        onDragged(delta);
+      }}
+    />
+  );
+}
+
 /** Posición de cada tirador sobre el rect (px de papel). */
-function handlePosition(
-  handle: ResizeHandle,
+function handlePosition(  handle: ResizeHandle,
   rect: { x: number; y: number; width: number; height: number },
 ): [number, number] {
   const midX = rect.x + rect.width / 2;

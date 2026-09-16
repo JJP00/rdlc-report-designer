@@ -11,6 +11,9 @@ export interface PaperProps {
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   onMoveItem?: (id: string, top: Length, left: Length) => void;
+  /** Redimensionar una columna/fila de la rejilla de un Tablix. */
+  onResizeColumn?: (id: string, column: number, width: Length) => void;
+  onResizeRow?: (id: string, row: number, height: Length) => void;
   draggable: boolean;
 }
 
@@ -20,6 +23,8 @@ export function Paper({
   selectedId,
   onSelect,
   onMoveItem,
+  onResizeColumn,
+  onResizeRow,
   draggable,
 }: PaperProps): ReactNode {
   return (
@@ -71,6 +76,8 @@ export function Paper({
                 draggable={draggable}
                 onSelect={onSelect}
                 onMoveItem={onMoveItem}
+                onResizeColumn={onResizeColumn}
+                onResizeRow={onResizeRow}
                 bounds={{ width: layout.reportWidth, height: toPx(band.region.height) }}
               />
             ))}

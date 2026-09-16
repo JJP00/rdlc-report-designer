@@ -16,6 +16,8 @@
 | **Items normales** | Un tirador mueve y redimensiona a la vez con **`setBounds`** (un solo paso de undo, aunque cambien posición y tamaño) |
 | **Tablas (Tablix)** | Manda la **rejilla**: `resizeTable` reparte el cambio **proporcionalmente** entre columnas y filas, mueve el Tablix y sincroniza su `Width/Height` declarado. Igual que Report Builder, se coge la tabla entera y se estira desde cualquier tirador |
 | **Primitivas** | `resizeColumn` / `resizeRow` (columna/fila exacta) listas para los **separadores internos** de la rejilla (siguiente paso) |
+| **Separadores internos** | Al seleccionar una tabla aparecen **líneas azules dentro del marco**: arrastrarlas redimensiona **esa** columna/fila (`resizeColumn`/`resizeRow`), con imán y mínimo. Es el mismo patrón que RB (los tiradores de la rejilla solo con la tabla seleccionada) |
+| **Seleccionar la tabla** | Pinchar su **borde** la selecciona (el interior cae en las celdas, como en RB). El contenido de una celda **no muestra tiradores**: ahí manda la celda (se redimensiona la columna/fila) |
 | **Byte-exactitud** | El dominio no inventa etiquetas: `Top/Left/Width/Height` que se crean al mover un item de una celda se **quitan** al deshacer, y los tags existentes vuelven a su **texto exacto** (`setNodeText`) |
 | **QA** | `lib/resize.ts` con 8 tests, `setBounds` con 3 y `resizeTable` con 7 (incluye undo byte-exacto). Hooks de dev (`__rdlcSelection`, `__rdlcResizeHandle`) para guiones de captura: arrastre real verificado → `resizeTable aplicado` |
 

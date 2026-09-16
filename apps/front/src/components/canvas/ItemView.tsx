@@ -7,7 +7,7 @@ import type {
   TextboxDto,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
 import { computeDragEnd } from '@/lib/drag';
 import { sortByZIndex } from '@/lib/projection';
@@ -156,6 +156,9 @@ interface ItemViewProps {
   draggable?: boolean;
   onSelect?: (id: string | null) => void;
   onMoveItem?: (id: string, top: Length, left: Length) => void;
+  /** Redimensionar una columna/fila de la rejilla de un Tablix. */
+  onResizeColumn?: (id: string, column: number, width: Length) => void;
+  onResizeRow?: (id: string, row: number, height: Length) => void;
   bounds?: { width: number; height: number };
 }
 
@@ -165,6 +168,8 @@ export function ItemView({
   draggable,
   onSelect,
   onMoveItem,
+  onResizeColumn,
+  onResizeRow,
   bounds,
 }: ItemViewProps): ReactNode {
   if (item.hidden === true) return null;
@@ -197,7 +202,19 @@ export function ItemView({
       bounds={draggable ? bounds : undefined}
       itemSize={{ width, height }}
     >
-      {renderContent(item, style, width, height, fontSize, fontStyle, onSelect, onMoveItem)}
+      {renderContent(
+        item,
+        style,
+        width,
+        height,
+        fontSize,
+        fontStyle,
+        selected,
+        onSelect,
+        onMoveItem,
+        onResizeColumn,
+        onResizeRow,
+      )}
     </NodeGroup>
   );
 }
@@ -210,8 +227,11 @@ function renderContent(
   height: number,
   fontSize: number,
   fontStyle: string,
+  selected?: boolean,
   onSelect?: (id: string | null) => void,
   onMoveItem?: (id: string, top: Length, left: Length) => void,
+  onResizeColumn?: (id: string, column: number, width: Length) => void,
+  onResizeRow?: (id: string, row: number, height: Length) => void,
 ): ReactNode {
   switch (item.kind) {
     case 'textbox':
@@ -226,13 +246,32 @@ function renderContent(
         />
       );
     case 'rectangle':
-      return <RectangleContent item={item} onSelect={onSelect} onMoveItem={onMoveItem} width={width} height={height} />;
+      return (
+        <RectangleContent
+          item={item}
+          onSelect={onSelect}
+          onMoveItem={onMoveItem}
+          onResizeColumn={onResizeColumn}
+          onResizeRow={onResizeRow}
+          width={width}
+          height={height}
+        />
+      );
     case 'line':
       return <LineContent width={width} height={height} />;
     case 'image':
       return <ImagePlaceholder width={width} height={height} source={item.source} />;
     case 'tablix':
-      return <TablixContent item={item} onSelect={onSelect} onMoveItem={onMoveItem} />;
+      return (
+        <TablixContent
+          item={item}
+          selected={selected}
+          onSelect={onSelect}
+          onMoveItem={onMoveItem}
+          onResizeColumn={onResizeColumn}
+          onResizeRow={onResizeRow}
+        />
+      );
     default:
       return <UnknownContent width={width} height={height} />;
   }
@@ -300,12 +339,16 @@ function RectangleContent({
   height,
   onSelect,
   onMoveItem,
+  onResizeColumn,
+  onResizeRow,
 }: {
   item: RectangleDto;
   width: number;
   height: number;
   onSelect?: (id: string | null) => void;
   onMoveItem?: (id: string, top: Length, left: Length) => void;
+  onResizeColumn?: (id: string, column: number, width: Length) => void;
+  onResizeRow?: (id: string, row: number, height: Length) => void;
 }): ReactNode {
   return (
     <>
@@ -323,6 +366,8 @@ function RectangleContent({
           item={child}
           onSelect={onSelect}
           onMoveItem={onMoveItem}
+          onResizeColumn={onResizeColumn}
+          onResizeRow={onResizeRow}
           draggable={onMoveItem !== undefined}
           /* Sin bounds: el contenedor no es un límite duro en RDL. */
         />
@@ -420,17 +465,25 @@ function ImagePlaceholder({
 
 function TablixContent({
   item,
+  selected,
   onSelect,
   onMoveItem,
+  onResizeColumn,
+  onResizeRow,
 }: {
   item: TablixDto;
+  selected?: boolean;
   onSelect?: (id: string | null) => void;
   onMoveItem?: (id: string, top: Length, left: Length) => void;
+  onResizeColumn?: (id: string, column: number, width: Length) => void;
+  onResizeRow?: (id: string, row: number, height: Length) => void;
 }): ReactNode {
   const columns = item.body.columns.map(toPx);
   const rows = item.body.rows.map((row) => toPx(row.height));
   const totalWidth = columns.reduce((acc, value) => acc + value, 0);
   const totalHeight = rows.reduce((acc, value) => acc + value, 0);
+
+  const borderRef = useRef<Konva.Rect | null>(null);
 
   const columnOffsets: number[] = [];
   let offsetX = 0;
@@ -444,6 +497,30 @@ function TablixContent({
     rowOffsets.push(offsetY);
     offsetY += rowHeight;
   }
+
+  const cells: ReactNode[] = [];
+  item.body.rows.forEach((row, rowIndex) => {
+    row.cells.forEach((cell, colIndex) => {
+      if (!cell?.content) return;
+      cells.push(
+        <Group
+          key={`c${rowIndex}-${colIndex}`}
+          x={columnOffsets[colIndex] ?? 0}
+          y={rowOffsets[rowIndex] ?? 0}
+        >
+          <ItemView
+            item={cell.content}
+            onSelect={onSelect}
+            onMoveItem={onMoveItem}
+            onResizeColumn={onResizeColumn}
+            onResizeRow={onResizeRow}
+            draggable={onMoveItem !== undefined}
+            /* Sin bounds: el contenido de una celda puede desbordarla. */
+          />
+        </Group>,
+      );
+    });
+  });
 
   const grid: ReactNode[] = [];
   let cx = 0;
@@ -473,42 +550,27 @@ function TablixContent({
     );
   });
 
-  const cells: ReactNode[] = [];
-  item.body.rows.forEach((row, rowIndex) => {
-    row.cells.forEach((cell, colIndex) => {
-      if (cell?.content) {
-        const colSpan = cell.colSpan ?? 1;
-        const rowSpan = cell.rowSpan ?? 1;
-        const cellWidth = columns
-          .slice(colIndex, colIndex + colSpan)
-          .reduce((acc, value) => acc + value, 0);
-        const cellHeight = rows
-          .slice(rowIndex, rowIndex + rowSpan)
-          .reduce((acc, value) => acc + value, 0);
-        cells.push(
-          <Group
-            key={`c${rowIndex}-${colIndex}`}
-            x={columnOffsets[colIndex] ?? 0}
-            y={rowOffsets[rowIndex] ?? 0}
-          >
-            <ItemView
-              item={cell.content}
-              onSelect={onSelect}
-              onMoveItem={onMoveItem}
-              draggable={onMoveItem !== undefined}
-              /* Sin bounds: el contenido de una celda puede desbordarla. */
-            />
-          </Group>,
-        );
-      }
-    });
-  });
-
   return (
     <>
-      <Rect width={totalWidth} height={totalHeight} stroke="#9ca3af" strokeWidth={0.5} />
-      {grid}
       {cells}
+      {/* La rejilla va encima de las celdas (los separadores se dibujan en la
+          capa de selección, como los tiradores). */}
+      {grid}
+      {/* Borde del Tablix (arriba del todo): pincharlo selecciona la **tabla**,
+          como en RB, porque el interior cae en las celdas. `hitStrokeWidth` le
+          da margen de ratón. */}
+      <Rect
+        ref={borderRef}
+        width={totalWidth}
+        height={totalHeight}
+        stroke="#9ca3af"
+        strokeWidth={0.5}
+        hitStrokeWidth={10}
+        onClick={(event) => {
+          event.cancelBubble = true;
+          onSelect?.(item.id);
+        }}
+      />
     </>
   );
 }

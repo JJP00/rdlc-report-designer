@@ -32,6 +32,9 @@ export interface CanvasAreaProps {
   onMoveItem: (id: string, top: Length, left: Length) => void;
   /** Tiradores de la selección: mover + redimensionar en un comando. */
   onResizeItem: (id: string, box: { top: Length; left: Length; width: Length; height: Length }) => void;
+  /** Separadores de la rejilla: redimensionar una columna/fila del Tablix. */
+  onResizeColumn: (id: string, column: number, width: Length) => void;
+  onResizeRow: (id: string, row: number, height: Length) => void;
   onInsertAt: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
   onDuplicate: () => void;
   onCopy: () => void;
@@ -53,6 +56,8 @@ export function CanvasArea({
   onZoomChange,
   onMoveItem,
   onResizeItem,
+  onResizeColumn,
+  onResizeRow,
   onInsertAt,
   onDuplicate,
   onCopy,
@@ -79,6 +84,8 @@ export function CanvasArea({
               onContextMenuHit={onContextMenuHit}
               onDropItem={onInsertAt}
               onResizeItem={onResizeItem}
+              onResizeColumn={onResizeColumn}
+              onResizeRow={onResizeRow}
               reveal={reveal}
             />
           ) : (
