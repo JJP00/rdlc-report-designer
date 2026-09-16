@@ -1,5 +1,5 @@
 import type { ItemDto, ScopeRef } from '@rdlc-designer/contracts';
-import { toCm } from './projection';
+import { sortByZIndex, toCm } from './projection';
 
 /**
  * Hit-test del lienzo en coordenadas de la proyección (cm, relativas a la
@@ -26,9 +26,10 @@ export interface CanvasHit {
 }
 
 export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRef): CanvasHit {
-  // De arriba abajo: el último hermano se dibuja encima.
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const candidate = items[index];
+  // De arriba abajo: manda el ZIndex (a igualdad, el último hermano).
+  const ordered = sortByZIndex(items);
+  for (let index = ordered.length - 1; index >= 0; index -= 1) {
+    const candidate = ordered[index];
     if (!candidate || !contains(candidate, point)) continue;
 
     if (candidate.kind !== 'rectangle') {

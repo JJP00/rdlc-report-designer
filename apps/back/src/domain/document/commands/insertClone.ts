@@ -24,5 +24,6 @@ export function applyInsertClone(
   return right({
     inverse: [{ cmd: 'removeNode', node: clone }],
     applied: [{ id: name, values: pastedGeometry(clone) }],
+    createdId: name,
   });
 }

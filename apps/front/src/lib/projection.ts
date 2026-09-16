@@ -19,6 +19,18 @@ export function cm(value: number): Length {
   return { value: Math.round(value * 10000) / 10000, unit: 'cm' };
 }
 
+/**
+ * Orden de pintado y de hit-test: por `ZIndex` (los items sin `ZIndex` cuentan
+ * como 0) y, a igualdad, el orden del XML. Konva pinta en el orden del árbol, así
+ * que el front debe reordenar (el XML no tiene por qué venir en orden de ZIndex).
+ */
+export function sortByZIndex(items: ItemDto[]): ItemDto[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => (a.item.zIndex ?? 0) - (b.item.zIndex ?? 0) || a.index - b.index)
+    .map((entry) => entry.item);
+}
+
 /** Busca un item por id en todas las regiones (incluye anidados y celdas). */
 export function findItem(projection: ProjectionDto, id: string): ItemDto | undefined {
   return flattenItems(projection).find((item) => item.id === id);

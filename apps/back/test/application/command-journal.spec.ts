@@ -56,6 +56,17 @@ async function openFixture(): Promise<{
 }
 
 describe('F1 · journal de comandos', () => {
+  it('las snapshots internas se marcan como internas (el front no las cuenta como recarga)', async () => {
+    const { commands, events, sessionId } = await openFixture();
+
+    expect(commands.execute(sessionId, INSERT).isRight()).toBe(true);
+
+    const snapshots = events
+      .payloads<{ reason?: string }>(IPC_EVENTS.documentChanged)
+      .filter((event) => event.reason !== undefined);
+    expect(snapshots[snapshots.length - 1]?.reason).toBe('internal');
+  });
+
   it('deshace y rehace con normalidad mientras el documento no cambie', async () => {
     const { commands, service, sessionId } = await openFixture();
 
@@ -86,8 +97,7 @@ describe('F1 · journal de comandos', () => {
     if (target.isRight()) expect(target.value.index.get('TextboxNuevo')).toBeUndefined();
   });
 
-  it('descarta el journal si el fichero se recarga: el undo no escribe valores viejos', async () => {
-    const { commands, service, watcher, events, sessionId, path } = await openFixture();
+  it('descarta el journal si el fichero se recarga: el undo no escribe valores viejos', async () => {    const { commands, service, watcher, events, sessionId, path } = await openFixture();
 
     // Edición guardada: el run 0 de Textbox25 pasa de '(' a 'MIO'.
     const edited = commands.execute(sessionId, {

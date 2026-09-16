@@ -16,8 +16,7 @@ import { Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva'
 import { computeDragEnd } from '@/lib/drag';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
-import { toCm } from '@/lib/projection';
-import { findItemInList } from '@/lib/projection';
+import { findItemInList, sortByZIndex, toCm } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
 import { runDisplayText } from '@/lib/text';
 
@@ -327,7 +326,7 @@ export function CanvasPreview({
                     fillEnabled={false}
                     listening={false}
                   />
-                  {band.region.items.map((item) => (
+                  {sortByZIndex(band.region.items).map((item) => (
                     <ItemView
                       key={item.id}
                       item={item}
@@ -788,7 +787,7 @@ function RectangleContent({
         stroke="#9ca3af"
         strokeWidth={0.5}
       />
-      {item.children.map((child) => (
+      {sortByZIndex(item.children).map((child) => (
         <ItemView
           key={child.id}
           item={child}

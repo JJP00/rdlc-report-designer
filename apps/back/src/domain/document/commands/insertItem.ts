@@ -79,6 +79,7 @@ export function applyInsertItem(
         },
       },
     ],
+    createdId: name,
   });
 }
 

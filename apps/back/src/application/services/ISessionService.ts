@@ -19,6 +19,9 @@ export interface SaveSessionResult {
   bytesIdentical: boolean;
 }
 
+/** Resultado de cerrar: puede pedir confirmación si hay cambios sin guardar. */
+export type CloseSessionResult = { closed: true } | { closed: false; reason: 'dirty' };
+
 /** Lo que necesita el CommandService de una sesión. */
 export interface EditTarget {
   document: RdlcDocument;
@@ -34,7 +37,11 @@ export interface TouchOptions {
 export interface ISessionService {
   open(filePath: string): Promise<Either<DomainError, OpenSessionResult>>;
   save(sessionId: string): Promise<Either<DomainError, SaveSessionResult>>;
-  close(sessionId: string): Promise<Either<DomainError, void>>;
+  /**
+   * Cierra la sesión. Si hay cambios sin guardar y no se fuerza, **no cierra**:
+   * devuelve `{ closed: false, reason: 'dirty' }` para que el front pregunte.
+   */
+  close(sessionId: string, options?: { force?: boolean }): Promise<Either<DomainError, CloseSessionResult>>;
 
   /** Acceso de edición: el DOM + índice de nombres de la sesión. */
   getEditTarget(sessionId: string): Either<DomainError, EditTarget>;

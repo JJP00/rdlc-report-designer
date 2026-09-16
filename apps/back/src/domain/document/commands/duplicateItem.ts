@@ -35,6 +35,7 @@ export function applyDuplicateItem(
   return right({
     inverse: [{ cmd: 'removeNode', node: clone }],
     applied: [{ id: name, values: geometryOf(clone) }],
+    createdId: name,
   });
 }
 

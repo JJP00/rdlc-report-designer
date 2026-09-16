@@ -178,6 +178,11 @@ export type ProjectionReadyEvent = z.infer<typeof projectionReadyEventSchema>;
 export const documentChangedEventSchema = z.object({
   sessionId: z.string(),
   projection: projectionSchema,
+  /**
+   * `external`: el fichero cambió fuera y se recargó.
+   * `internal`: snapshot tras un comando estructural o un undo/redo.
+   */
+  reason: z.enum(['external', 'internal']).optional(),
 });
 export type DocumentChangedEvent = z.infer<typeof documentChangedEventSchema>;
 

@@ -126,6 +126,57 @@ describe('F1 · setReportCode', () => {
     expect(output).toContain('<Code>x</Code>');
     expect(output.length).toBeLessThan(xml.length);
   });
+
+  it('vaciar el código quita el bloque <Code> y el undo lo restaura byte a byte', () => {
+    const { xml, doc, index } = open('PalletOutput.rdlc');
+
+    const applied = applyCommand({ root: doc.root, index }, { cmd: 'setReportCode', code: '   ' });
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    expect(adapter.serialize(doc)).not.toContain('<Code>');
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('en un informe sin <Code>, vaciar no crea un bloque vacío', () => {
+    // Informe mínimo sin bloque de código (los del corpus lo traen todos).
+    const minimal =
+      '<Report xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">' +
+      '<ReportSections><ReportSection><Body><ReportItems /></Body></ReportSection></ReportSections>' +
+      '</Report>';
+    const doc = adapter.parse(minimal);
+    const index = DocumentIndex.build(doc.root);
+    expect(doc.root.child('Code')).toBeUndefined();
+
+    const applied = applyCommand({ root: doc.root, index }, { cmd: 'setReportCode', code: '  ' });
+    expect(applied.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(minimal);
+  });
+
+  it('crear el bloque desde cero: el undo no deja un <Code> vacío', () => {
+    // Informe mínimo sin bloque de código.
+    const minimal =
+      '<Report xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">' +
+      '<ReportSections><ReportSection><Body><ReportItems /></Body></ReportSection></ReportSections>' +
+      '</Report>';
+    const doc = adapter.parse(minimal);
+    const index = DocumentIndex.build(doc.root);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setReportCode', code: 'Sub Hola()\nEnd Sub' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    expect(adapter.serialize(doc)).toContain('<Code>Sub Hola()');
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(minimal);
+  });
 });
 
 describe('F1 · límites tras cambiar la página', () => {

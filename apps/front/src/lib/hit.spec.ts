@@ -10,6 +10,7 @@ function box(
   topCm: number,
   widthCm: number,
   heightCm: number,
+  zIndex?: number,
 ): TextboxDto {
   return {
     kind: 'textbox',
@@ -19,12 +20,28 @@ function box(
     width: { value: widthCm, unit: 'cm' },
     height: { value: heightCm, unit: 'cm' },
     paragraphs: [{ runs: [{ value: id }] }],
+    ...(zIndex !== undefined ? { zIndex } : {}),
   };
 }
 
 const fallback = { kind: 'body' } as const;
 
 describe('hitTestItems', () => {
+  it('a igualdad de ZIndex, el último hermano del XML gana el hit', () => {
+    const items = [box('Fondo', 0, 0, 5, 5), box('Encima', 0, 0, 5, 5)];
+    expect(hitTestItems(items, { x: 1, y: 1 }, fallback).item?.id).toBe('Encima');
+  });
+
+  it('el ZIndex manda sobre el orden del XML (el que está encima gana)', () => {
+    // `Alto` va primero en el XML pero con ZIndex mayor: se pinta y se golpea él.
+    const items = [box('Alto', 0, 0, 5, 5, 10), box('Bajo', 0, 0, 5, 5, 1)];
+
+    expect(hitTestItems(items, { x: 1, y: 1 }, fallback).item?.id).toBe('Alto');
+
+    const reversed = [box('Bajo', 0, 0, 5, 5, 1), box('Alto', 0, 0, 5, 5, 10)];
+    expect(hitTestItems(reversed, { x: 1, y: 1 }, fallback).item?.id).toBe('Alto');
+  });
+
   it('sin items devuelve el contenedor con índice 0', () => {
     expect(hitTestItems([], { x: 1, y: 1 }, fallback)).toEqual({
       scope: fallback,

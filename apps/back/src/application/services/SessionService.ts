@@ -28,6 +28,7 @@ import {
   UnknownSessionError,
   ValidationFailedError,
 } from '../../shared/domainError.js';import type {
+  CloseSessionResult,
   EditTarget,
   ISessionService,
   OpenSessionResult,
@@ -153,13 +154,22 @@ export class SessionService implements ISessionService {
     return right({ path: session.filePath, bytesIdentical });
   }
 
-  async close(sessionId: string): Promise<Either<DomainError, void>> {
+  async close(
+    sessionId: string,
+    options?: { force?: boolean },
+  ): Promise<Either<DomainError, CloseSessionResult>> {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
+
+    // Con cambios sin guardar no se cierra en silencio: decide el usuario.
+    if (session.dirty && options?.force !== true) {
+      return right({ closed: false, reason: 'dirty' });
+    }
+
     session.unwatch?.();
     this.sessions.delete(sessionId);
     this.events.send(IPC_EVENTS.sessionClosed, { sessionId });
-    return right(undefined);
+    return right({ closed: true });
   }
 
   /* ------------------- acceso de edición (comandos) ------------------- */
@@ -211,6 +221,7 @@ export class SessionService implements ISessionService {
       this.events.send(IPC_EVENTS.documentChanged, {
         sessionId,
         projection: this.project(session),
+        reason: 'internal',
       });
     }
     return session.version;
@@ -257,6 +268,7 @@ export class SessionService implements ISessionService {
       this.events.send(IPC_EVENTS.documentChanged, {
         sessionId,
         projection: this.project(session),
+        reason: 'external',
       });
     } catch {
       // Fichero corrupto o ilegible: se deja la sesión como está y se avisa.

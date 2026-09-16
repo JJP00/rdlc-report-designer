@@ -29,6 +29,11 @@ export interface CommandOutcome {
   /** Valores normalizados por el dominio (el front reconcilia su optimismo). */
   readonly applied?: AppliedEntry[];
   /**
+   * Nombre del item creado por el comando (`insertItem`/`duplicateItem`/
+   * `insertClone`): el front lo usa para seleccionarlo sin adivinar.
+   */
+  readonly createdId?: string;
+  /**
    * true si el comando tocó partes del documento que `applied` no puede
    * expresar (p. ej. los `<Style>` de párrafos/runs al limpiar overrides) y el
    * front necesita una proyección completa para no quedarse con datos viejos.

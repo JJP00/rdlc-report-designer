@@ -43,8 +43,8 @@ const api: RdlcApi = {
   save: (sessionId: string): Promise<SaveResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.save, { sessionId }),
 
-  close: (sessionId: string): Promise<CloseResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.close, { sessionId }),
+  close: (sessionId: string, force?: boolean): Promise<CloseResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.close, { sessionId, ...(force ? { force } : {}) }),
 
   executeCommand: (sessionId: string, command: RdlcCommand): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.executeCommand, { sessionId, command }),

@@ -25,7 +25,8 @@ export interface RdlcApi {
   listFonts(): Promise<FontListResult>;
   openFile(path: string): Promise<OpenFileResult>;
   save(sessionId: string): Promise<SaveResult>;
-  close(sessionId: string): Promise<CloseResult>;
+  /** `force` cierra aunque haya cambios sin guardar (tras confirmar). */
+  close(sessionId: string, force?: boolean): Promise<CloseResult>;
 
   /** Ejecuta un comando de edición (el backend queda sincronizado al momento). */
   executeCommand(sessionId: string, command: RdlcCommand): Promise<CommandResult>;

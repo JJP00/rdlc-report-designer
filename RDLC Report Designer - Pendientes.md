@@ -79,17 +79,17 @@ Trade-offs documentados:
   original para que el undo siga siendo byte-exacto aunque el fichero no siga el
   orden canónico.
 
-### 🟠 Bugs detectados y **no** corregidos todavía (siguiente pasada)
+### 🟠 Bugs detectados y corregidos después (M1–M7) ✅
 
-| # | Fallo | Nota |
+| # | Fallo | Arreglo |
 |---|---|---|
-| M1 | `duplicateItem` no devuelve el `id` nuevo → Ctrl+D deja seleccionado el original | `CommandResult.id` nunca se rellena |
-| M2 | **Cerrar no avisa** de cambios sin guardar (`close` ignora `dirty`; el contrato `needsConfirmation`/`force` es código muerto) | |
-| M3 | Flechas + Supr en menos de 400 ms → banner `E_COMMAND_REJECTED` (el `setLocation` pendiente se vacía después del borrado) | `deleteSelected`/`duplicate` deben vaciar la ráfaga antes |
-| M4 | El contador «N recarga(s) externa(s)» cuenta también las instantáneas internas (insert/undo) | Cualquier `documentChanged` lo incrementa |
-| M5 | El lienzo ignora `zIndex` (pinta y hace hit-test por orden del XML) | |
-| M6 | El diálogo «Informe…» pierde el borrador de código VB si llega una proyección nueva | Dependencia `[open, projection]` |
-| M7 | `setReportCode('')` deja `<Code></Code>`; inserción rápida doble puede chocar de nombre; la selección no se actualiza al deshacer insert/delete | Menores |
+| M1 | `duplicateItem` no devolvía el `id` nuevo → Ctrl+D dejaba seleccionado el original | El dominio marca `createdId` (insert/duplicate/paste) y `CommandService` lo devuelve como `id`: el front selecciona el clon |
+| M2 | **Cerrar no avisaba** de cambios sin guardar (el contrato `needsConfirmation`/`force` era código muerto) | `close(sessionId, force?)`: con `dirty` devuelve `{ closed: false, reason: 'dirty' }`, el IPC lo mapea al contrato y el front pregunta antes de forzar |
+| M3 | Flechas + Supr en <400 ms → banner `E_COMMAND_REJECTED` | `deleteSelected`/`cutSelected` vacían la ráfaga pendiente antes de borrar |
+| M4 | El contador «N recarga(s) externa(s)» contaba también snapshots internos | El evento `documentChanged` lleva `reason: 'external' \| 'internal'`; el front solo cuenta/avisa las externas |
+| M5 | El lienzo ignoraba `zIndex` (orden del XML) | `sortByZIndex` (estable) ordena pintado y hit-test; el mayor queda encima |
+| M6 | El diálogo «Informe…» perdía el borrador de código VB | El formulario se monta al abrir el diálogo: los borradores ya no se resetean con cada proyección |
+| M7 | `setReportCode('')` dejaba `<Code></Code>`; doble inserción rápida podía chocar de nombre; selección fantasma tras undo/redo | Vaciar el código **quita** el bloque (undo byte-exacto); el nombre lo elige el **backend** (su índice está al día) y el front selecciona por `id`; si el id seleccionado desaparece de la proyección, se limpia |
 
 ## ✅ Hecho en la sesión (2026-09-14)
 

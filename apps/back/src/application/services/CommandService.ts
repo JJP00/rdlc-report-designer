@@ -62,11 +62,15 @@ export class CommandService implements ICommandService {
     const applied = this.applyAndJournal(sessionId, command);
     if (applied.isLeft()) return left(applied.value);
 
-    return right(
-      applied.value.outcome.applied
-        ? { ok: true, version: applied.value.version, applied: applied.value.outcome.applied }
-        : { ok: true, version: applied.value.version },
-    );
+    const { outcome, version } = applied.value;
+    return right({
+      ok: true,
+      version,
+      // `insertItem`/`duplicateItem` devuelven el nombre del item nuevo: el
+      // front lo selecciona sin tener que adivinarlo.
+      ...(outcome.createdId ? { id: outcome.createdId } : {}),
+      ...(outcome.applied ? { applied: outcome.applied } : {}),
+    });
   }
 
   /**
@@ -101,11 +105,12 @@ export class CommandService implements ICommandService {
     const applied = this.applyAndJournal(sessionId, { cmd: 'insertClone', scope, index, source });
     if (applied.isLeft()) return left(applied.value);
 
+    const { outcome, version } = applied.value;
     return right({
       ok: true,
-      version: applied.value.version,
-      id: applied.value.outcome.applied?.[0]?.id,
-      ...(applied.value.outcome.applied ? { applied: applied.value.outcome.applied } : {}),
+      version,
+      ...(outcome.createdId ? { id: outcome.createdId } : {}),
+      ...(outcome.applied ? { applied: outcome.applied } : {}),
     });
   }
 

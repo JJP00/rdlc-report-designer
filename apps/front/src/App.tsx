@@ -53,7 +53,6 @@ import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   cm,
-  collectIds,
   countItems,
   findItem,
   formatKinds,
@@ -152,8 +151,12 @@ export function App(): ReactNode {
           ? { ...current, projection: event.projection }
           : current,
       );
-      setReloads((count) => count + 1);
-      setStatus(`Snapshot actualizada (v${event.projection.version})`);
+      // Solo las recargas externas cuentan (y avisan): los snapshots internos
+      // (insert/undo/redo) son parte del trabajo normal.
+      if (event.reason === 'external') {
+        setReloads((count) => count + 1);
+        setStatus(`Recargado desde disco (v${event.projection.version})`);
+      }
     });
 
     const offDirty = window.api.onDirtyChanged((event) => setDirty(event.dirty));
@@ -178,6 +181,13 @@ export function App(): ReactNode {
   useEffect(() => {
     setCompletionMeta(doc?.projection.meta ?? null);
   }, [doc]);
+
+  // Si el documento cambia (undo/redo, recarga, borrado) y el id seleccionado ya
+  // no existe, se limpia: nada de insignias ni paneles fantasma.
+  useEffect(() => {
+    if (!doc || !selectedId) return;
+    if (!findItem(doc.projection, selectedId)) setSelectedId(null);
+  }, [doc, selectedId]);
 
   const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);  const selectedItem = useMemo(
     () => (doc && selectedId ? findItem(doc.projection, selectedId) : undefined),
@@ -432,39 +442,19 @@ export function App(): ReactNode {
 
   /* ------------------ insertar / duplicar / eliminar items --------------- */
 
-  /** Nombre libre del tipo pedido (`Textbox17`), calculado en el front. */
-  const nextFreeName = useCallback(
-    (kind: NewItemSpec['kind']): string => {
-      const prefix =
-        kind === 'textbox'
-          ? 'Textbox'
-          : kind === 'rectangle'
-            ? 'Rectangle'
-            : kind === 'line'
-              ? 'Line'
-              : 'Image';
-      const ids = doc ? collectIds(doc.projection) : new Set<string>();
-      for (let index = 1; ; index += 1) {
-        const candidate = `${prefix}${index}`;
-        if (!ids.has(candidate)) return candidate;
-      }
-    },
-    [doc],
-  );
-
   /** Inserta un item nuevo en el punto/scope indicado (drop o menú contextual). */
   const insertAt = useCallback(
     (kind: NewItemSpec['kind'], hit: CanvasHit): void => {
       if (!doc) return;
-      const name = nextFreeName(kind);
       const size = NEW_ITEM_SIZES[kind];
+      // El nombre lo elige el **backend** (su índice está siempre al día): así
+      // dos inserciones seguidas no pueden chocar de nombre.
       void sendCommand({
         cmd: 'insertItem',
         scope: hit.scope,
         index: hit.index,
         item: {
           kind,
-          name,
           top: cm(round4(hit.point.y)),
           left: cm(round4(hit.point.x)),
           width: size.width,
@@ -472,10 +462,10 @@ export function App(): ReactNode {
           ...(kind === 'textbox' ? { text: '' } : {}),
         },
       }).then((result) => {
-        if (result?.ok) setSelectedId(name);
+        if (result?.ok && result.id) setSelectedId(result.id);
       });
     },
-    [doc, nextFreeName, sendCommand],
+    [doc, sendCommand],
   );
 
   /** Click en la toolbox: inserta al principio del cuerpo. */
@@ -754,14 +744,24 @@ export function App(): ReactNode {
     );
   };
 
-  const close = async (): Promise<void> => {
+  const close = async (force = false): Promise<void> => {
     if (!doc) return;
-    const result = await window.api.close(doc.sessionId);
+    const result = await window.api.close(doc.sessionId, force);
+
+    // Hay cambios sin guardar: se pregunta antes de cerrar (una sola vez).
+    if (!result.ok && 'needsConfirmation' in result) {
+      const confirmed = window.confirm(
+        'Este informe tiene cambios sin guardar. ¿Cerrar de todos modos? (se perderán)',
+      );
+      if (confirmed) await close(true);
+      return;
+    }
+
     if (!result.ok) {
       if ('code' in result) {
         setError(`${result.code}: ${result.message ?? 'no se pudo cerrar'}`);
       } else {
-        setError('El documento tiene cambios sin guardar.');
+        setError('No se pudo cerrar el documento.');
       }
       return;
     }

@@ -73,10 +73,11 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
       DocumentChangedEvent | undefined;
     expect(event?.sessionId).toBe(sessionId);
     expect(event?.projection.version).toBe(2);
+    // El front distingue recargas externas de snapshots internos (contador/aviso).
+    expect(event?.reason).toBe('external');
   });
 
-  it('no dispara recarga por el eco de la propia escritura', async () => {
-    const { service, watcher, events, tmp } = await makeService();
+  it('no dispara recarga por el eco de la propia escritura', async () => {    const { service, watcher, events, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
 
     const opened = await service.open(path);
@@ -175,10 +176,60 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
 
     const closed = await service.close(opened.value.sessionId);
     expect(closed.isRight()).toBe(true);
+    if (closed.isRight()) expect(closed.value.closed).toBe(true);
     expect(watcher.watchingPaths).toEqual([]);
 
     const saveAfterClose = await service.save(opened.value.sessionId);
     expect(saveAfterClose.isLeft()).toBe(true);
+  });
+
+  it('con cambios sin guardar no cierra: pide confirmación (y `force` cierra)', async () => {
+    const { service, watcher, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'PalletOutput.rdlc');
+
+    const opened = await service.open(path);
+    expect(opened.isRight()).toBe(true);
+    if (!opened.isRight()) return;
+    const sessionId = opened.value.sessionId;
+
+    // Edición local (equivale a un comando): la sesión queda dirty.
+    const target = service.getEditTarget(sessionId);
+    if (!target.isRight()) return;
+    target.value.index.get('Textbox25')?.child('Width')?.setText('5cm');
+    service.touch(sessionId, { snapshotOut: false });
+
+    const refused = await service.close(sessionId);
+    expect(refused.isRight()).toBe(true);
+    if (refused.isRight() && !refused.value.closed) {
+      expect(refused.value.reason).toBe('dirty');
+    }
+    // Sigue abierta y vigilando.
+    expect(watcher.watchingPaths).toEqual([path]);
+
+    // Forzando (tras confirmar el usuario), sí cierra.
+    const forced = await service.close(sessionId, { force: true });
+    expect(forced.isRight()).toBe(true);
+    if (forced.isRight()) expect(forced.value.closed).toBe(true);
+    expect(watcher.watchingPaths).toEqual([]);
+  });
+
+  it('tras guardar, cerrar ya no pide confirmación', async () => {
+    const { service, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'PalletOutput.rdlc');
+
+    const opened = await service.open(path);
+    if (!opened.isRight()) return;
+    const sessionId = opened.value.sessionId;
+
+    const target = service.getEditTarget(sessionId);
+    if (!target.isRight()) return;
+    target.value.index.get('Textbox25')?.child('Width')?.setText('5cm');
+    service.touch(sessionId, { snapshotOut: false });
+    expect((await service.save(sessionId)).isRight()).toBe(true);
+
+    const closed = await service.close(sessionId);
+    expect(closed.isRight()).toBe(true);
+    if (closed.isRight()) expect(closed.value.closed).toBe(true);
   });
 
   it('bloquea el guardado si el XML no valida contra el esquema (E_VALIDATION)', async () => {

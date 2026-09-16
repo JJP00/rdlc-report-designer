@@ -1,6 +1,7 @@
 import {
   IPC_CHANNELS,
   clipboardSourceRequestSchema,
+  closeRequestSchema,
   executeCommandRequestSchema,
   openFileRequestSchema,
   pasteRequestSchema,
@@ -26,6 +27,7 @@ import type {
 import { SESSION_SERVICE } from '../../application/services/ISessionService.js';
 import type { SystemFontsPort } from '../../application/ports/out/SystemFontsPort.js';
 import { SYSTEM_FONTS_PORT } from '../../application/ports/out/SystemFontsPort.js';
+import type { CloseSessionResult } from '../../application/services/ISessionService.js';
 import type { Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
@@ -94,14 +96,17 @@ export class IpcController {
 
     ipcMain.handle(IPC_CHANNELS.close, (_event, payload) =>
       this.handle(
-        sessionRequestSchema,
+        closeRequestSchema,
         payload,
         async (req) => {
-          const result = await this.sessions.close(req.sessionId);
-          if (result.isRight()) this.commands.drop(req.sessionId);
+          const result = await this.sessions.close(req.sessionId, { force: req.force === true });
+          if (result.isRight() && result.value.closed) this.commands.drop(req.sessionId);
           return result;
         },
-        (): CloseResult => ({ ok: true }),
+        (value: CloseSessionResult): CloseResult =>
+          value.closed
+            ? { ok: true }
+            : { ok: false, needsConfirmation: true, dirty: true },
       ),
     );
 
