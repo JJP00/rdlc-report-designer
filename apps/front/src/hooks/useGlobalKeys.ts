@@ -25,6 +25,8 @@ export interface GlobalKeysOptions {
   onCopy: () => void;
   onCut: () => void;
   onPasteAtBody: (index: number) => void;
+  /** Esc: sube al contenedor del item seleccionado. */
+  onSelectParent: () => void;
 }
 
 export function useGlobalKeys(options: GlobalKeysOptions): void {
@@ -66,6 +68,11 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
     if (event.key === 'Delete' && options.hasSelection) {
       event.preventDefault();
       options.onDelete();
+      return;
+    }
+    if (event.key === 'Escape' && options.hasSelection) {
+      event.preventDefault();
+      options.onSelectParent();
       return;
     }
     if (accel && key === 'd' && options.hasSelection) {

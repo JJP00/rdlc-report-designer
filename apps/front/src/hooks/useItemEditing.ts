@@ -9,7 +9,7 @@ import type {
 } from '@rdlc-designer/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasHit } from '@/lib/hit';
-import { cm, findItem, patchItem, toCm } from '@/lib/projection';
+import { cm, findItem, findParentItemId, patchItem, toCm } from '@/lib/projection';
 import type { DocumentCore } from './useDocumentCore';
 
 /**
@@ -46,6 +46,8 @@ export interface ItemEditing {
   setSelectedId: (id: string | null) => void;
   /** Selecciona y pide al lienzo que traiga el elemento a la vista. */
   selectAndReveal: (id: string) => void;
+  /** Sube un nivel en la jerarquía (Esc): selecciona el contenedor del item. */
+  selectParent: () => void;
   reveal: { id: string; nonce: number } | null;
 
   /** Vacía la ráfaga de flechas pendiente (antes de borrar/undo, p. ej.). */
@@ -461,11 +463,20 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setReveal({ id, nonce: Date.now() });
   }, []);
 
+  /** Esc: sube al contenedor (rectángulo o tabla) del item seleccionado. */
+  const selectParent = useCallback((): void => {
+    if (!doc || !selectedId) return;
+    const parent = findParentItemId(doc.projection, selectedId);
+    setSelectedId(parent ?? null);
+    if (parent) setReveal({ id: parent, nonce: Date.now() });
+  }, [doc, selectedId]);
+
   return {
     selectedId,
     selectedItem,
     setSelectedId,
     selectAndReveal,
+    selectParent,
     reveal,
     flushNudge: () => flushRef.current(),
     nudge,

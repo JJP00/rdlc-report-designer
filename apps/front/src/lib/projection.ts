@@ -53,6 +53,44 @@ export function isCellContent(projection: ProjectionDto, id: string): boolean {
   return false;
 }
 
+/**
+ * Id del item **contenedor** del item dado (rectángulo o Tablix), si lo hay.
+ * Sirve para «subir un nivel» con Esc: muy útil cuando los bordes de una tabla
+ * anidada coinciden con los del contenedor y no se puede pinchar.
+ */
+export function findParentItemId(projection: ProjectionDto, id: string): string | undefined {
+  const search = (items: ItemDto[], parent: ItemDto | undefined): string | undefined => {
+    for (const item of items) {
+      if (item.id === id) return parent?.id;
+      if (item.kind === 'rectangle') {
+        const found = search(item.children, item);
+        if (found !== undefined) return found;
+      }
+      if (item.kind === 'tablix') {
+        for (const row of item.body.rows) {
+          for (const cell of row.cells) {
+            if (!cell?.content) continue;
+            if (cell.content.id === id) return item.id;
+            const found = search([cell.content], item);
+            if (found !== undefined) return found;
+          }
+        }
+      }
+    }
+    return undefined;
+  };
+
+  for (const region of [
+    projection.page.header,
+    projection.page.body,
+    projection.page.footer,
+  ]) {
+    const found = search(region.items, undefined);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
 /** Busca un item por id dentro de una lista (anidados y celdas incluidos). */
 export function findItemInList(items: ItemDto[], id: string): ItemDto | undefined {  for (const item of items) {
     if (item.id === id) return item;

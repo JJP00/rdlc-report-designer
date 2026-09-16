@@ -41,6 +41,8 @@ export interface CanvasAreaProps {
   onCut: () => void;
   onPasteAt: (scope: ScopeRef, index: number) => void;
   onDelete: () => void;
+  /** Esc / menú: sube al contenedor del item seleccionado. */
+  onSelectParent: () => void;
 }
 
 /** Lienzo + menú contextual (acciones del item arriba, insertar debajo). */
@@ -64,6 +66,7 @@ export function CanvasArea({
   onCut,
   onPasteAt,
   onDelete,
+  onSelectParent,
 }: CanvasAreaProps): ReactNode {
   const paste = (): void => {
     if (menuHit) onPasteAt(menuHit.scope, menuHit.index);
@@ -130,6 +133,11 @@ export function CanvasArea({
             <ContextMenuItem variant="destructive" onSelect={onDelete}>
               Eliminar
               <ContextMenuShortcut>Supr</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={onSelectParent}>
+              Seleccionar contenedor
+              <ContextMenuShortcut>Esc</ContextMenuShortcut>
             </ContextMenuItem>
           </>
         ) : (

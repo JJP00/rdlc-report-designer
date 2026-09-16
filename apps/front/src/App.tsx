@@ -68,6 +68,7 @@ export function App(): ReactNode {
     onCopy: items.copySelected,
     onCut: items.cutSelected,
     onPasteAtBody: (index) => items.pasteAt({ kind: 'body' }, index),
+    onSelectParent: items.selectParent,
   });
 
   /** Acciones que ofrece la paleta (Ctrl+K). */
@@ -110,6 +111,7 @@ export function App(): ReactNode {
     hasClipboard,
     reveal,
     selectAndReveal,
+    selectParent,
   } = items;
 
   return (
@@ -191,6 +193,7 @@ export function App(): ReactNode {
             onCut={cutSelected}
             onPasteAt={pasteAt}
             onDelete={deleteSelected}
+            onSelectParent={selectParent}
           />
 
           <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">

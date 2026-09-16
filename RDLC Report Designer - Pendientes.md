@@ -18,6 +18,7 @@
 | **Primitivas** | `resizeColumn` / `resizeRow` (columna/fila exacta) listas para los **separadores internos** de la rejilla (siguiente paso) |
 | **Separadores internos** | Al seleccionar una tabla aparecen **líneas azules dentro del marco**: arrastrarlas redimensiona **esa** columna/fila (`resizeColumn`/`resizeRow`), con imán y mínimo. Es el mismo patrón que RB (los tiradores de la rejilla solo con la tabla seleccionada) |
 | **Seleccionar la tabla** | Pinchar su **borde** la selecciona (el interior cae en las celdas, como en RB). El contenido de una celda **no muestra tiradores**: ahí manda la celda (se redimensiona la columna/fila) |
+| **Tablas internas** | Si una tabla anidada comparte borde con su contenedor, el borde exterior gana y no se puede pinchar la de dentro. Para eso: **Esc sube un nivel** (contenido de celda → rectángulo → tabla → …) y el menú contextual tiene **«Seleccionar contenedor»**; la paleta **Ctrl+K** llega a cualquier item por nombre |
 | **Byte-exactitud** | El dominio no inventa etiquetas: `Top/Left/Width/Height` que se crean al mover un item de una celda se **quitan** al deshacer, y los tags existentes vuelven a su **texto exacto** (`setNodeText`) |
 | **QA** | `lib/resize.ts` con 8 tests, `setBounds` con 3 y `resizeTable` con 7 (incluye undo byte-exacto). Hooks de dev (`__rdlcSelection`, `__rdlcResizeHandle`) para guiones de captura: arrastre real verificado → `resizeTable aplicado` |
 

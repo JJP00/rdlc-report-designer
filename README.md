@@ -91,8 +91,10 @@ documentado en [`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-l
       y **Monaco** para expresiones y bloque `<Code>` (resaltado + autocompletado;
       las variables se insertan en el cursor).
 - [x] **Redimensionar con el cursor** (8 tiradores: mover + tamaño en un undo) y, en los
-      Tablix, redimensionar la tabla con reparto proporcional de su rejilla.
-- [ ] **Tablix visual completo** (F2): separadores internos, celdas, filas/columnas y grupos con totales · [ ] Matrix (F3).
+      Tablix, redimensionar la tabla con reparto proporcional de su rejilla + **separadores
+      internos de columna/fila** (seleccionando la tabla por su borde). **Esc** sube un nivel
+      de jerarquía para alcanzar tablas anidadas.
+- [ ] **Tablix visual completo** (F2): celdas, filas/columnas y grupos con totales · [ ] Matrix (F3).
 
 Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).
 
