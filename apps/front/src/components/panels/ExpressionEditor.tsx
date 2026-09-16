@@ -1,7 +1,6 @@
-import * as monaco from 'monaco-editor';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { setExpressionInserter } from '@/lib/expressionEditor';
-import { RDLC_LANGUAGE_ID, registerRdlcLanguage } from '@/lib/monacoSetup';
+import type { ExpressionEditorHandles } from '@/lib/monacoSetup';
 
 export interface ExpressionEditorProps {
   value: string;
@@ -22,6 +21,9 @@ export interface ExpressionEditorProps {
  * Editor Monaco con el lenguaje `rdlc-expr`: resaltado VB-like y autocompletado
  * (campos, parámetros, funciones de `<Code>`, Globals!, User! y funciones RDL).
  * Al recibir foco se registra para insertar variables en la posición del cursor.
+ *
+ * Monaco se carga **en diferido** (import dinámico del host): la librería solo
+ * se descarga cuando aparece un panel con una expresión.
  */
 export function ExpressionEditor({
   value,
@@ -31,110 +33,61 @@ export function ExpressionEditor({
   height,
 }: ExpressionEditorProps): ReactNode {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<ExpressionEditorHandles | null>(null);
   const commitRef = useRef(onCommit);
-  commitRef.current = onCommit;
+
+  useEffect(() => {
+    commitRef.current = onCommit;
+  });
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    registerRdlcLanguage();
+    let cancelled = false;
+    let handles: ExpressionEditorHandles | null = null;
 
-    const editor = monaco.editor.create(container, {
-      value,
-      language: RDLC_LANGUAGE_ID,
-      theme: 'rdlc-light',
-      automaticLayout: true,
-      fontSize: 12,
-      fontFamily: 'Consolas, "Cascadia Mono", monospace',
-      lineNumbers: mode === 'code' ? 'on' : 'off',
-      lineDecorationsWidth: 6,
-      glyphMargin: false,
-      folding: mode === 'code',
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      overviewRulerLanes: 0,
-      renderLineHighlight: 'none',
-      wordWrap: 'on',
-      tabSize: 4,
-      padding: { top: 6, bottom: 6 },
-      scrollbar: {
-        vertical: mode === 'code' ? 'auto' : 'hidden',
-        horizontal: 'hidden',
-        alwaysConsumeMouseWheel: false,
-      },
-      quickSuggestions: { other: true, comments: false, strings: false },
-      suggestOnTriggerCharacters: true,
-      fixedOverflowWidgets: true,
-      ariaLabel,
-    });
-    editorRef.current = editor;
+    void (async () => {
+      const host = await import('@/lib/monacoSetup');
+      if (cancelled) return;
 
-    // Commits: blur, Enter (solo expresión) y Ctrl+Enter.
-    const blurSubscription = editor.onDidBlurEditorText(() => {
-      commitRef.current(editor.getValue());
-    });
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      commitRef.current(editor.getValue());
-    });
-    if (mode === 'expression') {
-      editor.addCommand(monaco.KeyCode.Enter, () => {
-        commitRef.current(editor.getValue());
-      });
-    }
-
-    editor.onDidFocusEditorText(() => {
-      setExpressionInserter((expression: string) => insertAtCursor(editor, expression));
-    });
-    // No se desregistra al perder el foco: al pulsar una variable de la lista el
-    // editor ya no tiene el foco, pero es el destino natural de la inserción.
-    // Se desregistra al desmontar (cerrar el panel/diálogo).
+      handles = host.createExpressionEditor(
+        container,
+        { value, mode, ariaLabel },
+        {
+          onCommit: () => {
+            const current = handles?.getValue();
+            if (current !== undefined) commitRef.current(current);
+          },
+          onFocus: () => {
+            setExpressionInserter((expression) => handles?.insertAtCursor(expression));
+          },
+        },
+      );
+      editorRef.current = handles;
+    })();
 
     return () => {
+      cancelled = true;
       setExpressionInserter(null);
-      blurSubscription.dispose();
-      editor.dispose();
       editorRef.current = null;
+      handles?.dispose();
     };
-    // El editor se crea una sola vez: `value`/`mode` se sincronizan abajo.
+    // Se crea una sola vez; `value` se sincroniza en el efecto de abajo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sincroniza cambios externos sin pisar lo que se está escribiendo.
   useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || editor.hasTextFocus()) return;
-    if (editor.getValue() !== value) editor.setValue(value ?? '');
+    editorRef.current?.updateValue(value ?? '');
   }, [value]);
 
   return (
     <div
       ref={containerRef}
-      role="textbox"
       aria-label={ariaLabel}
       className="overflow-hidden rounded-md border bg-white"
       style={{ height: height ?? (mode === 'code' ? 380 : 58) }}
     />
   );
-}
-
-/**
- * Inserta la expresión en la posición del cursor. Si el editor está vacío se
- * pega tal cual (con el `=`); si ya hay expresión se pega como fragmento.
- */
-function insertAtCursor(
-  editor: monaco.editor.IStandaloneCodeEditor,
-  expression: string,
-): void {
-  const selection = editor.getSelection();
-  if (!selection) return;
-
-  const isEmpty = editor.getValue().trim().length === 0;
-  const text = isEmpty ? expression : expression.replace(/^=/, '');
-
-  editor.executeEdits('rdlc-insert', [
-    { range: selection, text, forceMoveMarkers: true },
-  ]);
-  editor.focus();
 }

@@ -34,18 +34,27 @@ si el backend necesita validar sintaxis, el catálogo se moverá a `contracts`.
 | **Atajos** | Ctrl+C / Ctrl+X / Ctrl+V (pegar en el cuerpo) además de los existentes Ctrl+D / Supr / flechas |
 | **Posición normalizada al insertar** | `insertItem` clampa la posición a la banda (un item soltado fuera del cuerpo entra en él), igual que hace el drag |
 
-### 🧹 Pasada de `react-doctor` (51 → 77, 0 errores)
+### 🧹 Pasada de `react-doctor` (51 → 75, 0 errores)
 
 Corregido: refs mutadas durante el render (contadores de debug), listener global de
 teclado con `useEffectEvent` (sin re-suscripción), borradores de los paneles derivados
 del item en vez de efectos prop→state (ya no se pierde lo que se escribe si llega una
 proyección nueva; también arregla el borrador del código VB), `aria-label` en botones
 de icono y controles, `useState(() => …)` perezosos, claves por identidad en reglas y
-tiradores, y los `*Variants` de shadcn ya no se exportan (rompían Fast Refresh).
+tiradores, los `*Variants` de shadcn ya no se exportan (rompían Fast Refresh) y
+**Monaco se carga en diferido** (el host se importa con `import()`; el bundle inicial
+baja de 9,2 MB a 1,9 MB y Monaco vive en su chunk de 7,2 MB, además con su CSS aparte).
 
-**Pendiente del doctor** (avisos, no errores): `App.tsx` sigue siendo un componente
-grande y complejo (partirlo en `useEditorSession` + `EditorToolbar`/`CanvasArea`),
-y el marco de selección del lienzo usa estado medido del nodo Konva (imperativo).
+**Pendiente del doctor** (avisos, no errores):
+- `App.tsx`, `CanvasPreview.tsx` e `ImagePanel.tsx` son componentes grandes/complejos:
+  toca partirlos (p. ej. `useEditorSession` + `EditorToolbar`/`CanvasArea`, y las
+  secciones del panel de imagen en componentes). Refactor pendiente, sin bugs.
+- Falsos positivos documentados: `prefer-dynamic-import` sobre
+  `lib/monacoSetup.ts:2` (el módulo **es** diferido: el build lo deja en
+  `monacoSetup-*.js`) y `no-adjust-state-on-prop-change` en el marco de selección
+  del lienzo (se mide del nodo Konva real: es imperativo a propósito).
+- `no-set-state-after-await-in-effect` en el efecto de apertura pendiente: está
+  guardado con `cancelled`, pero la regla no lo detecta.
 
 ## ✅ Corrección de bugs (sesión 2026-09-16)
 

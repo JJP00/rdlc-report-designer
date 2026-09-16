@@ -61,9 +61,8 @@ import {
   toCm,
 } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
-import type { CanvasHit } from '@/lib/hit';
-import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
-import { setCompletionMeta } from '@/lib/monacoSetup';
+import { setCompletionMeta } from '@/lib/completionMeta';
+import type { CanvasHit } from '@/lib/hit';import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
 import type { PaletteActionId } from '@/lib/palette';
 
 /** Paso de las flechas: 1pt (Shift = 10pt). */

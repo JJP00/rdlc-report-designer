@@ -2,15 +2,15 @@ import type { ReportMetaDto } from '@rdlc-designer/contracts';
 import * as monaco from 'monaco-editor';
 // monaco 0.56 mapea `monaco-editor/*` → `esm/vs/*.js` (no hay que poner `esm/vs`).
 import editorWorker from 'monaco-editor/editor/editor.worker.js?worker';
+import { getCompletionMeta } from './completionMeta';
 import { expressionCompletions, VB_KEYWORDS } from './expressionCatalog';
 
 /**
- * Configuración de Monaco (una sola vez por renderer):
+ * Host de Monaco: aquí vive **todo** lo que depende de `monaco-editor`.
  *
- * - El worker del editor se empaqueta con Vite (`?worker`); sin él Monaco avisa
- *   y algunas features (sugerencias, plegado) no funcionan.
- * - Se registra el lenguaje `rdlc-expr` (VB-like) con tokenizador Monarch y un
- *   proveedor de autocompletado que se alimenta de la proyección del informe.
+ * Este módulo se importa de forma **dinámica** desde `ExpressionEditor`, así el
+ * editor (una librería pesada) solo se descarga cuando aparece un panel con una
+ * expresión, no al arrancar la aplicación.
  */
 
 declare global {
@@ -33,16 +33,10 @@ const BUILTIN_SET = new Set(
 );
 
 let registered = false;
-/** Metadatos del informe abierto (alimentan el autocompletado). */
-let currentMeta: ReportMetaDto | null = null;
 
-/** El documento activo actualiza esto (lo usa el proveedor de sugerencias). */
-export function setCompletionMeta(meta: ReportMetaDto | null): void {
-  currentMeta = meta;
-}
+/* ------------------------------- lenguaje -------------------------------- */
 
-/** Registra lenguaje y autocompletado una sola vez (importar ya configura el worker). */
-export function registerRdlcLanguage(): void {
+function registerRdlcLanguage(): void {
   if (registered) return;
   registered = true;
 
@@ -86,8 +80,6 @@ export function registerRdlcLanguage(): void {
     keywords: [...KEYWORD_SET],
   } as monaco.languages.IMonarchLanguage);
 
-  registerRdlcCompletions();
-
   monaco.editor.defineTheme('rdlc-light', {
     base: 'vs',
     inherit: true,
@@ -103,17 +95,11 @@ export function registerRdlcLanguage(): void {
       'editor.background': '#ffffff',
     },
   });
-}
 
-/**
- * Proveedor de autocompletado alimentado por la proyección (campos, parámetros,
- * funciones del bloque `<Code>`, Globals!, User! y funciones del estándar).
- */
-export function registerRdlcCompletions(): void {
   monaco.languages.registerCompletionItemProvider(RDLC_LANGUAGE_ID, {
     triggerCharacters: ['!', '.'],
     provideCompletionItems: (model, position) => {
-      const meta = currentMeta;
+      const meta = getCompletionMeta();
       if (!meta) return { suggestions: [] };
 
       const word = model.getWordUntilPosition(position);
@@ -152,4 +138,101 @@ function completionKind(kind: string): monaco.languages.CompletionItemKind {
     default:
       return monaco.languages.CompletionItemKind.Method;
   }
+}
+
+/* ------------------------------ instancia -------------------------------- */
+
+export interface ExpressionEditorOptions {
+  value: string;
+  /** `expression`: una línea, sin números ni plegado. `code`: bloque VB. */
+  mode: 'expression' | 'code';
+  ariaLabel: string;
+}
+
+export interface ExpressionEditorHandles {
+  getValue(): string;
+  /** Solo escribe si el valor cambió (evita pisar lo que se está tecleando). */
+  updateValue(value: string): void;
+  hasTextFocus(): boolean;
+  insertAtCursor(text: string): void;
+  dispose(): void;
+}
+
+/**
+ * Crea el editor sobre `container`. Los commits (blur, Enter en expresión y
+ * Ctrl+Enter en código) se avisan por `onCommit`; el foco por `onFocus`.
+ */
+export function createExpressionEditor(
+  container: HTMLElement,
+  options: ExpressionEditorOptions,
+  callbacks: { onCommit(): void; onFocus(): void },
+): ExpressionEditorHandles {
+  registerRdlcLanguage();
+
+  const mode = options.mode;
+  const editor = monaco.editor.create(container, {
+    value: options.value,
+    language: RDLC_LANGUAGE_ID,
+    theme: 'rdlc-light',
+    automaticLayout: true,
+    fontSize: 12,
+    fontFamily: 'Consolas, "Cascadia Mono", monospace',
+    lineNumbers: mode === 'code' ? 'on' : 'off',
+    lineDecorationsWidth: 6,
+    glyphMargin: false,
+    folding: mode === 'code',
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    overviewRulerLanes: 0,
+    renderLineHighlight: 'none',
+    wordWrap: 'on',
+    tabSize: 4,
+    padding: { top: 6, bottom: 6 },
+    scrollbar: {
+      vertical: mode === 'code' ? 'auto' : 'hidden',
+      horizontal: 'hidden',
+      alwaysConsumeMouseWheel: false,
+    },
+    quickSuggestions: { other: true, comments: false, strings: false },
+    suggestOnTriggerCharacters: true,
+    fixedOverflowWidgets: true,
+    ariaLabel: options.ariaLabel,
+  });
+
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => callbacks.onCommit());
+  if (mode === 'expression') {
+    editor.addCommand(monaco.KeyCode.Enter, () => callbacks.onCommit());
+  }
+
+  const blurSubscription = editor.onDidBlurEditorText(() => callbacks.onCommit());
+  editor.onDidFocusEditorText(() => callbacks.onFocus());
+
+  return {
+    getValue: () => editor.getValue(),
+    updateValue: (value: string) => {
+      if (editor.hasTextFocus()) return;
+      if (editor.getValue() !== value) editor.setValue(value);
+    },
+    hasTextFocus: () => editor.hasTextFocus(),
+    insertAtCursor: (expression: string) => insertAtCursor(editor, expression),
+    dispose: () => {
+      blurSubscription.dispose();
+      editor.dispose();
+    },
+  };
+}
+
+/**
+ * Inserta la expresión en la posición del cursor. Si el editor está vacío se
+ * pega tal cual (con el `=`); si ya hay expresión se pega como fragmento.
+ */
+function insertAtCursor(editor: monaco.editor.IStandaloneCodeEditor, expression: string): void {
+  const selection = editor.getSelection();
+  if (!selection) return;
+
+  const isEmpty = editor.getValue().trim().length === 0;
+  const text = isEmpty ? expression : expression.replace(/^=/, '');
+
+  editor.executeEdits('rdlc-insert', [{ range: selection, text, forceMoveMarkers: true }]);
+  editor.focus();
 }
