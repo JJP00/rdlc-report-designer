@@ -11,8 +11,11 @@ import { VARIABLE_GROUPS, variableEntries, type VariableEntry } from '@/lib/vari
 
 interface VariablesPanelProps {
   meta: ReportMetaDto;
-  /** Copia la expresión al portapapeles después de insertarla en el estado. */
-  onPick?: (expression: string) => void;
+  /**
+   * Elige una variable: con un editor de expresiones enfocado se inserta en el
+   * cursor; si no, el contenedor (App) cae al portapapeles.
+   */
+  onPick?: (expression: string, name: string) => void;
 }
 
 /**
@@ -66,10 +69,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
   };
 
   const pick = (entry: VariableEntry): void => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(entry.expression);
-    }
-    onPick?.(entry.expression);
+    onPick?.(entry.expression, entry.name);
   };
 
   return (

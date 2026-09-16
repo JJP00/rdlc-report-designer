@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { ExpressionEditor } from './ExpressionEditor';
 import { FormatToolbar } from './FormatToolbar';
 
 interface TextPanelProps {
@@ -53,8 +54,9 @@ export function TextPanel({ item, onSetText, onSetStyle }: TextPanelProps): Reac
       <Separator />
       <p className="text-[11px] text-muted-foreground">
         Texto plano o expresión con <code>=Fields!Campo.Value</code>,{' '}
-        <code>=Parameters!X.Value</code>… El autocompletado con la lista de variables llega con el
-        dominio <code>expression</code>.
+        <code>=Parameters!X.Value</code>… Las expresiones se editan en Monaco con resaltado y
+        autocompletado (Ctrl+Espacio): campos, parámetros, funciones de <code>Code.</code>,
+        Globals! y User!. El panel de variables inserta en la posición del cursor.
       </p>
       </div>
     </div>
@@ -81,6 +83,10 @@ function RunField({
     if (draft !== null && draft !== value) onCommit(draft);
     setDraft(null);
   };
+  const commitDraftValue = (next: string): void => {
+    if (next !== value) onCommit(next);
+    setDraft(null);
+  };
 
   const isExpression = value.trimStart().startsWith('=');
 
@@ -101,16 +107,25 @@ function RunField({
           <span className="text-[10px] text-muted-foreground">texto</span>
         )}
       </div>
-      <Input
-        className="h-7 font-mono text-xs"
-        value={text}
-        aria-label={`Valor del run ${index}`}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit();
-        }}
-      />
+      {isExpression ? (
+        <ExpressionEditor
+          value={value}
+          mode="expression"
+          ariaLabel={`Expresión del run ${index}`}
+          onCommit={commitDraftValue}
+        />
+      ) : (
+        <Input
+          className="h-7 font-mono text-xs"
+          value={text}
+          aria-label={`Valor del run ${index}`}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') commit();
+          }}
+        />
+      )}
     </div>
   );
 }

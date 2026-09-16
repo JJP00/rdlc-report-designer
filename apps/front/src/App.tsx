@@ -62,6 +62,8 @@ import {
 } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
 import type { CanvasHit } from '@/lib/hit';
+import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
+import { setCompletionMeta } from '@/lib/monacoSetup';
 import type { PaletteActionId } from '@/lib/palette';
 
 /** Paso de las flechas: 1pt (Shift = 10pt). */
@@ -174,8 +176,11 @@ export function App(): ReactNode {
     };
   }, [hasBackend]);
 
-  const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
-  const selectedItem = useMemo(
+  useEffect(() => {
+    setCompletionMeta(doc?.projection.meta ?? null);
+  }, [doc]);
+
+  const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);  const selectedItem = useMemo(
     () => (doc && selectedId ? findItem(doc.projection, selectedId) : undefined),
     [doc, selectedId],
   );
@@ -613,10 +618,14 @@ export function App(): ReactNode {
   }, []);
 
   /**
-   * Elige una variable de la paleta. Hoy copia al portapapeles; con Monaco se
-   * insertará en la posición del cursor del editor activo.
+   * Elige una variable (panel o paleta): si hay un editor de expresiones con
+   * foco se inserta en el cursor; si no, se copia al portapapeles.
    */
   const pickExpression = useCallback((expression: string, name: string): void => {
+    if (insertIntoExpressionEditor(expression)) {
+      setStatus(`${name} insertada en el editor`);
+      return;
+    }
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       void navigator.clipboard.writeText(expression);
     }
@@ -1025,10 +1034,7 @@ export function App(): ReactNode {
         <main className="flex min-h-0 flex-1">
           {showVariables && doc ? (
             <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-r bg-background">
-              <VariablesPanel
-                meta={doc.projection.meta}
-                onPick={(expression) => setStatus(`Copiada al portapapeles: ${expression}`)}
-              />
+              <VariablesPanel meta={doc.projection.meta} onPick={pickExpression} />
             </aside>
           ) : null}
 

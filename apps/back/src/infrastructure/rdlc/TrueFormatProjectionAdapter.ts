@@ -470,8 +470,10 @@ function parseVbFunctions(code: string): CodeFunctionDto[] {
         (p) =>
           p
             .trim()
+            // `ByVal Value As String` → `Value` (sin modo de paso ni tipo).
             .split(/\s+As\s+/i)[0]
-            ?.trim() ?? '',
+            ?.replace(/^(?:ByVal|ByRef|Optional|ParamArray)\s+/i, '')
+            .trim() ?? '',
       )
       .filter((p) => p.length > 0);
     functions.push(params.length > 0 ? { name, parameters: params } : { name });

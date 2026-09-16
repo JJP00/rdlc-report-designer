@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { ExpressionEditor } from './ExpressionEditor';
 
 export interface ImageOptionsPatch {
   source?: 'External' | 'Embedded' | 'Database' | null;
@@ -111,23 +112,34 @@ export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelPr
             }}
           />
         </div>
-        <Input
-          className="h-7 font-mono text-xs"
-          placeholder={item.source === 'External' ? 'https://…' : '=Fields!Picture.Value'}
-          value={value}
-          aria-label="Valor de la imagen"
-          onChange={(event) => editValue(event.target.value)}
-          onBlur={() => {
-            if (value !== (item.value ?? '')) onSetImageOptions({ value });
-            commitValue();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && value !== (item.value ?? '')) {
-              onSetImageOptions({ value });
+        {valueIsExpression ? (
+          <ExpressionEditor
+            value={value}
+            mode="expression"
+            ariaLabel="Expresión del valor de la imagen"
+            onCommit={(next) => {
+              if (next !== (item.value ?? '')) onSetImageOptions({ value: next });
+            }}
+          />
+        ) : (
+          <Input
+            className="h-7 font-mono text-xs"
+            placeholder={item.source === 'External' ? 'https://…' : '=Fields!Picture.Value'}
+            value={value}
+            aria-label="Valor de la imagen"
+            onChange={(event) => editValue(event.target.value)}
+            onBlur={() => {
+              if (value !== (item.value ?? '')) onSetImageOptions({ value });
               commitValue();
-            }
-          }}
-        />
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && value !== (item.value ?? '')) {
+                onSetImageOptions({ value });
+                commitValue();
+              }
+            }}
+          />
+        )}
       </div>
 
       {/* ------------------------------- MIME ------------------------------- */}

@@ -1,12 +1,29 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
-> **Sesión 2026-09-16** — corrección de **6 fallos silenciosos** + **insertar
-> arrastrando desde la toolbar** y **menú contextual** en el lienzo (Insertar /
-> Duplicar / Copiar / Cortar / Pegar / Eliminar). Pasada de `react-doctor`
-> (51 → 77, 0 errores). Lo siguiente: **Ctrl+K** (buscador) + **Monaco**, y de
-> paso partir `App.tsx` (es el único aviso grande que queda del doctor).
+> **Sesión 2026-09-16 · 2.º bloque** — **Ctrl+K** (paleta de comandos: elementos,
+> variables y acciones) y **Monaco** para las expresiones: resaltado VB-like,
+> autocompletado con campos/parámetros/funciones de `<Code>`/Globals!/User! y
+> funciones RDL, e inserción de variables **en la posición del cursor**.
+> Verificado end-to-end con el modo QA (`RDLC_SHOT_SCRIPT` + captura).
+> Lo siguiente: Tablix visual (F2) o los pendientes M1–M7; y de paso partir
+> `App.tsx` (es el único aviso grande que deja `react-doctor`).
 
-## ✨ Nuevo en la sesión (2026-09-16): insertar arrastrando + menú contextual
+## ✨ Nuevo (2.º bloque, 2026-09-16): Ctrl+K + Monaco
+
+| Pieza | Detalle |
+|---|---|
+| **Paleta Ctrl+K** | Busca **elementos del informe** (por nombre y por contenido: texto y expresiones), **variables** (campos, parámetros, funciones de `<Code>`, Globals!, User!) y **acciones** (abrir, guardar, deshacer, rehacer, insertar, propiedades, panel de variables). Al elegir un elemento lo selecciona y **lo trae a la vista** |
+| **Datos de la paleta** | `lib/palette.ts` (elementos + acciones) y `lib/variables.ts` (variables, compartido con el panel). `lib/projection.ts` gana `flattenItems`/`findItemInList` y deja de triplicar recorridos |
+| **Monaco** | `ExpressionEditor` (Monaco 0.56, worker empaquetado con Vite): los runs con expresión y el bloque `<Code>` VB se editan con resaltado y autocompletado; Enter/⌘⏎/blur hacen commit |
+| **Lenguaje `rdlc-expr`** | Tokenizador Monarch VB-like (referencias `Fields!`, `Code.`, funciones, cadenas, comentarios) + catálogo de ~100 funciones RDL y palabras clave (`lib/expressionCatalog.ts`) |
+| **Autocompletado** | Se alimenta de la proyección del informe (`setCompletionMeta`): campos, parámetros, funciones de `<Code>` (parámetros ya sin `ByVal`/`As`), Globals!, User! y funciones del estándar |
+| **Inserción en el cursor** | `lib/expressionEditor.ts`: el editor registrado al enfocar (el último gana) recibe la expresión; si no hay editor, se copia al portapapeles. En un editor vacío se pega con `=`, en uno con contenido como fragmento |
+
+Desviación consciente: el dominio `expression` vive de momento en el **front**
+(`lib/expressionCatalog.ts`, `lib/monacoSetup.ts`) porque solo lo consume Monaco;
+si el backend necesita validar sintaxis, el catálogo se moverá a `contracts`.
+
+## ✨ Nuevo (1.er bloque, 2026-09-16): insertar arrastrando + menú contextual
 
 | Pieza | Detalle |
 |---|---|

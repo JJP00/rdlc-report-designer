@@ -12,8 +12,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { toCm } from '@/lib/projection';
+import { ExpressionEditor } from './ExpressionEditor';
 
 interface ReportPropertiesDialogProps {
   projection: ProjectionDto;
@@ -175,12 +175,11 @@ function ReportPropertiesForm({
           Bloque <code>&lt;Code&gt;</code> VB (funciones <code>Code.</code>). Se reemplaza como un
           todo: un paso de undo.
         </p>
-        <Textarea
-          className="field-sizing-fixed h-[380px] max-h-[55vh] resize-y overflow-auto font-mono text-xs"
+        <ExpressionEditor
           value={code}
-          aria-label="Código VB del informe"
-          onChange={(event) => setCode(event.target.value)}
-          spellCheck={false}
+          mode="code"
+          ariaLabel="Código VB del informe"
+          onCommit={setCode}
         />
         <DialogFooter>
           <Button

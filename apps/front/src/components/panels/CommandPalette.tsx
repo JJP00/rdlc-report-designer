@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import {
+  Command,
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -102,9 +103,10 @@ export function CommandPalette({
       title="Paleta de comandos"
       description="Busca elementos del informe, variables o acciones del editor"
     >
-      <CommandInput placeholder="Buscar elemento, variable o acción…" />
-      <CommandList>
-        <CommandEmpty>Sin resultados.</CommandEmpty>
+      <Command>
+        <CommandInput placeholder="Buscar elemento, variable o acción…" />
+        <CommandList>
+          <CommandEmpty>Sin resultados.</CommandEmpty>
 
         {elements.length > 0 ? (
           <CommandGroup heading="Elementos del informe">
@@ -172,6 +174,7 @@ export function CommandPalette({
           })}
         </CommandGroup>
       </CommandList>
+      </Command>
     </CommandDialog>
   );
 }

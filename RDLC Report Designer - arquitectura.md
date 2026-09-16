@@ -281,11 +281,13 @@ Los módulos NestJS son **solo el cableado de DI** (binding por tokens: `provide
 
 Dos dominios reales; el resto son servicios de aplicación.
 
-> **Estado de implementación (sesión 2026-09-14)** — de este diseño ya están en código:
+> **Estado de implementación (sesión 2026-09-16)** — de este diseño ya están en código:
 > el árbol de dominio propio sobre `xml-trueformat`, ambos dominios (`document` y
-> `expression` — este último con tokenizer/catálogo pendiente), los comandos con inverso
+> `expression` — el tokenizador/catálogo vive hoy en el front, `lib/expressionCatalog.ts`
+> + `lib/monacoSetup.ts`, porque solo lo consume Monaco), los comandos con inverso
 > (con soporte de **varios inversos por comando** y **comandos internos del journal**
-> `removeNode`/`restoreNode` para insertar/duplicar/eliminar), los puertos
+> `removeNode`/`restoreNode`/`setNodeText`/`insertClone` para insertar/duplicar/eliminar/pegar),
+> los puertos
 > `RdlcParser`/`RdlcSerializer`/`RdlcProjection`/`FileSystem`/`FileWatcher`/`EventBus` y
 > dos puertos añadidos después del diseño inicial:
 >
@@ -293,6 +295,10 @@ Dos dominios reales; el resto son servicios de aplicación.
 >   (`libxml2-wasm`): al importar avisa, al guardar bloquea la escritura.
 > - **`SystemFontsPort`** → fuentes instaladas (registro de Windows) para la barra de
 >   formato (canal IPC `listFonts`).
+>
+> Además de los comandos públicos, la API del editor tiene **`copy`/`cut`/`paste`**
+> (portapapeles de sesión con el XML exacto del subárbol, como `undo`/`redo`: no son
+> comandos porque copiar no muta el documento).
 >
 > Comandos implementados hoy: `setLocation`, `setSize`, `setText`, `setStyle`,
 > `setImageOptions`, `insertItem`, `duplicateItem`, `deleteItem`, `setPageSize`,
