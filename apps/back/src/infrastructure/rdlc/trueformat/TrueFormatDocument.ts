@@ -104,7 +104,9 @@ export class TrueFormatNode implements RdlcNode {
 
   createElement(tagName: string, text?: string): RdlcNode {
     const element = new XmlElement(tagName);
-    if (text !== undefined) element.children.push(new XmlText(text));
+    // `XmlText` guarda el texto **escapado** (igual que `setText`): sin esto un
+    // `&` o un `<` en una expresión o URL generarían XML inválido.
+    if (text !== undefined) element.children.push(new XmlText(escapeXmlText(text)));
     return new TrueFormatNode(element, null, this.doc);
   }
 
@@ -180,7 +182,14 @@ function escapeXmlText(value: string): string {
 
 /** Copia profunda conservando formato: comillas, whitespace, atributos y orden. */
 function cloneElement(source: XmlElement): XmlElement {
-  const copy = new XmlElement(source.tagName, [], [], source.attrTrailingWs, source.selfClosing, source.closeTagWs);
+  const copy = new XmlElement(
+    source.tagName,
+    [],
+    [],
+    source.attrTrailingWs,
+    source.selfClosing,
+    source.closeTagWs,
+  );
   copy.attributes = source.attributes.map(
     (attribute) =>
       new XmlAttribute(

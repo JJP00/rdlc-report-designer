@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
+import type { RdlcNode } from '../../src/domain/document/tree/RdlcNode.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { corpusByName } from '../golden/fixtures.js';
 import { appliedOf, undoAll } from './command-test-utils.js';
@@ -59,7 +60,9 @@ describe('F1 · insertItem', () => {
 
     // Orden canónico: Top antes que Height y Paragraphs al final.
     const inserted = output.slice(output.indexOf('TextboxNuevo'));
-    expect(inserted.indexOf('<Top>1cm</Top>')).toBeLessThan(inserted.indexOf('<Height>0.5cm</Height>'));
+    expect(inserted.indexOf('<Top>1cm</Top>')).toBeLessThan(
+      inserted.indexOf('<Height>0.5cm</Height>'),
+    );
     expect(inserted.indexOf('<Height>')).toBeLessThan(inserted.indexOf('<Paragraphs>'));
   });
 
@@ -156,7 +159,77 @@ describe('F1 · duplicateItem', () => {
     expect(undone.isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
   });
+
+  it('renombra los hijos del contenedor clonado (no quedan nombres repetidos)', () => {
+    const { xml, doc, index } = open('SalesInvoiceESP.rdlc');
+
+    const original = index.get('Rectangle1');
+    expect(original).toBeDefined();
+    if (!original) return;
+    const childNames = collectNames(original);
+    expect(childNames.length).toBeGreaterThan(0);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'duplicateItem', id: 'Rectangle1' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const cloneName = applied.value.applied?.[0]?.id;
+    expect(cloneName).toBeDefined();
+    if (!cloneName) return;
+
+    const rebuilt = DocumentIndex.build(doc.root);
+    const clone = rebuilt.get(cloneName);
+    expect(clone).toBeDefined();
+    if (!clone) return;
+
+    // Mismo número de hijos, ninguno repite nombre con el original.
+    const cloneChildNames = collectNames(clone);
+    expect(cloneChildNames).toHaveLength(childNames.length);
+    for (const name of cloneChildNames) expect(childNames).not.toContain(name);
+
+    // El original sigue siendo el dueño de sus nombres.
+    for (const name of childNames) {
+      const node = rebuilt.get(name);
+      expect(node).toBeDefined();
+      expect(isDescendantOf(node!, original)).toBe(true);
+    }
+
+    // Y el `rd:DefaultName` de los hijos acompaña al nombre nuevo.
+    for (const child of clone.children()) {
+      const name = child.attribute('Name');
+      const defaultName = child.children('rd:DefaultName')[0]?.text();
+      if (name && defaultName !== undefined) expect(defaultName).toBe(name);
+    }
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
 });
+
+/** Nombres de item (`Name`) de todo el subárbol, sin contar la raíz. */
+function collectNames(node: RdlcNode): string[] {
+  const names: string[] = [];
+  const walk = (child: RdlcNode): void => {
+    const name = child.attribute('Name');
+    if (name !== undefined) names.push(name);
+    for (const grandChild of child.children()) walk(grandChild);
+  };
+  for (const child of node.children()) walk(child);
+  return names;
+}
+
+function isDescendantOf(node: RdlcNode, ancestor: RdlcNode): boolean {
+  let current = node.parent;
+  while (current) {
+    if (current.equals(ancestor)) return true;
+    current = current.parent;
+  }
+  return false;
+}
 
 describe('F1 · deleteItem', () => {
   it('elimina el elemento y el undo lo restaura byte a byte', () => {
@@ -179,7 +252,10 @@ describe('F1 · deleteItem', () => {
     applyCommand({ root: doc.root, index }, { cmd: 'deleteItem', id: 'Textbox25' });
     // El caso de uso real reconstruye el índice tras comandos estructurales.
     const rebuilt = DocumentIndex.build(doc.root);
-    const again = applyCommand({ root: doc.root, index: rebuilt }, { cmd: 'deleteItem', id: 'Textbox25' });
+    const again = applyCommand(
+      { root: doc.root, index: rebuilt },
+      { cmd: 'deleteItem', id: 'Textbox25' },
+    );
     expect(again.isLeft()).toBe(true);
   });
 });

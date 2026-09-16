@@ -24,12 +24,23 @@ export interface RestoreNodeCommand {
   readonly name: string;
 }
 
-export type InternalCommand = RemoveNodeCommand | RestoreNodeCommand;
+/**
+ * Devuelve un nodo de texto a su contenido anterior sin moverlo (p. ej. los
+ * `<Style>` de párrafos/runs que `setStyle` sincroniza). A diferencia de
+ * `restoreNode` no hay que reinsertar nada: la posición no cambió.
+ */
+export interface SetNodeTextCommand {
+  readonly cmd: 'setNodeText';
+  readonly node: RdlcNode;
+  readonly value: string;
+}
 
-export function isInternalCommand(
-  command: { cmd: string },
-): command is InternalCommand {
-  return command.cmd === 'removeNode' || command.cmd === 'restoreNode';
+export type InternalCommand = RemoveNodeCommand | RestoreNodeCommand | SetNodeTextCommand;
+
+export function isInternalCommand(command: { cmd: string }): command is InternalCommand {
+  return (
+    command.cmd === 'removeNode' || command.cmd === 'restoreNode' || command.cmd === 'setNodeText'
+  );
 }
 
 /** Referencia de scope usada por los tests/diagnóstico. */

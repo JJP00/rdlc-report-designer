@@ -3,12 +3,14 @@ import type {
   Length,
   ProjectionDto,
   RegionDto,
+  StyleDto,
   TablixDto,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text as KonvaText } from 'react-konva';
 import { computeDragEnd } from '@/lib/drag';
+import { effectiveTextStyle } from '@/lib/style';
 
 export const PX_PER_CM = 96 / 2.54;
 /** Rejilla de imán en cm (Shift la ignora al soltar). */
@@ -389,9 +391,12 @@ function NodeGroup({
   itemSize,
   children,
 }: NodeGroupProps): ReactNode {
-  const dragState = useRef<{ pointerX: number; pointerY: number; nodeX: number; nodeY: number } | null>(
-    null,
-  );
+  const dragState = useRef<{
+    pointerX: number;
+    pointerY: number;
+    nodeX: number;
+    nodeY: number;
+  } | null>(null);
 
   /**
    * Nunca negativo. El tope máximo solo aplica cuando hay `bounds` (regiones
@@ -508,10 +513,14 @@ function ItemView({
   const width = toPx(item.width);
   const height = toPx(item.height);
 
-  const fontSize = item.style?.fontSize ? toPx(item.style.fontSize) : 12;
+  // Estilo efectivo (run > párrafo > item): lo que BC renderizará de verdad.
+  // Los textbox pueden llevar el formato en los runs, no en el item.
+  const style = item.kind === 'textbox' ? effectiveTextStyle(item) : item.style;
+
+  const fontSize = style?.fontSize ? toPx(style.fontSize) : 12;
   const fontStyle = [
-    item.style?.fontWeight === 'Bold' ? 'bold' : '',
-    item.style?.fontStyle === 'Italic' ? 'italic' : '',
+    style?.fontWeight === 'Bold' ? 'bold' : '',
+    style?.fontStyle === 'Italic' ? 'italic' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -527,13 +536,14 @@ function ItemView({
       bounds={draggable ? bounds : undefined}
       itemSize={{ width, height }}
     >
-      {renderContent(item, width, height, fontSize, fontStyle, onSelect, onMoveItem)}
+      {renderContent(item, style, width, height, fontSize, fontStyle, onSelect, onMoveItem)}
     </NodeGroup>
   );
 }
 
 function renderContent(
   item: ItemDto,
+  style: StyleDto | undefined,
   width: number,
   height: number,
   fontSize: number,
@@ -546,7 +556,7 @@ function renderContent(
       const text = item.paragraphs
         .map((paragraph) => paragraph.runs.map(runDisplayText).join(''))
         .join('\n');
-      const padding = item.style?.padding;
+      const padding = style?.padding;
       const padLeft = padding?.left ? toPx(padding.left) : 2;
       const padRight = padding?.right ? toPx(padding.right) : 2;
       const padTop = padding?.top ? toPx(padding.top) : 1;
@@ -559,7 +569,7 @@ function renderContent(
             <Rect
               width={width}
               height={height}
-              fill={item.style?.backgroundColor ?? '#ffffff'}
+              fill={style?.backgroundColor ?? '#ffffff'}
               stroke="#e5e7eb"
               strokeWidth={0.5}
             />
@@ -571,11 +581,11 @@ function renderContent(
               height={Math.max(height - padTop - padBottom, 0)}
               fontSize={fontSize}
               fontStyle={fontStyle || 'normal'}
-              fontFamily={item.style?.fontFamily ?? 'Segoe UI'}
-              fill={item.style?.color ?? '#111827'}
-              align={(item.style?.textAlign ?? 'Left').toLowerCase() as 'left' | 'center' | 'right'}
+              fontFamily={style?.fontFamily ?? 'Segoe UI'}
+              fill={style?.color ?? '#111827'}
+              align={(style?.textAlign ?? 'Left').toLowerCase() as 'left' | 'center' | 'right'}
               verticalAlign={
-                (item.style?.verticalAlign ?? 'Top').toLowerCase() as 'top' | 'middle' | 'bottom'
+                (style?.verticalAlign ?? 'Top').toLowerCase() as 'top' | 'middle' | 'bottom'
               }
               wrap="none"
               ellipsis
@@ -702,7 +712,8 @@ function ImagePlaceholder({
   );
 }
 
-function TablixContent({  item,
+function TablixContent({
+  item,
   onSelect,
   onMoveItem,
 }: {
@@ -796,7 +807,12 @@ function TablixContent({  item,
   );
 }
 
-function cornerPoints(rect: { x: number; y: number; width: number; height: number }): [number, number][] {
+function cornerPoints(rect: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): [number, number][] {
   return [
     [rect.x, rect.y],
     [rect.x + rect.width, rect.y],

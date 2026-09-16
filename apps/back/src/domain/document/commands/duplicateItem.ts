@@ -28,6 +28,13 @@ export function applyDuplicateItem(
 
   const clone = source.clone();
   clone.setAttribute('Name', name);
+  syncDefaultName(clone, command.id, name);
+
+  // Los hijos copiados conservan los nombres del original: sin renombrarlos
+  // habría dos nodos con el mismo `Name` (el índice se queda con uno y BC
+  // desorienta sus referencias).
+  const taken = new Set<string>([name]);
+  renameDescendants(ctx, clone, taken);
 
   // Justo después del original, respetando el orden de los hermanos.
   const siblings = container.children();
@@ -38,6 +45,29 @@ export function applyDuplicateItem(
     inverse: [{ cmd: 'removeNode', node: clone }],
     applied: [{ id: name, values: geometryOf(clone) }],
   });
+}
+
+/** Renombra a nombres libres todos los descendientes con `Name` del clon. */
+function renameDescendants(ctx: CommandContext, node: RdlcNode, taken: Set<string>): void {
+  for (const child of node.children()) {
+    const oldName = child.attribute('Name');
+    if (oldName !== undefined) {
+      const newName = nextItemName(ctx, child.tagName.toLowerCase(), taken);
+      child.setAttribute('Name', newName);
+      taken.add(newName);
+      syncDefaultName(child, oldName, newName);
+    }
+    renameDescendants(ctx, child, taken);
+  }
+}
+
+/** `<rd:DefaultName>` espeja el `Name` del item (lo usa Report Builder). */
+function syncDefaultName(item: RdlcNode, oldName: string, newName: string): void {
+  for (const child of item.children()) {
+    if (child.tagName === 'rd:DefaultName' && child.text() === oldName) {
+      child.setText(newName);
+    }
+  }
 }
 
 function kindOf(node: RdlcNode): string {

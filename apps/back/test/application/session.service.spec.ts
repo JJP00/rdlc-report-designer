@@ -1,95 +1,12 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { IPC_EVENTS, type DocumentChangedEvent } from '@rdlc-designer/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EventBusPort } from '../../src/application/ports/out/EventBusPort.js';
-import type { FileWatcherPort, Unwatch } from '../../src/application/ports/out/FileWatcherPort.js';
-import type {
-  SchemaValidationResult,
-  XmlSchemaValidatorPort,
-} from '../../src/application/ports/out/XmlSchemaValidatorPort.js';
-import { SessionService } from '../../src/application/services/SessionService.js';
-import { NodeFileSystemAdapter } from '../../src/infrastructure/fs/NodeFileSystemAdapter.js';
-import { TrueFormatProjectionAdapter } from '../../src/infrastructure/rdlc/TrueFormatProjectionAdapter.js';
-import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
-import { corpusByName } from '../golden/fixtures.js';
+import { cleanupTempDirs, makeService, writeFixture } from './test-utils.js';
 
 /** F0 — caso de uso completo con adaptadores fake (sin Electron). */
 
-class FakeWatcher implements FileWatcherPort {
-  private readonly callbacks = new Map<string, () => void>();
-
-  async watch(path: string, onChange: () => void): Promise<Unwatch> {
-    this.callbacks.set(path, onChange);
-    return () => this.callbacks.delete(path);
-  }
-
-  trigger(path: string): void {
-    this.callbacks.get(path)?.();
-  }
-
-  get watchingPaths(): string[] {
-    return [...this.callbacks.keys()];
-  }
-}
-
-class FakeEventBus implements EventBusPort {
-  readonly sent: { channel: string; payload: unknown }[] = [];
-
-  send(channel: string, payload: unknown): void {
-    this.sent.push({ channel, payload });
-  }
-}
-
-class FakeSchemaValidator implements XmlSchemaValidatorPort {
-  result: SchemaValidationResult = { valid: true, problems: [] };
-
-  validate(): SchemaValidationResult {
-    return this.result;
-  }
-
-  warmUp(): void {}
-}
-
-const tempDirs: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
-});
-
-async function makeService(): Promise<{
-  service: SessionService;
-  watcher: FakeWatcher;
-  events: FakeEventBus;
-  schema: FakeSchemaValidator;
-  tmp: string;
-}> {
-  const tmp = await mkdtemp(join(tmpdir(), 'rdlc-test-'));
-  tempDirs.push(tmp);
-
-  const watcher = new FakeWatcher();
-  const events = new FakeEventBus();
-  const schema = new FakeSchemaValidator();
-  const xml = new TrueFormatXmlAdapter();
-  const service = new SessionService(
-    new NodeFileSystemAdapter(),
-    watcher,
-    xml,
-    xml,
-    new TrueFormatProjectionAdapter(),
-    schema,
-    events,
-  );
-  return { service, watcher, events, schema, tmp };
-}
-
-async function writeFixture(tmp: string, name: string): Promise<string> {
-  const corpus = corpusByName(name);
-  const path = join(tmp, name);
-  await writeFile(path, corpus.bytes);
-  return path;
-}
+afterEach(cleanupTempDirs);
 
 describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
   it('abre un fichero real, proyecta y guarda bytes idénticos', async () => {
@@ -153,8 +70,7 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
     });
 
     const event = events.sent.find((e) => e.channel === IPC_EVENTS.documentChanged)?.payload as
-      | DocumentChangedEvent
-      | undefined;
+      DocumentChangedEvent | undefined;
     expect(event?.sessionId).toBe(sessionId);
     expect(event?.projection.version).toBe(2);
   });
@@ -172,6 +88,64 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(events.sent.some((e) => e.channel === IPC_EVENTS.documentChanged)).toBe(false);
+  });
+
+  it('no pisa las ediciones sin guardar: avisa del conflicto y conserva el documento', async () => {
+    const { service, watcher, events, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'PalletOutput.rdlc');
+
+    const opened = await service.open(path);
+    expect(opened.isRight()).toBe(true);
+    if (!opened.isRight()) return;
+    const sessionId = opened.value.sessionId;
+
+    // Edición local (equivale a un comando): el documento queda dirty.
+    const target = service.getEditTarget(sessionId);
+    expect(target.isRight()).toBe(true);
+    if (!target.isRight()) return;
+    const node = target.value.index.get('Textbox25');
+    expect(node).toBeDefined();
+    node
+      ?.child('Paragraphs')
+      ?.child('Paragraph')
+      ?.child('TextRuns')
+      ?.child('TextRun')
+      ?.child('Value')
+      ?.setText('EDITADO');
+    service.touch(sessionId, { snapshotOut: false });
+
+    // Cambio externo mientras hay cambios sin guardar.
+    const external = (await readFile(path, 'utf8')).replace(
+      '<Value>(</Value>',
+      '<Value>[EXTERNO]</Value>',
+    );
+    await writeFile(path, external, 'utf8');
+    watcher.trigger(path);
+
+    await vi.waitFor(() => {
+      expect(events.sent.some((e) => e.channel === IPC_EVENTS.conflictDetected)).toBe(true);
+    });
+
+    // No se recargó ni se perdió la edición local.
+    expect(events.sent.some((e) => e.channel === IPC_EVENTS.documentChanged)).toBe(false);
+    const after = service.getEditTarget(sessionId);
+    expect(after.isRight()).toBe(true);
+    if (!after.isRight()) return;
+    expect(
+      after.value.index
+        .get('Textbox25')
+        ?.child('Paragraphs')
+        ?.child('Paragraph')
+        ?.child('TextRuns')
+        ?.child('TextRun')
+        ?.child('Value')
+        ?.text(),
+    ).toBe('EDITADO');
+
+    // Guardar sobrescribe el cambio externo (decisión explícita del usuario).
+    const saved = await service.save(sessionId);
+    expect(saved.isRight()).toBe(true);
+    expect(await readFile(path, 'utf8')).toContain('EDITADO');
   });
 
   it('devuelve E_NOT_FOUND con un fichero inexistente', async () => {

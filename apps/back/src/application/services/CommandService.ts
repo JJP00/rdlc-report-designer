@@ -3,9 +3,9 @@ import type { CommandResult, RdlcCommand } from '@rdlc-designer/contracts';
 import { applyCommand } from '../../domain/document/commands/applyCommand.js';
 import { inverseCommands } from '../../domain/document/commands/CommandContext.js';
 import type { DomainCommand } from '../../domain/document/commands/CommandContext.js';
+import type { RdlcDocument } from '../../domain/document/tree/RdlcNode.js';
 import { left, right, type Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
-import { UnknownSessionError } from '../../shared/domainError.js';
 import type { ICommandService } from './ICommandService.js';
 import type { ISessionService } from './ISessionService.js';
 import { SESSION_SERVICE } from './ISessionService.js';
@@ -27,6 +27,12 @@ const STRUCTURAL_COMMANDS = new Set<RdlcCommand['cmd']>([
 ]);
 
 interface SessionJournal {
+  /**
+   * Documento al que pertenecen los inversos. Si la sesión recarga el fichero
+   * (cambio externo), los nodos del journal quedan desprendidos: se detecta por
+   * identidad y el journal se descarta.
+   */
+  document: RdlcDocument;
   undoStack: JournalEntry[];
   redoStack: JournalEntry[];
 }
@@ -52,7 +58,7 @@ export class CommandService implements ICommandService {
     );
     if (applied.isLeft()) return left(applied.value);
 
-    const journal = this.journal(sessionId);
+    const journal = this.journal(sessionId, target.value.document);
     journal.undoStack.push({ command, inverse: inverseCommands(applied.value) });
     journal.redoStack.length = 0;
 
@@ -60,8 +66,10 @@ export class CommandService implements ICommandService {
 
     // Los comandos estructurales (página, código) reenvían la proyección:
     // el front refresca límites y funciones de <Code> sin esperar al reload.
+    // Algunos comandos (p. ej. `setStyle`) lo piden cuando tocaron partes que
+    // `applied` no puede expresar.
     const version = this.sessions.touch(sessionId, {
-      snapshotOut: STRUCTURAL_COMMANDS.has(command.cmd),
+      snapshotOut: STRUCTURAL_COMMANDS.has(command.cmd) || applied.value.snapshotOut === true,
     });
     const result: CommandResult = applied.value.applied
       ? { ok: true, version, applied: applied.value.applied }
@@ -70,14 +78,12 @@ export class CommandService implements ICommandService {
   }
 
   undo(sessionId: string): Either<DomainError, CommandResult> {
-    const journal = this.journals.get(sessionId);
-    if (!journal) return left(UnknownSessionError.create(sessionId));
-
-    const entry = journal.undoStack.pop();
-    if (!entry) return right({ ok: true, version: this.sessions.versionOf(sessionId) });
-
     const target = this.sessions.getEditTarget(sessionId);
     if (target.isLeft()) return left(target.value);
+
+    const journal = this.journal(sessionId, target.value.document);
+    const entry = journal.undoStack.pop();
+    if (!entry) return right({ ok: true, version: this.sessions.versionOf(sessionId) });
 
     const ctx = { root: target.value.document.root, index: target.value.index };
     for (const inverse of [...entry.inverse].reverse()) {
@@ -97,14 +103,12 @@ export class CommandService implements ICommandService {
   }
 
   redo(sessionId: string): Either<DomainError, CommandResult> {
-    const journal = this.journals.get(sessionId);
-    if (!journal) return left(UnknownSessionError.create(sessionId));
-
-    const entry = journal.redoStack.pop();
-    if (!entry) return right({ ok: true, version: this.sessions.versionOf(sessionId) });
-
     const target = this.sessions.getEditTarget(sessionId);
     if (target.isLeft()) return left(target.value);
+
+    const journal = this.journal(sessionId, target.value.document);
+    const entry = journal.redoStack.pop();
+    if (!entry) return right({ ok: true, version: this.sessions.versionOf(sessionId) });
 
     const applied = applyCommand(
       { root: target.value.document.root, index: target.value.index },
@@ -126,10 +130,15 @@ export class CommandService implements ICommandService {
     this.journals.delete(sessionId);
   }
 
-  private journal(sessionId: string): SessionJournal {
+  /**
+   * Journal de la sesión, atado al documento vivo: si el documento cambió
+   * (recarga por edición externa) los inversos apuntan a nodos desprendidos, así
+   * que se empieza de cero en vez de "deshacer" sobre un árbol fantasma.
+   */
+  private journal(sessionId: string, document: RdlcDocument): SessionJournal {
     let journal = this.journals.get(sessionId);
-    if (!journal) {
-      journal = { undoStack: [], redoStack: [] };
+    if (!journal || journal.document !== document) {
+      journal = { document, undoStack: [], redoStack: [] };
       this.journals.set(sessionId, journal);
     }
     return journal;

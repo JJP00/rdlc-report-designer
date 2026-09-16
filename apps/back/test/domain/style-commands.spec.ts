@@ -19,6 +19,14 @@ function open(name: string): {
   return { xml, doc, index: DocumentIndex.build(doc.root) };
 }
 
+/** XML del item `name` (del `Name="…"` a su cierre), para asertar solo lo suyo. */
+function itemSlice(xml: string, name: string): string {
+  const at = xml.indexOf(`Name="${name}"`);
+  if (at === -1) throw new Error(`No está '${name}' en el XML`);
+  const end = xml.indexOf('</Textbox>', at);
+  return xml.slice(at, end === -1 ? at + 6000 : end);
+}
+
 describe('F1 · setStyle', () => {
   it('escribe fuente/tamaño/negrita en orden canónico y el undo restaura bytes', () => {
     const { xml, doc, index } = open('PalletOutput.rdlc');
@@ -119,5 +127,179 @@ describe('F1 · setStyle', () => {
     // Y deshacer el primero quita el nodo (inverso sin valor previo = comando con {}).
     undoAll({ root: doc.root, index }, first.value);
     expect(adapter.serialize(doc)).not.toContain('#FF0000');
+  });
+
+  it('aplica padding anidado (contrato) y el undo restaura bytes', () => {
+    const { xml, doc, index } = open('SalesInvoiceESP.rdlc');
+
+    // Textbox23 ya tiene padding por lados: se toca solo `left`.
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'Textbox23', style: { padding: { left: { value: 7, unit: 'pt' } } } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const output = adapter.serialize(doc);
+    expect(output).toContain('<PaddingLeft>7pt</PaddingLeft>');
+    // El resto del padding no se pierde en la ida (ni en `applied`).
+    expect(appliedOf(applied.value, 'Textbox23')).toMatchObject({
+      style: { padding: { left: { value: 7, unit: 'pt' } } },
+    });
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('crea el <Style> y todos los lados del padding si no existen (imagen nueva)', () => {
+    const { doc, index } = open('PalletOutput.rdlc');
+
+    // Imagen recién insertada: nace sin <Style>, así que el padding lo crea.
+    const inserted = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'insertItem',
+        scope: { kind: 'body' },
+        index: 0,
+        item: {
+          kind: 'image',
+          name: 'ImagenNueva',
+          top: { value: 1, unit: 'cm' },
+          left: { value: 1, unit: 'cm' },
+          width: { value: 3, unit: 'cm' },
+          height: { value: 2, unit: 'cm' },
+        },
+      },
+    );
+    expect(inserted.isRight()).toBe(true);
+    const afterInsert = adapter.serialize(doc);
+
+    const applied = applyCommand(
+      { root: doc.root, index: DocumentIndex.build(doc.root) },
+      {
+        cmd: 'setStyle',
+        id: 'ImagenNueva',
+        style: {
+          padding: {
+            top: { value: 1, unit: 'pt' },
+            left: { value: 2, unit: 'pt' },
+            bottom: { value: 3, unit: 'pt' },
+            right: { value: 4, unit: 'pt' },
+          },
+        },
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const output = adapter.serialize(doc);
+    expect(output).toContain('<PaddingTop>1pt</PaddingTop>');
+    expect(output).toContain('<PaddingLeft>2pt</PaddingLeft>');
+    expect(output).toContain('<PaddingBottom>3pt</PaddingBottom>');
+    expect(output).toContain('<PaddingRight>4pt</PaddingRight>');
+
+    // El undo devuelve el XML al estado justo después de insertar.
+    const undone = undoAll({ root: doc.root, index: DocumentIndex.build(doc.root) }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(afterInsert);
+  });
+
+  it('`padding: null` quita los cuatro lados y el undo los restaura', () => {
+    const { xml, doc, index } = open('SalesInvoiceESP.rdlc');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'Textbox23', style: { padding: null } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    expect(itemSlice(adapter.serialize(doc), 'Textbox23')).not.toContain('<Padding');
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('rechaza el estilo de bordes (no está implementado, no se ignora en silencio)', () => {
+    const { doc, index } = open('PalletOutput.rdlc');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setStyle',
+        id: 'Textbox25',
+        style: { border: { top: { style: 'Solid', width: { value: 1, unit: 'pt' } } } },
+      },
+    );
+    expect(applied.isLeft()).toBe(true);
+    if (applied.isLeft()) expect(applied.value.code).toBe('E_COMMAND_REJECTED');
+  });
+});
+
+describe('F1 · setStyle · precedencia run > párrafo > item', () => {
+  /**
+   * `Textbox28` de PalletOutput: el tamaño vive en el *run*
+   * (`<FontSize>12pt</FontSize>`), no en el item. Escribir en el item no basta:
+   * hay que sincronizar el run o BC seguiría renderizando lo de antes.
+   */
+  it('sincroniza el override del run con el valor del item', () => {
+    const { xml, doc, index } = open('PalletOutput.rdlc');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'Textbox28', style: { fontSize: { value: 14, unit: 'pt' } } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const textbox = itemSlice(adapter.serialize(doc), 'Textbox28');
+    expect(textbox).not.toContain('<FontSize>12pt</FontSize>');
+    expect(textbox).toContain('<FontSize>14pt</FontSize>');
+    // 3 runs + el estilo del item (el valor del item manda en los cuatro).
+    expect(textbox.match(/<FontSize>14pt<\/FontSize>/g)).toHaveLength(4);
+
+    // El front necesita proyección nueva: hay overrides que `applied` no expresa.
+    expect(applied.value.snapshotOut).toBe(true);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('sincroniza el override del párrafo (TextAlign) con el valor del item', () => {
+    const { xml, doc, index } = open('PalletOutput.rdlc');
+
+    // Textbox25 tiene <TextAlign>Center</TextAlign> en el párrafo.
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'Textbox25', style: { textAlign: 'Right' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const textbox = itemSlice(adapter.serialize(doc), 'Textbox25');
+    expect(textbox).not.toContain('<TextAlign>Center</TextAlign>');
+    expect(textbox).toContain('<TextAlign>Right</TextAlign>');
+    expect(textbox.match(/<TextAlign>Right<\/TextAlign>/g)).toHaveLength(2);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('no toca los overrides cuando no se escribe esa propiedad', () => {
+    const { doc, index } = open('PalletOutput.rdlc');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'Textbox28', style: { color: '#FF0000' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const textbox = itemSlice(adapter.serialize(doc), 'Textbox28');
+    expect(textbox.match(/<FontSize>12pt<\/FontSize>/g)).toHaveLength(3);
+    expect(applied.value.snapshotOut).toBeUndefined();
   });
 });

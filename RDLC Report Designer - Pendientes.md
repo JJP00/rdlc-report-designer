@@ -1,8 +1,45 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
-> **Sesión 2026-09-14** — Fase 0 cerrada y Fase 1 muy avanzada. Mañana se retoma por:
-> **① Paleta de búsqueda Ctrl+K** (elementos + variables) y **② Monaco** para el editor de
-> expresiones con autocompletado. Debajo está el detalle de lo hecho y lo que queda.
+> **Sesión 2026-09-16** — pasada de corrección sobre Fase 1: se cerraron **6 fallos
+> silenciosos** (el comando devolvía `ok` pero el efecto se perdía). Siguiente bloque:
+> **insertar arrastrando desde la toolbar** y **menú contextual** en el lienzo
+> (Insertar / Cortar / Copiar / Pegar / Duplicar / Eliminar). Los pendientes menores
+> que quedaron abiertos están al final de esta sección.
+
+## ✅ Corrección de bugs (sesión 2026-09-16)
+
+| # | Fallo | Arreglo |
+|---|---|---|
+| H1 | **Padding de imagen era un no-op mudo**: el contrato manda `padding` anidado (`{left: Length}`) y el comando solo miraba claves planas `paddingLeft…` | `setStyle` escribe/lee el padding anidado (y `border` se **rechaza explícitamente**: no está implementado ni proyectado) |
+| H2 | **Cambio externo + cambios sin guardar = ediciones perdidas en silencio** (se recargaba y se limpiaba `dirty`) | Ya no se recarga: se emite `conflictDetected` y el front avisa en una banda ámbar (guardar = sobrescribir, cerrar = descartar). El diálogo completo (Recargar/Sobrescribir/Guardar como) sigue pendiente |
+| H3 | **Duplicar un contenedor repetía los nombres de los hijos** (dos nodos con el mismo `Name`; el índice se quedaba con uno) | `duplicateItem` renombra todo el subárbol clonado a nombres libres y sincroniza `rd:DefaultName` |
+| H4 | **`createElement` no escapaba**: una expresión/URL con `&` o `<` en un nodo nuevo (p. ej. el `<Value>` de una imagen) generaba XML inválido y rompía el guardado | El texto nuevo se escapa en `createElement` (igual que `setText`) |
+| H5 | **El journal sobrevivía a una recarga**: el undo aplicaba inversos con nodos del árbol viejo y podía reescribir el documento nuevo con valores antiguos | El journal se ata al documento: si la sesión recarga, se descarta (undo = no-op) |
+| H6 | **La precedencia RDL (run > párrafo > item) se ignoraba**: el lienzo y la barra de formato leían solo el estilo del item, y un cambio se escribía solo en el item (BC lo ignoraba si el run/párrafo ya lo declaraba) | El front resuelve el **estilo efectivo** (`lib/style.ts`) y `setStyle` **sincroniza** el valor en los overrides de párrafos/runs (con inverso byte-exacto) |
+| — | Extra: `TextDecoration` no se proyectaba (el subrayado «se apagaba» al reconstruir la instantánea) y la conversión de tamaño no-`pt` de la barra estaba mal (×2,54 en vez de ×28,35) | Proyectado y convertido en `lib/style.ts` (`toPt`) |
+
+Trade-offs documentados:
+- Al usar la barra de formato sobre un textbox con formato por run, el valor se
+  **sincroniza** en esos runs (se aplanan las diferencias): es la única forma de
+  que el cambio se vea en BC con una barra que edita «el textbox entero». El editor
+  rich-text por párrafos/runs llegará con el bloque de texto mixto.
+- `setStyle` con `border` devuelve `E_COMMAND_REJECTED` a propósito (principio del
+  proyecto: nunca ignorar en silencio); implementar bordes es un bloque aparte.
+- Los comandos que quitan un `<Style>`/tag (`null`) reinsertan el nodo en su índice
+  original para que el undo siga siendo byte-exacto aunque el fichero no siga el
+  orden canónico.
+
+### 🟠 Bugs detectados y **no** corregidos todavía (siguiente pasada)
+
+| # | Fallo | Nota |
+|---|---|---|
+| M1 | `duplicateItem` no devuelve el `id` nuevo → Ctrl+D deja seleccionado el original | `CommandResult.id` nunca se rellena |
+| M2 | **Cerrar no avisa** de cambios sin guardar (`close` ignora `dirty`; el contrato `needsConfirmation`/`force` es código muerto) | |
+| M3 | Flechas + Supr en menos de 400 ms → banner `E_COMMAND_REJECTED` (el `setLocation` pendiente se vacía después del borrado) | `deleteSelected`/`duplicate` deben vaciar la ráfaga antes |
+| M4 | El contador «N recarga(s) externa(s)» cuenta también las instantáneas internas (insert/undo) | Cualquier `documentChanged` lo incrementa |
+| M5 | El lienzo ignora `zIndex` (pinta y hace hit-test por orden del XML) | |
+| M6 | El diálogo «Informe…» pierde el borrador de código VB si llega una proyección nueva | Dependencia `[open, projection]` |
+| M7 | `setReportCode('')` deja `<Code></Code>`; inserción rápida doble puede chocar de nombre; la selección no se actualiza al deshacer insert/delete | Menores |
 
 ## ✅ Hecho en la sesión (2026-09-14)
 

@@ -62,19 +62,32 @@ interface GeometryFallback {
 export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
   private unknownCounter = 0;
 
-  project(input: { sessionId: string; filePath: string; document: RdlcDocument; version: number }): ProjectionDto {
+  project(input: {
+    sessionId: string;
+    filePath: string;
+    document: RdlcDocument;
+    version: number;
+  }): ProjectionDto {
     if (!(input.document instanceof TrueFormatDocument)) {
       throw new Error('TrueFormatProjectionAdapter requiere un documento TrueFormat');
     }
     const root = input.document.raw().getRootElement();
-    const section = root.getFirstElementByName('ReportSections')?.getFirstElementByName('ReportSection');
+    const section = root
+      .getFirstElementByName('ReportSections')
+      ?.getFirstElementByName('ReportSection');
     const bodyEl = section?.getFirstElementByName('Body');
     const pageEl = section?.getFirstElementByName('Page');
     const headerEl = pageEl?.getFirstElementByName('PageHeader');
     const footerEl = pageEl?.getFirstElementByName('PageFooter');
 
-    const pageWidth = this.length(textOf(pageEl?.getFirstElementByName('PageWidth')), DEFAULT_WIDTH);
-    const pageHeight = this.length(textOf(pageEl?.getFirstElementByName('PageHeight')), DEFAULT_HEIGHT);
+    const pageWidth = this.length(
+      textOf(pageEl?.getFirstElementByName('PageWidth')),
+      DEFAULT_WIDTH,
+    );
+    const pageHeight = this.length(
+      textOf(pageEl?.getFirstElementByName('PageHeight')),
+      DEFAULT_HEIGHT,
+    );
     // El cuerpo (sección) define el ancho real del report; el A4 es el papel.
     const sectionWidth = this.length(textOf(section?.getFirstElementByName('Width')), pageWidth);
 
@@ -83,7 +96,10 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       height: pageHeight,
       margins: {
         top: this.length(textOf(pageEl?.getFirstElementByName('TopMargin')), DEFAULT_MARGIN_V),
-        bottom: this.length(textOf(pageEl?.getFirstElementByName('BottomMargin')), DEFAULT_MARGIN_V),
+        bottom: this.length(
+          textOf(pageEl?.getFirstElementByName('BottomMargin')),
+          DEFAULT_MARGIN_V,
+        ),
         left: this.length(textOf(pageEl?.getFirstElementByName('LeftMargin')), DEFAULT_MARGIN_H),
         right: this.length(textOf(pageEl?.getFirstElementByName('RightMargin')), DEFAULT_MARGIN_H),
       },
@@ -213,13 +229,17 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     const rowEls = (bodyEl?.getFirstElementByName('TablixRows')?.children ?? []).filter(
       (c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixRow',
     );
-    const rowHeights = rowEls.map((row) => this.length(textOf(row.getFirstElementByName('Height'))));
+    const rowHeights = rowEls.map((row) =>
+      this.length(textOf(row.getFirstElementByName('Height'))),
+    );
 
     const rows = rowEls.map((rowEl, rowIndex) => ({
       height: rowHeights[rowIndex] ?? ZERO,
       cells: (rowEl.getFirstElementByName('TablixCells')?.children ?? [])
         .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixCell')
-        .map((cellEl, colIndex) => this.tablixCell(cellEl, colIndex, rowIndex, columns, rowHeights)),
+        .map((cellEl, colIndex) =>
+          this.tablixCell(cellEl, colIndex, rowIndex, columns, rowHeights),
+        ),
     }));
 
     return {
@@ -257,9 +277,7 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     );
 
     const cell: TablixCellDto = {
-      content: contentEl
-        ? this.item(contentEl, { top: ZERO, left: ZERO, width, height })
-        : null,
+      content: contentEl ? this.item(contentEl, { top: ZERO, left: ZERO, width, height }) : null,
     };
     if (colSpan > 1) cell.colSpan = colSpan;
     if (rowSpan > 1) cell.rowSpan = rowSpan;
@@ -332,8 +350,12 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     return raw;
   }
 
-  private imageSourceKind(source: string | undefined): 'External' | 'Embedded' | 'Database' | undefined {
-    return source === 'External' || source === 'Embedded' || source === 'Database' ? source : undefined;
+  private imageSourceKind(
+    source: string | undefined,
+  ): 'External' | 'Embedded' | 'Database' | undefined {
+    return source === 'External' || source === 'Embedded' || source === 'Database'
+      ? source
+      : undefined;
   }
 
   private style(el: XmlElement | undefined): StyleDto | undefined {
@@ -343,6 +365,7 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     const fontSize = textOf(el.getFirstElementByName('FontSize'));
     const fontWeight = textOf(el.getFirstElementByName('FontWeight'));
     const fontStyle = textOf(el.getFirstElementByName('FontStyle'));
+    const textDecoration = textOf(el.getFirstElementByName('TextDecoration'));
     const color = textOf(el.getFirstElementByName('Color'));
     const backgroundColor = textOf(el.getFirstElementByName('BackgroundColor'));
     const textAlign = textOf(el.getFirstElementByName('TextAlign'));
@@ -353,9 +376,22 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     if (fontSize) style.fontSize = this.length(fontSize);
     if (fontWeight === 'Bold' || fontWeight === 'Normal') style.fontWeight = fontWeight;
     if (fontStyle === 'Italic' || fontStyle === 'Normal') style.fontStyle = fontStyle;
+    if (
+      textDecoration === 'None' ||
+      textDecoration === 'Underline' ||
+      textDecoration === 'LineThrough' ||
+      textDecoration === 'Overline'
+    ) {
+      style.textDecoration = textDecoration;
+    }
     if (color) style.color = color;
     if (backgroundColor) style.backgroundColor = backgroundColor;
-    if (textAlign === 'Left' || textAlign === 'Center' || textAlign === 'Right' || textAlign === 'Justify') {
+    if (
+      textAlign === 'Left' ||
+      textAlign === 'Center' ||
+      textAlign === 'Right' ||
+      textAlign === 'Justify'
+    ) {
       style.textAlign = textAlign;
     }
     if (verticalAlign === 'Top' || verticalAlign === 'Middle' || verticalAlign === 'Bottom') {
@@ -422,14 +458,21 @@ function baseName(filePath: string): string {
 /** Extrae firmas `Function`/`Sub` del bloque VB custom (`Code.`). */
 function parseVbFunctions(code: string): CodeFunctionDto[] {
   const functions: CodeFunctionDto[] = [];
-  const re = /(?:^|\n)\s*(?:Public|Private|Protected|Friend)?\s*(?:Shared\s+)?(?:Function|Sub)\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/g;
+  const re =
+    /(?:^|\n)\s*(?:Public|Private|Protected|Friend)?\s*(?:Shared\s+)?(?:Function|Sub)\s+([A-Za-z_]\w*)\s*\(([^)]*)\)/g;
   let match: RegExpExecArray | null;
   while ((match = re.exec(code)) !== null) {
     const name = match[1];
     if (!name) continue;
     const params = (match[2] ?? '')
       .split(',')
-      .map((p) => p.trim().split(/\s+As\s+/i)[0]?.trim() ?? '')
+      .map(
+        (p) =>
+          p
+            .trim()
+            .split(/\s+As\s+/i)[0]
+            ?.trim() ?? '',
+      )
       .filter((p) => p.length > 0);
     functions.push(params.length > 0 ? { name, parameters: params } : { name });
   }

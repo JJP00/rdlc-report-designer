@@ -210,6 +210,18 @@ export class SessionService implements ISessionService {
       if (stat.mtimeMs <= session.lastWriteMs) return;
 
       const bytes = await this.fileSystem.readFile(session.filePath);
+
+      // El fichero cambió en disco pero hay ediciones sin guardar: no se pisa el
+      // trabajo del usuario (se perdería en silencio). Se avisa al front y la
+      // decisión (recargar / sobrescribir) queda para el diálogo de conflicto.
+      if (session.dirty) {
+        this.events.send(IPC_EVENTS.conflictDetected, {
+          sessionId,
+          filePath: session.filePath,
+        });
+        return;
+      }
+
       const doc = this.parser.parse(bytes.toString('utf8'));
 
       session.document = doc;
@@ -218,17 +230,13 @@ export class SessionService implements ISessionService {
       session.version += 1;
       session.lastWriteMs = stat.mtimeMs;
 
-      if (session.dirty) {
-        session.dirty = false;
-        this.events.send(IPC_EVENTS.dirtyChanged, { sessionId, dirty: false });
-      }
-
       this.events.send(IPC_EVENTS.documentChanged, {
         sessionId,
         projection: this.project(session),
       });
     } catch {
-      // Fichero corrupto o ilegible: F1 emitirá `conflictDetected`/toast.
+      // Fichero corrupto o ilegible: se deja la sesión como está y se avisa.
+      this.events.send(IPC_EVENTS.conflictDetected, { sessionId, filePath: session.filePath });
     }
   }
 

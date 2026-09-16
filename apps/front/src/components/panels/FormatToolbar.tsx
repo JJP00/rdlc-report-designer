@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { toPt } from '@/lib/style';
 
 interface FormatToolbarProps {
   style: StyleDto | undefined;
@@ -51,15 +52,10 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
   }, []);
 
   // La fuente del estilo actual siempre debe poder seleccionarse.
-  const options = style?.fontFamily && !fonts.includes(style.fontFamily)
-    ? [style.fontFamily, ...fonts]
-    : fonts;
+  const options =
+    style?.fontFamily && !fonts.includes(style.fontFamily) ? [style.fontFamily, ...fonts] : fonts;
 
-  const fontSizePt = style?.fontSize
-    ? style.fontSize.unit === 'pt'
-      ? style.fontSize.value
-      : Math.round(style.fontSize.value * 0.0353 * 72 * 10) / 10
-    : 10;
+  const fontSizePt = style?.fontSize ? Math.round(toPt(style.fontSize) * 10) / 10 : 10;
 
   const toggle = (
     active: boolean,
@@ -113,8 +109,18 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
 
         <Separator orientation="vertical" className="mx-0.5 h-5" />
 
-        {toggle(style?.fontWeight === 'Bold', { fontWeight: style?.fontWeight === 'Bold' ? 'Normal' : 'Bold' }, <Bold />, 'Negrita')}
-        {toggle(style?.fontStyle === 'Italic', { fontStyle: style?.fontStyle === 'Italic' ? 'Normal' : 'Italic' }, <Italic />, 'Cursiva')}
+        {toggle(
+          style?.fontWeight === 'Bold',
+          { fontWeight: style?.fontWeight === 'Bold' ? 'Normal' : 'Bold' },
+          <Bold />,
+          'Negrita',
+        )}
+        {toggle(
+          style?.fontStyle === 'Italic',
+          { fontStyle: style?.fontStyle === 'Italic' ? 'Normal' : 'Italic' },
+          <Italic />,
+          'Cursiva',
+        )}
         {toggle(
           style?.textDecoration === 'Underline',
           { textDecoration: style?.textDecoration === 'Underline' ? 'None' : 'Underline' },
@@ -138,23 +144,34 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
       </div>
 
       <div className="flex items-center gap-1.5">
-        {toggle(style?.textAlign === 'Left', { textAlign: 'Left' }, <AlignLeft />, 'Alinear izquierda')}
+        {toggle(
+          style?.textAlign === 'Left',
+          { textAlign: 'Left' },
+          <AlignLeft />,
+          'Alinear izquierda',
+        )}
         {toggle(style?.textAlign === 'Center', { textAlign: 'Center' }, <AlignCenter />, 'Centrar')}
-        {toggle(style?.textAlign === 'Right', { textAlign: 'Right' }, <AlignRight />, 'Alinear derecha')}
-
+        {toggle(
+          style?.textAlign === 'Right',
+          { textAlign: 'Right' },
+          <AlignRight />,
+          'Alinear derecha',
+        )}
         <Separator orientation="vertical" className="mx-0.5 h-5" />
-
         {toggle(style?.listStyle === 'Bulleted', { listStyle: 'Bulleted' }, <List />, 'Viñetas')}
-        {toggle(style?.listStyle === 'Numbered', { listStyle: 'Numbered' }, <ListOrdered />, 'Numeración')}
+        {toggle(
+          style?.listStyle === 'Numbered',
+          { listStyle: 'Numbered' },
+          <ListOrdered />,
+          'Numeración',
+        )}
         {toggle(
           style?.listStyle === undefined || style?.listStyle === 'None',
           { listStyle: 'None' },
           <ListX />,
           'Sin lista',
         )}
-
         <Separator orientation="vertical" className="mx-0.5 h-5" />
-
         {toggle(
           style?.verticalAlign === 'Top',
           { verticalAlign: 'Top' },
@@ -172,7 +189,8 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
           { verticalAlign: 'Bottom' },
           <span className="text-[10px] leading-none">A↓</span>,
           'Alinear abajo',
-        )}      </div>
+        )}{' '}
+      </div>
     </div>
   );
 }
@@ -197,7 +215,10 @@ function ColorField({
           : 'flex h-7 w-8 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted'
       }
     >
-      <span className={highlight ? 'rounded-sm px-0.5' : ''} style={highlight ? undefined : { color: value }}>
+      <span
+        className={highlight ? 'rounded-sm px-0.5' : ''}
+        style={highlight ? undefined : { color: value }}
+      >
         A
       </span>
       <input

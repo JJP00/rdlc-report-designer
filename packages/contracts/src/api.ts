@@ -2,6 +2,7 @@ import type { RdlcCommand } from './commands.js';
 import type {
   CloseResult,
   CommandResult,
+  ConflictDetectedEvent,
   DirtyChangedEvent,
   DocumentChangedEvent,
   FontListResult,
@@ -35,4 +36,9 @@ export interface RdlcApi {
   onDocumentChanged(callback: (event: DocumentChangedEvent) => void): () => void;
   /** La pestaña tiene (o deja de tener) cambios sin guardar. */
   onDirtyChanged(callback: (event: DirtyChangedEvent) => void): () => void;
+  /**
+   * El fichero cambió en disco mientras había ediciones sin guardar: el backend
+   * NO pisa el documento; el front avisa y el usuario decide.
+   */
+  onConflictDetected(callback: (event: ConflictDetectedEvent) => void): () => void;
 }

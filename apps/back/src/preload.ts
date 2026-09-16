@@ -4,6 +4,7 @@ import {
   IPC_EVENTS,
   type CloseResult,
   type CommandResult,
+  type ConflictDetectedEvent,
   type DirtyChangedEvent,
   type DocumentChangedEvent,
   type FontListResult,
@@ -58,6 +59,9 @@ const api: RdlcApi = {
 
   onDirtyChanged: (callback: (event: DirtyChangedEvent) => void): (() => void) =>
     subscribe(IPC_EVENTS.dirtyChanged, callback),
+
+  onConflictDetected: (callback: (event: ConflictDetectedEvent) => void): (() => void) =>
+    subscribe(IPC_EVENTS.conflictDetected, callback),
 };
 
 contextBridge.exposeInMainWorld('api', api);

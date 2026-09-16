@@ -35,13 +35,17 @@ import { VariablesPanel } from '@/components/panels/VariablesPanel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cm, collectIds, countItems, findItem, formatKinds, patchItem, toCm } from '@/lib/projection';
+  cm,
+  collectIds,
+  countItems,
+  findItem,
+  formatKinds,
+  patchItem,
+  toCm,
+} from '@/lib/projection';
+import { effectiveTextStyle } from '@/lib/style';
 
 /** Paso de las flechas: 1pt (Shift = 10pt). */
 const NUDGE_PT_CM = 2.54 / 72;
@@ -73,6 +77,7 @@ export function App(): ReactNode {
   const [zoom, setZoom] = useState(0.6);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [conflict, setConflict] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
 
@@ -121,9 +126,20 @@ export function App(): ReactNode {
 
     const offDirty = window.api.onDirtyChanged((event) => setDirty(event.dirty));
 
+    // El fichero cambió en disco con cambios locales: el backend NO recarga
+    // (sería perder el trabajo); aquí se avisa y el usuario decide.
+    const offConflict =
+      typeof window.api.onConflictDetected === 'function'
+        ? window.api.onConflictDetected((event) => {
+            setConflict(event.filePath);
+            setStatus('El fichero cambió en disco. Tus cambios siguen en el editor.');
+          })
+        : () => {};
+
     return () => {
       offDocument();
       offDirty();
+      offConflict();
     };
   }, [hasBackend]);
 
@@ -264,7 +280,9 @@ export function App(): ReactNode {
     (id: string, top: Length, left: Length): void => {
       // Optimista: el lienzo ya movió el nodo; aquí se refleja en la proyección.
       setDoc((current) =>
-        current ? { ...current, projection: patchItem(current.projection, id, { top, left }) } : current,
+        current
+          ? { ...current, projection: patchItem(current.projection, id, { top, left }) }
+          : current,
       );
       void sendCommand({ cmd: 'setLocation', id, top, left }).then((result) =>
         reconcile(result?.ok ? result.applied : undefined),
@@ -281,7 +299,8 @@ export function App(): ReactNode {
     [moveItem, selectedItem],
   );
 
-  const setItemSize = useCallback(    (width: Length, height: Length): void => {
+  const setItemSize = useCallback(
+    (width: Length, height: Length): void => {
       if (!selectedItem) return;
       const id = selectedItem.id;
       setDoc((current) =>
@@ -302,11 +321,19 @@ export function App(): ReactNode {
       const id = selectedItem.id;
 
       // Optimista: aplica el parche; `null` = quitar la propiedad.
+      // `padding` es anidado, así que se fusiona lado a lado (el parche de un
+      // lado no debe borrar los demás).
       const nextStyle: StyleDto = { ...(selectedItem.style ?? {}) };
       const target = nextStyle as Record<string, unknown>;
       for (const [key, value] of Object.entries(patch)) {
         if (value === null) delete target[key];
-        else if (value !== undefined) target[key] = value;
+        else if (value === undefined) continue;
+        else if (key === 'padding') {
+          target[key] = {
+            ...((target[key] as Record<string, unknown> | undefined) ?? {}),
+            ...(value as Record<string, unknown>),
+          };
+        } else target[key] = value;
       }
 
       setDoc((current) =>
@@ -333,9 +360,7 @@ export function App(): ReactNode {
       }
 
       setDoc((current) =>
-        current
-          ? { ...current, projection: patchItem(current.projection, id, next) }
-          : current,
+        current ? { ...current, projection: patchItem(current.projection, id, next) } : current,
       );
       void sendCommand({ cmd: 'setImageOptions', id, ...patch }).then((result) =>
         reconcile(result?.ok ? result.applied : undefined),
@@ -437,7 +462,10 @@ export function App(): ReactNode {
         current
           ? {
               ...current,
-              projection: { ...current.projection, page: { ...current.projection.page, width, height } },
+              projection: {
+                ...current.projection,
+                page: { ...current.projection.page, width, height },
+              },
             }
           : current,
       );
@@ -471,7 +499,10 @@ export function App(): ReactNode {
               ...current,
               projection: {
                 ...current.projection,
-                meta: { ...current.projection.meta, code: { ...current.projection.meta.code, text: code } },
+                meta: {
+                  ...current.projection.meta,
+                  code: { ...current.projection.meta.code, text: code },
+                },
               },
             }
           : current,
@@ -560,6 +591,7 @@ export function App(): ReactNode {
     setDoc({ sessionId: result.sessionId, path: picked.path, projection: result.projection });
     setSelectedId(null);
     setDirty(false);
+    setConflict(null);
     setStatus(`Abierto: ${picked.path}`);
   };
 
@@ -571,6 +603,7 @@ export function App(): ReactNode {
       setError(`${result.code}: ${result.message ?? 'error al guardar'}`);
       return;
     }
+    setConflict(null);
     setStatus(
       result.bytesIdentical
         ? `Guardado — bytes idénticos al original ✓ (${result.path})`
@@ -592,6 +625,7 @@ export function App(): ReactNode {
     setDoc(null);
     setSelectedId(null);
     setDirty(false);
+    setConflict(null);
     setStatus('Documento cerrado.');
   };
 
@@ -616,12 +650,7 @@ export function App(): ReactNode {
 
           <Separator orientation="vertical" className="mx-1 h-5" />
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setPropertiesOpen(true)}
-            disabled={!doc}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setPropertiesOpen(true)} disabled={!doc}>
             <Settings2 data-icon="inline-start" />
             Informe…
           </Button>
@@ -757,9 +786,7 @@ export function App(): ReactNode {
             >
               <Minus />
             </Button>
-            <span className="w-10 text-center text-xs tabular-nums">
-              {Math.round(zoom * 100)}%
-            </span>
+            <span className="w-10 text-center text-xs tabular-nums">{Math.round(zoom * 100)}%</span>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -772,7 +799,7 @@ export function App(): ReactNode {
 
         {/* Barra de formato de texto (ribbon), bajo la toolbar principal. */}
         <FormatToolbar
-          style={selectedItem?.kind === 'textbox' ? selectedItem.style : undefined}
+          style={selectedItem?.kind === 'textbox' ? effectiveTextStyle(selectedItem) : undefined}
           onSetStyle={setItemStyle}
           disabled={selectedItem?.kind !== 'textbox'}
         />
@@ -780,6 +807,13 @@ export function App(): ReactNode {
         {error ? (
           <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive">
             {error}
+          </div>
+        ) : null}
+        {conflict ? (
+          <div className="border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-700">
+            El fichero <span className="font-mono">{conflict}</span> cambió por fuera y hay cambios
+            sin guardar: no se ha recargado para no perderlos. Guarda para sobrescribir, o cierra y
+            vuelve a abrir el fichero para descartar los tuyos.
           </div>
         ) : null}
         {!hasBackend ? (

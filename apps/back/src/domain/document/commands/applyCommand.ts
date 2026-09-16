@@ -58,12 +58,14 @@ export function applyCommand(
       command.container.insertChildAt(command.node, command.index);
       return right({ inverse: [{ cmd: 'removeNode', node: command.node }] });
     }
+    case 'setNodeText': {
+      command.node.setText(command.value);
+      return right({ inverse: [] });
+    }
 
     default:
       return left(
-        CommandRejectedError.create(
-          `Comando no implementado: '${(command as RdlcCommand).cmd}'`,
-        ),
+        CommandRejectedError.create(`Comando no implementado: '${(command as RdlcCommand).cmd}'`),
       );
   }
 }

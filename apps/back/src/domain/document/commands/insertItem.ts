@@ -12,14 +12,23 @@ const KIND_PREFIX: Record<string, string> = {
   rectangle: 'Rectangle',
   line: 'Line',
   image: 'Image',
+  tablix: 'Tablix',
 };
 
-/** `Textbox17` libre en el índice (el front suele proponer nombre; esto es el respaldo). */
-export function nextItemName(ctx: CommandContext, kind: string): string {
+/**
+ * `Textbox17` libre en el índice (el front suele proponer nombre; esto es el
+ * respaldo). `taken` permite reservar nombres ya asignados en el mismo comando
+ * (duplicar un contenedor renombra varios hijos a la vez).
+ */
+export function nextItemName(
+  ctx: CommandContext,
+  kind: string,
+  taken?: ReadonlySet<string>,
+): string {
   const prefix = KIND_PREFIX[kind] ?? 'Item';
   for (let index = 1; ; index += 1) {
     const candidate = `${prefix}${index}`;
-    if (!ctx.index.has(candidate)) return candidate;
+    if (!ctx.index.has(candidate) && !taken?.has(candidate)) return candidate;
   }
 }
 
