@@ -3,7 +3,7 @@ import * as monaco from 'monaco-editor';
 // monaco 0.56 mapea `monaco-editor/*` → `esm/vs/*.js` (no hay que poner `esm/vs`).
 import editorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import { getCompletionMeta } from './completionMeta';
-import { expressionCompletions, VB_KEYWORDS } from './expressionCatalog';
+import { completionSuggestions, expressionCompletions, VB_KEYWORDS } from './expressionCatalog';
 
 /**
  * Host de Monaco: aquí vive **todo** lo que depende de `monaco-editor`.
@@ -111,11 +111,17 @@ function registerRdlcLanguage(): void {
       );
 
       return {
-        suggestions: expressionCompletions(meta).map((entry) => ({
-          label: entry.label,
+        suggestions: completionSuggestions(meta).map((entry) => ({
+          label: entry.labelDetail
+            ? { label: entry.label, detail: ` ${entry.labelDetail}` }
+            : entry.label,
           kind: completionKind(entry.kind),
           insertText: entry.insertText,
+          insertTextRules: entry.snippet
+            ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+            : undefined,
           detail: entry.detail,
+          sortText: entry.sortText,
           range,
         })),
       };

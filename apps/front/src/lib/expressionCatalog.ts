@@ -209,6 +209,20 @@ export interface CompletionEntry {
   detail?: string;
 }
 
+/** Entrada ya preparada para pintar en la lista del editor. */
+export interface CompletionSuggestion {
+  label: string;
+  /** Sufijo gris junto al nombre (los parámetros de una función). */
+  labelDetail?: string;
+  insertText: string;
+  kind: CompletionKind;
+  detail?: string;
+  /** true si `insertText` lleva `$0` y hay que insertarlo como snippet. */
+  snippet: boolean;
+  /** Agrupa y ordena la lista: campos → parámetros → Code. → Globals/User → RDL. */
+  sortText: string;
+}
+
 const GROUP_KINDS: Record<string, CompletionKind> = {
   [VARIABLE_GROUPS.fields]: 'field',
   [VARIABLE_GROUPS.parameters]: 'parameter',
@@ -216,6 +230,9 @@ const GROUP_KINDS: Record<string, CompletionKind> = {
   [VARIABLE_GROUPS.globals]: 'global',
   [VARIABLE_GROUPS.user]: 'user',
 };
+
+/** Orden de los grupos en la lista (menor = antes). */
+const GROUP_ORDER: CompletionKind[] = ['field', 'parameter', 'code', 'global', 'user', 'builtin'];
 
 /**
  * Entradas del autocompletado: variables del informe (sin el `=` inicial, que
@@ -237,4 +254,28 @@ export function expressionCompletions(meta: ReportMetaDto): CompletionEntry[] {
   }));
 
   return [...variables, ...builtins];
+}
+
+/**
+ * Sugerencias listas para la lista del editor: las funciones se ofrecen con su
+ * firma al lado (`BlankNeg (v)`) y se insertan **con el paréntesis cerrado**
+ * dejando el cursor dentro (`Code.BlankNeg($0)`).
+ */
+export function completionSuggestions(meta: ReportMetaDto): CompletionSuggestion[] {
+  return expressionCompletions(meta).map((entry) => {
+    const isCallable = entry.kind === 'builtin' || entry.kind === 'code';
+    const order = GROUP_ORDER.indexOf(entry.kind);
+
+    return {
+      label: entry.label,
+      // La firma junto al nombre solo para funciones del `<Code>` (sus
+      // parámetros); las RDL llevan el detalle a la derecha.
+      ...(entry.kind === 'code' && entry.detail ? { labelDetail: `(${entry.detail})` } : {}),
+      insertText: isCallable ? `${entry.insertText}$0)` : entry.insertText,
+      kind: entry.kind,
+      ...(entry.detail ? { detail: entry.detail } : {}),
+      snippet: isCallable,
+      sortText: `${order < 0 ? GROUP_ORDER.length : order}-${entry.label.toLowerCase()}`,
+    };
+  });
 }
