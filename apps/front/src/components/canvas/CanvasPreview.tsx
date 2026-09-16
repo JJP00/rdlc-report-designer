@@ -78,6 +78,14 @@ export function CanvasPreview({
     height: number;
   } | null>(null);
 
+  // El propio stage, para que los guiones de QA puedan consultar
+  // `getIntersection` (hit-test de Konva, no del dominio).
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as Window & { __rdlcStage?: Konva.Stage | null }).__rdlcStage = stageRef.current;
+    }
+  }, []);
+
   // El marco de selección se mide del nodo real (funciona con anidados y celdas).
   useEffect(() => {
     const stage = stageRef.current;

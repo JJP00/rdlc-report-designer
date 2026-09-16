@@ -483,8 +483,6 @@ function TablixContent({
   const totalWidth = columns.reduce((acc, value) => acc + value, 0);
   const totalHeight = rows.reduce((acc, value) => acc + value, 0);
 
-  const borderRef = useRef<Konva.Rect | null>(null);
-
   const columnOffsets: number[] = [];
   let offsetX = 0;
   for (const columnWidth of columns) {
@@ -556,22 +554,47 @@ function TablixContent({
       {/* La rejilla va encima de las celdas (los separadores se dibujan en la
           capa de selección, como los tiradores). */}
       {grid}
-      {/* Borde del Tablix (arriba del todo): pincharlo selecciona la **tabla**,
-          como en RB, porque el interior cae en las celdas. `hitStrokeWidth` le
-          da margen de ratón. */}
+      {/* Borde del Tablix: pincharlo selecciona la **tabla** (el interior cae
+          en las celdas, como en RB). El `hitFunc` dibuja **solo un anillo**
+          fino: el área de hit por defecto de un `Rect` en Konva es toda su
+          superficie y la tabla se tragaría los clicks de las celdas. El anillo
+          va por fuera (y 1 px dentro) para no robarle clicks al contenido. */}
       <Rect
-        ref={borderRef}
         width={totalWidth}
         height={totalHeight}
+        fill="rgba(0,0,0,0)"
         stroke="#9ca3af"
         strokeWidth={0.5}
-        hitStrokeWidth={10}
+        hitFunc={tablixBorderHit}
         onClick={(event) => {
+          event.cancelBubble = true;
+          onSelect?.(item.id);
+        }}
+        onTap={(event) => {
           event.cancelBubble = true;
           onSelect?.(item.id);
         }}
       />
     </>
   );
+}
+
+/**
+ * Área de pinzado del borde de un Tablix: un anillo de `outside` px por fuera
+ * del borde más 1 px dentro (para poder pinchar justo en la línea). Deja libre
+ * todo el interior, que es de las celdas.
+ */
+function tablixBorderHit(context: Konva.Context, shape: Konva.Shape): void {
+  const width = shape.width();
+  const height = shape.height();
+  const outside = 4;
+  const inside = 1;
+  context.beginPath();
+  context.rect(-outside, -outside, width + outside * 2, outside + inside);
+  context.rect(-outside, height - inside, width + outside * 2, outside + inside);
+  context.rect(-outside, 0, outside + inside, height);
+  context.rect(width - inside, 0, outside + inside, height);
+  context.closePath();
+  context.fillStrokeShape(shape);
 }
 
