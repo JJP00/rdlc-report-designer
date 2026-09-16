@@ -18,6 +18,7 @@ import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
 import { toCm } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
+import { runDisplayText } from '@/lib/text';
 
 export const PX_PER_CM = 96 / 2.54;
 /** Rejilla de imán en cm (Shift la ignora al soltar). */
@@ -966,13 +967,4 @@ function cornerPoints(rect: {
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-/**
- * Texto visible de un run en el diseñador: si trae `<Label>` (BC/RB lo usan
- * como etiqueta de diseñador) se muestra entre corchetes, como Report Builder;
- * si no, el propio valor (texto plano o `=expresión`).
- */
-function runDisplayText(run: { value: string; label?: string }): string {
-  return run.label !== undefined ? `[${run.label}]` : run.value;
 }
