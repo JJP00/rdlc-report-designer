@@ -31,8 +31,8 @@ function columnWidths(tablix: RdlcNode | undefined): number[] {
 }
 
 function rowHeights(tablix: RdlcNode | undefined): number[] {
-  return (tablix?.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? []).map((row) =>
-    Number.parseFloat(row.child('Height')?.text()?.replace('cm', '') ?? '0'),
+  return (tablix?.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? []).map(
+    (row) => Number.parseFloat(row.child('Height')?.text()?.replace('cm', '') ?? '0'),
   );
 }
 

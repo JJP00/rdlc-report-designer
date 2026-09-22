@@ -15,7 +15,11 @@ import { corpusByName } from '../golden/fixtures.js';
 
 const adapter = new TrueFormatXmlAdapter();
 
-function open(name: string): { xml: string; doc: ReturnType<TrueFormatXmlAdapter['parse']>; index: DocumentIndex } {
+function open(name: string): {
+  xml: string;
+  doc: ReturnType<TrueFormatXmlAdapter['parse']>;
+  index: DocumentIndex;
+} {
   const { xml } = corpusByName(name);
   const doc = adapter.parse(xml);
   return { xml, doc, index: DocumentIndex.build(doc.root) };
@@ -135,7 +139,12 @@ describe('F1 · setLocation', () => {
     const { doc, index } = open('PalletOutput.rdlc');
     const result = applyCommand(
       { root: doc.root, index },
-      { cmd: 'setLocation', id: 'NoExiste', top: { value: 1, unit: 'cm' }, left: { value: 1, unit: 'cm' } },
+      {
+        cmd: 'setLocation',
+        id: 'NoExiste',
+        top: { value: 1, unit: 'cm' },
+        left: { value: 1, unit: 'cm' },
+      },
     );
     expect(result.isLeft()).toBe(true);
     if (result.isLeft()) expect(result.value.code).toBe('E_COMMAND_REJECTED');
@@ -218,7 +227,10 @@ describe('F1 · límites de región (invariante: no salir del body/cabecera/pie)
     expect(left.value + width.value).toBeLessThanOrEqual(bounds!.width.value + 1e-6);
 
     // Los valores normalizados viajan para que el front reconcilie.
-    const normalized = appliedOf(applied.value, id) as { top: { value: number }; left: { value: number } };
+    const normalized = appliedOf(applied.value, id) as {
+      top: { value: number };
+      left: { value: number };
+    };
     expect(normalized.top.value).toBeCloseTo(top.value, 5);
     expect(normalized.left.value).toBeCloseTo(left.value, 5);
 

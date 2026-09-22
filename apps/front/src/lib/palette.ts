@@ -109,9 +109,7 @@ export interface PaletteActionHandlers {
 }
 
 /** Ejecutor de acciones de la paleta (sin `switch` en el componente). */
-export function paletteRunner(
-  handlers: PaletteActionHandlers,
-): (action: PaletteActionId) => void {
+export function paletteRunner(handlers: PaletteActionHandlers): (action: PaletteActionId) => void {
   const map: Record<PaletteActionId, () => void> = {
     open: handlers.open,
     save: handlers.save,

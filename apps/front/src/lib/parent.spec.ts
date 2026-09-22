@@ -47,7 +47,10 @@ function tablix(id: string, content: TextboxDto): TablixDto {
     left: { value: 0, unit: 'cm' },
     width: { value: 5, unit: 'cm' },
     height: { value: 2, unit: 'cm' },
-    body: { columns: [{ value: 5, unit: 'cm' }], rows: [{ height: { value: 2, unit: 'cm' }, cells: [{ content }] }] },
+    body: {
+      columns: [{ value: 5, unit: 'cm' }],
+      rows: [{ height: { value: 2, unit: 'cm' }, cells: [{ content }] }],
+    },
     rowHierarchy: [],
     columnHierarchy: [],
   };

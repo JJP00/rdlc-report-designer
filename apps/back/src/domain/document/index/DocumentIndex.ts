@@ -110,8 +110,7 @@ function readBounds(root: RdlcNode): DocumentBounds {
   const pageWidth = parseLength(page?.child('PageWidth')?.text()) ?? DEFAULT_WIDTH;
   const pageHeight = parseLength(page?.child('PageHeight')?.text()) ?? DEFAULT_HEIGHT;
   const bodyWidth = parseLength(section?.child('Width')?.text()) ?? pageWidth;
-  const bodyHeight =
-    parseLength(section?.child('Body')?.child('Height')?.text()) ?? pageHeight;
+  const bodyHeight = parseLength(section?.child('Body')?.child('Height')?.text()) ?? pageHeight;
 
   return {
     header: {

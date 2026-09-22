@@ -1,0 +1,11 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "ignore": {
+    "overrides": [
+      {
+        "files": ["src/lib/monacoSetup.ts"],
+        "rules": ["react-doctor/prefer-dynamic-import"]
+      }
+    ]
+  }
+}

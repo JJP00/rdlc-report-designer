@@ -13,6 +13,7 @@
     "dev": "turbo run dev",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
+    "e2e": "pnpm --filter @rdlc-designer/back e2e",
     "lint": "turbo run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

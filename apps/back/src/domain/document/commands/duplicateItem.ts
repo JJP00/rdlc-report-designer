@@ -22,7 +22,9 @@ export function applyDuplicateItem(
   }
 
   if (command.name && ctx.index.has(command.name)) {
-    return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${command.name}'`));
+    return left(
+      CommandRejectedError.create(`Ya existe un elemento con el nombre '${command.name}'`),
+    );
   }
 
   // Justo después del original, respetando el orden de los hermanos.

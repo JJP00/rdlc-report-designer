@@ -33,7 +33,9 @@ describe('variableEntries', () => {
     const firstIndex = (group: string): number => groups.indexOf(group);
 
     expect(firstIndex(VARIABLE_GROUPS.fields)).toBeLessThan(firstIndex(VARIABLE_GROUPS.parameters));
-    expect(firstIndex(VARIABLE_GROUPS.parameters)).toBeLessThan(firstIndex(VARIABLE_GROUPS.functions));
+    expect(firstIndex(VARIABLE_GROUPS.parameters)).toBeLessThan(
+      firstIndex(VARIABLE_GROUPS.functions),
+    );
     expect(firstIndex(VARIABLE_GROUPS.functions)).toBeLessThan(firstIndex(VARIABLE_GROUPS.globals));
     expect(firstIndex(VARIABLE_GROUPS.globals)).toBeLessThan(firstIndex(VARIABLE_GROUPS.user));
   });

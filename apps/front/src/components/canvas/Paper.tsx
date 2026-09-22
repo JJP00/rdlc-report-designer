@@ -2,6 +2,7 @@ import type { Length } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { Group, Layer, Rect } from 'react-konva';
 import { sortByZIndex } from '@/lib/projection';
+import type { SelectedCell } from '@/lib/tablix';
 import type { PaperLayout } from './bands';
 import { ItemView } from './ItemView';
 import { toPx } from './geometry';
@@ -14,6 +15,9 @@ export interface PaperProps {
   /** Redimensionar una columna/fila de la rejilla de un Tablix. */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
+  /** Celda de Tablix seleccionada. */
+  selectedCell?: SelectedCell | null;
+  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   draggable: boolean;
 }
 
@@ -25,6 +29,8 @@ export function Paper({
   onMoveItem,
   onResizeColumn,
   onResizeRow,
+  selectedCell,
+  onSelectCell,
   draggable,
 }: PaperProps): ReactNode {
   return (
@@ -78,6 +84,8 @@ export function Paper({
                 onMoveItem={onMoveItem}
                 onResizeColumn={onResizeColumn}
                 onResizeRow={onResizeRow}
+                selectedCell={selectedCell}
+                onSelectCell={onSelectCell}
                 bounds={{ width: layout.reportWidth, height: toPx(band.region.height) }}
               />
             ))}

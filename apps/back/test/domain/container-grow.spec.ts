@@ -40,7 +40,12 @@ describe('F1 · auto-crecimiento del contenedor', () => {
 
     const applied = applyCommand(
       { root: doc.root, index },
-      { cmd: 'setLocation', id: childId, top: readLength(child, 'Top')!, left: { value: 6, unit: 'cm' } },
+      {
+        cmd: 'setLocation',
+        id: childId,
+        top: readLength(child, 'Top')!,
+        left: { value: 6, unit: 'cm' },
+      },
     );
     expect(applied.isRight()).toBe(true);
     if (!applied.isRight()) return;
@@ -72,7 +77,12 @@ describe('F1 · auto-crecimiento del contenedor', () => {
     const child = index.get('Textbox25')!;
     const applied = applyCommand(
       { root: doc.root, index },
-      { cmd: 'setLocation', id: 'Textbox25', top: { value: 1, unit: 'cm' }, left: { value: 12, unit: 'cm' } },
+      {
+        cmd: 'setLocation',
+        id: 'Textbox25',
+        top: { value: 1, unit: 'cm' },
+        left: { value: 12, unit: 'cm' },
+      },
     );
     expect(applied.isRight()).toBe(true);
     if (!applied.isRight()) return;

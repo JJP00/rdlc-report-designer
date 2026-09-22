@@ -77,7 +77,8 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
     expect(event?.reason).toBe('external');
   });
 
-  it('no dispara recarga por el eco de la propia escritura', async () => {    const { service, watcher, events, tmp } = await makeService();
+  it('no dispara recarga por el eco de la propia escritura', async () => {
+    const { service, watcher, events, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
 
     const opened = await service.open(path);

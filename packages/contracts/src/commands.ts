@@ -245,6 +245,74 @@ const resizeRow = z.object({
   height: lengthSchema,
 });
 
+/**
+ * Estructura del Tablix (F2 parte 3): añadir/quitar filas y columnas
+ * sincronizando `TablixBody` **y** `TablixRowHierarchy`/`TablixColumnHierarchy`
+ * (las celdas fusionadas se ajustan solas).
+ */
+const addRow = z.object({
+  cmd: z.literal('addRow'),
+  id: z.string().min(1),
+  /** Índice donde nace la fila (0..n); la fila actual de esa posición baja. */
+  row: z.number().int().nonnegative(),
+  /** Alto de la fila nueva; por defecto, el de la fila vecina. */
+  height: lengthSchema.optional(),
+});
+
+const deleteRow = z.object({
+  cmd: z.literal('deleteRow'),
+  id: z.string().min(1),
+  row: z.number().int().nonnegative(),
+});
+
+const addColumn = z.object({
+  cmd: z.literal('addColumn'),
+  id: z.string().min(1),
+  /** Índice donde nace la columna (0..n); la columna actual de esa posición se corre. */
+  column: z.number().int().nonnegative(),
+  width: lengthSchema.optional(),
+});
+
+const deleteColumn = z.object({
+  cmd: z.literal('deleteColumn'),
+  id: z.string().min(1),
+  column: z.number().int().nonnegative(),
+});
+
+/** Varias filas/columnas a la vez: un solo paso de undo (delete en lote). */
+const deleteRows = z.object({
+  cmd: z.literal('deleteRows'),
+  id: z.string().min(1),
+  rows: z.array(z.number().int().nonnegative()).min(1),
+});
+
+const deleteColumns = z.object({
+  cmd: z.literal('deleteColumns'),
+  id: z.string().min(1),
+  columns: z.array(z.number().int().nonnegative()).min(1),
+});
+
+/**
+ * Combinar celdas: la celda ancla (row, col) absorbe el bloque y las celdas
+ * cubiertas desaparecen (su contenido se descarta, como en RB).
+ */
+const mergeCells = z.object({
+  cmd: z.literal('mergeCells'),
+  id: z.string().min(1),
+  row: z.number().int().nonnegative(),
+  col: z.number().int().nonnegative(),
+  rowSpan: z.number().int().positive(),
+  colSpan: z.number().int().positive(),
+});
+
+/** Separar la celda combinada que empieza en (row, col). */
+const unmergeCells = z.object({
+  cmd: z.literal('unmergeCells'),
+  id: z.string().min(1),
+  row: z.number().int().nonnegative(),
+  col: z.number().int().nonnegative(),
+});
+
 /* ------------------------------ Unión ----------------------------------- */
 
 export const commandSchema = z.discriminatedUnion('cmd', [
@@ -254,6 +322,14 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   resizeTable,
   resizeColumn,
   resizeRow,
+  addRow,
+  deleteRow,
+  addColumn,
+  deleteColumn,
+  deleteRows,
+  deleteColumns,
+  mergeCells,
+  unmergeCells,
   setZIndex,
   setName,
   setVisibility,

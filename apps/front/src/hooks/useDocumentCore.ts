@@ -1,11 +1,7 @@
-import type {
-  CommandResult,
-  ItemDto,
-  ProjectionDto,
-  RdlcCommand,
-} from '@rdlc-designer/contracts';
-import { useCallback, useEffect, useState } from 'react';
+import type { CommandResult, ItemDto, ProjectionDto, RdlcCommand } from '@rdlc-designer/contracts';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { setCompletionMeta } from '@/lib/completionMeta';
+import { apiErrorMessage } from '@/lib/errors';
 import { patchItem } from '@/lib/projection';
 
 /**
@@ -48,13 +44,42 @@ export interface DocumentCore {
   redo: () => Promise<void>;
 }
 
+/** Tiempo que permanece visible un aviso de error (se borra solo). */
+const ERROR_BANNER_MS = 6000;
+
 export function useDocumentCore(): DocumentCore {
   const [doc, setDoc] = useState<OpenDocument | null>(null);
   const [status, setStatus] = useState('Listo. Abre un .rdlc exportado de Business Central.');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);
   const [reloads, setReloads] = useState(0);
+  const errorTimer = useRef<number | null>(null);
+
+  /**
+   * Muestra un aviso de error: se pinta sin el código (`apiErrorMessage`) y se
+   * borra solo pasados unos segundos (o al llegar otro aviso, que lo re-arma).
+   */
+  const setError = useCallback((message: string | null): void => {
+    if (errorTimer.current !== null) {
+      window.clearTimeout(errorTimer.current);
+      errorTimer.current = null;
+    }
+    setErrorState(message);
+    if (message) {
+      errorTimer.current = window.setTimeout(() => {
+        errorTimer.current = null;
+        setErrorState(null);
+      }, ERROR_BANNER_MS);
+    }
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (errorTimer.current !== null) window.clearTimeout(errorTimer.current);
+    },
+    [],
+  );
 
   // Sin preload (p. ej. abriendo el renderer en un navegador) no hay backend IPC.
   const hasBackend = typeof window !== 'undefined' && window.api !== undefined;
@@ -74,7 +99,7 @@ export function useDocumentCore(): DocumentCore {
         const result = await window.api.openFile(pending.path);
         if (cancelled) return;
         if (!result.ok) {
-          setError(`${result.code}: ${result.message ?? 'error al abrir'}`);
+          setError(apiErrorMessage(result, 'error al abrir'));
           return;
         }
         setDoc({ sessionId: result.sessionId, path: pending.path, projection: result.projection });
@@ -174,7 +199,7 @@ export function useDocumentCore(): DocumentCore {
         );
       }
       if (!result.ok) {
-        setError(`${result.code}: ${result.message ?? 'comando rechazado'}`);
+        setError(apiErrorMessage(result, 'comando rechazado'));
         return result;
       }
       setStatus(`Comando '${command.cmd}' aplicado (v${result.version ?? '?'})`);
@@ -192,7 +217,7 @@ export function useDocumentCore(): DocumentCore {
 
     const result = await window.api.openFile(picked.path);
     if (!result.ok) {
-      setError(`${result.code}: ${result.message ?? 'error al abrir'}`);
+      setError(apiErrorMessage(result, 'error al abrir'));
       return false;
     }
     setDoc({ sessionId: result.sessionId, path: picked.path, projection: result.projection });
@@ -207,7 +232,7 @@ export function useDocumentCore(): DocumentCore {
     setError(null);
     const result = await window.api.save(doc.sessionId);
     if (!result.ok) {
-      setError(`${result.code}: ${result.message ?? 'error al guardar'}`);
+      setError(apiErrorMessage(result, 'error al guardar'));
       return;
     }
     setConflict(null);
@@ -234,7 +259,7 @@ export function useDocumentCore(): DocumentCore {
 
       if (!result.ok) {
         if ('code' in result) {
-          setError(`${result.code}: ${result.message ?? 'no se pudo cerrar'}`);
+          setError(apiErrorMessage(result, 'no se pudo cerrar'));
         } else {
           setError('No se pudo cerrar el documento.');
         }
@@ -251,14 +276,14 @@ export function useDocumentCore(): DocumentCore {
   const undo = useCallback(async (): Promise<void> => {
     if (!doc) return;
     const result = await window.api.undo(doc.sessionId);
-    if (!result.ok) setError(`${result.code}: ${result.message ?? 'no se pudo deshacer'}`);
+    if (!result.ok) setError(apiErrorMessage(result, 'no se pudo deshacer'));
     else setStatus(`Deshecho (v${result.version ?? '?'})`);
   }, [doc]);
 
   const redo = useCallback(async (): Promise<void> => {
     if (!doc) return;
     const result = await window.api.redo(doc.sessionId);
-    if (!result.ok) setError(`${result.code}: ${result.message ?? 'no se pudo rehacer'}`);
+    if (!result.ok) setError(apiErrorMessage(result, 'no se pudo rehacer'));
     else setStatus(`Rehecho (v${result.version ?? '?'})`);
   }, [doc]);
 

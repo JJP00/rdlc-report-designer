@@ -33,5 +33,10 @@ pnpm-debug.log*
 # capturas de desarrollo (RDLC_SHOT)
 tmp/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
 # originales de trabajo (el corpus versionado vive en fixtures/corpus/)
 /*.rdlc

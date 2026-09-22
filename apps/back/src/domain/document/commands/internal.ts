@@ -47,10 +47,7 @@ export interface InsertCloneCommand {
 }
 
 export type InternalCommand =
-  | RemoveNodeCommand
-  | RestoreNodeCommand
-  | SetNodeTextCommand
-  | InsertCloneCommand;
+  RemoveNodeCommand | RestoreNodeCommand | SetNodeTextCommand | InsertCloneCommand;
 
 export function isInternalCommand(command: { cmd: string }): command is InternalCommand {
   return (

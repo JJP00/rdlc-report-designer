@@ -277,9 +277,9 @@ function stripExpression(text: string): string {
 }
 
 function paddingValue(item: ImageDto, side: string): number {
-  const length = (item.style?.padding as Record<string, { value: number; unit: string }> | undefined)?.[
-    side
-  ];
+  const length = (
+    item.style?.padding as Record<string, { value: number; unit: string }> | undefined
+  )?.[side];
   if (!length) return 0;
   return length.unit === 'pt' ? length.value : Math.round(length.value * 28.35 * 100) / 100;
 }

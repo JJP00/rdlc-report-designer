@@ -12,14 +12,14 @@ Herramienta interna; se publicará como código abierto una vez alcanzado el MVP
 
 Los ficheros los genera Business Central (schema RDLC 2016) y esta app los edita visualmente. El corpus analizado:
 
-| Elemento | Total | Notas |
-|---|---|---|
-| `Textbox` | 972 | ~91% del diseño |
-| `Tablix` | 55 | 2 anidados (tabla dentro de tabla); 53 grupos de filas, 1 grupo de columnas (`BTCLoadingOrder.rdlc`) |
-| `Rectangle` | 24 | Contenedores |
-| `Image` | 16 | Sin imágenes embebidas |
-| `Line` | 2 | |
-| Charts / Gauges / Maps / Subreports | 0 | Fuera de alcance |
+| Elemento                            | Total | Notas                                                                                                |
+| ----------------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `Textbox`                           | 972   | ~91% del diseño                                                                                      |
+| `Tablix`                            | 55    | 2 anidados (tabla dentro de tabla); 53 grupos de filas, 1 grupo de columnas (`BTCLoadingOrder.rdlc`) |
+| `Rectangle`                         | 24    | Contenedores                                                                                         |
+| `Image`                             | 16    | Sin imágenes embebidas                                                                               |
+| `Line`                              | 2     |                                                                                                      |
+| Charts / Gauges / Maps / Subreports | 0     | Fuera de alcance                                                                                     |
 
 Otros hallazgos:
 
@@ -68,4 +68,5 @@ Otros hallazgos:
 > Librerías, apps, arquitectura hexagonal y dominios documentados en [RDLC Report Designer - arquitectura.md](RDLC Report Designer - arquitectura.md).
 
 # External links
+
 - schema rdlc 2016 https://learn.microsoft.com/en-us/openspecs/sql_server_protocols/ms-rdl/52ce3983-2bfc-4e72-9359-42aaf5fe4509

@@ -49,13 +49,7 @@ const TABLIX_ORDER = [
   'KeepTogether',
 ];
 
-const IMAGE_ORDER = [
-  ...REPORT_ITEM_ORDER,
-  'Source',
-  'Value',
-  'MIMEType',
-  'Sizing',
-];
+const IMAGE_ORDER = [...REPORT_ITEM_ORDER, 'Source', 'Value', 'MIMEType', 'Sizing'];
 
 const PAGE_ORDER = [
   'PageHeader',
@@ -164,8 +158,12 @@ export function clampSize(
   bounds: { width: Length; height: Length } | undefined,
 ): { width: Length; height: Length } {
   const MIN_CM = 0.05;
-  const maxWidth = bounds ? Math.max(MIN_CM, toCm(bounds.width) - toCm(left)) : Number.POSITIVE_INFINITY;
-  const maxHeight = bounds ? Math.max(MIN_CM, toCm(bounds.height) - toCm(top)) : Number.POSITIVE_INFINITY;
+  const maxWidth = bounds
+    ? Math.max(MIN_CM, toCm(bounds.width) - toCm(left))
+    : Number.POSITIVE_INFINITY;
+  const maxHeight = bounds
+    ? Math.max(MIN_CM, toCm(bounds.height) - toCm(top))
+    : Number.POSITIVE_INFINITY;
   return {
     width: clampLength(width, MIN_CM, maxWidth),
     height: clampLength(height, MIN_CM, maxHeight),

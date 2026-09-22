@@ -278,7 +278,8 @@ describe('F1 · deleteItem', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('eliminar y volver a eliminar el mismo id falla (no hay elemento)', () => {    const { doc, index } = open('PalletOutput.rdlc');
+  it('eliminar y volver a eliminar el mismo id falla (no hay elemento)', () => {
+    const { doc, index } = open('PalletOutput.rdlc');
     applyCommand({ root: doc.root, index }, { cmd: 'deleteItem', id: 'Textbox25' });
     // El caso de uso real reconstruye el índice tras comandos estructurales.
     const rebuilt = DocumentIndex.build(doc.root);

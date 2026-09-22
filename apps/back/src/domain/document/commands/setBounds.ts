@@ -29,20 +29,8 @@ export function applySetBounds(
 
   const bounds = ctx.index.boundsOf(command.id);
   // Primero la posición (la región manda) y luego el tamaño desde esa posición.
-  const position = clampPosition(
-    command.top,
-    command.left,
-    command.width,
-    command.height,
-    bounds,
-  );
-  const size = clampSize(
-    command.width,
-    command.height,
-    position.top,
-    position.left,
-    bounds,
-  );
+  const position = clampPosition(command.top, command.left, command.width, command.height, bounds);
+  const size = clampSize(command.width, command.height, position.top, position.left, bounds);
 
   // Los items dentro de una celda no declaran geometría: se anota lo que se crea
   // para que el inverso lo quite (nada de etiquetas nuevas tras deshacer).

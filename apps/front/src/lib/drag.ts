@@ -32,7 +32,12 @@ export interface DragEndResult {
   left: number;
 }
 
-function clampPosition(x: number, y: number, itemSize: SizePx, bounds?: SizePx): { x: number; y: number } {
+function clampPosition(
+  x: number,
+  y: number,
+  itemSize: SizePx,
+  bounds?: SizePx,
+): { x: number; y: number } {
   let cx = Math.max(x, 0);
   let cy = Math.max(y, 0);
 

@@ -49,7 +49,15 @@ const tablix: TablixDto = {
   left: { value: 0, unit: 'cm' },
   width: { value: 8, unit: 'cm' },
   height: { value: 3, unit: 'cm' },
-  body: { columns: [], rows: [{ height: { value: 1, unit: 'cm' }, cells: [{ content: textbox('TextboxEnCelda', '=Fields!Total.Value') }] }] },
+  body: {
+    columns: [],
+    rows: [
+      {
+        height: { value: 1, unit: 'cm' },
+        cells: [{ content: textbox('TextboxEnCelda', '=Fields!Total.Value') }],
+      },
+    ],
+  },
   rowHierarchy: [],
   columnHierarchy: [],
 };

@@ -10,6 +10,16 @@ import { applyInsertClone } from './insertClone.js';
 import { applySetLocation } from './setLocation.js';
 import { applySetBounds } from './setBounds.js';
 import { applyResizeColumn, applyResizeRow, applyResizeTable } from './resizeTablix.js';
+import {
+  applyAddColumn,
+  applyAddRow,
+  applyDeleteColumn,
+  applyDeleteColumns,
+  applyDeleteRow,
+  applyDeleteRows,
+  applyMergeCells,
+  applyUnmergeCells,
+} from './tablixStructure.js';
 import { applySetPageMargins } from './setPageMargins.js';
 import { applySetPageSize } from './setPageSize.js';
 import { applySetImageOptions } from './setImageOptions.js';
@@ -40,6 +50,22 @@ export function applyCommand(
       return applyResizeColumn(ctx, command);
     case 'resizeRow':
       return applyResizeRow(ctx, command);
+    case 'addRow':
+      return applyAddRow(ctx, command);
+    case 'deleteRow':
+      return applyDeleteRow(ctx, command);
+    case 'addColumn':
+      return applyAddColumn(ctx, command);
+    case 'deleteColumn':
+      return applyDeleteColumn(ctx, command);
+    case 'deleteRows':
+      return applyDeleteRows(ctx, command);
+    case 'deleteColumns':
+      return applyDeleteColumns(ctx, command);
+    case 'mergeCells':
+      return applyMergeCells(ctx, command);
+    case 'unmergeCells':
+      return applyUnmergeCells(ctx, command);
     case 'setText':
       return applySetText(ctx, command);
     case 'setStyle':

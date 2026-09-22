@@ -35,9 +35,6 @@ function section(ctx: CommandContext): RdlcNode | undefined {
   return ctx.root.child('ReportSections')?.child('ReportSection');
 }
 
-function regionItems(
-  ctx: CommandContext,
-  region: RdlcNode | undefined,
-): RdlcNode | undefined {
+function regionItems(ctx: CommandContext, region: RdlcNode | undefined): RdlcNode | undefined {
   return region ? childOrCreate(region, 'ReportItems') : undefined;
 }

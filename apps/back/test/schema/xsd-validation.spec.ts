@@ -28,7 +28,10 @@ describe('validación XSD RDL 2016/01', () => {
   it('detecta XML estructuralmente inválido con problemas legibles', () => {
     const { xml } = corpusByName('PalletOutput.rdlc');
     // Un hijo que no existe en el modelo de Report: inválido de narices.
-    const broken = xml.replace('<AutoRefresh>0</AutoRefresh>', '<AutoRefresh>0</AutoRefresh><BogusElement/>');
+    const broken = xml.replace(
+      '<AutoRefresh>0</AutoRefresh>',
+      '<AutoRefresh>0</AutoRefresh><BogusElement/>',
+    );
 
     const result = validator.validate(broken);
     expect(result.valid).toBe(false);

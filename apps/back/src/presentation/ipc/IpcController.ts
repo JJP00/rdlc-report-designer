@@ -18,7 +18,10 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { dialog, ipcMain, type BrowserWindow, type OpenDialogOptions } from 'electron';
 import type { ZodType } from 'zod';
-import { COMMAND_SERVICE, type ICommandService } from '../../application/services/ICommandService.js';
+import {
+  COMMAND_SERVICE,
+  type ICommandService,
+} from '../../application/services/ICommandService.js';
 import type {
   ISessionService,
   OpenSessionResult,
@@ -57,15 +60,15 @@ export class IpcController {
 
     ipcMain.handle(IPC_CHANNELS.pickFile, () => this.pickFile());
 
-    ipcMain.handle(
-      IPC_CHANNELS.pendingOpen,
-      (): PendingOpenResult => ({ ok: true, path: this.pendingOpen }),
-    );
+    ipcMain.handle(IPC_CHANNELS.pendingOpen, (): PendingOpenResult => ({
+      ok: true,
+      path: this.pendingOpen,
+    }));
 
-    ipcMain.handle(
-      IPC_CHANNELS.listFonts,
-      async (): Promise<FontListResult> => ({ ok: true, fonts: await this.fonts.list() }),
-    );
+    ipcMain.handle(IPC_CHANNELS.listFonts, async (): Promise<FontListResult> => ({
+      ok: true,
+      fonts: await this.fonts.list(),
+    }));
 
     ipcMain.handle(IPC_CHANNELS.openFile, (_event, payload) =>
       this.handle(
@@ -104,9 +107,7 @@ export class IpcController {
           return result;
         },
         (value: CloseSessionResult): CloseResult =>
-          value.closed
-            ? { ok: true }
-            : { ok: false, needsConfirmation: true, dirty: true },
+          value.closed ? { ok: true } : { ok: false, needsConfirmation: true, dirty: true },
       ),
     );
 

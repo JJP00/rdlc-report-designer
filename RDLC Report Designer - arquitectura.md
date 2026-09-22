@@ -5,6 +5,7 @@ Documento técnico del proyecto. Complementa a `RDLC Report Designer.md` (visió
 # Librerías
 
 ## Escritorio / Monorepo
+
 - `electron`: shell de escritorio (procesos main + renderer)
 - `electron-vite`: tooling (Vite para renderer + build de main/preload, HMR en dev)
 - `electron-builder`: empaquetado y distribución (MSI/NSIS)
@@ -13,6 +14,7 @@ Documento técnico del proyecto. Complementa a `RDLC Report Designer.md` (visió
 - TypeScript en todo el proyecto
 
 ## Backend
+
 - `nestjs`: framework principal (DI + módulos, sin lógica)
 - `xml-trueformat` (vendida al repo): parser/serializer lossless con round-trip exacto
 - `zod`: define esquema json, validación json en los bordes.
@@ -21,6 +23,7 @@ Documento técnico del proyecto. Complementa a `RDLC Report Designer.md` (visió
 - `vitest`: tests de dominio, comandos y golden tests
 
 ## Frontend
+
 - `react`: framework principal
 - `tailwindcss` v4 + `shadcn/ui`: chrome del editor (pestañas, paneles, diálogos, command palette para el buscador)
 - `zustand`: json en memoria, sincronizar el lienzo y el documento json.
@@ -30,21 +33,25 @@ Documento técnico del proyecto. Complementa a `RDLC Report Designer.md` (visió
 - `contracts` (workspace): tipos + zod schemas compartidos con el backend
 
 ## Calidad y apertura (Fase 4)
+
 - `vitest` + golden tests: corpus de los 9 ficheros .rdlc como fixtures
 - `playwright`: E2E del lienzo (vía Electron)
 - ESLint + Prettier
 - GitHub Actions: CI (lint + tests + release open source MIT)
 
 # Apps
+
 ## ReportDesigner_Back
+
 La aplicación del backend va a ser el proceso principal (Electron main, NestJS). El proceso se encargará de importar, editar y exportar el fichero rdlc.
 
-- Posee el **documento autoritativo** en memoria: un DOM *lossless* donde cada nodo conserva su texto fuente exacto, atributos en orden original, comentarios y whitespace.
+- Posee el **documento autoritativo** en memoria: un DOM _lossless_ donde cada nodo conserva su texto fuente exacto, atributos en orden original, comentarios y whitespace.
 - Una de las responsabilidades principales va a ser solo modificar aquellas partes que son diferentes en vez de importar, traducir a json y exportar como un fichero nuevo. Los nodos no tocados se vuelcan **byte a byte idénticos** al original (parcheo quirúrgico; nunca se regenera el XML completo).
 - Recibe **comandos** del frontend por IPC y los aplica al DOM al instante — el modelo está siempre al día. El disco solo se escribe al guardar (Ctrl+S), tras validar (BC rompe con un XML inválido).
 - Vigila el fichero con `fs.watch`: si cambia externamente, re-parsea y empuja la nueva snapshot al frontend.
 
 Arquitectura totalmente modular:
+
 - Importar
 - Exportar
 - Crear nuevo
@@ -53,6 +60,7 @@ Arquitectura totalmente modular:
 - (Evolutivo) implementación con IA
 
 ## ReportDesigner_Front
+
 Aplicación frontend, es una webapp hecho con react sobre electron. Encargado de obtener el diseño json del backend y dibujarlo en el lienzo (Konva).
 
 - El json de Zustand es una **proyección para renderizar**, no la verdad del documento.
@@ -194,38 +202,38 @@ apps/front/                       # llama a ReportEditorApi vía preload tipado
 
 ## Mapeo de los módulos a hexagonal
 
-| Módulo funcional | En hexagonal |
-|---|---|
-| Importar | Caso de uso `SessionService.open()` → `FileSystemPort` + `RdlcParserPort` |
-| Exportar | `SessionService.save()` → `RdlcSerializerPort` + `FileSystemPort` + validación |
-| Crear nuevo | `TemplateService` (aplicación) |
-| Acciones (mover, eliminar, editar texto/expresión) | `CommandService` (aplicación) + comandos del dominio |
-| Pestañas / dirty / conflictos | `SessionService` (aplicación) + `FileWatcherPort` |
-| Proyección JSON | `ProjectionService` (aplicación, DTOs de `contracts` + zod en el borde) |
-| IPC | Adaptador de entrada (`IpcController`) implementando `ReportEditorApi` |
+| Módulo funcional                                   | En hexagonal                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Importar                                           | Caso de uso `SessionService.open()` → `FileSystemPort` + `RdlcParserPort`      |
+| Exportar                                           | `SessionService.save()` → `RdlcSerializerPort` + `FileSystemPort` + validación |
+| Crear nuevo                                        | `TemplateService` (aplicación)                                                 |
+| Acciones (mover, eliminar, editar texto/expresión) | `CommandService` (aplicación) + comandos del dominio                           |
+| Pestañas / dirty / conflictos                      | `SessionService` (aplicación) + `FileWatcherPort`                              |
+| Proyección JSON                                    | `ProjectionService` (aplicación, DTOs de `contracts` + zod en el borde)        |
+| IPC                                                | Adaptador de entrada (`IpcController`) implementando `ReportEditorApi`         |
 
 ## Presentación (controllers)
 
 Los controllers son la piel del hexágono: todo lo que sabe de transporte (canales IPC, serialización, decoradores NestJS) vive aquí. Son finos, con solo 4 responsabilidades: **validar** (zod), **llamar** al caso de uso, **mapear** resultado a DTO y **mapear** errores a códigos.
 
-| Handler | Recibe | Llama a | Devuelve |
-|---|---|---|---|
-| `openFile(path)` | path | `SessionService.open` | `{ sessionId, projection }` |
-| `createNew()` | — | `TemplateService.create` | `{ sessionId, projection }` |
-| `save(sessionId)` | sessionId | `SessionService.save` | `{ ok }` |
-| `close(sessionId)` | sessionId | `SessionService.close` | `{ ok } \| { needsConfirmation, dirty }` |
-| `executeCommand(sessionId, cmd)` | DTO validado | `CommandService.execute` | `CommandResult` |
-| `undo / redo(sessionId)` | sessionId | `CommandService.undo/redo` | `CommandResult` |
+| Handler                          | Recibe       | Llama a                    | Devuelve                                 |
+| -------------------------------- | ------------ | -------------------------- | ---------------------------------------- |
+| `openFile(path)`                 | path         | `SessionService.open`      | `{ sessionId, projection }`              |
+| `createNew()`                    | —            | `TemplateService.create`   | `{ sessionId, projection }`              |
+| `save(sessionId)`                | sessionId    | `SessionService.save`      | `{ ok }`                                 |
+| `close(sessionId)`               | sessionId    | `SessionService.close`     | `{ ok } \| { needsConfirmation, dirty }` |
+| `executeCommand(sessionId, cmd)` | DTO validado | `CommandService.execute`   | `CommandResult`                          |
+| `undo / redo(sessionId)`         | sessionId    | `CommandService.undo/redo` | `CommandResult`                          |
 
 **Contrato de errores** (en `contracts`; nunca excepciones crudas por el canal):
 
-| Error dominio | Código IPC | Reacción del front |
-|---|---|---|
-| `InvalidCommandPayload` | `E_INVALID_COMMAND` | rechaza antes de enviar (zod lo caza) |
-| `CommandRejected` (normalizado) | `E_COMMAND_REJECTED` + `{ normalized }` | revierte el optimismo con los valores normalizados |
-| `ExternalChangeDetected` + dirty | `E_CONFLICT` | diálogo: Recargar / Sobrescribir / Guardar como |
-| `ValidationFailed` (al guardar) | `E_VALIDATION` | lista de problemas, no escribe en disco |
-| `FileNotFound` | `E_NOT_FOUND` | toast + cerrar pestaña |
+| Error dominio                    | Código IPC                              | Reacción del front                                 |
+| -------------------------------- | --------------------------------------- | -------------------------------------------------- |
+| `InvalidCommandPayload`          | `E_INVALID_COMMAND`                     | rechaza antes de enviar (zod lo caza)              |
+| `CommandRejected` (normalizado)  | `E_COMMAND_REJECTED` + `{ normalized }` | revierte el optimismo con los valores normalizados |
+| `ExternalChangeDetected` + dirty | `E_CONFLICT`                            | diálogo: Recargar / Sobrescribir / Guardar como    |
+| `ValidationFailed` (al guardar)  | `E_VALIDATION`                          | lista de problemas, no escribe en disco            |
+| `FileNotFound`                   | `E_NOT_FOUND`                           | toast + cerrar pestaña                             |
 
 **Eventos backend → front**: los controllers manejan peticiones; las notificaciones van por `EventBusPort` → `IpcEventPublisher` → `webContents.send({ sessionId, type })`. Eventos del MVP: `projectionReady`, `documentChanged` (cambio externo), `dirtyChanged`, `conflictDetected`, `saved`, `sessionClosed`.
 
@@ -284,16 +292,17 @@ Dos dominios reales; el resto son servicios de aplicación.
 > **Estado de implementación (sesión 2026-09-16)** — de este diseño ya están en código:
 > el árbol de dominio propio sobre `xml-trueformat`, ambos dominios (`document` y
 > `expression` — el tokenizador/catálogo vive hoy en el front, `lib/expressionCatalog.ts`
-> + `lib/monacoSetup.ts`, porque solo lo consume Monaco), los comandos con inverso
-> (con soporte de **varios inversos por comando** y **comandos internos del journal**
-> `removeNode`/`restoreNode`/`setNodeText`/`insertClone` para insertar/duplicar/eliminar/pegar),
-> los puertos
-> `RdlcParser`/`RdlcSerializer`/`RdlcProjection`/`FileSystem`/`FileWatcher`/`EventBus` y
-> dos puertos añadidos después del diseño inicial:
 >
-> - **`XmlSchemaValidatorPort`** → validación con el XSD oficial RDL 2016/01
+> - `lib/monacoSetup.ts`, porque solo lo consume Monaco), los comandos con inverso
+>   (con soporte de **varios inversos por comando** y **comandos internos del journal**
+>   `removeNode`/`restoreNode`/`setNodeText`/`insertClone` para insertar/duplicar/eliminar/pegar),
+>   los puertos
+>   `RdlcParser`/`RdlcSerializer`/`RdlcProjection`/`FileSystem`/`FileWatcher`/`EventBus` y
+>   dos puertos añadidos después del diseño inicial:
+>
+> * **`XmlSchemaValidatorPort`** → validación con el XSD oficial RDL 2016/01
 >   (`libxml2-wasm`): al importar avisa, al guardar bloquea la escritura.
-> - **`SystemFontsPort`** → fuentes instaladas (registro de Windows) para la barra de
+> * **`SystemFontsPort`** → fuentes instaladas (registro de Windows) para la barra de
 >   formato (canal IPC `listFonts`).
 >
 > Además de los comandos públicos, la API del editor tiene **`copy`/`cut`/`paste`**
@@ -306,43 +315,42 @@ Dos dominios reales; el resto son servicios de aplicación.
 > `setZIndex`, `setVisibility`, `setItemOptions` y toda la familia Tablix/Matrix
 > (F2/F3). El catálogo de `packages/contracts` ya los define todos.
 
-
 ## Dominio 1: `document` — el documento RDLC (el grande)
 
 El corazón: el aggregate root `Document` (árbol + índice) y toda la semántica RDL.
 
-| Concepto | Qué es | Ejemplos del corpus |
-|---|---|---|
-| **Árbol genérico** | Modelo de nodos propio (interfaz tuya, no la de la librería): elementos, atributos, texto, comentarios, flag dirty | `<Textbox Name="H1">`, `rd:DefaultName` |
-| **Items (wrappers tipados)** | Entidades que leen/escriben sobre su nodo | `Textbox`, `Tablix`, `Rectangle`, `Line`, `Image` |
-| **Tablix** | La parte más compleja: `TablixBody` + `RowHierarchy` + `ColumnHierarchy` + miembros con totales | `LinesTbl`, `OuterPickUpGrp` |
-| **Estilo / geometría (value objects)** | `Style`, `Border`, `Position`, `Size`, `Length` (con unidad `cm`) | `Top/Left/Width/Height`, `FontWeight`, `BackgroundColor` |
-| **Índice** | `Map<Name, nodo>` + reglas de unicidad | `H1`, `H2`, `BTC_PickUpGroupKeyCtx` |
-| **`ReportItemFactory`** | Construye subárboles nuevos válidos según el orden del XSD | insertar un Textbox genera `Paragraphs, Style, Top, Left...` |
-| **Comandos (servicios de dominio)** | La semántica de editar: aplicar + inverso + marcar dirty | `setLocation`, `insertItem`, `deleteItem`, `resizeColumn`, `setExpression`, `addRowGroup`... |
-| **Invariantes** | Reglas que no se pueden violar | tablix coherente con sus jerarquías, bounds dentro de la página, ZIndex válido |
+| Concepto                               | Qué es                                                                                                             | Ejemplos del corpus                                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| **Árbol genérico**                     | Modelo de nodos propio (interfaz tuya, no la de la librería): elementos, atributos, texto, comentarios, flag dirty | `<Textbox Name="H1">`, `rd:DefaultName`                                                      |
+| **Items (wrappers tipados)**           | Entidades que leen/escriben sobre su nodo                                                                          | `Textbox`, `Tablix`, `Rectangle`, `Line`, `Image`                                            |
+| **Tablix**                             | La parte más compleja: `TablixBody` + `RowHierarchy` + `ColumnHierarchy` + miembros con totales                    | `LinesTbl`, `OuterPickUpGrp`                                                                 |
+| **Estilo / geometría (value objects)** | `Style`, `Border`, `Position`, `Size`, `Length` (con unidad `cm`)                                                  | `Top/Left/Width/Height`, `FontWeight`, `BackgroundColor`                                     |
+| **Índice**                             | `Map<Name, nodo>` + reglas de unicidad                                                                             | `H1`, `H2`, `BTC_PickUpGroupKeyCtx`                                                          |
+| **`ReportItemFactory`**                | Construye subárboles nuevos válidos según el orden del XSD                                                         | insertar un Textbox genera `Paragraphs, Style, Top, Left...`                                 |
+| **Comandos (servicios de dominio)**    | La semántica de editar: aplicar + inverso + marcar dirty                                                           | `setLocation`, `insertItem`, `deleteItem`, `resizeColumn`, `setExpression`, `addRowGroup`... |
+| **Invariantes**                        | Reglas que no se pueden violar                                                                                     | tablix coherente con sus jerarquías, bounds dentro de la página, ZIndex válido               |
 
 ## Dominio 2: `expression` — las expresiones RDL (pequeño pero real)
 
 Trabaja con **strings**, no con el árbol, y tiene su propio lenguaje ubicuo:
 
-| Pieza | Para qué |
-|---|---|
-| Tokenizer/parser ligero | syntax highlighting y autocompletado en Monaco |
-| Modelo de referencias | `Fields!X`, `Parameters!X`, `Globals!X`, `User!X`, `ReportItems!X` |
-| Catálogo de funciones | `IIf`, `Sum`, `Count`, `First`, `Last`, `Format` + funciones del bloque `<Code>` (parseadas de los bloques VB) |
-| Validación de sintaxis | avisar antes de que BC rechace la expresión |
+| Pieza                   | Para qué                                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Tokenizer/parser ligero | syntax highlighting y autocompletado en Monaco                                                                 |
+| Modelo de referencias   | `Fields!X`, `Parameters!X`, `Globals!X`, `User!X`, `ReportItems!X`                                             |
+| Catálogo de funciones   | `IIf`, `Sum`, `Count`, `First`, `Last`, `Format` + funciones del bloque `<Code>` (parseadas de los bloques VB) |
+| Validación de sintaxis  | avisar antes de que BC rechace la expresión                                                                    |
 
 Es dominio propio porque la lista de variables y el autocompletado (dos features del MVP) son exactamente este modelo.
 
 ## Lo que NO es dominio (capa de aplicación)
 
-| Servicio | Por qué no es dominio |
-|---|---|
+| Servicio                                       | Por qué no es dominio                                                       |
+| ---------------------------------------------- | --------------------------------------------------------------------------- |
 | `SessionService` (pestañas, dirty, conflictos) | Estado de sesión, sin reglas de negocio — una pestaña no es un concepto RDL |
-| `CommandService` (orquestar execute/undo/redo) | El *cómo invertir* es dominio; el *journal* y el flujo son aplicación |
-| `ProjectionService` (→ JSON renderizado) | Es un read-model para el lienzo |
-| `TemplateService` (crear nuevo) | Compone: lee template + parsea + reutiliza el dominio Document |
+| `CommandService` (orquestar execute/undo/redo) | El _cómo invertir_ es dominio; el _journal_ y el flujo son aplicación       |
+| `ProjectionService` (→ JSON renderizado)       | Es un read-model para el lienzo                                             |
+| `TemplateService` (crear nuevo)                | Compone: lee template + parsea + reutiliza el dominio Document              |
 
 ## Cómo queda en carpetas
 
@@ -373,7 +381,7 @@ application/
 - ¿Describe el estado de la herramienta (qué pestaña está abierta, qué está guardado)? → **aplicación**
 - ¿Toca ficheros, XML, IPC, discos? → **infraestructura**
 
-Ejemplos: *"un tablix no puede tener más columnas de jerarquía que de body"* → dominio. *"una pestaña con cambios sin guardar muestra \*"* → aplicación. *"leer el fichero del disco"* → infraestructura.
+Ejemplos: _"un tablix no puede tener más columnas de jerarquía que de body"_ → dominio. _"una pestaña con cambios sin guardar muestra \*"_ → aplicación. _"leer el fichero del disco"_ → infraestructura.
 
 # Catálogo de comandos
 
@@ -397,58 +405,71 @@ type CommandResult =
 
 ## 1. Forma y estructura (items)
 
-| Comando | Payload | Notas |
-|---|---|---|
-| `setLocation` | `{ id, top, left }` | drag = 1 comando al soltar |
-| `setSize` | `{ id, width, height }` | |
-| `setZIndex` | `{ id, zIndex }` | orden de apilado |
-| `setName` | `{ id, name }` | rename; valida unicidad y actualiza índice |
-| `setVisibility` | `{ id, hidden: boolean \| Expr }` | `true/false` o expresión (evolutivo) |
-| `setItemOptions` | `{ id, canGrow?, keepTogether? }` | propiedades del item, no de Style |
-| `setStyle` | `{ id, style: Partial<StyleBag> }` | nivel item: fuente, color, fondo, bordes, alineación, padding... |
-| `insertItem` | `{ scope, index, item: NewItemSpec }` | `NewItemSpec` = textbox/rectangle/line/image (tablix en F2). La factory rellena hijos obligatorios |
-| `deleteItem` | `{ id }` | |
-| `moveItem` | `{ id, toScope, toIndex }` | reparentar/reordenar (rectángulo, header, celda...). Atómico para undo limpio |
-| `duplicateItem` | `{ id, name? }` | clona el subárbol XML exacto (copy/paste fiel). Puede caer a F2 |
+| Comando          | Payload                               | Notas                                                                                              |
+| ---------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `setLocation`    | `{ id, top, left }`                   | drag = 1 comando al soltar                                                                         |
+| `setSize`        | `{ id, width, height }`               |                                                                                                    |
+| `setZIndex`      | `{ id, zIndex }`                      | orden de apilado                                                                                   |
+| `setName`        | `{ id, name }`                        | rename; valida unicidad y actualiza índice                                                         |
+| `setVisibility`  | `{ id, hidden: boolean \| Expr }`     | `true/false` o expresión (evolutivo)                                                               |
+| `setItemOptions` | `{ id, canGrow?, keepTogether? }`     | propiedades del item, no de Style                                                                  |
+| `setStyle`       | `{ id, style: Partial<StyleBag> }`    | nivel item: fuente, color, fondo, bordes, alineación, padding...                                   |
+| `insertItem`     | `{ scope, index, item: NewItemSpec }` | `NewItemSpec` = textbox/rectangle/line/image (tablix en F2). La factory rellena hijos obligatorios |
+| `deleteItem`     | `{ id }`                              |                                                                                                    |
+| `moveItem`       | `{ id, toScope, toIndex }`            | reparentar/reordenar (rectángulo, header, celda...). Atómico para undo limpio                      |
+| `duplicateItem`  | `{ id, name? }`                       | clona el subárbol XML exacto (copy/paste fiel). Puede caer a F2                                    |
 
 ```ts
 type ScopeRef =
-  | { kind: 'body' } | { kind: 'pageHeader' } | { kind: 'pageFooter' }
-  | { kind: 'rectangle', id: string }
-  | { kind: 'tablixCell', id: string, row: number, col: number }   // F2
+  | { kind: 'body' }
+  | { kind: 'pageHeader' }
+  | { kind: 'pageFooter' }
+  | { kind: 'rectangle'; id: string }
+  | { kind: 'tablixCell'; id: string; row: number; col: number }; // F2
 ```
 
 ## 2. Texto y expresiones
 
-| Comando | Payload | Notas |
-|---|---|---|
-| `setText` | `{ id, p: number, r: number, value: string }` | edita el valor de **un** TextRun (texto plano o `=expresión`). Cubre el caso simple (1 párrafo / 1 run) y la edición por run en mixto |
-| `setParagraphs` | `{ id, paragraphs: ParagraphDto[] }` | reemplaza la estructura completa de párrafos/runs (commit del editor de texto mixto: añadir/quitar runs, estilos por run) |
+| Comando         | Payload                                       | Notas                                                                                                                                 |
+| --------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `setText`       | `{ id, p: number, r: number, value: string }` | edita el valor de **un** TextRun (texto plano o `=expresión`). Cubre el caso simple (1 párrafo / 1 run) y la edición por run en mixto |
+| `setParagraphs` | `{ id, paragraphs: ParagraphDto[] }`          | reemplaza la estructura completa de párrafos/runs (commit del editor de texto mixto: añadir/quitar runs, estilos por run)             |
 
 Con estos dos se cubre el 100% del texto: el caso normal usa `setText` (mínimo cambio en el XML), y el caso mixto complejo usa `setParagraphs` (se regenera ese subárbol canónicamente, asumible porque el usuario lo editó).
 
 ## 3. Página e informe
 
-| Comando | Payload | Notas |
-|---|---|---|
-| `setPageSize` | `{ width, height }` | orientación = swap en el front |
-| `setPageMargins` | `{ top, bottom, left, right }` | |
-| `setRegionHeight` | `{ region: 'header' \| 'footer', height }` | |
-| `setHeaderFooterOptions` | `{ region, printOnFirstPage?, printOnLastPage? }` | |
-| `setReportCode` | `{ code: string }` | atómico; inverso = texto VB anterior |
+| Comando                  | Payload                                           | Notas                                |
+| ------------------------ | ------------------------------------------------- | ------------------------------------ |
+| `setPageSize`            | `{ width, height }`                               | orientación = swap en el front       |
+| `setPageMargins`         | `{ top, bottom, left, right }`                    |                                      |
+| `setRegionHeight`        | `{ region: 'header' \| 'footer', height }`        |                                      |
+| `setHeaderFooterOptions` | `{ region, printOnFirstPage?, printOnLastPage? }` |                                      |
+| `setReportCode`          | `{ code: string }`                                | atómico; inverso = texto VB anterior |
 
-## 4. Tablix — Fase 2 (catálogo ya definido)
+## 4. Tablix — Fase 2
 
-| Comando | Payload |
-|---|---|
-| `resizeColumn` | `{ id, column: number, width }` |
-| `resizeRow` | `{ id, row: number, height }` |
-| `addRow` / `deleteRow` | `{ id, row: number, position? }` (sincroniza `TablixRowHierarchy`) |
-| `addColumn` / `deleteColumn` | `{ id, column: number }` (sincroniza `TablixColumnHierarchy`) |
-| `addRowGroup` | `{ id, expression, position, total?: 'before' \| 'after' }` |
-| `deleteRowGroup` | `{ id, memberPath: number[] }` |
-| `setGroupExpression` | `{ id, memberPath: number[], expression }` |
-| `setGroupTotals` | `{ id, memberPath: number[], total: 'none' \| 'before' \| 'after' }` |
+Implementados (F2 parte 2 y parte 3, bloque 1):
+
+| Comando                        | Payload                                                                                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resizeColumn`                 | `{ id, column: number, width }`                                                                                                                               |
+| `resizeRow`                    | `{ id, row: number, height }`                                                                                                                                 |
+| `resizeTable`                  | `{ id, top, left, width, height }` (reparto proporcional de la rejilla)                                                                                       |
+| `addRow` / `deleteRow`         | `{ id, row: number }` — sincroniza `TablixRowHierarchy`; respeta `RowSpan`/`ColSpan`                                                                          |
+| `addColumn` / `deleteColumn`   | `{ id, column: number }` — sincroniza `TablixColumnHierarchy`                                                                                                 |
+| `deleteRows` / `deleteColumns` | `{ id, rows/columns: number[] }` — varias en un solo paso de undo                                                                                             |
+| `mergeCells`                   | `{ id, row, col, rowSpan, colSpan }` — solo tramos horizontales (`rowSpan = 1`): el ancla absorbe las celdas contiguas de su fila (las cubiertas desaparecen) |
+| `unmergeCells`                 | `{ id, row, col }` — separa la celda combinada y rellena con celdas vacías                                                                                    |
+
+Pendientes (F2 parte 3, bloque 2):
+
+| Comando              | Payload                                                              |
+| -------------------- | -------------------------------------------------------------------- |
+| `addRowGroup`        | `{ id, expression, position, total?: 'before' \| 'after' }`          |
+| `deleteRowGroup`     | `{ id, memberPath: number[] }`                                       |
+| `setGroupExpression` | `{ id, memberPath: number[], expression }`                           |
+| `setGroupTotals`     | `{ id, memberPath: number[], total: 'none' \| 'before' \| 'after' }` |
 
 ## 5. Matrix — Fase 3
 
@@ -474,7 +495,7 @@ El JSON de renderizado (ver "El rol del JSON" en Apps). Es **lossy a propósito*
 ```ts
 type ProjectionDto = {
   sessionId: string;
-  version: number;          // contador monotónico; sube con cada mutación (reconciliación del optimismo)
+  version: number; // contador monotónico; sube con cada mutación (reconciliación del optimismo)
   reportName: string;
   meta: ReportMetaDto;
   page: PageDto;
@@ -484,8 +505,8 @@ type PageDto = {
   width: Length;
   height: Length;
   margins: { top: Length; bottom: Length; left: Length; right: Length };
-  header: RegionDto;        // RegionDto = { height: Length; items: ItemDto[]; printOnFirstPage?; printOnLastPage? }
-  body:   RegionDto;        // body.height = altura del cuerpo
+  header: RegionDto; // RegionDto = { height: Length; items: ItemDto[]; printOnFirstPage?; printOnLastPage? }
+  body: RegionDto; // body.height = altura del cuerpo
   footer: RegionDto;
 };
 ```
@@ -494,8 +515,8 @@ type PageDto = {
 
 ```ts
 type ReportMetaDto = {
-  code: { text: string; functions: { name: string; parameters?: string[] }[] };  // bloque <Code> VB
-  fields: { name: string; dataType?: string }[];                                  // dataset fields
+  code: { text: string; functions: { name: string; parameters?: string[] }[] }; // bloque <Code> VB
+  fields: { name: string; dataType?: string }[]; // dataset fields
   parameters: { name: string; dataType?: string; default?: string; prompt?: string }[];
   // Globals!, User! y funciones agregadas = listas estáticas en el front (no viajan)
 };
@@ -507,21 +528,34 @@ type ReportMetaDto = {
 type ItemDto = TextboxDto | RectangleDto | LineDto | ImageDto | TablixDto | UnknownItemDto;
 
 type ItemBase = {
-  id: string;               // = Name del elemento (clave del índice)
-  top: Length; left: Length; width: Length; height: Length;
-  zIndex?: number;          // orden de apilado (el canvas ordena por esto)
-  hidden?: boolean | string;   // boolean literal o expresión (string)
+  id: string; // = Name del elemento (clave del índice)
+  top: Length;
+  left: Length;
+  width: Length;
+  height: Length;
+  zIndex?: number; // orden de apilado (el canvas ordena por esto)
+  hidden?: boolean | string; // boolean literal o expresión (string)
   style?: StyleDto;
 };
 
-type TextboxDto   = ItemBase & { kind: 'textbox'; paragraphs: ParagraphDto[]; canGrow?: boolean; keepTogether?: boolean };
-type RectangleDto = ItemBase & { kind: 'rectangle'; children: ItemDto[] };     // contenedor
-type LineDto      = ItemBase & { kind: 'line' };
-type ImageDto     = ItemBase & { kind: 'image'; source?: string; sourceKind?: 'External' | 'Embedded' | 'Database'; sizing?: string };
-type UnknownItemDto = ItemBase & { kind: 'unknown'; tagName: string; path: string; id?: string };  // placeholder fantasma
+type TextboxDto = ItemBase & {
+  kind: 'textbox';
+  paragraphs: ParagraphDto[];
+  canGrow?: boolean;
+  keepTogether?: boolean;
+};
+type RectangleDto = ItemBase & { kind: 'rectangle'; children: ItemDto[] }; // contenedor
+type LineDto = ItemBase & { kind: 'line' };
+type ImageDto = ItemBase & {
+  kind: 'image';
+  source?: string;
+  sourceKind?: 'External' | 'Embedded' | 'Database';
+  sizing?: string;
+};
+type UnknownItemDto = ItemBase & { kind: 'unknown'; tagName: string; path: string; id?: string }; // placeholder fantasma
 
-type ParagraphDto = { runs: TextRunDto[]; style?: StyleDto };   // style: textAlign, lineHeight...
-type TextRunDto   = { value: string; style?: StyleDto };        // value: literal o '=expresión'
+type ParagraphDto = { runs: TextRunDto[]; style?: StyleDto }; // style: textAlign, lineHeight...
+type TextRunDto = { value: string; style?: StyleDto }; // value: literal o '=expresión'
 ```
 
 ## Tablix (modelo completo desde F1, edición visual en F2/F3)
@@ -530,19 +564,19 @@ type TextRunDto   = { value: string; style?: StyleDto };        // value: litera
 type TablixDto = ItemBase & {
   kind: 'tablix';
   body: {
-    columns: Length[];                                        // ancho por columna
+    columns: Length[]; // ancho por columna
     rows: { height: Length; cells: TablixCellDto[] }[];
   };
-  rowHierarchy: TablixMemberDto[];                            // árbol de miembros (filas)
-  columnHierarchy: TablixMemberDto[];                         // árbol de miembros (columnas / matrix)
+  rowHierarchy: TablixMemberDto[]; // árbol de miembros (filas)
+  columnHierarchy: TablixMemberDto[]; // árbol de miembros (columnas / matrix)
   corner?: TablixCellDto | null;
 };
 
 type TablixCellDto = { colSpan?: number; rowSpan?: number; content: ItemDto | null };
 
 type TablixMemberDto = {
-  path: number[];                                             // posición en el árbol = memberPath de los comandos
-  expression?: string;                                        // presente = grupo dinámico; ausente = estático
+  path: number[]; // posición en el árbol = memberPath de los comandos
+  expression?: string; // presente = grupo dinámico; ausente = estático
   total: 'none' | 'before' | 'after';
   hidden?: boolean | string;
   children: TablixMemberDto[];
@@ -554,29 +588,42 @@ type TablixMemberDto = {
 ```ts
 type Length = { value: number; unit: 'cm' | 'mm' | 'in' | 'pt' };
 
-type StyleDto = {   // mismo bag en item / párrafo / run; el backend solo emite lo aplicable a cada nivel
-  fontFamily?: string; fontSize?: Length;
-  fontWeight?: 'Normal' | 'Bold'; fontStyle?: 'Normal' | 'Italic';
+type StyleDto = {
+  // mismo bag en item / párrafo / run; el backend solo emite lo aplicable a cada nivel
+  fontFamily?: string;
+  fontSize?: Length;
+  fontWeight?: 'Normal' | 'Bold';
+  fontStyle?: 'Normal' | 'Italic';
   textDecoration?: 'None' | 'Underline' | 'LineThrough' | 'Overline';
-  color?: string; backgroundColor?: string;                   // 'Silver', '#F0F0F0'...
+  color?: string;
+  backgroundColor?: string; // 'Silver', '#F0F0F0'...
   textAlign?: 'Left' | 'Center' | 'Right' | 'Justify';
   verticalAlign?: 'Top' | 'Middle' | 'Bottom';
   padding?: { top?: Length; left?: Length; bottom?: Length; right?: Length };
-  border?: { top?: BorderSideDto; left?: BorderSideDto; bottom?: BorderSideDto; right?: BorderSideDto };
+  border?: {
+    top?: BorderSideDto;
+    left?: BorderSideDto;
+    bottom?: BorderSideDto;
+    right?: BorderSideDto;
+  };
   format?: string;
 };
-type BorderSideDto = { style: 'None' | 'Solid' | 'Dashed' | 'Dotted' | 'Double'; color?: string; width?: Length };
+type BorderSideDto = {
+  style: 'None' | 'Solid' | 'Dashed' | 'Dotted' | 'Double';
+  color?: string;
+  width?: Length;
+};
 ```
 
 ## Reglas de normalización (lo que el backend resuelve al proyectar)
 
-| En el XML | En la proyección |
-|---|---|
-| `"18.738cm"` | `{ value: 18.738, unit: 'cm' }` |
-| `<Border>` genérico + overrides por lado (`<TopBorder>`...) | `border` **resuelto por lado** (el front no piensa en herencia) |
-| `<Hidden>true</Hidden>` / expresión | `boolean` literal o `string` expresión |
-| Estilos en 3 niveles (item/párrafo/run) | **el mismo `StyleDto`** en los tres sitios; el backend solo emite lo aplicable |
-| Nodos desconocidos | `UnknownItemDto` con geometría (solo los que están dentro de un `ReportItems`; los elementos opacos no visuales no viajan) |
+| En el XML                                                   | En la proyección                                                                                                           |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `"18.738cm"`                                                | `{ value: 18.738, unit: 'cm' }`                                                                                            |
+| `<Border>` genérico + overrides por lado (`<TopBorder>`...) | `border` **resuelto por lado** (el front no piensa en herencia)                                                            |
+| `<Hidden>true</Hidden>` / expresión                         | `boolean` literal o `string` expresión                                                                                     |
+| Estilos en 3 niveles (item/párrafo/run)                     | **el mismo `StyleDto`** en los tres sitios; el backend solo emite lo aplicable                                             |
+| Nodos desconocidos                                          | `UnknownItemDto` con geometría (solo los que están dentro de un `ReportItems`; los elementos opacos no visuales no viajan) |
 
 ## Lo que deliberadamente NO viaja (vive solo en el dominio)
 

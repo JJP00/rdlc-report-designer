@@ -41,9 +41,7 @@ describe('F0 · comparativa de adaptadores (evidencia ADR)', () => {
             `${codec.name.padEnd(18)} ${name.padEnd(26)} ${identical ? 'OK' : 'FAIL'} (${bytes.length} bytes)`,
           );
         } catch (err) {
-          rows.push(
-            `${codec.name.padEnd(18)} ${name.padEnd(26)} ERROR: ${(err as Error).message}`,
-          );
+          rows.push(`${codec.name.padEnd(18)} ${name.padEnd(26)} ERROR: ${(err as Error).message}`);
         }
       }
       scores.set(codec.name, ok);

@@ -8,6 +8,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 interface PropertiesPanelProps {
   item: ItemDto;
+  /** El item es contenido directo de una celda: la celda fija posición y tamaño. */
+  cellContent?: boolean;
   onSetLocation: (top: Length, left: Length) => void;
   onSetSize: (width: Length, height: Length) => void;
 }
@@ -15,6 +17,7 @@ interface PropertiesPanelProps {
 /** Panel de propiedades: geometría (commits con Enter o al perder foco). */
 export function PropertiesPanel({
   item,
+  cellContent,
   onSetLocation,
   onSetSize,
 }: PropertiesPanelProps): ReactNode {
@@ -30,29 +33,38 @@ export function PropertiesPanel({
       <Separator />
 
       <div className="text-xs font-medium text-muted-foreground">Posición y tamaño (cm)</div>
+      {cellContent ? (
+        <p className="rounded-md border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+          La celda fija la posición y el tamaño del contenido (igual que en Report Builder).
+        </p>
+      ) : null}
       <div className="grid grid-cols-2 gap-2">
         <LengthField
           key={`${item.id}-left`}
           label="X (Left)"
           value={toCm(item.left)}
+          disabled={cellContent}
           onCommit={(value) => onSetLocation(item.top, cm(value))}
         />
         <LengthField
           key={`${item.id}-top`}
           label="Y (Top)"
           value={toCm(item.top)}
+          disabled={cellContent}
           onCommit={(value) => onSetLocation(cm(value), item.left)}
         />
         <LengthField
           key={`${item.id}-width`}
           label="Ancho"
           value={toCm(item.width)}
+          disabled={cellContent}
           onCommit={(value) => onSetSize(cm(value), item.height)}
         />
         <LengthField
           key={`${item.id}-height`}
           label="Alto"
           value={toCm(item.height)}
+          disabled={cellContent}
           onCommit={(value) => onSetSize(item.width, cm(value))}
         />
       </div>
@@ -67,10 +79,12 @@ export function PropertiesPanel({
 function LengthField({
   label,
   value,
+  disabled,
   onCommit,
 }: {
   label: string;
   value: number;
+  disabled?: boolean;
   onCommit: (valueCm: number) => void;
 }): ReactNode {
   // Borrador mientras se teclea; el resto del tiempo manda la proyección
@@ -80,7 +94,7 @@ function LengthField({
 
   const commit = (): void => {
     const parsed = Number.parseFloat(text.replace(',', '.'));
-    if (draft !== null && Number.isFinite(parsed) && Math.abs(parsed - value) > 1e-9) {
+    if (!disabled && draft !== null && Number.isFinite(parsed) && Math.abs(parsed - value) > 1e-9) {
       onCommit(parsed);
     }
     setDraft(null);
@@ -93,6 +107,7 @@ function LengthField({
         className="h-7 text-xs tabular-nums"
         value={text}
         aria-label={label}
+        disabled={disabled}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {

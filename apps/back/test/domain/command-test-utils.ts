@@ -1,5 +1,8 @@
 import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
-import type { CommandContext, CommandOutcome } from '../../src/domain/document/commands/CommandContext.js';
+import type {
+  CommandContext,
+  CommandOutcome,
+} from '../../src/domain/document/commands/CommandContext.js';
 import { inverseCommands } from '../../src/domain/document/commands/CommandContext.js';
 import type { Either } from '../../src/shared/either.js';
 import type { DomainError } from '../../src/shared/domainError.js';

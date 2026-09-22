@@ -106,7 +106,10 @@ describe('F1 · setReportCode', () => {
     expect(currentCode.length).toBeGreaterThan(0);
 
     const newCode = `${currentCode}\nPublic Function Doble(ByVal Value As Integer) As Integer\n    Return Value * 2\nEnd Function`;
-    const applied = applyCommand({ root: doc.root, index }, { cmd: 'setReportCode', code: newCode });
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setReportCode', code: newCode },
+    );
     expect(applied.isRight()).toBe(true);
     if (!applied.isRight()) return;
 

@@ -16,18 +16,18 @@ items: 972 | frames: 89 | fpsP50: 30 | fpsP95: 20 | minFps: 15
 heapMB: 30.1 | mountMs: 311
 ```
 
-| Métrica | Valor | Presupuesto | ¿Cumple? |
-|---|---|---|---|
-| FPS en drag (p50) | 30 | 60 | ✗ |
-| FPS p95 | 20 | 60 | ✗ |
-| Heap renderer (972 items) | 30 MB | < 150 MB | ✓ |
-| Montaje inicial | 311 ms | < 1500 ms | ✓ |
+| Métrica                   | Valor  | Presupuesto | ¿Cumple? |
+| ------------------------- | ------ | ----------- | -------- |
+| FPS en drag (p50)         | 30     | 60          | ✗        |
+| FPS p95                   | 20     | 60          | ✗        |
+| Heap renderer (972 items) | 30 MB  | < 150 MB    | ✓        |
+| Montaje inicial           | 311 ms | < 1500 ms   | ✓        |
 
 ## Lectura
 
 - La memoria y el montaje no son problema: el peso está en la **fluidez**.
 - El cuello es el camino naif `setState por frame → reconciliación React de
-  972 elementos`. Es exactamente lo que el documento de pendientes anticipa.
+972 elementos`. Es exactamente lo que el documento de pendientes anticipa.
 
 ## Implicación para F1 (acciones ya planificadas)
 

@@ -27,12 +27,7 @@ export function growContainerToFit(child: RdlcNode): ContainerGrowth | undefined
 
   const currentWidth = readLength(container, 'Width');
   const currentHeight = readLength(container, 'Height');
-  if (
-    !currentWidth ||
-    !currentHeight ||
-    toCm(currentWidth) <= 0 ||
-    toCm(currentHeight) <= 0
-  ) {
+  if (!currentWidth || !currentHeight || toCm(currentWidth) <= 0 || toCm(currentHeight) <= 0) {
     return undefined; // contenedor implícito (0×0): manda la celda
   }
 

@@ -41,7 +41,10 @@ export interface ISessionService {
    * Cierra la sesión. Si hay cambios sin guardar y no se fuerza, **no cierra**:
    * devuelve `{ closed: false, reason: 'dirty' }` para que el front pregunte.
    */
-  close(sessionId: string, options?: { force?: boolean }): Promise<Either<DomainError, CloseSessionResult>>;
+  close(
+    sessionId: string,
+    options?: { force?: boolean },
+  ): Promise<Either<DomainError, CloseSessionResult>>;
 
   /** Acceso de edición: el DOM + índice de nombres de la sesión. */
   getEditTarget(sessionId: string): Either<DomainError, EditTarget>;

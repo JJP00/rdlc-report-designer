@@ -192,17 +192,11 @@ export const VB_KEYWORDS = [
 ];
 
 export type CompletionKind =
-  | 'field'
-  | 'parameter'
-  | 'function'
-  | 'global'
-  | 'user'
-  | 'code'
-  | 'builtin';
+  'field' | 'parameter' | 'function' | 'global' | 'user' | 'code' | 'builtin';
 
 export interface CompletionEntry {
   /** Texto que se muestra en la lista. */
-  label: string
+  label: string;
   /** Texto que se inserta (sin el `=` inicial: es un fragmento de expresión). */
   insertText: string;
   kind: CompletionKind;

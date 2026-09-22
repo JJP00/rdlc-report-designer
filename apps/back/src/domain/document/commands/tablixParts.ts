@@ -1,0 +1,124 @@
+import type { RdlcNode } from '../tree/RdlcNode.js';
+
+/**
+ * Piezas del Tablix compartidas por la geometría (`resizeTablix`) y la
+ * estructura (`tablixStructure`): rejilla del `TablixBody` y árboles de
+ * miembros (`TablixRowHierarchy` / `TablixColumnHierarchy`).
+ *
+ * Invariante clave del modelo RDL: **cada hoja de la jerarquía es una fila o
+ * columna del body, en orden de documento**. Los comandos de estructura
+ * mantienen esa correspondencia.
+ */
+
+export function tablixColumns(tablix: RdlcNode): RdlcNode[] {
+  return tablix.child('TablixBody')?.child('TablixColumns')?.children('TablixColumn') ?? [];
+}
+
+export function tablixRows(tablix: RdlcNode): RdlcNode[] {
+  return tablix.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? [];
+}
+
+export function tablixCells(row: RdlcNode): RdlcNode[] {
+  return row.child('TablixCells')?.children('TablixCell') ?? [];
+}
+
+/** Espacio (`ColSpan`/`RowSpan`) de una celda; 1 si no declara nada. */
+export function cellSpan(cell: RdlcNode, tag: 'ColSpan' | 'RowSpan'): number {
+  const raw = cell.child('CellContents')?.child(tag)?.text();
+  const value = raw ? Number.parseInt(raw, 10) : 1;
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+/** Celdas de una fila con su columna inicial y sus espacios. */
+export interface PositionedCell {
+  cell: RdlcNode;
+  col: number;
+  colSpan: number;
+  rowSpan: number;
+}
+
+export function positionedCells(row: RdlcNode): PositionedCell[] {
+  const result: PositionedCell[] = [];
+  let col = 0;
+  for (const cell of tablixCells(row)) {
+    const colSpan = cellSpan(cell, 'ColSpan');
+    result.push({ cell, col, colSpan, rowSpan: cellSpan(cell, 'RowSpan') });
+    col += colSpan;
+  }
+  return result;
+}
+
+/** Columna inicial de cada celda de una fila (para localizar celdas fusionadas). */
+export function cellStartColumns(row: RdlcNode): number[] {
+  return positionedCells(row).map((entry) => entry.col);
+}
+
+/* ---------------------------- jerarquías -------------------------------- */
+
+function memberChildren(container: RdlcNode): RdlcNode[] {
+  return container.children('TablixMember');
+}
+
+/** Número de hojas bajo un miembro (él mismo si no tiene `TablixMembers`). */
+export function leafCount(member: RdlcNode): number {
+  const sub = member.child('TablixMembers');
+  if (!sub) return 1;
+  return memberChildren(sub).reduce((acc, child) => acc + leafCount(child), 0);
+}
+
+export interface LeafRef {
+  member: RdlcNode;
+  container: RdlcNode;
+  index: number;
+}
+
+/** Hoja n-ésima (0-based) del árbol, con su contenedor e índice. */
+export function leafAt(hierarchy: RdlcNode | undefined, leaf: number): LeafRef | undefined {
+  const root = hierarchy?.child('TablixMembers');
+  if (!root || leaf < 0) return undefined;
+
+  let remaining = leaf;
+  let found: LeafRef | undefined;
+  const walk = (container: RdlcNode): void => {
+    const children = memberChildren(container);
+    for (let index = 0; index < children.length; index += 1) {
+      if (found) return;
+      const member = children[index]!;
+      const sub = member.child('TablixMembers');
+      if (sub) walk(sub);
+      else if (remaining === 0) found = { member, container, index };
+      else remaining -= 1;
+    }
+  };
+  walk(root);
+  return found;
+}
+
+/**
+ * Dónde insertar una hoja nueva para que sea la n-ésima (0..total): dentro del
+ * grupo que contiene esa posición, o al final del nivel raíz si es la última.
+ */
+export function leafInsertionPoint(
+  members: RdlcNode,
+  leaf: number,
+): { container: RdlcNode; index: number } {
+  const children = memberChildren(members);
+  let offset = 0;
+  for (let index = 0; index < children.length; index += 1) {
+    const member = children[index]!;
+    const count = leafCount(member);
+    if (leaf < offset + count) {
+      const sub = member.child('TablixMembers');
+      if (sub) return leafInsertionPoint(sub, leaf - offset);
+      return { container: members, index };
+    }
+    offset += count;
+  }
+  return { container: members, index: children.length };
+}
+
+/** Total de hojas de un contenedor `TablixMembers` (o 0 si no existe). */
+export function totalLeaves(members: RdlcNode | undefined): number {
+  if (!members) return 0;
+  return memberChildren(members).reduce((acc, child) => acc + leafCount(child), 0);
+}

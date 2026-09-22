@@ -55,4 +55,11 @@ export function parseRegQueryOutput(stdout: string): string[] {
   return [...names].sort((a, b) => a.localeCompare(b, 'es'));
 }
 
-const FALLBACK_FONTS = ['Arial', 'Segoe UI', 'Segoe UI Semibold', 'Times New Roman', 'Courier New', 'Tahoma'];
+const FALLBACK_FONTS = [
+  'Arial',
+  'Segoe UI',
+  'Segoe UI Semibold',
+  'Times New Roman',
+  'Courier New',
+  'Tahoma',
+];

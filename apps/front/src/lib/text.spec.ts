@@ -27,10 +27,12 @@ describe('runDisplayText', () => {
   });
 
   it('el <Label> del run manda sobre la expresión (como BC)', () => {
-    expect(runDisplayText({ value: '=Fields!BTCDescriptionLbl.Value', label: 'BTCDescriptionLbl' })).toBe(
-      '[BTCDescriptionLbl]',
+    expect(
+      runDisplayText({ value: '=Fields!BTCDescriptionLbl.Value', label: 'BTCDescriptionLbl' }),
+    ).toBe('[BTCDescriptionLbl]');
+    expect(runDisplayText({ value: '=IIf(1, "a", "b")', label: 'Descripción' })).toBe(
+      '[Descripción]',
     );
-    expect(runDisplayText({ value: '=IIf(1, "a", "b")', label: 'Descripción' })).toBe('[Descripción]');
     expect(runDisplayText({ value: 'Total:', label: 'Total' })).toBe('[Total]');
   });
 });

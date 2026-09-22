@@ -64,3 +64,44 @@ function sameValue(a: unknown, b: unknown): boolean {
 export function toPt(length: Length): number {
   return (toCm(length) / 2.54) * 72;
 }
+
+/**
+ * Color pintable en el lienzo. En tiempo de diseño las expresiones RDL (`=…`)
+ * **no se evalúan** (RB tampoco: muestra el fondo por defecto), y un color que
+ * el navegador no entienda dejaría el `fillStyle` del canvas en negro.
+ */
+export function paintColor(value: string | undefined, fallback: string): string {
+  if (!value || value.startsWith('=')) return fallback;
+  if (
+    typeof CSS !== 'undefined' &&
+    typeof CSS.supports === 'function' &&
+    !CSS.supports('color', value)
+  ) {
+    return fallback;
+  }
+  return value;
+}
+
+/**
+ * Color normalizado a `#rrggbb` para `<input type="color">`: convierte nombres
+ * CSS (`Silver`) y `rgb()`. Las expresiones y lo no pintable caen al defecto.
+ */
+export function toHexColor(value: string | undefined, fallback: string): string {
+  const color = paintColor(value, fallback);
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+  if (typeof document === 'undefined') return fallback;
+
+  const context = document.createElement('canvas').getContext('2d');
+  if (!context) return fallback;
+  context.fillStyle = '#000000';
+  context.fillStyle = color;
+  const normalized = context.fillStyle;
+  if (/^#[0-9a-f]{6}$/i.test(normalized)) return normalized;
+
+  const match = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(normalized);
+  if (!match) return fallback;
+  const hex = [match[1], match[2], match[3]]
+    .map((part) => Number(part).toString(16).padStart(2, '0'))
+    .join('');
+  return `#${hex}`;
+}

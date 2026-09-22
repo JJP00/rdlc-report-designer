@@ -6,6 +6,8 @@ import { TextPanel } from '@/components/panels/TextPanel';
 
 export interface ItemPanelsProps {
   item: ItemDto | undefined;
+  /** El item es contenido directo de una celda (posiciones/tamaño los fija la celda). */
+  cellContent?: boolean;
   onSetLocation: (top: Length, left: Length) => void;
   onSetSize: (width: Length, height: Length) => void;
   onSetStyle: (patch: StylePatch) => void;
@@ -19,6 +21,7 @@ export interface ItemPanelsProps {
  */
 export function ItemPanels({
   item,
+  cellContent,
   onSetLocation,
   onSetSize,
   onSetStyle,
@@ -35,7 +38,12 @@ export function ItemPanels({
 
   return (
     <>
-      <PropertiesPanel item={item} onSetLocation={onSetLocation} onSetSize={onSetSize} />
+      <PropertiesPanel
+        item={item}
+        cellContent={cellContent}
+        onSetLocation={onSetLocation}
+        onSetSize={onSetSize}
+      />
       {item.kind === 'textbox' ? (
         <TextPanel item={item as TextboxDto} onSetText={onSetText} onSetStyle={onSetStyle} />
       ) : null}

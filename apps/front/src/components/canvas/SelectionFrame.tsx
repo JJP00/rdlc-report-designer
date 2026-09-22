@@ -1,8 +1,16 @@
 import type Konva from 'konva';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Layer, Line, Rect } from 'react-konva';
+import { Group, Layer, Rect, Text as KonvaText } from 'react-konva';
 import type { Length } from '@rdlc-designer/contracts';
-import { computeResize, resizeBoundary, RESIZE_HANDLES, type BoxCm, type ResizeHandle } from '@/lib/resize';
+import {
+  computeResize,
+  resizeBoundary,
+  RESIZE_HANDLES,
+  type BoxCm,
+  type ResizeHandle,
+} from '@/lib/resize';
+import { selectionCols, selectionRows, type SelectedCell } from '@/lib/tablix';
+import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 import { PX_PER_CM, toPx } from './geometry';
 
 export interface SelectionFrameProps {
@@ -22,6 +30,13 @@ export interface SelectionFrameProps {
   grid?: { columns: Length[]; rows: Length[] } | null;
   onResizeColumn?: (column: number, width: Length) => void;
   onResizeRow?: (row: number, height: Length) => void;
+  /** Con una celda seleccionada no hay tiradores de mover/redimensionar. */
+  showHandles?: boolean;
+  /** Celdas seleccionadas: resalta sus cabeceras de fila/columna. */
+  selection?: SelectedCell | null;
+  /** Click en una cabecera (Shift+click rango, Ctrl+click añade). */
+  onSelectColumn?: (index: number, extend: boolean, toggle: boolean) => void;
+  onSelectRow?: (index: number, extend: boolean, toggle: boolean) => void;
 }
 
 /** Cursores por tirador (feedback al pasar el ratón). */
@@ -55,6 +70,10 @@ export function SelectionFrame({
   grid,
   onResizeColumn,
   onResizeRow,
+  showHandles = true,
+  selection,
+  onSelectColumn,
+  onSelectRow,
 }: SelectionFrameProps): ReactNode {
   const dragStart = useRef<{ pointer: { x: number; y: number }; box: BoxCm } | null>(null);
   const frameRef = useRef<Konva.Rect | null>(null);
@@ -62,25 +81,27 @@ export function SelectionFrame({
   const layerRef = useRef<Konva.Layer | null>(null);
 
   useEffect(() => {
-    if (!import.meta.env.DEV || !box) return;
-    // QA: dónde quedan los tiradores en pantalla (para guiones de captura).
-    const handle = layerRef.current?.findOne('.handle-se') as Konva.Node | undefined;
-    const position = handle?.getAbsolutePosition();
-    const container = layerRef.current?.getStage()?.container().getBoundingClientRect();
-    if (position && container) {
-      (
-        window as Window & { __rdlcResizeHandle?: { x: number; y: number } }
-      ).__rdlcResizeHandle = { x: container.left + position.x, y: container.top + position.y };
+    if (!TEST_HOOKS_ENABLED) return;
+    const layer = layerRef.current;
+    const container = layer?.getStage()?.container().getBoundingClientRect();
+    if (!layer || !container) return;
+
+    // QA (Playwright): dónde queda el tirador SE en pantalla, para arrastrarlo
+    // con el ratón real.
+    const handle = layer.findOne('.handle-se') as Konva.Node | undefined;
+    if (handle && box) {
+      const position = handle.getAbsolutePosition();
+      (window as Window & { __rdlcResizeHandle?: { x: number; y: number } }).__rdlcResizeHandle = {
+        x: container.left + position.x,
+        y: container.top + position.y,
+      };
     }
   });
 
   if (!rect) return <Layer listening={false} />;
 
   const size = 8 / zoom;
-  const resizable = box !== undefined && onResize !== undefined;
-  // Posiciones acumuladas de los separadores (en px de papel), calculadas una vez.
-  const columnOffsets = grid ? cumulative(grid.columns) : [];
-  const rowOffsets = grid ? cumulative(grid.rows) : [];
+  const resizable = showHandles && box !== undefined && onResize !== undefined;
 
   const resizeFrom = (
     handle: ResizeHandle,
@@ -152,40 +173,25 @@ export function SelectionFrame({
         listening={false}
       />
 
-      {/* Separadores internos de la rejilla (solo con el Tablix seleccionado). */}
-      {grid && onResizeColumn
-        ? columnOffsets.slice(0, -1).map((offset, index) => (
-            <GridSeparator
-              key={`vc${offset}`}
-              orientation="vertical"
-              position={rect.x + offset}
-              length={rect.height}
-              zoom={zoom}
-              onDragged={(deltaCm) => {
-                const width = resizeBoundary(grid.columns[index]!, deltaCm, 0.1);
-                onResizeColumn(index, width);
-              }}
-            />
-          ))
-        : null}
-      {grid && onResizeRow
-        ? rowOffsets.slice(0, -1).map((offset, index) => (
-            <GridSeparator
-              key={`hr${offset}`}
-              orientation="horizontal"
-              position={rect.y + offset}
-              length={rect.width}
-              zoom={zoom}
-              onDragged={(deltaCm) => {
-                const height = resizeBoundary(grid.rows[index]!, deltaCm, 0.1);
-                onResizeRow(index, height);
-              }}
-            />
-          ))
-        : null}
+      {/* Cabeceras estilo Report Builder: seleccionan fila/columna y sus
+          bordes redimensionan (también con una celda seleccionada). */}
+      {grid && (onSelectColumn || onSelectRow || onResizeColumn || onResizeRow) ? (
+        <TablixHeaders
+          rect={rect}
+          zoom={zoom}
+          columns={grid.columns}
+          rows={grid.rows}
+          selection={selection ?? null}
+          onSelectColumn={onSelectColumn}
+          onSelectRow={onSelectRow}
+          onResizeColumn={onResizeColumn}
+          onResizeRow={onResizeRow}
+        />
+      ) : null}
 
       {resizable
-        ? RESIZE_HANDLES.map((handle) => {            const [x, y] = handlePosition(handle, rect);
+        ? RESIZE_HANDLES.map((handle) => {
+            const [x, y] = handlePosition(handle, rect);
             return (
               <Rect
                 key={handle}
@@ -257,48 +263,211 @@ function cumulative(lengths: Length[]): number[] {
   return result;
 }
 
-/**
- * Separador interno de la rejilla: se arrastra en su eje y avisa del delta en cm
- * (el nodo vuelve a su sitio; la posición la fija la proyección al actualizarse).
- */
-function GridSeparator({
-  orientation,
-  position,
+/** Cabeceras del Tablix (arriba y a la izquierda), como en Report Builder. */
+const HEADER_PX = 16;
+
+function TablixHeaders({
+  rect,
+  zoom,
+  columns,
+  rows,
+  selection,
+  onSelectColumn,
+  onSelectRow,
+  onResizeColumn,
+  onResizeRow,
+}: {
+  rect: { x: number; y: number; width: number; height: number };
+  zoom: number;
+  columns: Length[];
+  rows: Length[];
+  selection: SelectedCell | null;
+  onSelectColumn?: (index: number, extend: boolean, toggle: boolean) => void;
+  onSelectRow?: (index: number, extend: boolean, toggle: boolean) => void;
+  onResizeColumn?: (column: number, width: Length) => void;
+  onResizeRow?: (row: number, height: Length) => void;
+}): ReactNode {
+  const columnEdges = cumulative(columns);
+  const rowEdges = cumulative(rows);
+  const selectedColumns = new Set(selection ? selectionCols(selection) : []);
+  const selectedRows = new Set(selection ? selectionRows(selection) : []);
+  const inColumns = (index: number): boolean => selectedColumns.has(index);
+  const inRows = (index: number): boolean => selectedRows.has(index);
+
+  return (
+    <>
+      {/* Cabeceras de columna. */}
+      {columns.map((_, index) => {
+        const left = index === 0 ? 0 : (columnEdges[index - 1] ?? 0);
+        const width = (columnEdges[index] ?? 0) - left;
+        const edge = columnEdges[index] ?? 0;
+        return (
+          <Group key={`column-header-${edge}`}>
+            <Rect
+              name="tablix-column-header"
+              x={rect.x + left}
+              y={rect.y - HEADER_PX}
+              width={width}
+              height={HEADER_PX}
+              fill={inColumns(index) ? '#bfdbfe' : '#e5e7eb'}
+              stroke="#9ca3af"
+              strokeWidth={0.5}
+              strokeScaleEnabled={false}
+              onClick={(event) => {
+                event.cancelBubble = true;
+                const evt = event.evt as MouseEvent;
+                onSelectColumn?.(index, evt.shiftKey, evt.ctrlKey || evt.metaKey);
+              }}
+            />
+            <KonvaText
+              text={String(index + 1)}
+              x={rect.x + left}
+              y={rect.y - HEADER_PX + 3}
+              width={width}
+              align="center"
+              fontSize={10}
+              fill="#374151"
+              listening={false}
+            />
+          </Group>
+        );
+      })}
+
+      {/* Cabeceras de fila. */}
+      {rows.map((_, index) => {
+        const top = index === 0 ? 0 : (rowEdges[index - 1] ?? 0);
+        const height = (rowEdges[index] ?? 0) - top;
+        const edge = rowEdges[index] ?? 0;
+        return (
+          <Group key={`row-header-${edge}`}>
+            <Rect
+              name="tablix-row-header"
+              x={rect.x - HEADER_PX}
+              y={rect.y + top}
+              width={HEADER_PX}
+              height={height}
+              fill={inRows(index) ? '#bfdbfe' : '#e5e7eb'}
+              stroke="#9ca3af"
+              strokeWidth={0.5}
+              strokeScaleEnabled={false}
+              onClick={(event) => {
+                event.cancelBubble = true;
+                const evt = event.evt as MouseEvent;
+                onSelectRow?.(index, evt.shiftKey, evt.ctrlKey || evt.metaKey);
+              }}
+            />
+            <KonvaText
+              text={String(index + 1)}
+              x={rect.x - HEADER_PX}
+              y={rect.y + top + Math.max((height - 10) / 2, 1)}
+              width={HEADER_PX}
+              align="center"
+              fontSize={10}
+              fill="#374151"
+              listening={false}
+            />
+          </Group>
+        );
+      })}
+
+      {/* Esquina. */}
+      <Rect
+        name="tablix-corner"
+        x={rect.x - HEADER_PX}
+        y={rect.y - HEADER_PX}
+        width={HEADER_PX}
+        height={HEADER_PX}
+        fill="#e5e7eb"
+        stroke="#9ca3af"
+        strokeWidth={0.5}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+
+      {/* Bordes de las cabeceras: se arrastran para redimensionar (como RB). */}
+      {onResizeColumn
+        ? columnEdges.map((edge, index) => (
+            <HeaderResizeZone
+              key={`column-resize-${edge}`}
+              vertical
+              x={rect.x + edge}
+              y={rect.y - HEADER_PX}
+              length={HEADER_PX}
+              zoom={zoom}
+              onDragged={(deltaCm) =>
+                onResizeColumn(index, resizeBoundary(columns[index]!, deltaCm, 0.1))
+              }
+            />
+          ))
+        : null}
+      {onResizeRow
+        ? rowEdges.map((edge, index) => (
+            <HeaderResizeZone
+              key={`row-resize-${edge}`}
+              x={rect.x - HEADER_PX}
+              y={rect.y + edge}
+              length={HEADER_PX}
+              zoom={zoom}
+              onDragged={(deltaCm) =>
+                onResizeRow(index, resizeBoundary(rows[index]!, deltaCm, 0.1))
+              }
+            />
+          ))
+        : null}
+    </>
+  );
+}
+
+/** Zona de arrastre en el borde de una cabecera (redimensiona esa fila/columna). */
+function HeaderResizeZone({
+  vertical,
+  x,
+  y,
   length,
   zoom,
   onDragged,
 }: {
-  orientation: 'vertical' | 'horizontal';
-  position: number;
+  vertical?: boolean;
+  x: number;
+  y: number;
   length: number;
   zoom: number;
   onDragged: (deltaCm: number) => void;
 }): ReactNode {
-  const vertical = orientation === 'vertical';
+  const thickness = 8 / zoom;
+  const startRef = useRef(0);
+
   return (
-    <Line
-      name="separator"
-      points={vertical ? [position, 0, position, length] : [0, position, length, position]}
-      stroke="#93c5fd"
-      strokeWidth={1}
-      hitStrokeWidth={8}
+    <Rect
+      name="tablix-header-resize"
+      x={vertical ? x - thickness / 2 : x}
+      y={vertical ? y : y - thickness / 2}
+      width={vertical ? thickness : length}
+      height={vertical ? length : thickness}
+      fill="rgba(0,0,0,0.001)"
       draggable
-      dragBoundFunc={(point) => (vertical ? { x: point.x, y: 0 } : { x: 0, y: point.y })}
+      dragBoundFunc={(point) => (vertical ? { x: point.x, y } : { x, y: point.y })}
       onMouseEnter={(event) => {
-        event.target.getStage()!.container().style.cursor = vertical ? 'ew-resize' : 'ns-resize';
+        const stage = event.target.getStage();
+        if (stage) stage.container().style.cursor = vertical ? 'ew-resize' : 'ns-resize';
       }}
       onMouseLeave={(event) => {
-        event.target.getStage()!.container().style.cursor = '';
+        const stage = event.target.getStage();
+        if (stage) stage.container().style.cursor = '';
       }}
       onDragStart={(event) => {
         event.cancelBubble = true;
+        startRef.current = vertical ? event.target.x() : event.target.y();
       }}
       onDragEnd={(event) => {
         event.cancelBubble = true;
         const node = event.target;
         const scale = node.getStage()?.scaleX() ?? 1;
-        const delta = (vertical ? node.x() : node.y()) / scale / PX_PER_CM;
-        node.position({ x: 0, y: 0 });
+        const delta = ((vertical ? node.x() : node.y()) - startRef.current) / scale / PX_PER_CM;
+        // El nodo vuelve a su sitio: la posición la fija la proyección.
+        if (vertical) node.x(x - thickness / 2);
+        else node.y(y - thickness / 2);
+        node.getLayer()?.batchDraw();
         onDragged(delta);
       }}
     />
@@ -306,7 +475,8 @@ function GridSeparator({
 }
 
 /** Posición de cada tirador sobre el rect (px de papel). */
-function handlePosition(  handle: ResizeHandle,
+function handlePosition(
+  handle: ResizeHandle,
   rect: { x: number; y: number; width: number; height: number },
 ): [number, number] {
   const midX = rect.x + rect.width / 2;

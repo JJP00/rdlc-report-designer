@@ -36,9 +36,6 @@ export function applySetSize(
       { cmd: 'setSize', id: command.id, width: previousWidth, height: previousHeight },
       ...(growth ? [growth.inverse] : []),
     ],
-    applied: [
-      { id: command.id, values: { width, height } },
-      ...(growth ? [growth.applied] : []),
-    ],
+    applied: [{ id: command.id, values: { width, height } }, ...(growth ? [growth.applied] : [])],
   });
 }

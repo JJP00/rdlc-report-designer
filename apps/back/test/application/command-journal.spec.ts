@@ -97,7 +97,8 @@ describe('F1 · journal de comandos', () => {
     if (target.isRight()) expect(target.value.index.get('TextboxNuevo')).toBeUndefined();
   });
 
-  it('descarta el journal si el fichero se recarga: el undo no escribe valores viejos', async () => {    const { commands, service, watcher, events, sessionId, path } = await openFixture();
+  it('descarta el journal si el fichero se recarga: el undo no escribe valores viejos', async () => {
+    const { commands, service, watcher, events, sessionId, path } = await openFixture();
 
     // Edición guardada: el run 0 de Textbox25 pasa de '(' a 'MIO'.
     const edited = commands.execute(sessionId, {

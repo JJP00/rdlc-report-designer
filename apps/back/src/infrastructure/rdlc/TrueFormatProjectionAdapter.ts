@@ -10,6 +10,7 @@ import type {
   StyleDto,
   TablixCellDto,
   TablixDto,
+  TablixMemberDto,
   TextboxDto,
 } from '@rdlc-designer/contracts';
 import { XmlElement, XmlText } from 'xml-trueformat';
@@ -242,14 +243,87 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
         ),
     }));
 
+    const row = this.tablixMembers(el.getFirstElementByName('TablixRowHierarchy'));
+    const column = this.tablixMembers(el.getFirstElementByName('TablixColumnHierarchy'));
+    this.inferTotals(row.leaves, rowEls);
+
     return {
       ...base,
       kind: 'tablix',
       body: { columns, rows },
-      // F1: jerarquías de filas/columnas (grupos y totales).
-      rowHierarchy: [],
-      columnHierarchy: [],
+      rowHierarchy: row.members,
+      columnHierarchy: column.members,
     };
+  }
+
+  /**
+   * Árbol de miembros de una jerarquía. Devuelve también las **hojas** en orden
+   * de documento (cada hoja es una fila/columna del body) con el dato de si
+   * cuelgan de un grupo: es lo que necesita la inferencia de totales.
+   */
+  private tablixMembers(hierarchyEl: XmlElement | undefined): {
+    members: TablixMemberDto[];
+    leaves: { dto: TablixMemberDto; inGroup: boolean }[];
+  } {
+    const container = hierarchyEl?.getFirstElementByName('TablixMembers');
+    if (!container) return { members: [], leaves: [] };
+
+    const leaves: { dto: TablixMemberDto; inGroup: boolean }[] = [];
+    const build = (parent: XmlElement, path: number[], inGroup: boolean): TablixMemberDto[] =>
+      parent.children
+        .filter(
+          (child): child is XmlElement =>
+            child instanceof XmlElement && child.tagName === 'TablixMember',
+        )
+        .map((memberEl, index) => {
+          const group = memberEl.getFirstElementByName('Group');
+          const expression = textOf(
+            group
+              ?.getFirstElementByName('GroupExpressions')
+              ?.getFirstElementByName('GroupExpression'),
+          );
+          const nested = memberEl.getFirstElementByName('TablixMembers');
+          const childPath = [...path, index];
+          const children = nested ? build(nested, childPath, inGroup || group !== undefined) : [];
+          const hidden = textOf(
+            memberEl.getFirstElementByName('Visibility')?.getFirstElementByName('Hidden'),
+          );
+          const dto: TablixMemberDto = {
+            path: childPath,
+            total: 'none',
+            children,
+            ...(expression !== undefined && expression !== '' ? { expression } : {}),
+            ...(hidden !== undefined
+              ? {
+                  hidden: hidden === 'true' ? true : hidden === 'false' ? false : hidden,
+                }
+              : {}),
+          };
+          if (children.length === 0) {
+            leaves.push({ dto, inGroup: inGroup || group !== undefined });
+          }
+          return dto;
+        });
+
+    return { members: build(container, [], false), leaves };
+  }
+
+  /**
+   * Totales (heurística documentada): el RDL no marca las filas de total; una
+   * fila estática con funciones agregadas pegada a un grupo es un total — `after`
+   * si el grupo va antes y `before` si va después (igual que infiere RB).
+   */
+  private inferTotals(
+    leaves: { dto: TablixMemberDto; inGroup: boolean }[],
+    rowEls: XmlElement[],
+  ): void {
+    leaves.forEach((leaf, index) => {
+      if (leaf.inGroup) return;
+      const rowEl = rowEls[index];
+      if (!rowEl || !rowHasAggregate(rowEl)) return;
+      if (leaves[index - 1]?.inGroup) leaf.dto.total = 'after';
+      else if (leaves[index + 1]?.inGroup) leaf.dto.total = 'before';
+    });
   }
 
   /**
@@ -453,6 +527,21 @@ function sumLengths(lengths: Length[]): Length {
 function baseName(filePath: string): string {
   const name = filePath.split(/[\\/]/).pop() ?? filePath;
   return name.replace(/\.rdlc$/i, '');
+}
+
+/** true si la fila contiene alguna expresión agregada (`=Sum(`, `=Count(`…). */
+const AGGREGATE_RE = /^=\s*(Sum|Count|CountDistinct|Avg|Min|Max|First|Last|Aggregate)\s*\(/i;
+
+function rowHasAggregate(row: XmlElement): boolean {
+  for (const child of row.children) {
+    if (!(child instanceof XmlElement)) continue;
+    if (child.tagName === 'Value') {
+      const value = textOf(child);
+      if (value !== undefined && AGGREGATE_RE.test(value)) return true;
+    }
+    if (rowHasAggregate(child)) return true;
+  }
+  return false;
 }
 
 /** Extrae firmas `Function`/`Sub` del bloque VB custom (`Code.`). */

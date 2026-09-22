@@ -41,6 +41,7 @@ pnpm install
 pnpm test                       # vitest: golden round-trip, comparativa, caso de uso
 pnpm typecheck                  # tsc en todos los paquetes
 pnpm format                     # prettier
+pnpm e2e                        # Playwright sobre la app Electron (compila out/ y lanza los E2E)
 pnpm --filter @rdlc-designer/back dev     # Electron en modo dev (HMR renderer)
 pnpm --filter @rdlc-designer/back build   # build de producción (main + preload + renderer)
 ```
@@ -77,11 +78,16 @@ pnpm --filter @rdlc-designer/back dev
 ```
 
 El renderer reenvía su consola al log (`[renderer] …`), y en dev expone ganchos para los
-guiones: `__rdlcSelection` (rect del elemento seleccionado en px de papel + zoom),
-`__rdlcResizeHandle`, `__rdlcTablixSeparator` y `__rdlcStage` (el `Konva.Stage`, para
-`getIntersection` o para trazar eventos). Detalles en el pendientes.
+guiones: `__rdlcSelection` (id + rect del elemento seleccionado en px de papel + zoom),
+`__rdlcCell` (celdas del Tablix seleccionadas), `__rdlcMenuHit` (último hit del click
+derecho), `__rdlcResizeHandle`, `__rdlcStage` (el `Konva.Stage`, para `getIntersection` o
+para trazar eventos) y `__rdlcProjection` (la proyección viva).
 
-## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-16)
+**Los tests de interacción viven en Playwright** (`pnpm e2e`): lanza el build de Electron
+con `--mode e2e` (los ganchos se publican también ahí), usa ratón/teclado reales y deja
+traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntuales.
+
+## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-22)
 
 **Fase 0 (spike round-trip) — cerrada:**
 
@@ -109,22 +115,49 @@ guiones: `__rdlcSelection` (rect del elemento seleccionado en px de papel + zoom
 - [x] **Paleta de comandos Ctrl+K** (elementos por nombre y contenido, variables, acciones)
       y **Monaco** para expresiones y bloque `<Code>` (resaltado + autocompletado;
       las variables se insertan en el cursor).
-- [x] **Redimensionar con el cursor** (8 tiradores: mover + tamaño en un undo) y, en los
-      Tablix, redimensionar la tabla con reparto proporcional de su rejilla + **separadores
-      internos de columna/fila** (seleccionando la tabla por su borde). Un click dentro de la
-      tabla selecciona el **elemento de dentro**; **Esc** sube un nivel de jerarquía para
-      alcanzar tablas anidadas.
-- [ ] **Tablix visual completo** (F2): celdas, filas/columnas y grupos con totales · [ ] Matrix (F3).
+- [x] **Redimensionar con el cursor** (8 tiradores: mover + tamaño en un undo). El
+      redimensionado de columnas/filas de un Tablix vive en los **bordes de sus cabeceras
+      estilo Report Builder** (desde 2026-09-18; antes eran separadores internos azules). Un
+      click dentro de la tabla selecciona el **elemento de dentro**; **Esc** sube un nivel de
+      jerarquía.
+- [x] **Estructura del Tablix (F2 parte 3, bloque 1)**: proyección de las jerarquías de
+      fila/columna (grupos, visibilidad y totales inferidos), **selección de celdas** con
+      **cabeceras estilo Report Builder** (barras grises numeradas arriba y a la izquierda:
+      click selecciona la columna/fila, **Shift+click** hace rango, **Ctrl+click** añade celdas
+      sueltas; el redimensionado va en los **bordes de las cabeceras**, sin líneas azules
+      internas), panel de **estructura** (árbol de filas/columnas con añadir/quitar fila y
+      columna, sincronizando `TablixBody` **y** las jerarquías; las celdas fusionadas se
+      respetan y el undo es byte-exacto), **menú contextual de celda** (submenú _Insertar fila
+      o columna_; eliminar filas/columnas en lote de las celdas seleccionadas) y
+      **combinar/separar celdas** (solo si la selección forma un tramo contiguo de
+      una misma fila; las fusiones verticales que ya traiga el fichero se pueden
+      separar).
+      El **contenido de una celda está anclado**: no se arrastra, se recorta a la celda y el
+      marco de la tabla mide la **rejilla**. Queda pendiente: **grupos de fila con totales**
+      (crear/borrar grupo y total before/after) · [ ] Matrix (F3).
+- [x] **E2E con Playwright sobre Electron** (`pnpm e2e`): selección por borde y por celda,
+      arrastre real de cabeceras con undo, click interno + Esc, estructura (añadir/quitar filas
+      y columnas), menú contextual, anclaje/recorte del contenido, refresco de la rejilla,
+      cabeceras (Shift/Ctrl), borrado en lote, fusión/separación y colores-expresión
+      (17 tests, con reset del documento entre tests).
+- [ ] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [ ] grupos con totales · [ ] Matrix (F3).
 
-**Calidad (sesión 2026-09-16):**
+**Calidad (sesiones 2026-09-16, 2026-09-18 y 2026-09-22):**
 
 - [x] **Pendientes M1–M7** cerrados (id al duplicar, aviso al cerrar, motivo de recarga,
       zIndex en pintado y hit-test, `<Code>` vacío, nombres elegidos por el backend,
       limpieza de la selección tras undo/redo).
-- [x] **`react-doctor` 51 → 82 con 0 errores**: `App` partido en
+- [x] **`react-doctor` 100/100 con 0 issues** (el único falso positivo — `prefer-dynamic-import`
+      sobre `monacoSetup.ts`, que ya se carga en diferido — queda acotado en
+      `apps/front/doctor.config.json`).
+- [x] **`react-doctor` 51 → 82 → 100**: `App` partido en
       `useDocumentCore`/`useItemEditing`/`useGlobalKeys` + `EditorToolbar`, `CanvasArea`,
       `ItemPanels`, `StatusBar`; el lienzo en `Paper`/`SelectionFrame`/`Ruler`/`ItemView`.
-      Quedan 3 avisos revisados y aceptados (documentados en el pendientes).
-- [x] **199 tests** (136 back + 63 front) y `typecheck` limpio.
+- [x] **Ajustes de la sesión 2026-09-22**: el click derecho conserva la selección de celdas
+      (cadena de celdas del hit, con tablixes anidados), la fusión solo aplica a tramos
+      contiguos de una misma fila (también con celdas sueltas de Ctrl+click) y el banner de
+      error pierde el código y se cierra solo (6 s).
+- [x] **242 unit tests** (158 back + 84 front) + **17 E2E** de Playwright y
+      `typecheck` limpio.
 
 Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

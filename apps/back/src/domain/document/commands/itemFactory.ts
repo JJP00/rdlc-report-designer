@@ -3,7 +3,10 @@ import { insertCanonical, writeLength } from '../geometry/geometry.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 
 /** Construye un item nuevo válido (hijos obligatorios en orden canónico XSD). */
-export function createReportItem(container: RdlcNode, spec: NewItemSpec & { name: string }): RdlcNode {
+export function createReportItem(
+  container: RdlcNode,
+  spec: NewItemSpec & { name: string },
+): RdlcNode {
   const tagName =
     spec.kind === 'textbox'
       ? 'Textbox'

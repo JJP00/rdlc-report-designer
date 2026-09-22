@@ -1,11 +1,12 @@
-import type { NewItemSpec } from '@rdlc-designer/contracts';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import type { ProjectionDto } from '@rdlc-designer/contracts';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CanvasArea } from '@/components/CanvasArea';
+import { EditorBanners } from '@/components/EditorBanners';
 import { EditorToolbar } from '@/components/EditorToolbar';
+import { InspectorPanel } from '@/components/InspectorPanel';
 import { StatusBar } from '@/components/StatusBar';
 import { CommandPalette } from '@/components/panels/CommandPalette';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
-import { ItemPanels } from '@/components/panels/ItemPanels';
 import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
 import { VariablesPanel } from '@/components/panels/VariablesPanel';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -15,8 +16,10 @@ import { useItemEditing } from '@/hooks/useItemEditing';
 import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
 import type { CanvasHit } from '@/lib/hit';
 import { paletteRunner, type PaletteActionId } from '@/lib/palette';
-import { countItems, formatKinds } from '@/lib/projection';
+import { countItems, formatKinds, isCellContent } from '@/lib/projection';
+import { findOwnerTablix, hitSelectionCell } from '@/lib/tablix';
 import { effectiveTextStyle } from '@/lib/style';
+import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 
 /**
  * Shell del editor: composición de hooks (`useDocumentCore` para el ciclo de
@@ -36,8 +39,39 @@ export function App(): ReactNode {
   const [menuHit, setMenuHit] = useState<CanvasHit | null>(null);
 
   const { doc, status, error, dirty, conflict, reloads, hasBackend } = core;
-  const { selectedId, selectedItem } = items;
+  const { selectedId, selectedItem, selectedCell } = items;
   const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
+
+  /**
+   * Tablix del que muestra la estructura el panel derecho: el seleccionado, o
+   * el que contiene la celda/item seleccionados (el más interno).
+   */
+  const structureTablix = useMemo(() => {
+    if (selectedItem?.kind === 'tablix') return selectedItem;
+    if (!doc) return undefined;
+    if (selectedCell) return findOwnerTablix(doc.projection, selectedCell.id);
+    if (selectedItem) return findOwnerTablix(doc.projection, selectedItem.id);
+    return undefined;
+  }, [doc, selectedItem, selectedCell]);
+
+  /** El item seleccionado es contenido directo de una celda (lo fija la celda). */
+  const selectedIsCellContent = useMemo(
+    () => (doc && selectedItem ? isCellContent(doc.projection, selectedItem.id) : false),
+    [doc, selectedItem],
+  );
+
+  // QA/diagnóstico: la proyección viva, para los E2E de Playwright.
+  useEffect(() => {
+    if (!TEST_HOOKS_ENABLED) return;
+    (window as Window & { __rdlcProjection?: ProjectionDto | null }).__rdlcProjection =
+      doc?.projection ?? null;
+  }, [doc]);
+
+  // QA/diagnóstico: el último hit del click derecho (celda/scope del menú).
+  useEffect(() => {
+    if (!TEST_HOOKS_ENABLED) return;
+    (window as Window & { __rdlcMenuHit?: CanvasHit | null }).__rdlcMenuHit = menuHit;
+  }, [menuHit]);
 
   const setStatus = core.setStatus;
   const pickExpression = useCallback(
@@ -86,9 +120,12 @@ export function App(): ReactNode {
   });
 
   /* Acciones del JSX (los hooks ya resuelven la lógica). */
-  const { open, save, close, undo, redo } = core;
+  const { open, save, close, undo, redo, setError } = core;
   const {
     setSelectedId,
+    setSelectedCell,
+    selectCell,
+    selectCellForContext,
     insertItem,
     insertAt,
     duplicateSelected,
@@ -102,6 +139,14 @@ export function App(): ReactNode {
     resizeItem,
     resizeColumn,
     resizeRow,
+    addRow,
+    deleteRow,
+    addColumn,
+    deleteColumn,
+    deleteRows,
+    deleteColumns,
+    mergeCells,
+    unmergeCells,
     setItemStyle,
     setImageOptions,
     setRunText,
@@ -114,27 +159,54 @@ export function App(): ReactNode {
     selectParent,
   } = items;
 
+  /**
+   * Click derecho: si cae dentro de una selección de celdas del Tablix (el
+   * rectángulo o las añadidas con Ctrl+click, en el tablix que sea de la cadena
+   * de anidados), el rango manda y no se pierde (fusión / borrado en lote). Si
+   * no, selecciona lo que hay debajo.
+   */
+  const handleContextMenuHit = useCallback(
+    (hit: CanvasHit): void => {
+      setMenuHit(hit);
+      if (hitSelectionCell(hit.cells, selectedCell)) return;
+      if (hit.item) {
+        setSelectedId(hit.item.id);
+        return;
+      }
+      if (hit.scope.kind === 'tablixCell') {
+        selectCellForContext({
+          id: hit.scope.id,
+          row: hit.scope.row,
+          col: hit.scope.col,
+        });
+        return;
+      }
+      setSelectedId(null);
+    },
+    [selectCellForContext, selectedCell, setSelectedId],
+  );
+
   return (
     <TooltipProvider>
       <div className="flex h-full flex-col bg-background">
-      <EditorToolbar
-        hasDocument={doc !== null}
-        hasSelection={selectedItem !== undefined}
-        selectedId={selectedId}
-        zoom={zoom}
-        showVariables={showVariables}
-        onOpen={() => void open()}
-        onSave={() => void save()}
-        onClose={() => void close()}
-        onOpenProperties={() => setPropertiesOpen(true)}
-        onToggleVariables={() => setShowVariables((value) => !value)}
-        onInsert={insertItem}
-        onDuplicate={duplicateSelected}
-        onDelete={deleteSelected}
-        onUndo={() => void undo()}
-        onRedo={() => void redo()}
-        onZoomChange={setZoom}
-      />
+        <EditorToolbar
+          hasDocument={doc !== null}
+          hasSelection={selectedItem !== undefined}
+          selectedId={selectedId}
+          zoom={zoom}
+          showVariables={showVariables}
+          onOpen={() => void open()}
+          onSave={() => void save()}
+          onClose={() => void close()}
+          onOpenProperties={() => setPropertiesOpen(true)}
+          onToggleVariables={() => setShowVariables((value) => !value)}
+          onInsert={insertItem}
+          onDuplicate={duplicateSelected}
+          onDelete={deleteSelected}
+          onUndo={() => void undo()}
+          onRedo={() => void redo()}
+          onZoomChange={setZoom}
+        />
 
         {/* Barra de formato de texto (ribbon), bajo la toolbar principal. */}
         <FormatToolbar
@@ -143,24 +215,12 @@ export function App(): ReactNode {
           disabled={selectedItem?.kind !== 'textbox'}
         />
 
-        {error ? (
-          <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive">
-            {error}
-          </div>
-        ) : null}
-        {conflict ? (
-          <div className="border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-700">
-            El fichero <span className="font-mono">{conflict}</span> cambió por fuera y hay cambios
-            sin guardar: no se ha recargado para no perderlos. Guarda para sobrescribir, o cierra y
-            vuelve a abrir el fichero para descartar los tuyos.
-          </div>
-        ) : null}
-        {!hasBackend ? (
-          <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive">
-            Modo navegador: sin backend IPC. Arranca la aplicación con{' '}
-            <code>pnpm --filter @rdlc-designer/back dev</code>.
-          </div>
-        ) : null}
+        <EditorBanners
+          error={error}
+          conflict={conflict}
+          hasBackend={hasBackend}
+          onDismissError={() => setError(null)}
+        />
 
         <main className="flex min-h-0 flex-1">
           {showVariables && doc ? (
@@ -173,21 +233,27 @@ export function App(): ReactNode {
             projection={doc?.projection ?? null}
             zoom={zoom}
             selectedId={selectedId}
+            selectedCell={selectedCell}
             menuHit={menuHit}
             hasClipboard={hasClipboard}
             reveal={reveal}
             onSelect={setSelectedId}
-            onContextMenuHit={(hit) => {
-              setMenuHit(hit);
-              // Como en VS/RB: el click derecho selecciona lo que hay debajo.
-              setSelectedId(hit.item?.id ?? null);
-            }}
+            onSelectCell={selectCell}
+            onContextMenuHit={handleContextMenuHit}
             onZoomChange={setZoom}
             onMoveItem={moveItem}
             onResizeItem={resizeItem}
             onResizeColumn={resizeColumn}
             onResizeRow={resizeRow}
             onInsertAt={insertAt}
+            onAddRow={addRow}
+            onDeleteRow={deleteRow}
+            onAddColumn={addColumn}
+            onDeleteColumn={deleteColumn}
+            onDeleteRows={deleteRows}
+            onDeleteColumns={deleteColumns}
+            onMergeCells={mergeCells}
+            onUnmergeCells={unmergeCells}
             onDuplicate={duplicateSelected}
             onCopy={copySelected}
             onCut={cutSelected}
@@ -196,16 +262,22 @@ export function App(): ReactNode {
             onSelectParent={selectParent}
           />
 
-          <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
-            <ItemPanels
-              item={selectedItem}
-              onSetLocation={setItemLocation}
-              onSetSize={setItemSize}
-              onSetStyle={setItemStyle}
-              onSetText={setRunText}
-              onSetImageOptions={setImageOptions}
-            />
-          </aside>
+          <InspectorPanel
+            tablix={structureTablix}
+            selectedCell={selectedCell}
+            item={selectedItem}
+            cellContent={selectedIsCellContent}
+            onSelectCell={setSelectedCell}
+            onAddRow={addRow}
+            onDeleteRow={deleteRow}
+            onAddColumn={addColumn}
+            onDeleteColumn={deleteColumn}
+            onSetLocation={setItemLocation}
+            onSetSize={setItemSize}
+            onSetStyle={setItemStyle}
+            onSetText={setRunText}
+            onSetImageOptions={setImageOptions}
+          />
         </main>
 
         <StatusBar

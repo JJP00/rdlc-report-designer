@@ -11,7 +11,8 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
 import { computeDragEnd } from '@/lib/drag';
 import { sortByZIndex } from '@/lib/projection';
-import { effectiveTextStyle } from '@/lib/style';
+import { effectiveTextStyle, paintColor } from '@/lib/style';
+import { tablixLayout, cellRange, isCellInRange, type SelectedCell } from '@/lib/tablix';
 import { runDisplayText } from '@/lib/text';
 import { PX_PER_CM, SNAP_CM, toPx } from './geometry';
 
@@ -37,7 +38,18 @@ interface NodeGroupProps {
   /** Límites del contenedor (px) y tamaño del item para no salir de él. */
   bounds?: { width: number; height: number };
   itemSize?: { width: number; height: number };
+  /** Shift+click amplía el rango y Ctrl+click añade celdas (sobre el contenido). */
+  shiftCell?: { id: string; row: number; col: number } | null;
+  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   children: ReactNode;
+}
+
+/**
+ * Konva no filtra el botón: un click derecho también emite `click`. La
+ * selección del menú contextual la decide el hit del `contextmenu` (DOM).
+ */
+function isSecondaryClick(event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): boolean {
+  return (event.evt as MouseEvent).button === 2;
 }
 
 /** Grupo posicionado con selección y drag (un comando al soltar, con snap). */
@@ -50,6 +62,8 @@ function NodeGroup({
   onMoveItem,
   bounds,
   itemSize,
+  shiftCell,
+  onSelectCell,
   children,
 }: NodeGroupProps): ReactNode {
   const dragState = useRef<{
@@ -87,6 +101,14 @@ function NodeGroup({
       y={y}
       draggable={draggable}
       onClick={(event) => {
+        if (isSecondaryClick(event)) return;
+        const evt = event.evt as MouseEvent;
+        // Shift+click amplía el rango; Ctrl/Cmd+click añade celdas (RB).
+        if (shiftCell && (evt.shiftKey || evt.ctrlKey || evt.metaKey)) {
+          event.cancelBubble = true;
+          onSelectCell?.(shiftCell, evt.shiftKey, evt.ctrlKey || evt.metaKey);
+          return;
+        }
         event.cancelBubble = true;
         onSelect?.(itemId);
       }}
@@ -159,6 +181,11 @@ interface ItemViewProps {
   /** Redimensionar una columna/fila de la rejilla de un Tablix. */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
+  /** Celda de Tablix seleccionada (F2 parte 3). */
+  selectedCell?: SelectedCell | null;
+  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
+  /** Si el item es el contenido directo de una celda, su celda (Shift+click). */
+  cellOwner?: { id: string; row: number; col: number } | null;
   bounds?: { width: number; height: number };
 }
 
@@ -170,6 +197,9 @@ export function ItemView({
   onMoveItem,
   onResizeColumn,
   onResizeRow,
+  selectedCell,
+  onSelectCell,
+  cellOwner,
   bounds,
 }: ItemViewProps): ReactNode {
   if (item.hidden === true) return null;
@@ -201,6 +231,8 @@ export function ItemView({
       onMoveItem={onMoveItem}
       bounds={draggable ? bounds : undefined}
       itemSize={{ width, height }}
+      shiftCell={cellOwner ?? null}
+      onSelectCell={onSelectCell}
     >
       {renderContent(
         item,
@@ -214,6 +246,8 @@ export function ItemView({
         onMoveItem,
         onResizeColumn,
         onResizeRow,
+        selectedCell,
+        onSelectCell,
       )}
     </NodeGroup>
   );
@@ -232,6 +266,8 @@ function renderContent(
   onMoveItem?: (id: string, top: Length, left: Length) => void,
   onResizeColumn?: (id: string, column: number, width: Length) => void,
   onResizeRow?: (id: string, row: number, height: Length) => void,
+  selectedCell?: SelectedCell | null,
+  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void,
 ): ReactNode {
   switch (item.kind) {
     case 'textbox':
@@ -253,6 +289,8 @@ function renderContent(
           onMoveItem={onMoveItem}
           onResizeColumn={onResizeColumn}
           onResizeRow={onResizeRow}
+          selectedCell={selectedCell}
+          onSelectCell={onSelectCell}
           width={width}
           height={height}
         />
@@ -270,6 +308,8 @@ function renderContent(
           onMoveItem={onMoveItem}
           onResizeColumn={onResizeColumn}
           onResizeRow={onResizeRow}
+          selectedCell={selectedCell}
+          onSelectCell={onSelectCell}
         />
       );
     default:
@@ -292,7 +332,9 @@ function TextboxContent({
   fontSize: number;
   fontStyle: string;
 }): ReactNode {
-  const text = item.paragraphs.map((paragraph) => paragraph.runs.map(runDisplayText).join('')).join('\n');
+  const text = item.paragraphs
+    .map((paragraph) => paragraph.runs.map(runDisplayText).join(''))
+    .join('\n');
   const padding = style?.padding;
   const padLeft = padding?.left ? toPx(padding.left) : 2;
   const padRight = padding?.right ? toPx(padding.right) : 2;
@@ -307,7 +349,7 @@ function TextboxContent({
         <Rect
           width={width}
           height={height}
-          fill={style?.backgroundColor ?? '#ffffff'}
+          fill={paintColor(style?.backgroundColor, '#ffffff')}
           stroke="#e5e7eb"
           strokeWidth={0.5}
         />
@@ -320,7 +362,7 @@ function TextboxContent({
           fontSize={fontSize}
           fontStyle={fontStyle || 'normal'}
           fontFamily={style?.fontFamily ?? 'Segoe UI'}
-          fill={style?.color ?? '#111827'}
+          fill={paintColor(style?.color, '#111827')}
           align={(style?.textAlign ?? 'Left').toLowerCase() as 'left' | 'center' | 'right'}
           verticalAlign={
             (style?.verticalAlign ?? 'Top').toLowerCase() as 'top' | 'middle' | 'bottom'
@@ -341,6 +383,8 @@ function RectangleContent({
   onMoveItem,
   onResizeColumn,
   onResizeRow,
+  selectedCell,
+  onSelectCell,
 }: {
   item: RectangleDto;
   width: number;
@@ -349,6 +393,8 @@ function RectangleContent({
   onMoveItem?: (id: string, top: Length, left: Length) => void;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
+  selectedCell?: SelectedCell | null;
+  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
 }): ReactNode {
   return (
     <>
@@ -356,7 +402,7 @@ function RectangleContent({
       <Rect
         width={width}
         height={height}
-        fill={item.style?.backgroundColor ?? 'rgba(0,0,0,0)'}
+        fill={paintColor(item.style?.backgroundColor, 'rgba(0,0,0,0)')}
         stroke="#9ca3af"
         strokeWidth={0.5}
       />
@@ -368,6 +414,8 @@ function RectangleContent({
           onMoveItem={onMoveItem}
           onResizeColumn={onResizeColumn}
           onResizeRow={onResizeRow}
+          selectedCell={selectedCell}
+          onSelectCell={onSelectCell}
           draggable={onMoveItem !== undefined}
           /* Sin bounds: el contenedor no es un límite duro en RDL. */
         />
@@ -381,9 +429,7 @@ function LineContent({ width, height }: { width: number; height: number }): Reac
 }
 
 function UnknownContent({ width, height }: { width: number; height: number }): ReactNode {
-  return (
-    <Rect width={width} height={height} fill="rgba(0,0,0,0)" stroke="#f59e0b" dash={[6, 3]} />
-  );
+  return <Rect width={width} height={height} fill="rgba(0,0,0,0)" stroke="#f59e0b" dash={[6, 3]} />;
 }
 
 /**
@@ -470,6 +516,8 @@ function TablixContent({
   onMoveItem,
   onResizeColumn,
   onResizeRow,
+  selectedCell,
+  onSelectCell,
 }: {
   item: TablixDto;
   selected?: boolean;
@@ -477,56 +525,118 @@ function TablixContent({
   onMoveItem?: (id: string, top: Length, left: Length) => void;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
+  selectedCell?: SelectedCell | null;
+  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
 }): ReactNode {
-  const columns = item.body.columns.map(toPx);
-  const rows = item.body.rows.map((row) => toPx(row.height));
-  const totalWidth = columns.reduce((acc, value) => acc + value, 0);
-  const totalHeight = rows.reduce((acc, value) => acc + value, 0);
+  const layout = tablixLayout(item);
+  const totalWidth = layout.width * PX_PER_CM;
+  const totalHeight = layout.height * PX_PER_CM;
 
-  const columnOffsets: number[] = [];
-  let offsetX = 0;
-  for (const columnWidth of columns) {
-    columnOffsets.push(offsetX);
-    offsetX += columnWidth;
-  }
-  const rowOffsets: number[] = [];
-  let offsetY = 0;
-  for (const rowHeight of rows) {
-    rowOffsets.push(offsetY);
-    offsetY += rowHeight;
-  }
-
-  const cells: ReactNode[] = [];
-  item.body.rows.forEach((row, rowIndex) => {
-    row.cells.forEach((cell, colIndex) => {
-      if (!cell?.content) return;
-      cells.push(
-        <Group
-          key={`c${rowIndex}-${colIndex}`}
-          x={columnOffsets[colIndex] ?? 0}
-          y={rowOffsets[rowIndex] ?? 0}
-        >
-          <ItemView
-            item={cell.content}
-            onSelect={onSelect}
-            onMoveItem={onMoveItem}
-            onResizeColumn={onResizeColumn}
-            onResizeRow={onResizeRow}
-            draggable={onMoveItem !== undefined}
-            /* Sin bounds: el contenido de una celda puede desbordarla. */
-          />
-        </Group>,
+  const selectCell =
+    (row: number, col: number) =>
+    (event: Konva.KonvaEventObject<MouseEvent | TouchEvent>): void => {
+      if (isSecondaryClick(event)) return;
+      event.cancelBubble = true;
+      const evt = event.evt as MouseEvent;
+      onSelectCell?.(
+        { id: item.id, row, col },
+        evt.shiftKey === true,
+        evt.ctrlKey === true || evt.metaKey === true,
       );
-    });
+    };
+
+  const cells: ReactNode[] = layout.cells.map((cell) => {
+    const cellWidth = cell.width * PX_PER_CM;
+    const cellHeight = cell.height * PX_PER_CM;
+
+    return (
+      <Group key={`c${cell.row}-${cell.col}`} x={cell.x * PX_PER_CM} y={cell.y * PX_PER_CM}>
+        {/* Área de la celda, **debajo** del contenido: un item anidado gana el
+            click (selecciona el item); una celda vacía selecciona la celda. */}
+        <Rect
+          name="tablix-cell"
+          width={cellWidth}
+          height={cellHeight}
+          fill="rgba(0,0,0,0)"
+          onClick={selectCell(cell.row, cell.col)}
+          onTap={selectCell(cell.row, cell.col)}
+        />
+        {cell.content ? (
+          /* Como en RB: la celda manda. El contenido no se arrastra (está
+             anclado a la celda) y se recorta a su caja. */
+          <Group
+            name="tablix-cell-clip"
+            clip={{ x: 0, y: 0, width: cellWidth, height: cellHeight }}
+          >
+            <ItemView
+              item={cell.content}
+              onSelect={onSelect}
+              onMoveItem={onMoveItem}
+              onResizeColumn={onResizeColumn}
+              onResizeRow={onResizeRow}
+              selectedCell={selectedCell}
+              onSelectCell={onSelectCell}
+              cellOwner={{ id: item.id, row: cell.row, col: cell.col }}
+              draggable={false}
+            />
+          </Group>
+        ) : null}
+      </Group>
+    );
   });
+
+  // Resaltado del rango: un único rectángulo sobre las filas/columnas elegidas.
+  const columnEdges = [0];
+  layout.columns.forEach((width) =>
+    columnEdges.push((columnEdges[columnEdges.length - 1] ?? 0) + width),
+  );
+  const rowEdges = [0];
+  layout.rows.forEach((height) => rowEdges.push((rowEdges[rowEdges.length - 1] ?? 0) + height));
+  const range = selectedCell?.id === item.id ? cellRange(selectedCell) : null;
+  const highlight = range
+    ? {
+        x: (columnEdges[range.col0] ?? 0) * PX_PER_CM,
+        y: (rowEdges[range.row0] ?? 0) * PX_PER_CM,
+        width:
+          ((columnEdges[Math.min(range.col1 + 1, layout.columns.length)] ?? 0) -
+            (columnEdges[range.col0] ?? 0)) *
+          PX_PER_CM,
+        height:
+          ((rowEdges[Math.min(range.row1 + 1, layout.rows.length)] ?? 0) -
+            (rowEdges[range.row0] ?? 0)) *
+          PX_PER_CM,
+      }
+    : null;
+
+  // Ctrl+click: celdas sueltas fuera del rectángulo (cada una con su caja).
+  const extraHighlights =
+    selectedCell?.id === item.id
+      ? (selectedCell.extra ?? [])
+          .filter((entry) => !isCellInRange(entry, selectedCell))
+          .map((entry) => {
+            const box = layout.cells.find(
+              (cell) => cell.row === entry.row && cell.col === entry.col,
+            );
+            return box ? { entry, box } : null;
+          })
+          .filter(
+            (
+              value,
+            ): value is {
+              entry: { row: number; col: number };
+              box: (typeof layout.cells)[number];
+            } => value !== null,
+          )
+      : [];
 
   const grid: ReactNode[] = [];
   let cx = 0;
-  columns.forEach((columnWidth) => {
-    cx += columnWidth;
+  layout.columns.forEach((columnWidth) => {
+    cx += columnWidth * PX_PER_CM;
     grid.push(
       <Line
         key={`v${cx}`}
+        name="tablix-grid"
         points={[cx, 0, cx, totalHeight]}
         stroke="#d1d5db"
         strokeWidth={0.5}
@@ -535,11 +645,12 @@ function TablixContent({
     );
   });
   let cy = 0;
-  rows.forEach((rowHeight) => {
-    cy += rowHeight;
+  layout.rows.forEach((rowHeight) => {
+    cy += rowHeight * PX_PER_CM;
     grid.push(
       <Line
         key={`h${cy}`}
+        name="tablix-grid"
         points={[0, cy, totalWidth, cy]}
         stroke="#d1d5db"
         strokeWidth={0.5}
@@ -554,12 +665,44 @@ function TablixContent({
       {/* La rejilla va encima de las celdas (los separadores se dibujan en la
           capa de selección, como los tiradores). */}
       {grid}
+      {/* Resaltado del rango seleccionado (una sola figura, encima de la rejilla). */}
+      {highlight ? (
+        <Rect
+          name="tablix-cell-highlight"
+          x={highlight.x}
+          y={highlight.y}
+          width={highlight.width}
+          height={highlight.height}
+          fill="rgba(37,99,235,0.10)"
+          stroke="#2563eb"
+          strokeWidth={1}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      ) : null}
+      {/* Celdas añadidas con Ctrl+click (fuera del rectángulo). */}
+      {extraHighlights.map(({ entry, box }) => (
+        <Rect
+          key={`extra-${entry.row}-${entry.col}`}
+          name="tablix-cell-highlight"
+          x={box.x * PX_PER_CM}
+          y={box.y * PX_PER_CM}
+          width={box.width * PX_PER_CM}
+          height={box.height * PX_PER_CM}
+          fill="rgba(37,99,235,0.10)"
+          stroke="#2563eb"
+          strokeWidth={1}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      ))}
       {/* Borde del Tablix: pincharlo selecciona la **tabla** (el interior cae
           en las celdas, como en RB). El `hitFunc` dibuja **solo un anillo**
           fino: el área de hit por defecto de un `Rect` en Konva es toda su
           superficie y la tabla se tragaría los clicks de las celdas. El anillo
           va por fuera (y 1 px dentro) para no robarle clicks al contenido. */}
       <Rect
+        name="tablix-border"
         width={totalWidth}
         height={totalHeight}
         fill="rgba(0,0,0,0)"
@@ -567,10 +710,12 @@ function TablixContent({
         strokeWidth={0.5}
         hitFunc={tablixBorderHit}
         onClick={(event) => {
+          if (isSecondaryClick(event)) return;
           event.cancelBubble = true;
           onSelect?.(item.id);
         }}
         onTap={(event) => {
+          if (isSecondaryClick(event)) return;
           event.cancelBubble = true;
           onSelect?.(item.id);
         }}
@@ -597,4 +742,3 @@ function tablixBorderHit(context: Konva.Context, shape: Konva.Shape): void {
   context.closePath();
   context.fillStrokeShape(shape);
 }
-

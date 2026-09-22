@@ -35,10 +35,24 @@ describe('computeResize', () => {
   });
 
   it('el imán redondea el tamaño y, si se mueve el origen, también la posición', () => {
-    const snapped = computeResize({ handle: 'se', start: box, dxCm: 1.24, dyCm: 0.34, snap: true, snapCm: 0.1 });
+    const snapped = computeResize({
+      handle: 'se',
+      start: box,
+      dxCm: 1.24,
+      dyCm: 0.34,
+      snap: true,
+      snapCm: 0.1,
+    });
     expect(snapped).toEqual({ top: 2, left: 3, width: 6.2, height: 1.3 });
 
-    const west = computeResize({ handle: 'w', start: box, dxCm: -1.24, snap: true, snapCm: 0.1, dyCm: 0 });
+    const west = computeResize({
+      handle: 'w',
+      start: box,
+      dxCm: -1.24,
+      snap: true,
+      snapCm: 0.1,
+      dyCm: 0,
+    });
     expect(west.left).toBe(1.8);
     expect(west.width).toBe(6.2);
     // El borde este (que no se arrastra) se queda donde estaba.
@@ -89,7 +103,10 @@ describe('resizeBoundary', () => {
   });
 
   it('con `snapCm: null` no imanta (Shift)', () => {
-    expect(resizeBoundary({ value: 3, unit: 'cm' }, 0.34, null)).toEqual({ value: 3.34, unit: 'cm' });
+    expect(resizeBoundary({ value: 3, unit: 'cm' }, 0.34, null)).toEqual({
+      value: 3.34,
+      unit: 'cm',
+    });
   });
 
   it('no baja del tamaño mínimo', () => {

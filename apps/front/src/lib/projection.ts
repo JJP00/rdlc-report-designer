@@ -80,11 +80,7 @@ export function findParentItemId(projection: ProjectionDto, id: string): string 
     return undefined;
   };
 
-  for (const region of [
-    projection.page.header,
-    projection.page.body,
-    projection.page.footer,
-  ]) {
+  for (const region of [projection.page.header, projection.page.body, projection.page.footer]) {
     const found = search(region.items, undefined);
     if (found !== undefined) return found;
   }
@@ -92,7 +88,8 @@ export function findParentItemId(projection: ProjectionDto, id: string): string 
 }
 
 /** Busca un item por id dentro de una lista (anidados y celdas incluidos). */
-export function findItemInList(items: ItemDto[], id: string): ItemDto | undefined {  for (const item of items) {
+export function findItemInList(items: ItemDto[], id: string): ItemDto | undefined {
+  for (const item of items) {
     if (item.id === id) return item;
     if (item.kind === 'rectangle') {
       const found = findItemInList(item.children, id);

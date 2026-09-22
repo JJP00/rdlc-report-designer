@@ -47,7 +47,9 @@ async function createWindow(): Promise<BrowserWindow> {
   const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
   const bench = process.env['RDLC_BENCH'];
   if (devServerUrl) {
-    await window.loadURL(bench ? `${devServerUrl}/?bench=${encodeURIComponent(bench)}` : devServerUrl);
+    await window.loadURL(
+      bench ? `${devServerUrl}/?bench=${encodeURIComponent(bench)}` : devServerUrl,
+    );
   } else {
     await window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
   }
@@ -99,7 +101,13 @@ async function performDrag(
   y2: number,
 ): Promise<void> {
   const steps = 12;
-  window.webContents.sendInputEvent({ type: 'mouseDown', x: x1, y: y1, button: 'left', clickCount: 1 });
+  window.webContents.sendInputEvent({
+    type: 'mouseDown',
+    x: x1,
+    y: y1,
+    button: 'left',
+    clickCount: 1,
+  });
   await new Promise((resolve) => setTimeout(resolve, 60));
 
   for (let step = 1; step <= steps; step += 1) {
@@ -112,7 +120,13 @@ async function performDrag(
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 
-  window.webContents.sendInputEvent({ type: 'mouseUp', x: x2, y: y2, button: 'left', clickCount: 1 });
+  window.webContents.sendInputEvent({
+    type: 'mouseUp',
+    x: x2,
+    y: y2,
+    button: 'left',
+    clickCount: 1,
+  });
   log.info(`[qa] drag ${x1},${y1} → ${x2},${y2}`);
   await new Promise((resolve) => setTimeout(resolve, 700));
 }

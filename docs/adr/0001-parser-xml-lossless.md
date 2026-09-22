@@ -34,25 +34,25 @@ se sustituye el adaptador (o se vendoriza) sin tocar dominio ni casos de uso.
 Test: `apps/back/test/golden/roundtrip.golden.spec.ts` (parse → serialize →
 comparación de bytes exactos).
 
-| Candidato | Round-trip byte a byte | Notas |
-|---|---|---|
-| `xml-trueformat` | **10/10 OK** | CRLF + BOM + `rd:` + comentarios + self-closing preservados |
-| `fast-xml-parser` (máxima fidelidad: `preserveOrder`, `trimValues: false`) | **0/10** | normaliza formato; solo sirvió como contraejemplo |
+| Candidato                                                                  | Round-trip byte a byte | Notas                                                       |
+| -------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
+| `xml-trueformat`                                                           | **10/10 OK**           | CRLF + BOM + `rd:` + comentarios + self-closing preservados |
+| `fast-xml-parser` (máxima fidelidad: `preserveOrder`, `trimValues: false`) | **0/10**               | normaliza formato; solo sirvió como contraejemplo           |
 
 Tiempos medidos (misma máquina, Vitest, CPU moderna):
 
-| Fichero | Bytes | parse | serialize |
-|---|---:|---:|---:|
-| BTCLoadingOrder.rdlc | 87 724 | 1.6 ms | 0.5 ms |
-| BTCQualityControl.rdlc | 114 906 | 5.0 ms | 0.5 ms |
-| BTCWhseShipment.rdlc | 141 358 | 4.1 ms | 1.2 ms |
-| FAKESalesShipment.rdlc | 179 927 | 5.0 ms | 1.7 ms |
-| PalletOutput.rdlc | 24 574 | 0.5 ms | 0.1 ms |
-| SalesCreditMemoDEU.rdlc | 363 411 | 8.4 ms | 1.8 ms |
-| SalesCreditMemoESP.rdlc | 369 226 | 9.8 ms | 2.1 ms |
-| SalesInvoiceDEU.rdlc | 360 055 | 7.8 ms | 2.8 ms |
-| SalesInvoiceESP.rdlc | 365 847 | 7.9 ms | 1.7 ms |
-| SalesShipment.rdlc | 274 136 | 6.2 ms | 2.4 ms |
+| Fichero                 |   Bytes |  parse | serialize |
+| ----------------------- | ------: | -----: | --------: |
+| BTCLoadingOrder.rdlc    |  87 724 | 1.6 ms |    0.5 ms |
+| BTCQualityControl.rdlc  | 114 906 | 5.0 ms |    0.5 ms |
+| BTCWhseShipment.rdlc    | 141 358 | 4.1 ms |    1.2 ms |
+| FAKESalesShipment.rdlc  | 179 927 | 5.0 ms |    1.7 ms |
+| PalletOutput.rdlc       |  24 574 | 0.5 ms |    0.1 ms |
+| SalesCreditMemoDEU.rdlc | 363 411 | 8.4 ms |    1.8 ms |
+| SalesCreditMemoESP.rdlc | 369 226 | 9.8 ms |    2.1 ms |
+| SalesInvoiceDEU.rdlc    | 360 055 | 7.8 ms |    2.8 ms |
+| SalesInvoiceESP.rdlc    | 365 847 | 7.9 ms |    1.7 ms |
+| SalesShipment.rdlc      | 274 136 | 6.2 ms |    2.4 ms |
 
 Presupuesto F0: parse < 2 s. Resultado: **~200× por debajo** (peor caso
 9.8 ms). La tesela de rendimiento del lienzo, no del parser, será el cuello de

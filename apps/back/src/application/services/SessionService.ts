@@ -27,7 +27,8 @@ import {
   IoError,
   UnknownSessionError,
   ValidationFailedError,
-} from '../../shared/domainError.js';import type {
+} from '../../shared/domainError.js';
+import type {
   CloseSessionResult,
   EditTarget,
   ISessionService,

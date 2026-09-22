@@ -86,13 +86,7 @@ export interface UnknownItemDto extends ItemBaseDto {
   path: string;
 }
 
-export type ItemDto =
-  | TextboxDto
-  | RectangleDto
-  | LineDto
-  | ImageDto
-  | TablixDto
-  | UnknownItemDto;
+export type ItemDto = TextboxDto | RectangleDto | LineDto | ImageDto | TablixDto | UnknownItemDto;
 
 export const textboxSchema: z.ZodType<TextboxDto> = z.object({
   kind: z.literal('textbox'),
@@ -192,7 +186,14 @@ export const tablixSchema: z.ZodType<TablixDto> = z.object({
 });
 
 export const itemSchema: z.ZodType<ItemDto> = z.lazy(() =>
-  z.union([textboxSchema, rectangleSchema, lineSchema, imageSchema, tablixSchema, unknownItemSchema]),
+  z.union([
+    textboxSchema,
+    rectangleSchema,
+    lineSchema,
+    imageSchema,
+    tablixSchema,
+    unknownItemSchema,
+  ]),
 );
 
 /* ------------------------- Página y regiones ---------------------------- */

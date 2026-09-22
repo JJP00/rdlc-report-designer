@@ -1,14 +1,24 @@
-import type { ItemDto, Length, NewItemSpec, ProjectionDto, ScopeRef } from '@rdlc-designer/contracts';
+import type {
+  ItemDto,
+  Length,
+  NewItemSpec,
+  ProjectionDto,
+  ScopeRef,
+} from '@rdlc-designer/contracts';
 import type Konva from 'konva';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Stage } from 'react-konva';
 import { ITEM_DRAG_TYPE } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
-import { cm, findItemInList, isCellContent, toCm } from '@/lib/projection';import { Paper } from './Paper';
+import { cm, findItemInList, isCellContent, toCm } from '@/lib/projection';
+import type { BoxCm } from '@/lib/resize';
+import type { SelectedCell } from '@/lib/tablix';
+import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
+import { Paper } from './Paper';
 import { Ruler } from './Ruler';
-import { SelectionFrame } from './SelectionFrame';
-import { bandAt, paperLayout } from './bands';
+import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
+import { bandAt, paperLayout, type PaperLayout } from './bands';
 import { clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
 
 /** Scope del contrato para cada banda del papel. */
@@ -26,10 +36,16 @@ export interface CanvasPreviewProps {
   /** Se llama al soltar un drag con la posición ya normalizada (cm). */
   onMoveItem?: (id: string, top: Length, left: Length) => void;
   /** Se llama al soltar un tirador con la caja normalizada (cm). */
-  onResizeItem?: (id: string, box: { top: Length; left: Length; width: Length; height: Length }) => void;
+  onResizeItem?: (
+    id: string,
+    box: { top: Length; left: Length; width: Length; height: Length },
+  ) => void;
   /** Redimensionar una columna/fila de la rejilla (separadores internos). */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
+  /** Celda de Tablix seleccionada (F2 parte 3). */
+  selectedCell?: SelectedCell | null;
+  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   /** Zoom con Ctrl/Cmd + rueda. */
   onZoomChange?: (zoom: number) => void;
   /** Click derecho sobre el lienzo: el item/contenedor bajo el cursor. */
@@ -55,20 +71,13 @@ export function CanvasPreview({
   onResizeItem,
   onResizeColumn,
   onResizeRow,
+  selectedCell,
+  onSelectCell,
   onZoomChange,
   onContextMenuHit,
   onDropItem,
   reveal,
 }: CanvasPreviewProps): ReactNode {
-  // Dev: detector de bucles de render (cuenta renders confirmados, tras pintar).
-  const renders = useRef(0);
-  useEffect(() => {
-    renders.current += 1;
-    if (import.meta.env.DEV && renders.current % 100 === 0) {
-      console.log(`[debug] CanvasPreview renders: ${renders.current}`);
-    }
-  });
-
   const stageRef = useRef<Konva.Stage | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [selectionRect, setSelectionRect] = useState<{
@@ -81,101 +90,63 @@ export function CanvasPreview({
   // El propio stage, para que los guiones de QA puedan consultar
   // `getIntersection` (hit-test de Konva, no del dominio).
   useEffect(() => {
-    if (import.meta.env.DEV) {
+    if (TEST_HOOKS_ENABLED) {
       (window as Window & { __rdlcStage?: Konva.Stage | null }).__rdlcStage = stageRef.current;
     }
   }, []);
 
+  // QA: celda seleccionada (el marco de item no existe para celdas).
+  useEffect(() => {
+    if (!TEST_HOOKS_ENABLED) return;
+    (window as Window & { __rdlcCell?: SelectedCell | null }).__rdlcCell = selectedCell ?? null;
+  }, [selectedCell]);
+
   // El marco de selección se mide del nodo real (funciona con anidados y celdas).
+  // En un Tablix manda su **borde** (la rejilla): medir el grupo incluiría el
+  // contenido que sobresale de las celdas e inflaría el marco.
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage || !selectedId) {
-      setSelectionRect(null);
-      return;
-    }
-    const node = stage.findOne((candidate: Konva.Node) => candidate.id() === selectedId);
-    if (!node) {
-      setSelectionRect(null);
-      return;
-    }
-    const rect = node.getClientRect({ relativeTo: stage });
+    const measuredId = selectedId ?? selectedCell?.id ?? null;
+    const rect = stage && measuredId ? measureSelection(stage, measuredId) : null;
     setSelectionRect(rect);
 
-    // QA/diagnóstico (solo dev): permite a los guiones de captura saber dónde
-    // están los tiradores, el primer separador de la rejilla y comprobar un
-    // arrastre real.
-    if (import.meta.env.DEV) {
+    // QA/diagnóstico: los guiones (Playwright) leen id + rect del elemento
+    // seleccionado. Las cabeceras del Tablix las publica `SelectionFrame`.
+    if (TEST_HOOKS_ENABLED && measuredId) {
       (
         window as Window & {
-          __rdlcSelection?: { rect: typeof rect; zoom: number } | null;
+          __rdlcSelection?: { id: string; rect: typeof rect; zoom: number } | null;
         }
-      ).__rdlcSelection = { rect, zoom };
-
-      const separator = stage.findOne((candidate: Konva.Node) => candidate.name() === 'separator');
-      const points = (separator?.getAttr('points') as number[] | undefined) ?? [];
-      if (separator && points.length >= 4) {
-        const absolute = separator
-          .getAbsoluteTransform()
-          .point({ x: points[0] ?? 0, y: ((points[3] ?? 0) + (points[1] ?? 0)) / 2 });
-        const container = stage.container().getBoundingClientRect();
-        (
-          window as Window & { __rdlcTablixSeparator?: { x: number; y: number } | null }
-        ).__rdlcTablixSeparator = {
-          x: container.left + absolute.x,
-          y: container.top + absolute.y,
-        };
-      }
+      ).__rdlcSelection = rect ? { id: measuredId, rect, zoom } : null;
     }
-  }, [selectedId, projection, zoom]);
+  }, [selectedId, selectedCell, projection, zoom]);
 
   const layout = paperLayout(projection);
   const visibleBands = layout.bands.filter((band) => band.visible);
 
-  /**
-   * Caja del item seleccionado (cm) y límites de su banda, para los tiradores.
-   * Un Tablix no tiene caja propia: manda la **rejilla** (suma de columnas y
-   * filas), que es lo que se redimensiona. Los items desconocidos no se tocan.
-   */
-  const selectedFrame = useMemo(() => {
-    if (!selectedId) return undefined;
-    // El contenido directo de una celda no se redimensiona: manda la celda.
-    if (hideHandles(projection, selectedId)) return { box: undefined, bounds: undefined };
-    for (const band of layout.bands) {
-      const item = findItemInList(band.region.items, selectedId);
-      if (!item) continue;
-      const isDirectChild = band.region.items.some((candidate) => candidate.id === selectedId);
-      const bounds = isDirectChild
-        ? { width: toCm(band.region.width), height: toCm(band.region.height) }
-        : undefined;
+  /** Qué elemento mide el marco: el item seleccionado o el Tablix de la celda. */
+  const frameId = selectedId ?? selectedCell?.id ?? null;
 
-      if (item.kind === 'unknown') return { box: undefined, bounds };
-      if (item.kind === 'tablix') {
-        const columns = item.body.columns.reduce((acc, column) => acc + toCm(column), 0);
-        const rows = item.body.rows.reduce((acc, row) => acc + toCm(row.height), 0);
-        return {
-          box: {
-            top: toCm(item.top),
-            left: toCm(item.left),
-            width: round4(columns),
-            height: round4(rows),
-          },
-          bounds,
-          grid: { columns: item.body.columns, rows: item.body.rows.map((row) => row.height) },
-        };
-      }
+  const selectedFrame = useMemo(
+    () => computeSelectedFrame(projection, layout, frameId),
+    [layout, projection, frameId],
+  );
 
-      return {
-        box: {
-          top: toCm(item.top),
-          left: toCm(item.left),
-          width: toCm(item.width),
-          height: toCm(item.height),
-        },
-        bounds,
-      };
-    }
-    return undefined;
-  }, [layout, projection, selectedId]);
+  // Selección de celdas del Tablix medido (para cabeceras y resaltado).
+  const selectionForFrame = selectedCell && selectedCell.id === frameId ? selectedCell : null;
+
+  const frameProps = selectionFrameProps({
+    rect: selectionRect,
+    zoom,
+    frameId,
+    selectedId,
+    selectedFrame,
+    selection: selectionForFrame,
+    ...(onResizeColumn ? { onResizeColumn } : {}),
+    ...(onResizeRow ? { onResizeRow } : {}),
+    ...(onResizeItem ? { onResizeItem } : {}),
+    ...(onSelectCell ? { onSelectCell } : {}),
+  });
 
   const stageWidth = layout.sheetWidth * zoom;
   const stageHeight = layout.sheetHeight * zoom;
@@ -207,38 +178,13 @@ export function CanvasPreview({
     }
   }, [reveal, zoom]);
 
-  /**
-   * Traduce un evento del DOM (drop, click derecho) a `CanvasHit`: px de
-   * pantalla → px de papel (÷ zoom) → banda → cm relativos a la banda.
-   * Fuera de las bandas cae al cuerpo (el backend acaba de normalizar).
-   */
-  const hitAt = (event: { clientX: number; clientY: number }): CanvasHit | undefined => {
-    const stage = stageRef.current;
-    if (!stage) return undefined;
-
-    const rect = stage.container().getBoundingClientRect();
-    const contentX = (event.clientX - rect.left) / zoom;
-    const contentY = (event.clientY - rect.top) / zoom;
-    if (contentX < 0 || contentY < 0 || contentX > layout.sheetWidth || contentY > layout.sheetHeight) {
-      return undefined;
-    }
-
-    const band = bandAt(layout, contentX, contentY);
-    if (!band) return undefined;
-
-    const point = {
-      x: clamp((contentX - band.x) / PX_PER_CM, 0, toCm(band.region.width)),
-      y: clamp((contentY - band.y) / PX_PER_CM, 0, toCm(band.region.height)),
-    };
-    return hitTestItems(band.region.items, point, scopeOfBand(band.key));
-  };
-
   return (
     <div
       ref={scrollRef}
       className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
       onContextMenu={(event) => {
-        const hit = hitAt(event);
+        const stage = stageRef.current;
+        const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
         if (hit) onContextMenuHit?.(hit);
       }}
       onDragOver={(event) => {
@@ -251,7 +197,8 @@ export function CanvasPreview({
         const kind = event.dataTransfer.getData(ITEM_DRAG_TYPE);
         if (!kind || !onDropItem) return;
         event.preventDefault();
-        const hit = hitAt(event);
+        const stage = stageRef.current;
+        const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
         if (hit) onDropItem(kind as NewItemSpec['kind'], hit);
       }}
     >
@@ -279,15 +226,7 @@ export function CanvasPreview({
               // Click en vacío = deseleccionar (los items cortan la propagación).
               if (event.target === event.target.getStage()) onSelect?.(null);
             }}
-            onWheel={(event) => {
-              if (!onZoomChange) return;
-              const { ctrlKey, metaKey, deltaY } = event.evt;
-              if (!ctrlKey && !metaKey) return; // rueda normal = scroll
-              // En Electron, sin preventDefault Chromium haría zoom de toda la app.
-              event.evt.preventDefault();
-              const factor = deltaY > 0 ? 1 / 1.1 : 1.1;
-              onZoomChange(Math.min(2, Math.max(0.2, Number((zoom * factor).toFixed(3)))));
-            }}
+            onWheel={(event) => zoomFromWheel(event, zoom, onZoomChange)}
           >
             <Paper
               layout={layout}
@@ -296,37 +235,12 @@ export function CanvasPreview({
               onMoveItem={onMoveItem}
               onResizeColumn={onResizeColumn}
               onResizeRow={onResizeRow}
+              selectedCell={selectedCell}
+              onSelectCell={onSelectCell}
               draggable={onMoveItem !== undefined}
             />
 
-            <SelectionFrame
-              rect={selectionRect}
-              zoom={zoom}
-              {...(selectedFrame?.box ? { box: selectedFrame.box } : {})}
-              {...(selectedFrame?.bounds ? { bounds: selectedFrame.bounds } : {})}
-              {...(selectedFrame && 'grid' in selectedFrame && selectedFrame.grid
-                ? {
-                    grid: selectedFrame.grid,
-                    ...(onResizeColumn
-                      ? { onResizeColumn: (column: number, width: Length) => onResizeColumn(selectedId!, column, width) }
-                      : {}),
-                    ...(onResizeRow
-                      ? { onResizeRow: (row: number, height: Length) => onResizeRow(selectedId!, row, height) }
-                      : {}),
-                  }
-                : {})}
-              {...(onResizeItem && selectedId
-                ? {
-                    onResize: (box: { top: number; left: number; width: number; height: number }) =>
-                      onResizeItem(selectedId, {
-                        top: cm(box.top),
-                        left: cm(box.left),
-                        width: cm(box.width),
-                        height: cm(box.height),
-                      }),
-                  }
-                : {})}
-            />
+            <SelectionFrame {...frameProps} />
           </Stage>
         </div>
       </div>
@@ -334,13 +248,192 @@ export function CanvasPreview({
   );
 }
 
-/** Caja por la que se mide el marco: el item y si es contenido de una celda. */
-function hideHandles(projection: ProjectionDto, id: string): boolean {
-  return isCellContent(projection, id);
+/* ------------------------------- helpers -------------------------------- */
+
+/** Mide el nodo seleccionado; en un Tablix, su borde (la rejilla). */
+function measureSelection(
+  stage: Konva.Stage,
+  measuredId: string,
+): { x: number; y: number; width: number; height: number } | null {
+  const node = stage.findOne((candidate: Konva.Node) => candidate.id() === measuredId);
+  const border = (node as Konva.Container | undefined)?.getChildren(
+    (child: Konva.Node) => child.name() === 'tablix-border',
+  )[0];
+  const measured = border ?? node;
+  return measured ? measured.getClientRect({ relativeTo: stage }) : null;
 }
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+/** Traduce un evento del DOM (drop, click derecho) a `CanvasHit`. */
+function hitAtEvent(
+  stage: Konva.Stage,
+  zoom: number,
+  layout: PaperLayout,
+  event: { clientX: number; clientY: number },
+): CanvasHit | undefined {
+  const rect = stage.container().getBoundingClientRect();
+  const contentX = (event.clientX - rect.left) / zoom;
+  const contentY = (event.clientY - rect.top) / zoom;
+  if (
+    contentX < 0 ||
+    contentY < 0 ||
+    contentX > layout.sheetWidth ||
+    contentY > layout.sheetHeight
+  ) {
+    return undefined;
+  }
+
+  const band = bandAt(layout, contentX, contentY);
+  if (!band) return undefined;
+
+  const point = {
+    x: clamp((contentX - band.x) / PX_PER_CM, 0, toCm(band.region.width)),
+    y: clamp((contentY - band.y) / PX_PER_CM, 0, toCm(band.region.height)),
+  };
+  return hitTestItems(band.region.items, point, scopeOfBand(band.key));
+}
+
+/** Zoom con Ctrl/Cmd + rueda (la rueda normal es scroll). */
+function zoomFromWheel(
+  event: Konva.KonvaEventObject<WheelEvent>,
+  zoom: number,
+  onZoomChange?: (zoom: number) => void,
+): void {
+  if (!onZoomChange) return;
+  const { ctrlKey, metaKey, deltaY } = event.evt;
+  if (!ctrlKey && !metaKey) return;
+  // En Electron, sin preventDefault Chromium haría zoom de toda la app.
+  event.evt.preventDefault();
+  const factor = deltaY > 0 ? 1 / 1.1 : 1.1;
+  onZoomChange(Math.min(2, Math.max(0.2, Number((zoom * factor).toFixed(3)))));
+}
+
+/** Marco de selección: caja del item y rejilla si es un Tablix. */
+interface SelectedFrame {
+  box?: BoxCm;
+  bounds?: { width: number; height: number };
+  grid?: { columns: Length[]; rows: Length[]; rowCount: number; columnCount: number };
+}
+
+function computeSelectedFrame(
+  projection: ProjectionDto,
+  layout: PaperLayout,
+  frameId: string | null,
+): SelectedFrame | undefined {
+  if (!frameId) return undefined;
+  // El contenido directo de una celda no se redimensiona: manda la celda.
+  if (isCellContent(projection, frameId)) return {};
+
+  for (const band of layout.bands) {
+    const item = findItemInList(band.region.items, frameId);
+    if (!item) continue;
+    const isDirectChild = band.region.items.some((candidate) => candidate.id === frameId);
+    const bounds = isDirectChild
+      ? { width: toCm(band.region.width), height: toCm(band.region.height) }
+      : undefined;
+
+    if (item.kind === 'unknown') return { ...(bounds ? { bounds } : {}) };
+    if (item.kind === 'tablix') {
+      const columns = item.body.columns.reduce((acc, column) => acc + toCm(column), 0);
+      const rows = item.body.rows.reduce((acc, row) => acc + toCm(row.height), 0);
+      return {
+        box: {
+          top: toCm(item.top),
+          left: toCm(item.left),
+          width: round4(columns),
+          height: round4(rows),
+        },
+        ...(bounds ? { bounds } : {}),
+        grid: {
+          columns: item.body.columns,
+          rows: item.body.rows.map((row) => row.height),
+          rowCount: item.body.rows.length,
+          columnCount: item.body.columns.length,
+        },
+      };
+    }
+
+    return {
+      box: {
+        top: toCm(item.top),
+        left: toCm(item.left),
+        width: toCm(item.width),
+        height: toCm(item.height),
+      },
+      ...(bounds ? { bounds } : {}),
+    };
+  }
+  return undefined;
+}
+
+interface FramePropsOptions {
+  rect: { x: number; y: number; width: number; height: number } | null;
+  zoom: number;
+  frameId: string | null;
+  selectedId?: string | null;
+  selectedFrame: SelectedFrame | undefined;
+  selection: SelectedCell | null;
+  onResizeColumn?: (id: string, column: number, width: Length) => void;
+  onResizeRow?: (id: string, row: number, height: Length) => void;
+  onResizeItem?: (
+    id: string,
+    box: { top: Length; left: Length; width: Length; height: Length },
+  ) => void;
+  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
+}
+
+/** Arma las props de `SelectionFrame` (tiradores, cabeceras y separadores). */
+function selectionFrameProps(options: FramePropsOptions): SelectionFrameProps {
+  const { rect, zoom, frameId, selectedFrame, selection } = options;
+  const props: SelectionFrameProps = {
+    rect,
+    zoom,
+    showHandles: Boolean(options.selectedId),
+  };
+  if (selectedFrame?.box) props.box = selectedFrame.box;
+  if (selectedFrame?.bounds) props.bounds = selectedFrame.bounds;
+
+  if (frameId && selectedFrame?.grid) {
+    const grid = selectedFrame.grid;
+    props.grid = { columns: grid.columns, rows: grid.rows };
+    if (selection) props.selection = selection;
+    if (options.onResizeColumn) {
+      const resizeColumn = options.onResizeColumn;
+      props.onResizeColumn = (column, width) => resizeColumn(frameId, column, width);
+    }
+    if (options.onResizeRow) {
+      const resizeRow = options.onResizeRow;
+      props.onResizeRow = (row, height) => resizeRow(frameId, row, height);
+    }
+    if (options.onSelectCell) {
+      const selectCell = options.onSelectCell;
+      props.onSelectColumn = (index, extend, toggle) =>
+        selectCell(
+          { id: frameId, row: 0, col: index, endRow: grid.rowCount - 1, endCol: index },
+          extend,
+          toggle,
+        );
+      props.onSelectRow = (index, extend, toggle) =>
+        selectCell(
+          { id: frameId, row: index, col: 0, endRow: index, endCol: grid.columnCount - 1 },
+          extend,
+          toggle,
+        );
+    }
+  }
+
+  if (options.onResizeItem && options.selectedId) {
+    const resizeItem = options.onResizeItem;
+    const id = options.selectedId;
+    props.onResize = (box) =>
+      resizeItem(id, {
+        top: cm(box.top),
+        left: cm(box.left),
+        width: cm(box.width),
+        height: cm(box.height),
+      });
+  }
+
+  return props;
 }
 
 function round4(value: number): number {

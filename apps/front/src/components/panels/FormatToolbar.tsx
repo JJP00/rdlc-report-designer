@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { toPt } from '@/lib/style';
+import { toHexColor, toPt } from '@/lib/style';
 
 interface FormatToolbarProps {
   style: StyleDto | undefined;
@@ -133,12 +133,12 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
 
         <ColorField
           title="Color de texto"
-          value={style?.color ?? '#111827'}
+          value={toHexColor(style?.color, '#111827')}
           onChange={(color) => onSetStyle({ color })}
         />
         <ColorField
           title="Resaltado"
-          value={style?.backgroundColor ?? '#ffffff'}
+          value={toHexColor(style?.backgroundColor, '#ffffff')}
           onChange={(backgroundColor) => onSetStyle({ backgroundColor })}
           highlight
         />

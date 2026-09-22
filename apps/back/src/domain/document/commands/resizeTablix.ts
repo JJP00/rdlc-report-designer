@@ -5,6 +5,7 @@ import { readLength, writeLengthTracking } from '../geometry/geometry.js';
 import { formatLength, fromCm, toCm, type Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
+import { tablixColumns, tablixRows } from './tablixParts.js';
 
 /**
  * Geometría del Tablix: la rejilla (columnas y filas del `TablixBody`) es la que
@@ -23,18 +24,6 @@ export type ResizeTableCommand = Extract<RdlcCommand, { cmd: 'resizeTable' }>;
 
 /** Tamaño mínimo de una columna/fila (cm). */
 const MIN_CM = 0.05;
-
-/* --------------------------- piezas del Tablix --------------------------- */
-
-function tablixColumns(tablix: RdlcNode): RdlcNode[] {
-  return (
-    tablix.child('TablixBody')?.child('TablixColumns')?.children('TablixColumn') ?? []
-  );
-}
-
-function tablixRows(tablix: RdlcNode): RdlcNode[] {
-  return tablix.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? [];
-}
 
 /* --------------------- primitivas: columna y fila ------------------------ */
 
@@ -193,8 +182,6 @@ function needsWrite(current: Length | undefined, next: Length): boolean {
   if (!current) return Math.abs(nextCm) > 1e-9;
   return Math.abs(toCm(current) - nextCm) > 1e-9;
 }
-
-
 
 /**
  * Reparte `target` entre las longitudes actuales en proporción a su tamaño (si

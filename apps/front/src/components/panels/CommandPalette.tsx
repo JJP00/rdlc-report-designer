@@ -82,10 +82,7 @@ export function CommandPalette({
   onAction,
   hasDocument,
 }: CommandPaletteProps): ReactNode {
-  const elements = useMemo(
-    () => (projection ? paletteElements(projection) : []),
-    [projection],
-  );
+  const elements = useMemo(() => (projection ? paletteElements(projection) : []), [projection]);
   const variables = useMemo(
     () => (projection ? variableEntries(projection.meta) : []),
     [projection],
@@ -108,72 +105,72 @@ export function CommandPalette({
         <CommandList>
           <CommandEmpty>Sin resultados.</CommandEmpty>
 
-        {elements.length > 0 ? (
-          <CommandGroup heading="Elementos del informe">
-            {elements.map((element) => (
-              <CommandItem
-                key={element.id}
-                value={element.id}
-                keywords={[element.haystack]}
-                onSelect={() => run(() => onSelectItem(element.id))}
-              >
-                <Frame />
-                <span className="truncate font-mono text-xs">{element.id}</span>
-                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                  {itemKindLabel(element.kind)}
-                </span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        ) : null}
-
-        {variables.length > 0 ? (
-          <>
-            <CommandSeparator />
-            <CommandGroup heading="Variables">
-              {variables.map((entry) => (
+          {elements.length > 0 ? (
+            <CommandGroup heading="Elementos del informe">
+              {elements.map((element) => (
                 <CommandItem
-                  key={`${entry.group}.${entry.name}`}
-                  value={`${entry.name} ${entry.expression}`}
-                  keywords={[entry.group, entry.detail ?? '']}
-                  onSelect={() => run(() => onPickExpression(entry.expression, entry.name))}
+                  key={element.id}
+                  value={element.id}
+                  keywords={[element.haystack]}
+                  onSelect={() => run(() => onSelectItem(element.id))}
                 >
-                  <Braces />
-                  <span className="truncate font-mono text-xs">{entry.name}</span>
+                  <Frame />
+                  <span className="truncate font-mono text-xs">{element.id}</span>
                   <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                    {entry.group}
+                    {itemKindLabel(element.kind)}
                   </span>
                 </CommandItem>
               ))}
             </CommandGroup>
-          </>
-        ) : null}
+          ) : null}
 
-        <CommandSeparator />
-        <CommandGroup heading="Acciones">
-          {PALETTE_ACTIONS.map((action) => {
-            const disabled = NEEDS_DOCUMENT.has(action.id) && !hasDocument;
-            return (
-              <CommandItem
-                key={action.id}
-                value={`${action.label} ${action.group}`}
-                disabled={disabled}
-                onSelect={() => run(() => onAction(action.id))}
-              >
-                {ACTION_ICONS[action.id]}
-                <span>{action.label}</span>
-                {action.shortcut ? (
-                  <CommandShortcut>{action.shortcut}</CommandShortcut>
-                ) : (
-                  <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                    {action.group}
-                  </span>
-                )}
-              </CommandItem>
-            );
-          })}
-        </CommandGroup>
-      </CommandList>
+          {variables.length > 0 ? (
+            <>
+              <CommandSeparator />
+              <CommandGroup heading="Variables">
+                {variables.map((entry) => (
+                  <CommandItem
+                    key={`${entry.group}.${entry.name}`}
+                    value={`${entry.name} ${entry.expression}`}
+                    keywords={[entry.group, entry.detail ?? '']}
+                    onSelect={() => run(() => onPickExpression(entry.expression, entry.name))}
+                  >
+                    <Braces />
+                    <span className="truncate font-mono text-xs">{entry.name}</span>
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                      {entry.group}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </>
+          ) : null}
+
+          <CommandSeparator />
+          <CommandGroup heading="Acciones">
+            {PALETTE_ACTIONS.map((action) => {
+              const disabled = NEEDS_DOCUMENT.has(action.id) && !hasDocument;
+              return (
+                <CommandItem
+                  key={action.id}
+                  value={`${action.label} ${action.group}`}
+                  disabled={disabled}
+                  onSelect={() => run(() => onAction(action.id))}
+                >
+                  {ACTION_ICONS[action.id]}
+                  <span>{action.label}</span>
+                  {action.shortcut ? (
+                    <CommandShortcut>{action.shortcut}</CommandShortcut>
+                  ) : (
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                      {action.group}
+                    </span>
+                  )}
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        </CommandList>
       </Command>
     </CommandDialog>
   );

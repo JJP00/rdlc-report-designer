@@ -41,7 +41,11 @@ function walk(items: ItemDto[], visit: (item: ItemDto) => void): void {
 function allItems(projection: ProjectionDto): ItemDto[] {
   const items: ItemDto[] = [];
   walk(
-    [...projection.page.header.items, ...projection.page.body.items, ...projection.page.footer.items],
+    [
+      ...projection.page.header.items,
+      ...projection.page.body.items,
+      ...projection.page.footer.items,
+    ],
     (item) => items.push(item),
   );
   return items;
@@ -72,10 +76,12 @@ describe('proyección · geometría de celdas de Tablix', () => {
 
   it('las celdas con ColSpan reflejan el ancho sumado de sus columnas', () => {
     const projection = project('SalesInvoiceESP.rdlc');
-    const tablixes = allItems(projection).filter((item): item is TablixDto => item.kind === 'tablix');
-    const spanned = tablixes.flatMap((tablix) => tablix.body.rows.flatMap((row) => row.cells)).find(
-      (cell) => (cell.colSpan ?? 1) > 1 && cell.content !== null,
+    const tablixes = allItems(projection).filter(
+      (item): item is TablixDto => item.kind === 'tablix',
     );
+    const spanned = tablixes
+      .flatMap((tablix) => tablix.body.rows.flatMap((row) => row.cells))
+      .find((cell) => (cell.colSpan ?? 1) > 1 && cell.content !== null);
     expect(spanned).toBeDefined();
 
     const content = spanned!.content!;

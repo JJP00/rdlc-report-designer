@@ -8,8 +8,10 @@ import type {
   TextboxDto,
 } from '@rdlc-designer/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { apiErrorMessage } from '@/lib/errors';
 import type { CanvasHit } from '@/lib/hit';
-import { cm, findItem, findParentItemId, patchItem, toCm } from '@/lib/projection';
+import { cm, findItem, findParentItemId, isCellContent, patchItem, toCm } from '@/lib/projection';
+import { isCellInRange, isCellSelected, type SelectedCell } from '@/lib/tablix';
 import type { DocumentCore } from './useDocumentCore';
 
 /**
@@ -44,6 +46,13 @@ export interface ItemEditing {
   selectedId: string | null;
   selectedItem: ItemDto | undefined;
   setSelectedId: (id: string | null) => void;
+  /** Celda de Tablix seleccionada (independiente del item seleccionado). */
+  selectedCell: SelectedCell | null;
+  setSelectedCell: (cell: SelectedCell | null) => void;
+  /** Selecciona una celda; `extend` amplía el rango (Shift) y `toggle` añade/quita (Ctrl). */
+  selectCell: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
+  /** Click derecho: conserva el rango si la celda ya estaba dentro. */
+  selectCellForContext: (cell: SelectedCell) => void;
   /** Selecciona y pide al lienzo que traiga el elemento a la vista. */
   selectAndReveal: (id: string) => void;
   /** Sube un nivel en la jerarquía (Esc): selecciona el contenedor del item. */
@@ -57,10 +66,24 @@ export interface ItemEditing {
   setItemLocation: (top: Length, left: Length) => void;
   setItemSize: (width: Length, height: Length) => void;
   /** Mueve y redimensiona a la vez (tiradores): un paso de undo. */
-  resizeItem: (id: string, box: { top: Length; left: Length; width: Length; height: Length }) => void;
+  resizeItem: (
+    id: string,
+    box: { top: Length; left: Length; width: Length; height: Length },
+  ) => void;
   /** Separadores de la rejilla del Tablix. */
   resizeColumn: (id: string, column: number, width: Length) => void;
   resizeRow: (id: string, row: number, height: Length) => void;
+  /** Estructura del Tablix (F2 parte 3): filas y columnas. */
+  addRow: (id: string, row: number) => void;
+  deleteRow: (id: string, row: number) => void;
+  addColumn: (id: string, column: number) => void;
+  deleteColumn: (id: string, column: number) => void;
+  /** Varias filas/columnas en un solo paso de undo. */
+  deleteRows: (id: string, rows: number[]) => void;
+  deleteColumns: (id: string, columns: number[]) => void;
+  /** Fusionar el bloque desde (row, col) y separarlo. */
+  mergeCells: (id: string, row: number, col: number, rowSpan: number, colSpan: number) => void;
+  unmergeCells: (id: string, row: number, col: number) => void;
   setItemStyle: (patch: StylePatch) => void;
   setImageOptions: (patch: ImageOptionsPatch) => void;
   setRunText: (p: number, r: number, value: string) => void;
@@ -87,9 +110,74 @@ function round4(value: number): number {
 export function useItemEditing(core: DocumentCore): ItemEditing {
   const { doc, sendCommand, reconcile, updateProjection, setStatus, setError } = core;
 
-  const [selectedIdState, setSelectedId] = useState<string | null>(null);
+  const [selectedIdState, setSelectedIdState] = useState<string | null>(null);
+  const [selectedCellState, setSelectedCellState] = useState<SelectedCell | null>(null);
   const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
   const [hasClipboard, setHasClipboard] = useState(false);
+
+  /** Item y celda son excluyentes: seleccionar uno limpia el otro. */
+  const setSelectedId = useCallback((id: string | null): void => {
+    setSelectedCellState(null);
+    setSelectedIdState(id);
+  }, []);
+
+  const setSelectedCell = useCallback((cell: SelectedCell | null): void => {
+    setSelectedIdState(null);
+    setSelectedCellState(cell);
+  }, []);
+
+  /** Shift amplía el rango desde el ancla; Ctrl añade/quita celdas sueltas. */
+  const selectCell = useCallback((cell: SelectedCell, extend = false, toggle = false): void => {
+    setSelectedIdState(null);
+    setSelectedCellState((current) => {
+      if (!current || current.id !== cell.id) {
+        return {
+          id: cell.id,
+          row: cell.row,
+          col: cell.col,
+          ...(cell.endRow !== undefined ? { endRow: cell.endRow } : {}),
+          ...(cell.endCol !== undefined ? { endCol: cell.endCol } : {}),
+        };
+      }
+
+      if (toggle) {
+        const extras = current.extra ?? [];
+        const isExtra = extras.some((entry) => entry.row === cell.row && entry.col === cell.col);
+        if (isExtra) {
+          const next = extras.filter((entry) => entry.row !== cell.row || entry.col !== cell.col);
+          return next.length > 0 ? { ...current, extra: next } : { ...current, extra: [] };
+        }
+        if (isCellInRange(cell, current)) return current;
+        return { ...current, extra: [...extras, { row: cell.row, col: cell.col }] };
+      }
+
+      if (extend) {
+        return {
+          ...current,
+          endRow: cell.endRow ?? cell.row,
+          endCol: cell.endCol ?? cell.col,
+        };
+      }
+
+      return {
+        id: cell.id,
+        row: cell.row,
+        col: cell.col,
+        ...(cell.endRow !== undefined ? { endRow: cell.endRow } : {}),
+        ...(cell.endCol !== undefined ? { endCol: cell.endCol } : {}),
+      };
+    });
+  }, []);
+
+  /** Click derecho: si la celda ya forma parte de la selección, no la pierde. */
+  const selectCellForContext = useCallback((cell: SelectedCell): void => {
+    setSelectedIdState(null);
+    setSelectedCellState((current) =>
+      current && current.id === cell.id && isCellSelected(cell, current)
+        ? current
+        : { id: cell.id, row: cell.row, col: cell.col },
+    );
+  }, []);
 
   const selectedItemRaw = useMemo(
     () => (doc && selectedIdState ? findItem(doc.projection, selectedIdState) : undefined),
@@ -100,6 +188,15 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   // borrado): se **deriva** en vez de sincronizarse con un efecto.
   const selectedId = selectedItemRaw ? selectedIdState : null;
   const selectedItem = selectedItemRaw;
+
+  // La celda seleccionada tampoco sobrevive si su Tablix desaparece.
+  const selectedCell = useMemo(
+    () =>
+      doc && selectedCellState && findItem(doc.projection, selectedCellState.id)
+        ? selectedCellState
+        : null,
+    [doc, selectedCellState],
+  );
 
   /* --------------------- mover con flechas (1pt / 10pt) ------------------ */
 
@@ -139,6 +236,13 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     (dxCm: number, dyCm: number): void => {
       if (!selectedItem) return;
 
+      // El contenido directo de una celda está anclado: la celda fija su
+      // posición (Report Builder tampoco deja moverlo).
+      if (doc && isCellContent(doc.projection, selectedItem.id)) {
+        setStatus('La celda fija el contenido: no se puede mover');
+        return;
+      }
+
       const id = selectedItem.id;
       const current = pendingMove.current;
       const pending: PendingMove =
@@ -175,20 +279,25 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
         patchItem(projection, id, { top: cm(pending.topCm), left: cm(pending.leftCm) }),
       );
     },
-    [selectedItem, updateProjection],
+    [doc, selectedItem, setStatus, updateProjection],
   );
 
   /* --------------------------- geometría y estilo ------------------------- */
 
   const moveItem = useCallback(
     (id: string, top: Length, left: Length): void => {
+      // Cualquier camino (drag, panel, atajos) respeta el anclaje de la celda.
+      if (doc && isCellContent(doc.projection, id)) {
+        setStatus('La celda fija el contenido: no se puede mover');
+        return;
+      }
       // Optimista: el lienzo ya movió el nodo; aquí se refleja en la proyección.
       updateProjection((projection) => patchItem(projection, id, { top, left }));
       void sendCommand({ cmd: 'setLocation', id, top, left }).then((result) =>
         reconcile(result?.ok ? result.applied : undefined),
       );
     },
-    [reconcile, sendCommand, updateProjection],
+    [doc, reconcile, sendCommand, setStatus, updateProjection],
   );
 
   const setItemLocation = useCallback(
@@ -335,13 +444,27 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   const insertItem = useCallback(
     (kind: NewItemSpec['kind']): void => {
       if (!doc) return;
+      // Con una celda seleccionada, el item nace dentro de la celda.
+      if (selectedCell) {
+        insertAt(kind, {
+          scope: {
+            kind: 'tablixCell',
+            id: selectedCell.id,
+            row: selectedCell.row,
+            col: selectedCell.col,
+          },
+          index: 0,
+          point: { x: 0.2, y: 0.2 },
+        });
+        return;
+      }
       insertAt(kind, {
         scope: { kind: 'body' },
         index: doc.projection.page.body.items.length,
         point: { x: 2, y: 2 },
       });
     },
-    [doc, insertAt],
+    [doc, insertAt, selectedCell],
   );
 
   const duplicateSelected = useCallback((): void => {
@@ -364,7 +487,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     const id = selectedItem.id;
     void window.api.copy(doc.sessionId, id).then((result) => {
       if (!result.ok) {
-        setError(`${result.code}: ${result.message ?? 'no se pudo copiar'}`);
+        setError(apiErrorMessage(result, 'no se pudo copiar'));
         return;
       }
       setHasClipboard(true);
@@ -378,7 +501,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     flushNudge();
     void window.api.cut(doc.sessionId, id).then((result) => {
       if (!result.ok) {
-        setError(`${result.code}: ${result.message ?? 'no se pudo cortar'}`);
+        setError(apiErrorMessage(result, 'no se pudo cortar'));
         return;
       }
       setHasClipboard(true);
@@ -392,7 +515,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       if (!doc) return;
       void window.api.paste(doc.sessionId, scope, index).then((result) => {
         if (!result.ok) {
-          setError(`${result.code}: ${result.message ?? 'no se pudo pegar'}`);
+          setError(apiErrorMessage(result, 'no se pudo pegar'));
           return;
         }
         if (result.id) setSelectedId(result.id);
@@ -407,7 +530,10 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   const setPageSize = useCallback(
     (width: Length, height: Length): void => {
       if (!doc) return;
-      updateProjection((projection) => ({ ...projection, page: { ...projection.page, width, height } }));
+      updateProjection((projection) => ({
+        ...projection,
+        page: { ...projection.page, width, height },
+      }));
       void sendCommand({ cmd: 'setPageSize', width, height });
     },
     [doc, sendCommand, updateProjection],
@@ -456,6 +582,64 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [sendCommand],
   );
 
+  /* ------------------------ estructura del Tablix ------------------------- */
+
+  const addRow = useCallback(
+    (id: string, row: number): void => {
+      void sendCommand({ cmd: 'addRow', id, row });
+    },
+    [sendCommand],
+  );
+
+  const deleteRow = useCallback(
+    (id: string, row: number): void => {
+      void sendCommand({ cmd: 'deleteRow', id, row });
+    },
+    [sendCommand],
+  );
+
+  const addColumn = useCallback(
+    (id: string, column: number): void => {
+      void sendCommand({ cmd: 'addColumn', id, column });
+    },
+    [sendCommand],
+  );
+
+  const deleteColumn = useCallback(
+    (id: string, column: number): void => {
+      void sendCommand({ cmd: 'deleteColumn', id, column });
+    },
+    [sendCommand],
+  );
+
+  const deleteRows = useCallback(
+    (id: string, rows: number[]): void => {
+      void sendCommand({ cmd: 'deleteRows', id, rows });
+    },
+    [sendCommand],
+  );
+
+  const deleteColumns = useCallback(
+    (id: string, columns: number[]): void => {
+      void sendCommand({ cmd: 'deleteColumns', id, columns });
+    },
+    [sendCommand],
+  );
+
+  const mergeCells = useCallback(
+    (id: string, row: number, col: number, rowSpan: number, colSpan: number): void => {
+      void sendCommand({ cmd: 'mergeCells', id, row, col, rowSpan, colSpan });
+    },
+    [sendCommand],
+  );
+
+  const unmergeCells = useCallback(
+    (id: string, row: number, col: number): void => {
+      void sendCommand({ cmd: 'unmergeCells', id, row, col });
+    },
+    [sendCommand],
+  );
+
   /* -------------------------------- paleta -------------------------------- */
 
   const selectAndReveal = useCallback((id: string): void => {
@@ -465,16 +649,26 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
 
   /** Esc: sube al contenedor (rectángulo o tabla) del item seleccionado. */
   const selectParent = useCallback((): void => {
-    if (!doc || !selectedId) return;
+    if (!doc) return;
+    // Con una celda seleccionada, el contenedor es su Tablix.
+    if (selectedCell) {
+      setSelectedId(selectedCell.id);
+      return;
+    }
+    if (!selectedId) return;
     const parent = findParentItemId(doc.projection, selectedId);
     setSelectedId(parent ?? null);
     if (parent) setReveal({ id: parent, nonce: Date.now() });
-  }, [doc, selectedId]);
+  }, [doc, selectedCell, selectedId, setSelectedId]);
 
   return {
     selectedId,
     selectedItem,
     setSelectedId,
+    selectedCell,
+    setSelectedCell,
+    selectCell,
+    selectCellForContext,
     selectAndReveal,
     selectParent,
     reveal,
@@ -486,6 +680,14 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     resizeItem,
     resizeColumn,
     resizeRow,
+    addRow,
+    deleteRow,
+    addColumn,
+    deleteColumn,
+    deleteRows,
+    deleteColumns,
+    mergeCells,
+    unmergeCells,
     setItemStyle,
     setImageOptions,
     setRunText,

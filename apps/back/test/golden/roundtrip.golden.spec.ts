@@ -51,7 +51,9 @@ describe('F0 · parcheo quirúrgico (solo se toca lo editado)', () => {
     const target = index
       .names()
       .map((name) => index.get(name))
-      .find((node) => node !== undefined && /^\d+(\.\d+)?cm$/.test(node.child('Top')?.text() ?? ''));
+      .find(
+        (node) => node !== undefined && /^\d+(\.\d+)?cm$/.test(node.child('Top')?.text() ?? ''),
+      );
     expect(target).toBeDefined();
 
     const top = target!.child('Top')!;

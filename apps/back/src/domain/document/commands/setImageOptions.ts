@@ -49,12 +49,12 @@ export function applySetImageOptions(
       {
         cmd: 'setImageOptions',
         id: command.id,
-        ...(('source' in inverse) && {
+        ...('source' in inverse && {
           source: inverse.source as 'External' | 'Embedded' | 'Database' | null,
         }),
-        ...(('value' in inverse) && { value: inverse.value ?? null }),
-        ...(('mimeType' in inverse) && { mimeType: inverse.mimeType ?? null }),
-        ...(('sizing' in inverse) && { sizing: inverse.sizing ?? null }),
+        ...('value' in inverse && { value: inverse.value ?? null }),
+        ...('mimeType' in inverse && { mimeType: inverse.mimeType ?? null }),
+        ...('sizing' in inverse && { sizing: inverse.sizing ?? null }),
       },
     ],
     applied: [{ id: command.id, values: { ...readImage(node) } }],

@@ -20,12 +20,7 @@ interface ReportPropertiesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSetPageSize: (width: Length, height: Length) => void;
-  onSetPageMargins: (margins: {
-    top: Length;
-    bottom: Length;
-    left: Length;
-    right: Length;
-  }) => void;
+  onSetPageMargins: (margins: { top: Length; bottom: Length; left: Length; right: Length }) => void;
   onSetReportCode: (code: string) => void;
 }
 

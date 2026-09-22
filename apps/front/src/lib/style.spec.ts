@@ -1,6 +1,6 @@
 import type { TextboxDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
-import { effectiveTextStyle, toPt } from './style';
+import { effectiveTextStyle, paintColor, toHexColor, toPt } from './style';
 
 /** Estilo efectivo del textbox: precedencia RDL run > párrafo > item. */
 
@@ -86,5 +86,36 @@ describe('toPt', () => {
     expect(toPt({ value: 1, unit: 'in' })).toBeCloseTo(72);
     expect(toPt({ value: 2.54, unit: 'cm' })).toBeCloseTo(72);
     expect(toPt({ value: 25.4, unit: 'mm' })).toBeCloseTo(72);
+  });
+});
+
+describe('paintColor', () => {
+  it('las expresiones RDL no se pintan en diseño: cae al color por defecto', () => {
+    // Caso real del corpus: fondo por fila con IIF (BC lo evalúa, el diseñador no).
+    expect(
+      paintColor(
+        '=IIF((Fields!BTCLineNo.Value \\ 10000) Mod 2 = 0, "LightGray", "White")',
+        '#ffffff',
+      ),
+    ).toBe('#ffffff');
+  });
+
+  it('los colores con nombre de RDL se respetan', () => {
+    expect(paintColor('Silver', '#ffffff')).toBe('Silver');
+    expect(paintColor('#D9D9D9', '#ffffff')).toBe('#D9D9D9');
+  });
+
+  it('sin valor usa el defecto', () => {
+    expect(paintColor(undefined, 'rgba(0,0,0,0)')).toBe('rgba(0,0,0,0)');
+  });
+});
+
+describe('toHexColor', () => {
+  it('las expresiones caen al color por defecto (input type=color)', () => {
+    expect(toHexColor('=Fields!X.Value', '#111827')).toBe('#111827');
+  });
+
+  it('un hex se devuelve tal cual', () => {
+    expect(toHexColor('#ff8800', '#111827')).toBe('#ff8800');
   });
 });
