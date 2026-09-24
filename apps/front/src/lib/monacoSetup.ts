@@ -202,6 +202,9 @@ export function createExpressionEditor(
     quickSuggestions: { other: true, comments: false, strings: false },
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
+    // Las sugerencias/hover viven fuera del contenedor del editor: dentro de un
+    // diálogo (con `transform` y `overflow-hidden`) quedarían recortadas.
+    overflowWidgetsDomNode: document.body,
     ariaLabel: options.ariaLabel,
   });
 

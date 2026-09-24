@@ -1,5 +1,49 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-23/24 · editor de texto del Textbox + fidelidad del lienzo** —
+> **Editor de texto (rework)**: diálogo con **textarea** (el documento completo, un
+> párrafo por línea; las expresiones como **marcadores editables** que muestran la
+> **etiqueta de BC** cuando la tienen, `⟨BTCMyCompanyName⟩`, o la expresión) y,
+> debajo, el **bloque del párrafo activo** (el del cursor): runs con su valor,
+> **etiqueta `<Label>` editable**, formato por run (fuente, tamaño,
+> negrita/cursiva/subrayado, color, resaltado), alineación del párrafo
+> (izquierda/centro/derecha; se quita "justificar" como RB: no existe) y
+> añadir/quitar/duplicar/mover. Las expresiones se editan **inline con Monaco**
+> (resaltado y autocompletado) y el widget de sugerencias se monta fuera del
+> diálogo (`overflowWidgetsDomNode`) para que no lo recorte. El borrador se monta
+> al abrir y se aplica en **un comando** (`setParagraphs`, nuevo en el dominio:
+> reemplaza el nodo `<Paragraphs>`, undo byte-exacto y XSD válido). El panel
+> muestra el caso simple inline y el mixto con resumen + «Abrir editor de texto»;
+> el menú contextual tiene «Editar texto…».
+> **Lienzo fiel**: el texto se pinta **un nodo por run** con la precedencia
+> `run > párrafo > item` (fuente, tamaño, color, negrita/cursiva/subrayado),
+> **alineación por párrafo** (el `TextAlign` vive en el párrafo, donde lo pone BC)
+> y el `VerticalAlign` del item; el texto de diseño es la **etiqueta** entre
+> corchetes (`[BTCMyCompanyName]`), el **nombre del campo** si la expresión es
+> simple (`=Fields!BTCDescriptionLbl.Value` → `BTCDescriptionLbl`), `[exp]` para
+> el resto, y el texto plano tal cual.
+> **Marco de selección**: mide la **caja** del item (`item-box`), no el grupo: con
+> el texto repartido en runs sin `width`, `getClientRect` incluía lo que sobresale
+> y el marco/tiradores se inflaban (el dibujado era correcto — el `clip` recorta —
+> pero arrastrar y redimensionar se descuadraban). Cubierto con E2E.
+>
+> **Punto de retomada (próxima sesión)**:
+>
+> 1. **Probar en la app** lo de esta sesión: editor de texto con un informe grande
+>    (10 párrafos/20+ runs), marcadores/etiquetas, alineación en el lienzo, marco
+>    al arrastrar y redimensionar.
+> 2. **`TablixCorner` + `TablixHeader`**: la proyección aún no los pinta (en
+>    `Tablix7` de `SalesInvoiceESP` no se ven `Textbox72/73/75` ni las cabeceras
+>    de grupo `VATIdentifier_…`). Recomendado antes de crear grupos nuevos, porque
+>    BC los usa para las cabeceras.
+> 3. **Grupos de fila con totales** (bloque 2 de F2): `addRowGroup`,
+>    `deleteRowGroup`, `setGroupExpression`, `setGroupTotals`.
+> 4. Menores: `moveItem` y `setName` (en el catálogo, sin comando), **insertar
+>    Tablix** (no existe aún), empaquetado electron-builder y CI.
+>
+> Estado: **272 unit tests** (162 back + 110 front), `typecheck` limpio,
+> `react-doctor` **100/100** y los **20 E2E** de Playwright verdes.
+
 > **Sesión 2026-09-22 · correcciones sobre F2 parte 3 (bloque 1)** —
 > **Click derecho con selección de celdas**: si el click cae dentro de la
 > selección (el rectángulo **o** las sueltas de Ctrl+click), el rango manda y no
@@ -25,10 +69,57 @@
 > (una a una). El tramo a fusionar sale de `selectionBounds`; antes
 > `canMergeSelection` miraba solo el rectángulo ancla→foco y las sueltas de
 > Ctrl+click no contaban como candidatas.
-> Estado: **242 unit tests** (158 back + 84 front), `typecheck` limpio y los
-> **17 E2E** de Playwright verdes (fusión horizontal con Shift y con Ctrl+click,
-> click derecho sobre celdas sueltas con tablixes anidados, rango de varias filas
-> sin fusión).
+> **Separar celdas desde el menú**: la opción aparece aunque no haya selección de
+> celdas cuando el click derecho cae sobre una celda combinada (manda la celda
+> del hit); antes solo se ofrecía si el ancla estaba en la selección.
+> **Esc con una celda seleccionada**: `hasSelection` no contaba las celdas, así
+> que el atajo no subía al Tablix (documentado como "Esc sube un nivel").
+> Al fusionar, las celdas cubiertas se eliminan y su contenido se descarta (como
+> en RB); el ancla conserva el suyo y hereda el ancho fusionado.
+> **Separar crea textbox**: la celda recreada nace con un **Textbox vacío** (sin
+> longitudes: el tamaño lo pone la celda) en vez de quedar muerta, y el
+> documento sigue validando el XSD.
+> **Insertar en una celda**: el item nace con el **tamaño de la celda** y en su
+> origen (antes: tamaño por defecto en el punto del cursor).
+> **Proyección de celdas con fusiones**: el ancho/alto heredado usa la **columna
+> acumulada** (suma de `ColSpan`), no el índice del array — al fusionar, las
+> celdas de la derecha conservaban mal su tamaño (bug detectado con
+> `SalesInvoiceESP`: la celda de un textbox pasaba de 3.35 a 3.53 cm). Las filas
+> que desbordan las columnas declaradas (ficheros tolerantes de BC) usan la
+> última columna como referencia en vez de dibujarse 0×0.
+> **Rejilla segmentada**: las fronteras que cruza una celda fusionada ya no se
+> dibujan (`lib/grid.ts`): una celda con `ColSpan`/`RowSpan` se ve como una caja
+> continua en vez de parecer partida (caso `TextboxVATClauseDesc` en
+> `SalesCreditMemoESP`: una celda con `ColSpan 2` mostraba la línea en medio).
+> **`react-doctor` 100/100** tras el refactor de la sesión: `App` (335 → 291
+> líneas) delega el click derecho en `useItemEditing`, los diálogos en
+> `DocumentDialogs` y los ganchos de QA en `useQaHooks`; la rejilla usa claves
+> estables por segmento.
+> **Editor de texto del Textbox** (rework del panel): el caso **simple** (un
+> párrafo, un run) se sigue editando inline; el **texto mixto** se edita en un
+> diálogo que abre el panel o el menú contextual del item ("Editar texto…"):
+> un **textarea** con el documento (un párrafo por línea; las expresiones como
+> **marcadores editables** que muestran la **etiqueta de BC** cuando la tienen,
+> `⟨BTCMyCompanyName⟩`, o la expresión si no, `⟨=Code.GetData(13, 1)⟩`) y,
+> debajo, el **bloque del párrafo donde está el cursor** con sus runs: valor,
+> **etiqueta `<Label>` editable**, formato por run (fuente, tamaño,
+> negrita/cursiva/subrayado, color, resaltado), alineación del párrafo,
+> añadir/quitar/duplicar/mover y el editor Monaco de la expresión (una única
+> instancia, bajo demanda). Al pasar texto ↔ párrafos se conservan las etiquetas
+> `<Label>` y el formato por coincidencia de contenido (etiqueta o expresión).
+> Todo se aplica en **un comando** (`setParagraphs`, nuevo en el dominio:
+> reemplaza el nodo `<Paragraphs>`, undo byte-exacto y XSD válido).
+> **Rendimiento**: con textboxes grandes (10 párrafos, 20+ runs) el diálogo
+> bloqueaba porque montaba un Monaco por run y pedía las fuentes del sistema por
+> run; ahora los valores son inputs, el Monaco se monta solo al pedirlo y las
+> fuentes se cargan una vez (`datalist`).
+> **Teclado con diálogos abiertos**: `useGlobalKeys` no actúa mientras hay un
+> diálogo o menú **abierto** (`data-state="open"`): el Escape que cierra el
+> diálogo ya no cambia además la selección del lienzo (y un Ctrl+Z justo al
+> cerrar sí deshace).
+> Estado: **267 unit tests** (162 back + 105 front), `typecheck` limpio y los
+> **18 E2E** de Playwright verdes (incluye el editor de texto: marcadores de
+> expresión en el textarea, bloque del párrafo activo y undo).
 
 > **Sesión 2026-09-18 · F2 parte 3 (bloque 1) + E2E con Playwright** —
 > **Estructura del Tablix**: la proyección ya trae las **jerarquías** de
@@ -238,19 +329,24 @@ Trade-offs documentados:
 
 ## 🔴 Gaps funcionales (MVP)
 
-1. **Buscador / command palette (Ctrl+K)** — ⬜ siguiente bloque.
-   Buscar por nombre de elemento y por contenido de expresión; acciones (abrir, guardar,
-   undo/redo, insertar). shadcn `Command` en un `Dialog`.
-2. **Monaco para expresiones** — ⬜ siguiente bloque.
-   Highlight VB-like + autocompletado alimentado por el dominio `expression`
-   (`Fields!`, `Parameters!`, `Globals!`, `User!`, `ReportItems!` y funciones de `<Code>`).
-   Hoy el panel de texto es un `<Input>` y el bloque `<Code>` un `<Textarea>`.
-3. **Texto mixto (varios TextRuns por párrafo)** — 🔶 se edita por run; falta el mini
-   editor rich-text por párrafos para añadir/quitar runs y estilos por run.
-4. **Tablix visual (Fase 2)** — ⬜ rejilla editable, resize de filas/columnas, grupos de
-   fila con totales (`addRowGroup`, `resizeColumn`… ya definidos en el catálogo).
-   El modelo ya se proyecta completo (body + jerarquías) y las celdas heredan tamaño
-   (ColSpan/RowSpan) — ver hallazgos.
+1. **Buscador / command palette (Ctrl+K)** — ✅ hecho (sesión 2026-09-16): busca
+   elementos por nombre y contenido, variables y acciones; shadcn `Command` en `Dialog`.
+2. **Monaco para expresiones** — ✅ hecho: resaltado VB-like + autocompletado
+   (`Fields!`, `Parameters!`, `Globals!`, `User!`, `ReportItems!` y funciones de `<Code>`)
+   en el panel, el bloque `<Code>` y el editor de texto (inline por run). El widget de
+   sugerencias se monta fuera del contenedor del editor (`overflowWidgetsDomNode`), que
+   dentro de un diálogo quedaba recortado.
+3. **Texto mixto (varios TextRuns por párrafo)** — ✅ hecho (sesión 2026-09-23/24): editor
+   de texto con textarea del documento (marcadores de expresión con la etiqueta de BC),
+   bloque del párrafo activo (runs, etiqueta `<Label>` editable, formato por run,
+   añadir/quitar/duplicar/mover) y comando `setParagraphs` (undo byte-exacto).
+4. **Tablix visual (Fase 2)** — 🔶 rejilla editable, estructura (bloque 1), rejilla
+   segmentada, fusión por tramos y proyección de anchos por columna acumulada ✅; falta:
+   **cabeceras de grupo (`TablixMember/TablixHeader`) y esquina (`TablixCorner`)** — hoy
+   **no se proyectan ni se pintan**: en informes como `Tablix7` de `SalesInvoiceESP.rdlc` los
+   textboxes de la esquina y de las cabeceras (p. ej. `Textbox72/73/75`, `VATIdentifier_…`)
+   existen en el XML pero no en el lienzo, y el layout no cuenta sus columnas/filas.
+   Después: **grupos de fila con totales** (`addRowGroup`, `setGroupTotals`… ya en el plan).
 5. **Matrix (Fase 3)** — ⬜ grupos de columna.
 6. **`moveItem`** (reparentar/reordenar) — ⬜ implementado hasta `insertItem`/`deleteItem`/
    `duplicateItem`; `moveItem` sigue rechazándose explícitamente.
@@ -263,11 +359,10 @@ Trade-offs documentados:
    [docs/perf/0001-baseline-lienzo.md](docs/perf/0001-baseline-lienzo.md)); faltan las
    optimizaciones: drag sin re-render de React, viewport culling, grid cacheado,
    solo la pestaña activa monta el stage, batching de comandos.
-9. **Arquitectura del lienzo** — 🔶 hay base (capas, selección, drag, snap); faltan
-   multi-selección, alineación/distribución, guías inteligentes y toolbox con drag&drop
-   real (hoy los items se insertan con botones).
-10. **Lista de variables → inserción en Monaco** — 🔶 hoy copia al portapapeles; con
-    Monaco debe insertar en la posición del cursor.
+9. **Arquitectura del lienzo** — 🔶 hay base (capas, selección, drag, snap, **toolbox con
+   drag&drop real**); faltan multi-selección, alineación/distribución y guías inteligentes.
+10. **Lista de variables → inserción en Monaco** — ✅ hecho: inserta en la posición del
+    cursor del editor registrado (y copia al portapapeles si no hay editor).
 11. **Renombrar en el panel** (doble clic en el nombre), breadcrumb de contenedor
     (Rectángulo/Celda) y panel de jerarquía del informe (árbol de elementos).
 

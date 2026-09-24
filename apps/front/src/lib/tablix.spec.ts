@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectionDto, TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
 import {
   canMergeSelection,
+  cellBoxAt,
   cellRange,
   findCellAt,
   findOwnerTablix,
@@ -103,6 +104,13 @@ describe('tablix · layout y celdas', () => {
     expect(findCellAt(TABLIX, 2.5, 0.2)?.content?.id).toBe('B');
     expect(findCellAt(TABLIX, 5.5, 0.6)?.content?.id).toBe('E');
     expect(findCellAt(TABLIX, 9, 9)).toBeUndefined();
+  });
+
+  it('localiza la celda por su ancla (fila, columna)', () => {
+    expect(cellBoxAt(TABLIX, 0, 1)?.content?.id).toBe('B');
+    expect(cellBoxAt(TABLIX, 0, 1)?.width).toBeCloseTo(4);
+    expect(cellBoxAt(TABLIX, 1, 2)?.width).toBeCloseTo(1);
+    expect(cellBoxAt(TABLIX, 9, 9)).toBeUndefined();
   });
 });
 

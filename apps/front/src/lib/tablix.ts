@@ -227,6 +227,11 @@ export function findCellAt(tablix: TablixDto, x: number, y: number): TablixCellB
   );
 }
 
+/** Celda por su ancla (fila, columna) en la rejilla. */
+export function cellBoxAt(tablix: TablixDto, row: number, col: number): TablixCellBox | undefined {
+  return tablixLayout(tablix).cells.find((cell) => cell.row === row && cell.col === col);
+}
+
 export interface TablixTreeEntry {
   kind: 'group' | 'row';
   /** Profundidad en el árbol (indentación del panel). */

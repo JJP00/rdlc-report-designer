@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemDto, ProjectionDto, TablixDto } from '@rdlc-designer/contracts';
+import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
+import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import { TrueFormatProjectionAdapter } from '../../src/infrastructure/rdlc/TrueFormatProjectionAdapter.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { corpusByName } from '../golden/fixtures.js';
@@ -96,6 +98,53 @@ describe('proyección · geometría de celdas de Tablix', () => {
     expect(textbox).toBeDefined();
     expect(textbox!.width.value).toBeGreaterThan(0);
     expect(textbox!.height.value).toBeGreaterThan(0);
+  });
+
+  it('al fusionar, las celdas de la derecha conservan el ancho de su columna', () => {
+    const { xml } = corpusByName('SalesInvoiceESP.rdlc');
+    const doc = xmlAdapter.parse(xml);
+    const index = DocumentIndex.build(doc.root);
+    const projectDoc = (): ProjectionDto =>
+      projectionAdapter.project({
+        sessionId: 'test',
+        filePath: 'SalesInvoiceESP.rdlc',
+        document: doc,
+        version: 1,
+      });
+
+    const tablixOf = (projection: ProjectionDto): TablixDto | undefined =>
+      allItems(projection).find(
+        (item): item is TablixDto => item.kind === 'tablix' && item.id === 'LinesTable2',
+      );
+    const contentOf = (tablix: TablixDto, id: string) =>
+      tablix.body.rows.flatMap((row) => row.cells).find((cell) => cell.content?.id === id)?.content;
+
+    // La fila 4 tiene [Textbox170, Textbox187, Textbox190, Textbox192].
+    const antes = tablixOf(projectDoc())!;
+    expect(contentOf(antes, 'Textbox192')?.width.value).toBeCloseTo(3.35146, 4);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'mergeCells', id: 'LinesTable2', row: 4, col: 1, rowSpan: 1, colSpan: 2 },
+    );
+    expect(applied.isRight()).toBe(true);
+
+    const despues = tablixOf(projectDoc())!;
+    // El ancla hereda la suma de sus dos columnas…
+    expect(contentOf(despues, 'Textbox187')?.width.value).toBeCloseTo(2.57094 + 3.53031, 4);
+    // …y la celda de su derecha mantiene el ancho de SU columna (no el de la
+    // fusionada): la columna de cada celda se acumula con los `ColSpan`.
+    expect(contentOf(despues, 'Textbox192')?.width.value).toBeCloseTo(3.35146, 4);
+  });
+
+  it('una fila más ancha que las columnas declaradas no deja el contenido a 0', () => {
+    // LinesTable2 (SalesInvoiceESP) tiene una fila con 6 posiciones y solo 4
+    // columnas declaradas: la última celda usa la última columna como referencia.
+    const projection = project('SalesInvoiceESP.rdlc');
+    const items = allItems(projection);
+    const textbox70 = items.find((item) => item.id === 'Textbox70');
+    expect(textbox70).toBeDefined();
+    expect(textbox70!.width.value).toBeGreaterThan(0);
   });
 });
 

@@ -2,6 +2,8 @@ import type {
   ItemDto,
   Length,
   NewItemSpec,
+  ParagraphDto,
+  ProjectionDto,
   ScopeRef,
   StyleDto,
   StylePatch,
@@ -10,8 +12,9 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiErrorMessage } from '@/lib/errors';
 import type { CanvasHit } from '@/lib/hit';
+import { insertSpecAt } from '@/lib/insert';
 import { cm, findItem, findParentItemId, isCellContent, patchItem, toCm } from '@/lib/projection';
-import { isCellInRange, isCellSelected, type SelectedCell } from '@/lib/tablix';
+import { hitSelectionCell, isCellInRange, isCellSelected, type SelectedCell } from '@/lib/tablix';
 import type { DocumentCore } from './useDocumentCore';
 
 /**
@@ -26,14 +29,6 @@ import type { DocumentCore } from './useDocumentCore';
 export const NUDGE_PT_CM = 2.54 / 72;
 /** Racha de flechas: se agrupa en UN comando (un paso de undo). */
 const NUDGE_BURST_MS = 400;
-
-/** Tamaño con el que nace cada item insertado. */
-const NEW_ITEM_SIZES: Record<NewItemSpec['kind'], { width: Length; height: Length }> = {
-  textbox: { width: { value: 5, unit: 'cm' }, height: { value: 1, unit: 'cm' } },
-  rectangle: { width: { value: 5, unit: 'cm' }, height: { value: 1, unit: 'cm' } },
-  line: { width: { value: 4, unit: 'cm' }, height: { value: 0, unit: 'cm' } },
-  image: { width: { value: 3, unit: 'cm' }, height: { value: 2, unit: 'cm' } },
-};
 
 export interface ImageOptionsPatch {
   source?: 'External' | 'Embedded' | 'Database' | null;
@@ -53,6 +48,10 @@ export interface ItemEditing {
   selectCell: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   /** Click derecho: conserva el rango si la celda ya estaba dentro. */
   selectCellForContext: (cell: SelectedCell) => void;
+  /** Último hit del click derecho: destino del menú, "Insertar" y "Pegar". */
+  menuHit: CanvasHit | null;
+  /** Click derecho sobre el lienzo: fija el hit y ajusta la selección. */
+  showContextMenu: (hit: CanvasHit) => void;
   /** Selecciona y pide al lienzo que traiga el elemento a la vista. */
   selectAndReveal: (id: string) => void;
   /** Sube un nivel en la jerarquía (Esc): selecciona el contenedor del item. */
@@ -87,6 +86,8 @@ export interface ItemEditing {
   setItemStyle: (patch: StylePatch) => void;
   setImageOptions: (patch: ImageOptionsPatch) => void;
   setRunText: (p: number, r: number, value: string) => void;
+  /** Reemplaza los párrafos del Textbox (editor de texto): un paso de undo. */
+  setParagraphs: (id: string, paragraphs: ParagraphDto[]) => void;
 
   insertItem: (kind: NewItemSpec['kind']) => void;
   insertAt: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
@@ -196,6 +197,37 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
         ? selectedCellState
         : null,
     [doc, selectedCellState],
+  );
+
+  /* -------------------------- click derecho ------------------------------- */
+
+  const [menuHit, setMenuHit] = useState<CanvasHit | null>(null);
+
+  /**
+   * Click derecho: si cae dentro de una selección de celdas del Tablix (el
+   * rectángulo o las añadidas con Ctrl+click, en el tablix que sea de la cadena
+   * de anidados), el rango manda y no se pierde (fusión / borrado en lote). Si
+   * no, selecciona lo que hay debajo.
+   */
+  const showContextMenu = useCallback(
+    (hit: CanvasHit): void => {
+      setMenuHit(hit);
+      if (hitSelectionCell(hit.cells, selectedCell)) return;
+      if (hit.item) {
+        setSelectedId(hit.item.id);
+        return;
+      }
+      if (hit.scope.kind === 'tablixCell') {
+        selectCellForContext({
+          id: hit.scope.id,
+          row: hit.scope.row,
+          col: hit.scope.col,
+        });
+        return;
+      }
+      setSelectedId(null);
+    },
+    [selectCellForContext, selectedCell, setSelectedId],
   );
 
   /* --------------------- mover con flechas (1pt / 10pt) ------------------ */
@@ -416,24 +448,27 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
 
   /* ---------------------- insertar / duplicar / eliminar ------------------ */
 
+  /**
+   * Texto mixto: reemplaza los párrafos del Textbox de una vez (un paso de
+   * undo). La proyección nueva llega con el snapshot del comando.
+   */
+  const setParagraphs = useCallback(
+    (id: string, paragraphs: ParagraphDto[]): void => {
+      void sendCommand({ cmd: 'setParagraphs', id, paragraphs });
+    },
+    [sendCommand],
+  );
+
   const insertAt = useCallback(
     (kind: NewItemSpec['kind'], hit: CanvasHit): void => {
       if (!doc) return;
-      const size = NEW_ITEM_SIZES[kind];
       // El nombre lo elige el **backend** (su índice está siempre al día): así
       // dos inserciones seguidas no pueden chocar de nombre.
       void sendCommand({
         cmd: 'insertItem',
         scope: hit.scope,
         index: hit.index,
-        item: {
-          kind,
-          top: cm(round4(hit.point.y)),
-          left: cm(round4(hit.point.x)),
-          width: size.width,
-          height: size.height,
-          ...(kind === 'textbox' ? { text: '' } : {}),
-        },
+        item: insertSpecAt(kind, hit, doc.projection),
       }).then((result) => {
         if (result?.ok && result.id) setSelectedId(result.id);
       });
@@ -669,6 +704,8 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setSelectedCell,
     selectCell,
     selectCellForContext,
+    menuHit,
+    showContextMenu,
     selectAndReveal,
     selectParent,
     reveal,
@@ -691,6 +728,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setItemStyle,
     setImageOptions,
     setRunText,
+    setParagraphs,
     insertItem,
     insertAt,
     duplicateSelected,

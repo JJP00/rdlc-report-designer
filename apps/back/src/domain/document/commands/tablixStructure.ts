@@ -9,6 +9,7 @@ import {
   type CommandOutcome,
   type DomainCommand,
 } from './CommandContext.js';
+import { nextItemName } from './insertItem.js';
 import {
   leafAt,
   leafInsertionPoint,
@@ -509,6 +510,7 @@ export function applyUnmergeCells(
   removeSpanNode(entry.cell, 'RowSpan', removed);
 
   const created: RdlcNode[] = [];
+  const takenNames = new Set<string>();
   for (let index = command.row; index < command.row + entry.rowSpan; index += 1) {
     const target = rows[index];
     if (!target) continue;
@@ -517,7 +519,7 @@ export function applyUnmergeCells(
     for (let column = command.col; column < command.col + entry.colSpan; column += 1) {
       if (index === command.row && column === command.col) continue;
       const position = insertCellPosition(target, column);
-      const cell = cells.createElement('TablixCell');
+      const cell = createCellWithTextbox(ctx, cells, takenNames);
       cells.insertChildAt(cell, position);
       created.push(cell);
     }
@@ -703,6 +705,43 @@ function removeSpanNode(
 ): void {
   const node = cell.child('CellContents')?.child(tag);
   if (node) removed.push({ node, restore: detach(node) });
+}
+
+/**
+ * Celda nueva con un Textbox vacío dentro (sin `Top/Left/Width/Height`: el
+ * tamaño lo pone la celda, como en BC). Al separar, la celda que estaba cubierta
+ * no queda muerta: nace lista para escribir, como un control insertado.
+ */
+function createCellWithTextbox(
+  ctx: CommandContext,
+  parent: RdlcNode,
+  taken: Set<string>,
+): RdlcNode {
+  const cell = parent.createElement('TablixCell');
+  const contents = cell.createElement('CellContents');
+  const name = nextItemName(ctx, 'textbox', taken);
+  taken.add(name);
+  contents.appendChild(emptyTextbox(contents, name));
+  cell.appendChild(contents);
+  return cell;
+}
+
+/** Textbox vacío con el orden canónico del XSD y sin longitudes. */
+function emptyTextbox(parent: RdlcNode, name: string): RdlcNode {
+  const textbox = parent.createElement('Textbox');
+  textbox.setAttribute('Name', name);
+  textbox.appendChild(textbox.createElement('CanGrow', 'true'));
+
+  const paragraphs = textbox.createElement('Paragraphs');
+  const paragraph = paragraphs.createElement('Paragraph');
+  const runs = paragraph.createElement('TextRuns');
+  const run = runs.createElement('TextRun');
+  run.appendChild(run.createElement('Value', ''));
+  runs.appendChild(run);
+  paragraph.appendChild(runs);
+  paragraphs.appendChild(paragraph);
+  textbox.appendChild(paragraphs);
+  return textbox;
 }
 
 /** Texto del tag en la fila/columna vecina (mantiene la unidad original). */

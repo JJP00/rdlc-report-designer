@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { undoAll } from './command-test-utils.js';
 import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import type { RdlcNode } from '../../src/domain/document/tree/RdlcNode.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
+import { LibXml2SchemaValidatorAdapter } from '../../src/infrastructure/validation/LibXml2SchemaValidatorAdapter.js';
 import { corpusByName } from '../golden/fixtures.js';
 
 /**
@@ -13,6 +16,12 @@ import { corpusByName } from '../golden/fixtures.js';
  */
 
 const adapter = new TrueFormatXmlAdapter();
+const validator = new LibXml2SchemaValidatorAdapter(
+  resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../resources/rdl2016/ReportDefinition2016.xsd',
+  ),
+);
 
 function open(name: string): {
   xml: string;
@@ -368,7 +377,7 @@ describe('F2 · borrado en lote y fusión de celdas', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('unmergeCells separa la celda y el undo la vuelve a combinar', () => {
+  it('unmergeCells separa la celda, crea textbox en las nuevas y valida el XSD', () => {
     const { doc, index } = open('SalesCreditMemoESP.rdlc');
     const cellsBefore = rowCells(rows(index.get('LinesTable2'))[0]).length;
     const merged = applyCommand(
@@ -386,6 +395,16 @@ describe('F2 · borrado en lote y fusión de celdas', () => {
     expect(split.isRight()).toBe(true);
     if (!split.isRight()) return;
     expect(rowCells(rows(index.get('LinesTable2'))[0])).toHaveLength(cellsBefore);
+
+    // La celda cubierta se recrea con un textbox vacío (sin longitudes: el
+    // tamaño lo pone la celda) y el documento sigue siendo válido.
+    const recreated = rowCells(rows(index.get('LinesTable2'))[0])[1];
+    const textbox = recreated?.child('CellContents')?.children('Textbox')[0];
+    expect(textbox?.attribute('Name')).toMatch(/^Textbox\d+$/);
+    expect(textbox?.child('Width')).toBeUndefined();
+    expect(textbox?.child('Height')).toBeUndefined();
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
 
     // El undo del split vuelve exactamente al documento combinado.
     const undoneSplit = undoAll({ root: doc.root, index }, split.value);

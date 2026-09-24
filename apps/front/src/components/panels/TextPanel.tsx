@@ -1,10 +1,12 @@
-import type { StylePatch, TextboxDto } from '@rdlc-designer/contracts';
+import type { StylePatch, TextRunDto, TextboxDto } from '@rdlc-designer/contracts';
+import { PencilLine } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { isSimpleText } from '@/lib/textEditor';
 import { ExpressionEditor } from './ExpressionEditor';
-import { FormatToolbar } from './FormatToolbar';
 
 interface TextPanelProps {
   item: TextboxDto;
@@ -12,13 +14,24 @@ interface TextPanelProps {
   onSetText: (p: number, r: number, value: string) => void;
   /** Estilo del item (fuente, colores, alineación, viñetas). */
   onSetStyle: (patch: StylePatch) => void;
+  /** Abre el editor de texto (párrafos → runs). */
+  onOpenEditor: () => void;
 }
 
 /**
- * Panel de texto/expresión. F1: edición por run (cubre el caso simple y el
- * texto mixto); el editor rich-text completo llegará con el dominio `expression`.
+ * Panel de texto/expresión. El caso **simple** (un párrafo, un run) se edita
+ * aquí mismo; el **texto mixto** (varios párrafos o runs) se edita en el editor
+ * de texto que abre el botón (y el menú contextual del item).
  */
-export function TextPanel({ item, onSetText, onSetStyle }: TextPanelProps): ReactNode {
+export function TextPanel({
+  item,
+  onSetText,
+  onSetStyle,
+  onOpenEditor,
+}: TextPanelProps): ReactNode {
+  const simple = isSimpleText(item.paragraphs);
+  const firstRun = item.paragraphs[0]?.runs[0];
+
   return (
     <div className="flex flex-col border-t">
       <div className="flex flex-col gap-3 p-3">
@@ -30,26 +43,34 @@ export function TextPanel({ item, onSetText, onSetStyle }: TextPanelProps): Reac
           </Badge>
         </div>
 
-        {item.paragraphs.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Este textbox no tiene párrafos.</p>
-        ) : null}
+        {simple && firstRun ? (
+          <RunField
+            index="1.1"
+            label={firstRun.label}
+            value={firstRun.value}
+            onCommit={(value) => onSetText(0, 0, value)}
+          />
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Este textbox tiene texto mixto (varios párrafos o runs). Ábrelo en el editor de texto
+              para escribir, insertar expresiones o cambiar el formato de cada run.
+            </p>
+            <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+              {item.paragraphs.slice(0, 4).map((paragraph, p) => (
+                <li key={p} className="truncate">
+                  <span className="font-medium">Párrafo {p + 1}:</span>{' '}
+                  {paragraph.runs.map(runSummary).join(' · ')}
+                </li>
+              ))}
+              {item.paragraphs.length > 4 ? <li>…</li> : null}
+            </ul>
+          </>
+        )}
 
-        {item.paragraphs.map((paragraph, p) => (
-          <div key={`p${p}`} className="flex flex-col gap-2">
-            {item.paragraphs.length > 1 ? (
-              <div className="text-[11px] font-medium text-muted-foreground">Párrafo {p + 1}</div>
-            ) : null}
-            {paragraph.runs.map((run, r) => (
-              <RunField
-                key={`${p}.${r}`}
-                index={`${p}.${r}`}
-                label={run.label}
-                value={run.value}
-                onCommit={(value) => onSetText(p, r, value)}
-              />
-            ))}
-          </div>
-        ))}
+        <Button variant="outline" size="xs" className="self-start" onClick={onOpenEditor}>
+          <PencilLine /> Abrir editor de texto
+        </Button>
 
         <Separator />
         <p className="text-[11px] text-muted-foreground">
@@ -61,6 +82,14 @@ export function TextPanel({ item, onSetText, onSetStyle }: TextPanelProps): Reac
       </div>
     </div>
   );
+}
+
+/** Resumen corto de un run para el caso mixto. */
+function runSummary(run: TextRunDto): string {
+  if (run.value.trimStart().startsWith('=')) {
+    return run.label !== undefined && run.label !== '' ? `[${run.label}]` : '[expresión]';
+  }
+  return run.value === '' ? '(vacío)' : run.value;
 }
 
 function RunField({

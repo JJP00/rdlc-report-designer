@@ -13,6 +13,8 @@ export interface ItemPanelsProps {
   onSetStyle: (patch: StylePatch) => void;
   onSetText: (p: number, r: number, value: string) => void;
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
+  /** Abre el editor de texto del textbox (párrafos → runs). */
+  onEditText: (id: string) => void;
 }
 
 /**
@@ -27,6 +29,7 @@ export function ItemPanels({
   onSetStyle,
   onSetText,
   onSetImageOptions,
+  onEditText,
 }: ItemPanelsProps): ReactNode {
   if (!item) {
     return (
@@ -45,7 +48,12 @@ export function ItemPanels({
         onSetSize={onSetSize}
       />
       {item.kind === 'textbox' ? (
-        <TextPanel item={item as TextboxDto} onSetText={onSetText} onSetStyle={onSetStyle} />
+        <TextPanel
+          item={item as TextboxDto}
+          onSetText={onSetText}
+          onSetStyle={onSetStyle}
+          onOpenEditor={() => onEditText(item.id)}
+        />
       ) : null}
       {item.kind === 'image' ? (
         <ImagePanel item={item} onSetImageOptions={onSetImageOptions} onSetStyle={onSetStyle} />

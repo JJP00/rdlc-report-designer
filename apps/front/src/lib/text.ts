@@ -1,27 +1,24 @@
 import type { TextRunDto } from '@rdlc-designer/contracts';
 
 /**
- * Texto visible de un run en el lienzo (como el diseñador de Report Builder /
- * BC, que no renderiza datos):
+ * Texto que el diseñador pinta en el lienzo para cada run (tiempo de diseño:
+ * las expresiones **no se evalúan**, como en Report Builder):
  *
- * 1. Si el run trae `<Label>`, manda la etiqueta: `[MiEtiqueta]`.
- * 2. Si la expresión es una referencia simple a un campo
- *    (`=Fields!BTCDescriptionLbl.Value`) se muestra el **nombre del campo**.
- * 3. Cualquier otra expresión (agregados, `IIf`, concatenaciones, parámetros…)
- *    se resume como `[exp]`.
- * 4. Texto plano: tal cual.
- *
- * El valor real sigue intacto en el panel de texto, que es donde se edita.
+ * 1. Texto plano: tal cual.
+ * 2. Expresión con etiqueta de diseñador (`<Label>` de BC): la **etiqueta**
+ *    entre corchetes (`[BTCMyCompanyName]`), como el diseñador de BC/RB.
+ * 3. Expresión **simple de campo** (`=Fields!BTCDescriptionLbl.Value`): el
+ *    nombre del campo (`BTCDescriptionLbl`).
+ * 4. Cualquier otra expresión: `[exp]`.
  */
 export function runDisplayText(run: Pick<TextRunDto, 'value' | 'label'>): string {
-  if (run.label !== undefined) return `[${run.label}]`;
+  if (!run.value.trimStart().startsWith('=')) return run.value;
+  if (run.label !== undefined && run.label !== '') return `[${run.label}]`;
 
   const field = SIMPLE_FIELD.exec(run.value);
   if (field) return field[1]!;
 
-  if (run.value.trimStart().startsWith('=')) return '[exp]';
-
-  return run.value;
+  return '[exp]';
 }
 
 /** `=Fields!Nombre.Value` (espacios opcionales y `.Value` opcional). */

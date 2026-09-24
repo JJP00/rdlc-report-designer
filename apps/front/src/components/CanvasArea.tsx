@@ -75,6 +75,8 @@ export interface CanvasAreaProps {
   onCut: () => void;
   onPasteAt: (scope: ScopeRef, index: number) => void;
   onDelete: () => void;
+  /** Abre el editor de texto del textbox (párrafos → runs). */
+  onEditText: (id: string) => void;
   /** Esc / menú: sube al contenedor del item seleccionado. */
   onSelectParent: () => void;
 }
@@ -111,6 +113,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onCut,
     onPasteAt,
     onDelete,
+    onEditText,
     onSelectParent,
   } = props;
 
@@ -177,6 +180,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
           }}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
+          onEditText={onEditText}
           onSelectParent={onSelectParent}
         />
 
@@ -276,14 +280,19 @@ function TablixMenuItems({
   // Tramo a fusionar (una fila, celdas contiguas), contando las sueltas de Ctrl.
   const mergeRange =
     selection && canMergeSelection(selection) ? selectionBounds(selection) : undefined;
-  const mergedAnchor = selection
-    ? selectedRefs.find((ref) =>
-        layout?.cells.some(
-          (cell) =>
-            cell.row === ref.row && cell.col === ref.col && (cell.colSpan > 1 || cell.rowSpan > 1),
-        ),
-      )
-    : undefined;
+
+  /** Celda ancla de una fusión (`ColSpan`/`RowSpan` > 1) en el layout. */
+  const mergedCellAt = (ref: { row: number; col: number }) =>
+    layout?.cells.find(
+      (cell) =>
+        cell.row === ref.row && cell.col === ref.col && (cell.colSpan > 1 || cell.rowSpan > 1),
+    );
+
+  // "Separar celdas" también con el click derecho directo sobre la celda
+  // combinada (aunque no haya selección de celdas): manda la celda del hit.
+  const mergedAnchor =
+    (cellScope ? mergedCellAt(cellScope) : undefined) ??
+    selectedRefs.map(mergedCellAt).find((cell) => cell !== undefined);
 
   return (
     <>
@@ -374,6 +383,7 @@ function ItemActionsMenu({
   onPaste,
   onDuplicate,
   onDelete,
+  onEditText,
   onSelectParent,
 }: {
   item: ItemDto | undefined;
@@ -383,6 +393,7 @@ function ItemActionsMenu({
   onPaste: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onEditText: (id: string) => void;
   onSelectParent: () => void;
 }): ReactNode {
   if (!item) {
@@ -412,6 +423,9 @@ function ItemActionsMenu({
         Duplicar
         <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>
       </ContextMenuItem>
+      {item.kind === 'textbox' ? (
+        <ContextMenuItem onSelect={() => onEditText(item.id)}>Editar texto…</ContextMenuItem>
+      ) : null}
       <ContextMenuSeparator />
       <ContextMenuItem variant="destructive" onSelect={onDelete}>
         Eliminar

@@ -234,14 +234,20 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       this.length(textOf(row.getFirstElementByName('Height'))),
     );
 
-    const rows = rowEls.map((rowEl, rowIndex) => ({
-      height: rowHeights[rowIndex] ?? ZERO,
-      cells: (rowEl.getFirstElementByName('TablixCells')?.children ?? [])
+    // La columna de una celda es la **acumulada** de los `ColSpan` anteriores
+    // (no el índice del array: con celdas fusionadas, o tras fusionar, el índice
+    // y la columna real divergen y el contenido heredaría un tamaño erróneo).
+    const rows = rowEls.map((rowEl, rowIndex) => {
+      let columnIndex = 0;
+      const cells = (rowEl.getFirstElementByName('TablixCells')?.children ?? [])
         .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixCell')
-        .map((cellEl, colIndex) =>
-          this.tablixCell(cellEl, colIndex, rowIndex, columns, rowHeights),
-        ),
-    }));
+        .map((cellEl) => {
+          const cell = this.tablixCell(cellEl, columnIndex, rowIndex, columns, rowHeights);
+          columnIndex += cell.colSpan ?? 1;
+          return cell;
+        });
+      return { height: rowHeights[rowIndex] ?? ZERO, cells };
+    });
 
     const row = this.tablixMembers(el.getFirstElementByName('TablixRowHierarchy'));
     const column = this.tablixMembers(el.getFirstElementByName('TablixColumnHierarchy'));
@@ -342,8 +348,12 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     const colSpan = this.int(textOf(contents?.getFirstElementByName('ColSpan'))) ?? 1;
     const rowSpan = this.int(textOf(contents?.getFirstElementByName('RowSpan'))) ?? 1;
 
-    const width = sumLengths(columns.slice(columnIndex, columnIndex + colSpan));
-    const height = sumLengths(rowHeights.slice(rowIndex, rowIndex + rowSpan));
+    // El ancho sale de las columnas de la rejilla que cubre la celda. Si la
+    // posición desborda lo declarado (ficheros de BC con filas más anchas que
+    // `TablixColumns`), se usa la última columna como referencia: 0 dejaría el
+    // contenido invisible.
+    const width = this.spanWidth(columns, columnIndex, colSpan);
+    const height = this.spanHeight(rowHeights, rowIndex, rowSpan);
 
     const contentEl = (contents?.children ?? []).find(
       (c): c is XmlElement =>
@@ -356,6 +366,20 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     if (colSpan > 1) cell.colSpan = colSpan;
     if (rowSpan > 1) cell.rowSpan = rowSpan;
     return cell;
+  }
+
+  /** Ancho de `colSpan` columnas desde `columnIndex` (tolerante al desborde). */
+  private spanWidth(columns: Length[], columnIndex: number, colSpan: number): Length {
+    const slice = columns.slice(columnIndex, columnIndex + colSpan);
+    if (slice.length > 0) return sumLengths(slice);
+    return columns[columns.length - 1] ?? ZERO;
+  }
+
+  /** Alto de `rowSpan` filas desde `rowIndex` (tolerante al desborde). */
+  private spanHeight(rowHeights: Length[], rowIndex: number, rowSpan: number): Length {
+    const slice = rowHeights.slice(rowIndex, rowIndex + rowSpan);
+    if (slice.length > 0) return sumLengths(slice);
+    return rowHeights[rowHeights.length - 1] ?? ZERO;
   }
 
   /* ------------------------------- meta -------------------------------- */

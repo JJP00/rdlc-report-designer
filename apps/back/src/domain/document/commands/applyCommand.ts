@@ -22,6 +22,7 @@ import {
 } from './tablixStructure.js';
 import { applySetPageMargins } from './setPageMargins.js';
 import { applySetPageSize } from './setPageSize.js';
+import { applySetParagraphs } from './setParagraphs.js';
 import { applySetImageOptions } from './setImageOptions.js';
 import { applySetReportCode } from './setReportCode.js';
 import { applySetSize } from './setSize.js';
@@ -68,6 +69,8 @@ export function applyCommand(
       return applyUnmergeCells(ctx, command);
     case 'setText':
       return applySetText(ctx, command);
+    case 'setParagraphs':
+      return applySetParagraphs(ctx, command);
     case 'setStyle':
       return applySetStyle(ctx, command);
     case 'setPageSize':

@@ -43,6 +43,13 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
 
     const target = event.target as HTMLElement | null;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    // Con un diálogo o menú **abierto**, sus teclas son suyas (Escape cierra el
+    // diálogo y no debe además cambiar la selección del lienzo). Durante la
+    // animación de cierre ya no bloquea: un Ctrl+Z justo después actúa.
+    if (
+      document.querySelector('[role="dialog"][data-state="open"], [role="menu"][data-state="open"]')
+    )
+      return;
     if (!options.hasDocument) return;
 
     if (accel && key === 'z') {

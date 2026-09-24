@@ -30,6 +30,9 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'deleteItem',
   // Interno del pegado: inserta subárbol (mismos efectos que insertItem).
   'insertClone',
+  // Fusionar descarta celdas con contenido; separar crea celdas con textbox.
+  'mergeCells',
+  'unmergeCells',
 ]);
 
 function isStructural(command: { cmd: string }): boolean {

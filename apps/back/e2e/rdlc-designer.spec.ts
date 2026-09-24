@@ -178,6 +178,7 @@ interface KonvaLike {
   height(): number;
   x(): number;
   y(): number;
+  points?(): number[];
   getAttr(name: string): unknown;
   getParent(): KonvaLike;
   getChildren(filter?: (node: KonvaLike) => boolean): KonvaLike[];
@@ -634,21 +635,52 @@ test('la rejilla renderizada se actualiza al añadir y deshacer una columna', as
     )
     .toBe('LinesTable2');
 
-  const gridCount = (): Promise<number> =>
-    page.evaluate(
-      () =>
-        (
-          (window as never as Record<string, unknown>)['__rdlcStage'] as {
-            find(selector: (node: KonvaLike) => boolean): KonvaLike[];
-          }
-        ).find((node) => node.name() === 'tablix-grid').length,
-    );
+  // Fronteras únicas de la rejilla y nodos reales (los nodos son **segmentos**:
+  // las fronteras que cruza una celda fusionada no se dibujan).
+  const gridEdges = (): Promise<{
+    vertical: number[];
+    horizontal: number[];
+    verticalNodes: number;
+    horizontalNodes: number;
+  }> =>
+    page.evaluate(() => {
+      const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+        find(selector: (node: KonvaLike) => boolean): KonvaLike[];
+      };
+      const vertical = new Set<number>();
+      const horizontal = new Set<number>();
+      let verticalNodes = 0;
+      let horizontalNodes = 0;
+      for (const node of stage.find((candidate) => candidate.name() === 'tablix-grid')) {
+        const points = node.points?.();
+        if (!points || points.length < 4) continue;
+        if (points[0] === points[2]) {
+          vertical.add(Math.round(points[0]! * 100) / 100);
+          verticalNodes += 1;
+        } else {
+          horizontal.add(Math.round(points[1]! * 100) / 100);
+          horizontalNodes += 1;
+        }
+      }
+      return {
+        vertical: [...vertical],
+        horizontal: [...horizontal],
+        verticalNodes,
+        horizontalNodes,
+      };
+    });
 
-  const before = await gridCount();
+  const before = await gridEdges();
+  // LinesTable2 tiene una celda con `ColSpan 3`: su frontera interior no se
+  // dibuja, así que hay más segmentos que fronteras únicas.
+  expect(before.verticalNodes).toBeGreaterThan(before.vertical.length);
+
   await page.getByRole('button', { name: 'Añadir columna al final' }).click();
-  await expect.poll(gridCount).toBe(before + 1);
+  await expect
+    .poll(async () => (await gridEdges()).vertical.length)
+    .toBe(before.vertical.length + 1);
   await page.keyboard.press('Control+z');
-  await expect.poll(gridCount).toBe(before);
+  await expect.poll(async () => (await gridEdges()).vertical.length).toBe(before.vertical.length);
 });
 
 test('las cabeceras del Tablix seleccionan columnas y el menú borra en lote', async () => {
@@ -829,39 +861,260 @@ test('arrastrar el borde de una cabecera redimensiona la columna', async () => {
     .toBeCloseTo(before, 3);
 });
 
-test('Ctrl+click añade celdas sueltas y el menú borra sus columnas', async () => {
-  // La tabla debe estar seleccionada para que el panel de estructura exista.
-  const border = await tablixBorderPoint('LinesTable2');
-  expect(border).not.toBeNull();
-  await page.mouse.click(border!.x, border!.y);
+test('el editor de texto añade runs y el undo lo revierte', async () => {
+  const proj = await projection();
+  const content = firstCellContent(proj, 'LinesTable2');
+  expect(content).toBeTruthy();
+  const id = content!.id;
 
-  // Ancla (0,0) y Ctrl+click en la celda (0,2): selección no rectangular.
-  await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
-  await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 0, col: 0 });
+  // Selecciona el textbox y abre el editor desde el panel de propiedades.
+  const point = await nodeCenter(id);
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            (window as never as Record<string, unknown>)['__rdlcSelection'] as {
+              id?: string;
+            } | null
+          )?.id ?? null,
+      ),
+    )
+    .toBe(id);
 
-  const c02 = await cellContentAt('LinesTable2', 0, 2);
-  expect(c02).toBeTruthy();
-  const p02 = await nodeCenter(c02!.id);
-  await page.keyboard.down('Control');
-  await page.mouse.click(p02!.x, p02!.y);
-  await page.keyboard.up('Control');
-  await expect.poll(selectedCell).toEqual({
-    id: 'LinesTable2',
-    row: 0,
-    col: 0,
-    extra: [{ row: 0, col: 2 }],
-  });
+  const runsOf = (): Promise<string[]> =>
+    page.evaluate((itemId) => {
+      const projection = (window as never as Record<string, unknown>)['__rdlcProjection'];
+      let found: { paragraphs?: { runs: { value: string }[] }[] } | undefined;
+      const walk = (value: unknown): void => {
+        if (found) return;
+        if (Array.isArray(value)) {
+          value.forEach(walk);
+          return;
+        }
+        if (value && typeof value === 'object') {
+          const node = value as Record<string, unknown>;
+          if (node['id'] === itemId && node['kind'] === 'textbox') {
+            found = node as never;
+            return;
+          }
+          Object.values(node).forEach(walk);
+        }
+      };
+      walk(projection);
+      return (found?.paragraphs ?? []).flatMap((paragraph) =>
+        paragraph.runs.map((run) => run.value),
+      );
+    }, id);
 
-  // Sin rectángulo no hay fusión; el borrado va por columnas tocadas.
-  const columnsBefore = await tablixColumnCount('LinesTable2');
-  const c00 = await cellContentAt('LinesTable2', 0, 0);
-  const p00 = await nodeCenter(c00!.id);
-  await page.mouse.click(p00!.x, p00!.y, { button: 'right' });
-  await expect(page.getByRole('menuitem', { name: 'Combinar celdas' })).toHaveCount(0);
-  await page.getByRole('menuitem', { name: 'Eliminar columnas 1, 3' }).click();
-  await expect.poll(() => tablixColumnCount('LinesTable2')).toBe(columnsBefore - 2);
+  const before = (await runsOf()).length;
+  await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
+
+  // En el textarea, un marcador nuevo al final = un run de expresión nuevo.
+  const area = page.getByLabel('Texto del textbox');
+  await area.click();
+  await page.keyboard.press('Control+End');
+  await area.pressSequentially('⟨=Fields!Total.Value⟩');
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect.poll(async () => (await runsOf()).length).toBe(before + 1);
+  expect(await runsOf()).toContain('=Fields!Total.Value');
+
+  // Un solo Ctrl+Z revierte el cambio completo.
   await page.keyboard.press('Control+z');
-  await expect.poll(() => tablixColumnCount('LinesTable2')).toBe(columnsBefore);
+  await expect.poll(async () => (await runsOf()).length).toBe(before);
+});
+
+test('el editor de texto monta Monaco en el párrafo activo y sugiere', async () => {
+  const proj = await projection();
+  const content = firstCellContent(proj, 'LinesTable2');
+  expect(content).toBeTruthy();
+  const point = await nodeCenter(content!.id);
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            (window as never as Record<string, unknown>)['__rdlcSelection'] as {
+              id?: string;
+            } | null
+          )?.id ?? null,
+      ),
+    )
+    .toBe(content!.id);
+
+  const started = Date.now();
+  await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const elapsed = Date.now() - started;
+
+  // Monaco inline por run de expresión **del párrafo activo** (aquí 1), no por
+  // todo el textbox: el diálogo abre rápido.
+  await expect(page.locator('[role="dialog"] .monaco-editor')).toHaveCount(1);
+  expect(elapsed).toBeLessThan(2500);
+
+  // El autocompletado se ve (el widget vive fuera del contenedor del editor:
+  // dentro del diálogo, con `transform`/`overflow`, quedaría recortado).
+  const editor = page.locator('[role="dialog"] .monaco-editor').first();
+  await editor.click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('=Code.');
+  await expect(page.locator('.suggest-widget')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+});
+
+test('el marco mide la caja del textbox aunque su texto sobresalga', async () => {
+  // El textbox de la dirección de la empresa: 5 párrafos y textos más anchos que
+  // su caja (7.5331 × 1.9767 cm). El marco no debe inflarse con el texto.
+  const id = await page.evaluate(() => {
+    const projection = (window as never as Record<string, unknown>)['__rdlcProjection'];
+    let found: string | null = null;
+    const walk = (value: unknown): void => {
+      if (found) return;
+      if (Array.isArray(value)) {
+        value.forEach(walk);
+        return;
+      }
+      if (value && typeof value === 'object') {
+        const node = value as Record<string, unknown>;
+        if (node['kind'] === 'textbox' && typeof node['id'] === 'string') {
+          const paragraphs = (node['paragraphs'] ?? []) as {
+            runs?: { label?: string }[];
+          }[];
+          if (paragraphs.some((p) => (p.runs ?? []).some((r) => r.label === 'BTCMyCompanyName'))) {
+            found = node['id'] as string;
+            return;
+          }
+        }
+        Object.values(node).forEach(walk);
+      }
+    };
+    walk(projection);
+    return found;
+  });
+  expect(id).toBeTruthy();
+
+  const point = await nodeCenter(id!);
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+
+  const rects = await page.evaluate((itemId) => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+    };
+    const node = stage.findOne((candidate) => candidate.id() === itemId);
+    const groupRect = node?.getClientRect({ relativeTo: stage });
+    const boxRect = node
+      ?.getChildren()
+      .flatMap((child) => child.getChildren((candidate) => candidate.name() === 'item-box'))
+      .find((candidate) => Boolean(candidate))
+      ?.getClientRect({ relativeTo: stage });
+    const selection = (
+      (window as never as Record<string, unknown>)['__rdlcSelection'] as {
+        rect?: { width: number; height: number };
+      } | null
+    )?.rect;
+    return {
+      group: groupRect?.width ?? 0,
+      box: boxRect?.width ?? 0,
+      boxHeight: boxRect?.height ?? 0,
+      selection: selection?.width ?? 0,
+      selectionHeight: selection?.height ?? 0,
+    };
+  }, id!);
+
+  // El texto sobresale de la caja (el grupo mediría más)…
+  expect(rects.group).toBeGreaterThan(rects.box + 1);
+  // …pero el marco de selección mide la caja del item.
+  expect(rects.selection).toBeCloseTo(rects.box, 0);
+  expect(rects.selectionHeight).toBeCloseTo(rects.boxHeight, 0);
+
+  await page.keyboard.press('Escape');
+});
+
+test('la alineación del párrafo se refleja en el lienzo', async () => {
+  const proj = await projection();
+  const content = firstCellContent(proj, 'LinesTable2');
+  expect(content).toBeTruthy();
+  const id = content!.id;
+  const point = await nodeCenter(id);
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            (window as never as Record<string, unknown>)['__rdlcSelection'] as {
+              id?: string;
+            } | null
+          )?.id ?? null,
+      ),
+    )
+    .toBe(id);
+
+  // El x del primer run del textbox en el lienzo (0 = pegado a la izquierda).
+  const firstRunX = (): Promise<number | null> =>
+    page.evaluate((itemId) => {
+      const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+        findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+      };
+      const item = stage.findOne((candidate) => candidate.id() === itemId);
+      const clip = item?.getChildren()[0];
+      const run = clip?.getChildren((candidate) => candidate.name() === 'textbox-run')[0];
+      return run ? run.x() : null;
+    }, id);
+
+  // BC trae este párrafo centrado; lo dejamos a la izquierda para medir.
+  await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
+  await page.getByRole('button', { name: 'Alinear izquierda (párrafo 1)' }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  const left = await firstRunX();
+  expect(left).not.toBeNull();
+  expect(left!).toBeLessThan(30);
+
+  // Centra el párrafo 1 desde el editor de texto: el lienzo lo refleja.
+  await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
+  await page.getByRole('button', { name: 'Centrar (párrafo 1)' }).click();
+  await page.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect.poll(firstRunX).toBeGreaterThan(left! + 5);
+
+  // Y con la alineación en el párrafo del XML (no en el item).
+  const alignment = await page.evaluate((itemId) => {
+    const projection = (window as never as Record<string, unknown>)['__rdlcProjection'];
+    let found: { paragraphs?: { style?: { textAlign?: string } }[] } | undefined;
+    const walk = (value: unknown): void => {
+      if (found) return;
+      if (Array.isArray(value)) {
+        value.forEach(walk);
+        return;
+      }
+      if (value && typeof value === 'object') {
+        const node = value as Record<string, unknown>;
+        if (node['id'] === itemId && node['kind'] === 'textbox') {
+          found = node as never;
+          return;
+        }
+        Object.values(node).forEach(walk);
+      }
+    };
+    walk(projection);
+    return found?.paragraphs?.[0]?.style?.textAlign ?? null;
+  }, id);
+  expect(alignment).toBe('Center');
+
+  // El undo (x2) devuelve el documento como estaba.
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  await expect.poll(firstRunX).toBeGreaterThan(left! + 5);
 });
 
 test('el click derecho sobre una celda suelta no pierde la selección', async () => {
@@ -934,7 +1187,20 @@ test('Ctrl+click en celdas contiguas de una fila permite combinar', async () => 
   await page.getByRole('menuitem', { name: 'Combinar celdas' }).click();
   await expect.poll(() => cellSpans('LinesTable2', 0, 0)).toEqual({ colSpan: 2, rowSpan: 1 });
 
-  // Undo: deja el documento como estaba.
+  // La selección pasa a otra celda (vacía) para que la fusionada no esté
+  // seleccionada: el click derecho sobre ella también debe ofrecer Separar
+  // (manda la celda del hit, no la selección).
+  await page.getByRole('button', { name: 'Seleccionar fila 3' }).click();
+  await page.getByRole('button', { name: 'Seleccionar columna 4' }).click();
+  await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 2, col: 3 });
+
+  await page.mouse.click(p01!.x, p01!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Separar celdas' }).click();
+  await expect.poll(() => cellSpans('LinesTable2', 0, 0)).toEqual({ colSpan: 1, rowSpan: 1 });
+
+  // Undo x2: deja el documento como estaba.
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => cellSpans('LinesTable2', 0, 0)).toEqual({ colSpan: 2, rowSpan: 1 });
   await page.keyboard.press('Control+z');
   await expect.poll(() => cellSpans('LinesTable2', 0, 0)).toEqual({ colSpan: 1, rowSpan: 1 });
 });

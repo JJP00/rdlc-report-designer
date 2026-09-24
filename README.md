@@ -87,7 +87,7 @@ para trazar eventos) y `__rdlcProjection` (la proyección viva).
 con `--mode e2e` (los ganchos se publican también ahí), usa ratón/teclado reales y deja
 traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntuales.
 
-## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-22)
+## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-24)
 
 **Fase 0 (spike round-trip) — cerrada:**
 
@@ -111,6 +111,15 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       copiar, cortar, pegar, eliminar) con portapapeles en el backend.
 - [x] Paneles: propiedades, texto/expresión, imagen (origen/MIME/tamaño/padding),
       variables (búsqueda + colapsables), Propiedades del informe (página + Código VB).
+- [x] **Editor de texto del Textbox**: panel simple inline; el texto mixto en un diálogo con
+      **textarea del documento** (párrafos por línea y expresiones como marcadores `⟨…⟩` que
+      muestran la **etiqueta de BC** o la expresión) + **bloque del párrafo activo** (runs,
+      etiqueta `<Label>` y formato por run, añadir/quitar/duplicar/mover y **Monaco inline** con
+      autocompletado). Un solo undo con `setParagraphs`.
+- [x] **Lienzo fiel al estilo RDL**: el texto se pinta por run con la precedencia
+      `run > párrafo > item` (fuente, tamaño, color, negrita/cursiva/subrayado) y la
+      **alineación del párrafo**; el texto de diseño muestra la **etiqueta** `[X]`, el nombre
+      del campo, `[exp]` o el texto. Marco y tiradores miden la caja del item.
 - [x] Barra de formato con **fuentes del sistema** (registro de Windows vía IPC).
 - [x] **Paleta de comandos Ctrl+K** (elementos por nombre y contenido, variables, acciones)
       y **Monaco** para expresiones y bloque `<Code>` (resaltado + autocompletado;
@@ -139,7 +148,7 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       arrastre real de cabeceras con undo, click interno + Esc, estructura (añadir/quitar filas
       y columnas), menú contextual, anclaje/recorte del contenido, refresco de la rejilla,
       cabeceras (Shift/Ctrl), borrado en lote, fusión/separación y colores-expresión
-      (17 tests, con reset del documento entre tests).
+      (16 tests, con reset del documento entre tests).
 - [ ] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [ ] grupos con totales · [ ] Matrix (F3).
 
 **Calidad (sesiones 2026-09-16, 2026-09-18 y 2026-09-22):**
@@ -155,9 +164,15 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       `ItemPanels`, `StatusBar`; el lienzo en `Paper`/`SelectionFrame`/`Ruler`/`ItemView`.
 - [x] **Ajustes de la sesión 2026-09-22**: el click derecho conserva la selección de celdas
       (cadena de celdas del hit, con tablixes anidados), la fusión solo aplica a tramos
-      contiguos de una misma fila (también con celdas sueltas de Ctrl+click) y el banner de
-      error pierde el código y se cierra solo (6 s).
-- [x] **242 unit tests** (158 back + 84 front) + **17 E2E** de Playwright y
+      contiguos de una misma fila (también con celdas sueltas de Ctrl+click), separar crea un
+      textbox vacío, insertar en una celda toma su tamaño y el banner de error pierde el código
+      y se cierra solo (6 s). Corregida la herencia de tamaño en celdas con fusiones (columna
+      acumulada por `ColSpan`) y la rejilla (segmentada: sin líneas dentro de celdas fusionadas).
+- [x] **Sesión 2026-09-23/24**: editor de texto del Textbox (textarea del documento con
+      marcadores de etiqueta/expresión, bloque del párrafo activo con formato por run y Monaco
+      inline), lienzo fiel al estilo RDL (texto por run con alineación de párrafo y texto de
+      diseño `[etiqueta]` / campo / `[exp]`) y marco de selección medido por la caja del item.
+- [x] **272 unit tests** (162 back + 110 front) + **20 E2E** de Playwright y
       `typecheck` limpio.
 
 Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

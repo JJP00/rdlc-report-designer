@@ -1,25 +1,24 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { CanvasArea } from '@/components/CanvasArea';
+import { DocumentDialogs } from '@/components/DocumentDialogs';
 import { EditorBanners } from '@/components/EditorBanners';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { InspectorPanel } from '@/components/InspectorPanel';
 import { StatusBar } from '@/components/StatusBar';
 import { CommandPalette } from '@/components/panels/CommandPalette';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
-import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
 import { VariablesPanel } from '@/components/panels/VariablesPanel';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useDocumentCore } from '@/hooks/useDocumentCore';
 import { useGlobalKeys } from '@/hooks/useGlobalKeys';
 import { useItemEditing } from '@/hooks/useItemEditing';
+import { useQaHooks } from '@/hooks/useQaHooks';
 import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
-import type { CanvasHit } from '@/lib/hit';
 import { paletteRunner, type PaletteActionId } from '@/lib/palette';
-import { countItems, formatKinds, isCellContent } from '@/lib/projection';
-import { findOwnerTablix, hitSelectionCell } from '@/lib/tablix';
+import { countItems, findItem, formatKinds, isCellContent } from '@/lib/projection';
+import { findOwnerTablix } from '@/lib/tablix';
 import { effectiveTextStyle } from '@/lib/style';
-import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 
 /**
  * Shell del editor: composición de hooks (`useDocumentCore` para el ciclo de
@@ -35,8 +34,8 @@ export function App(): ReactNode {
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  /** Último hit del click derecho: destino de "Insertar" y de "Pegar". */
-  const [menuHit, setMenuHit] = useState<CanvasHit | null>(null);
+  /** Textbox cuyo editor de texto está abierto (párrafos → runs). */
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   const { doc, status, error, dirty, conflict, reloads, hasBackend } = core;
   const { selectedId, selectedItem, selectedCell } = items;
@@ -60,18 +59,15 @@ export function App(): ReactNode {
     [doc, selectedItem],
   );
 
-  // QA/diagnóstico: la proyección viva, para los E2E de Playwright.
-  useEffect(() => {
-    if (!TEST_HOOKS_ENABLED) return;
-    (window as Window & { __rdlcProjection?: ProjectionDto | null }).__rdlcProjection =
-      doc?.projection ?? null;
-  }, [doc]);
+  /** Textbox en edición (el editor se monta al abrirlo y no se resincroniza). */
+  const editingText = useMemo(() => {
+    if (!doc || editingTextId === null) return undefined;
+    const item = findItem(doc.projection, editingTextId);
+    return item?.kind === 'textbox' ? item : undefined;
+  }, [doc, editingTextId]);
 
-  // QA/diagnóstico: el último hit del click derecho (celda/scope del menú).
-  useEffect(() => {
-    if (!TEST_HOOKS_ENABLED) return;
-    (window as Window & { __rdlcMenuHit?: CanvasHit | null }).__rdlcMenuHit = menuHit;
-  }, [menuHit]);
+  // QA/diagnóstico: proyección viva y último hit del click derecho (E2E).
+  useQaHooks(doc?.projection ?? null, items.menuHit);
 
   const setStatus = core.setStatus;
   const pickExpression = useCallback(
@@ -90,7 +86,8 @@ export function App(): ReactNode {
 
   useGlobalKeys({
     hasDocument: doc !== null,
-    hasSelection: selectedItem !== undefined,
+    // Una celda de Tablix también es selección (Esc sube a su tabla).
+    hasSelection: selectedItem !== undefined || selectedCell !== null,
     bodyIndex: doc?.projection.page.body.items.length ?? 0,
     onTogglePalette: () => setPaletteOpen((value) => !value),
     onUndo: () => void core.undo(),
@@ -125,7 +122,6 @@ export function App(): ReactNode {
     setSelectedId,
     setSelectedCell,
     selectCell,
-    selectCellForContext,
     insertItem,
     insertAt,
     duplicateSelected,
@@ -150,6 +146,7 @@ export function App(): ReactNode {
     setItemStyle,
     setImageOptions,
     setRunText,
+    setParagraphs,
     setPageSize,
     setPageMargins,
     setReportCode,
@@ -157,34 +154,9 @@ export function App(): ReactNode {
     reveal,
     selectAndReveal,
     selectParent,
+    menuHit,
+    showContextMenu,
   } = items;
-
-  /**
-   * Click derecho: si cae dentro de una selección de celdas del Tablix (el
-   * rectángulo o las añadidas con Ctrl+click, en el tablix que sea de la cadena
-   * de anidados), el rango manda y no se pierde (fusión / borrado en lote). Si
-   * no, selecciona lo que hay debajo.
-   */
-  const handleContextMenuHit = useCallback(
-    (hit: CanvasHit): void => {
-      setMenuHit(hit);
-      if (hitSelectionCell(hit.cells, selectedCell)) return;
-      if (hit.item) {
-        setSelectedId(hit.item.id);
-        return;
-      }
-      if (hit.scope.kind === 'tablixCell') {
-        selectCellForContext({
-          id: hit.scope.id,
-          row: hit.scope.row,
-          col: hit.scope.col,
-        });
-        return;
-      }
-      setSelectedId(null);
-    },
-    [selectCellForContext, selectedCell, setSelectedId],
-  );
 
   return (
     <TooltipProvider>
@@ -239,7 +211,7 @@ export function App(): ReactNode {
             reveal={reveal}
             onSelect={setSelectedId}
             onSelectCell={selectCell}
-            onContextMenuHit={handleContextMenuHit}
+            onContextMenuHit={showContextMenu}
             onZoomChange={setZoom}
             onMoveItem={moveItem}
             onResizeItem={resizeItem}
@@ -259,6 +231,7 @@ export function App(): ReactNode {
             onCut={cutSelected}
             onPasteAt={pasteAt}
             onDelete={deleteSelected}
+            onEditText={setEditingTextId}
             onSelectParent={selectParent}
           />
 
@@ -277,6 +250,7 @@ export function App(): ReactNode {
             onSetStyle={setItemStyle}
             onSetText={setRunText}
             onSetImageOptions={setImageOptions}
+            onEditText={setEditingTextId}
           />
         </main>
 
@@ -289,16 +263,19 @@ export function App(): ReactNode {
         />
       </div>
 
-      {doc ? (
-        <ReportPropertiesDialog
-          projection={doc.projection}
-          open={propertiesOpen}
-          onOpenChange={setPropertiesOpen}
-          onSetPageSize={setPageSize}
-          onSetPageMargins={setPageMargins}
-          onSetReportCode={setReportCode}
-        />
-      ) : null}
+      <DocumentDialogs
+        projection={doc?.projection ?? null}
+        propertiesOpen={propertiesOpen}
+        onPropertiesOpenChange={setPropertiesOpen}
+        onSetPageSize={setPageSize}
+        onSetPageMargins={setPageMargins}
+        onSetReportCode={setReportCode}
+        editingText={editingText}
+        onEditingTextOpenChange={(open) => {
+          if (!open) setEditingTextId(null);
+        }}
+        onApplyParagraphs={setParagraphs}
+      />
 
       <CommandPalette
         open={paletteOpen}

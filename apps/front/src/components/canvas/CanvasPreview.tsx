@@ -256,11 +256,19 @@ function measureSelection(
   measuredId: string,
 ): { x: number; y: number; width: number; height: number } | null {
   const node = stage.findOne((candidate: Konva.Node) => candidate.id() === measuredId);
-  const border = (node as Konva.Container | undefined)?.getChildren(
-    (child: Konva.Node) => child.name() === 'tablix-border',
-  )[0];
-  const measured = border ?? node;
-  return measured ? measured.getClientRect({ relativeTo: stage }) : null;
+  if (!node) return null;
+  // Se mide la **caja** del item (`item-box`) o el borde de la rejilla del
+  // Tablix, no el grupo: `getClientRect` incluiría descendientes que sobresalen
+  // (texto sin `width`, adornos) e inflaría el marco y los tiradores.
+  const container = node as Konva.Container;
+  const findByName = (name: string): Konva.Node | undefined => {
+    const matches: Konva.Node[] | undefined = container.find?.(
+      (child: Konva.Node) => child.name() === name,
+    );
+    return matches ? matches.at(0) : undefined;
+  };
+  const measured = findByName('tablix-border') ?? findByName('item-box') ?? node;
+  return measured.getClientRect({ relativeTo: stage });
 }
 
 /** Traduce un evento del DOM (drop, click derecho) a `CanvasHit`. */

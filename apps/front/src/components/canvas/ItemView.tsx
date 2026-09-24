@@ -10,10 +10,11 @@ import type Konva from 'konva';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
 import { computeDragEnd } from '@/lib/drag';
+import { tablixGrid } from '@/lib/grid';
 import { sortByZIndex } from '@/lib/projection';
-import { effectiveTextStyle, paintColor } from '@/lib/style';
+import { paintColor } from '@/lib/style';
 import { tablixLayout, cellRange, isCellInRange, type SelectedCell } from '@/lib/tablix';
-import { runDisplayText } from '@/lib/text';
+import { browserTextMeasurer, layoutTextbox } from '@/lib/textLayout';
 import { PX_PER_CM, SNAP_CM, toPx } from './geometry';
 
 /**
@@ -209,17 +210,9 @@ export function ItemView({
   const width = toPx(item.width);
   const height = toPx(item.height);
 
-  // Estilo efectivo (run > párrafo > item): lo que BC renderizará de verdad.
-  // Los textbox pueden llevar el formato en los runs, no en el item.
-  const style = item.kind === 'textbox' ? effectiveTextStyle(item) : item.style;
-
-  const fontSize = style?.fontSize ? toPx(style.fontSize) : 12;
-  const fontStyle = [
-    style?.fontWeight === 'Bold' ? 'bold' : '',
-    style?.fontStyle === 'Italic' ? 'italic' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  // El estilo efectivo por párrafo/run lo resuelve el layout del textbox
+  // (precedencia RDL: run > párrafo > item).
+  const style = item.style;
 
   return (
     <NodeGroup
@@ -239,8 +232,6 @@ export function ItemView({
         style,
         width,
         height,
-        fontSize,
-        fontStyle,
         selected,
         onSelect,
         onMoveItem,
@@ -259,8 +250,6 @@ function renderContent(
   style: StyleDto | undefined,
   width: number,
   height: number,
-  fontSize: number,
-  fontStyle: string,
   selected?: boolean,
   onSelect?: (id: string | null) => void,
   onMoveItem?: (id: string, top: Length, left: Length) => void,
@@ -271,16 +260,7 @@ function renderContent(
 ): ReactNode {
   switch (item.kind) {
     case 'textbox':
-      return (
-        <TextboxContent
-          item={item}
-          style={style}
-          width={width}
-          height={height}
-          fontSize={fontSize}
-          fontStyle={fontStyle}
-        />
-      );
+      return <TextboxContent item={item} style={style} width={width} height={height} />;
     case 'rectangle':
       return (
         <RectangleContent
@@ -322,24 +302,30 @@ function TextboxContent({
   style,
   width,
   height,
-  fontSize,
-  fontStyle,
 }: {
   item: TextboxDto;
   style: StyleDto | undefined;
   width: number;
   height: number;
-  fontSize: number;
-  fontStyle: string;
 }): ReactNode {
-  const text = item.paragraphs
-    .map((paragraph) => paragraph.runs.map(runDisplayText).join(''))
-    .join('\n');
   const padding = style?.padding;
   const padLeft = padding?.left ? toPx(padding.left) : 2;
   const padRight = padding?.right ? toPx(padding.right) : 2;
   const padTop = padding?.top ? toPx(padding.top) : 1;
   const padBottom = padding?.bottom ? toPx(padding.bottom) : 1;
+
+  // Un nodo por run: el estilo (fuente, tamaño, color, negrita…) y la
+  // alineación del párrafo (`TextAlign` del párrafo, como en BC) se resuelven
+  // aquí; el grupo los recorta a la caja del textbox.
+  const layout = layoutTextbox(
+    item,
+    {
+      width: Math.max(width - padLeft - padRight, 0),
+      height: Math.max(height - padTop - padBottom, 0),
+    },
+    style,
+    { toPx, measure: browserTextMeasurer() },
+  );
 
   return (
     <>
@@ -347,29 +333,28 @@ function TextboxContent({
           texto/rect no serían clicables (hit-testing de Konva). */}
       <Group clip={{ x: 0, y: 0, width, height }}>
         <Rect
+          name="item-box"
           width={width}
           height={height}
           fill={paintColor(style?.backgroundColor, '#ffffff')}
           stroke="#e5e7eb"
           strokeWidth={0.5}
         />
-        <KonvaText
-          text={text}
-          x={padLeft}
-          y={padTop}
-          width={Math.max(width - padLeft - padRight, 0)}
-          height={Math.max(height - padTop - padBottom, 0)}
-          fontSize={fontSize}
-          fontStyle={fontStyle || 'normal'}
-          fontFamily={style?.fontFamily ?? 'Segoe UI'}
-          fill={paintColor(style?.color, '#111827')}
-          align={(style?.textAlign ?? 'Left').toLowerCase() as 'left' | 'center' | 'right'}
-          verticalAlign={
-            (style?.verticalAlign ?? 'Top').toLowerCase() as 'top' | 'middle' | 'bottom'
-          }
-          wrap="none"
-          ellipsis
-        />
+        {layout.runs.map((run) => (
+          <KonvaText
+            key={`${run.paragraph}-${Math.round(run.x)}-${run.y}-${run.text}`}
+            name="textbox-run"
+            text={run.text}
+            x={padLeft + run.x}
+            y={padTop + run.y}
+            fontSize={run.fontSize}
+            fontFamily={run.fontFamily}
+            fontStyle={run.fontStyle || 'normal'}
+            fill={run.fill}
+            wrap="none"
+            {...(run.textDecoration !== undefined ? { textDecoration: run.textDecoration } : {})}
+          />
+        ))}
       </Group>
     </>
   );
@@ -400,6 +385,7 @@ function RectangleContent({
     <>
       {/* fill transparente (no undefined): sin fill, el área no es clicable. */}
       <Rect
+        name="item-box"
         width={width}
         height={height}
         fill={paintColor(item.style?.backgroundColor, 'rgba(0,0,0,0)')}
@@ -429,7 +415,16 @@ function LineContent({ width, height }: { width: number; height: number }): Reac
 }
 
 function UnknownContent({ width, height }: { width: number; height: number }): ReactNode {
-  return <Rect width={width} height={height} fill="rgba(0,0,0,0)" stroke="#f59e0b" dash={[6, 3]} />;
+  return (
+    <Rect
+      name="item-box"
+      width={width}
+      height={height}
+      fill="rgba(0,0,0,0)"
+      stroke="#f59e0b"
+      dash={[6, 3]}
+    />
+  );
 }
 
 /**
@@ -461,7 +456,14 @@ function ImagePlaceholder({
 
   return (
     <>
-      <Rect width={width} height={height} fill="#f9fafb" stroke="#9ca3af" dash={[4, 3]} />
+      <Rect
+        name="item-box"
+        width={width}
+        height={height}
+        fill="#f9fafb"
+        stroke="#9ca3af"
+        dash={[4, 3]}
+      />
       {/* Montañita + sol: pictograma clásico de imagen */}
       <Line
         points={[
@@ -629,35 +631,42 @@ function TablixContent({
           )
       : [];
 
-  const grid: ReactNode[] = [];
-  let cx = 0;
-  layout.columns.forEach((columnWidth) => {
-    cx += columnWidth * PX_PER_CM;
-    grid.push(
+  // Rejilla segmentada: las fronteras que cruza una celda fusionada no se
+  // dibujan, así una celda con ColSpan/RowSpan se ve como una caja continua
+  // (antes la línea de columna la partía en dos).
+  const gridSegments = tablixGrid(item);
+  const grid: ReactNode[] = [
+    ...gridSegments.vertical.map((segment) => (
       <Line
-        key={`v${cx}`}
+        key={`v-${segment.fixed}-${segment.from}-${segment.to}`}
         name="tablix-grid"
-        points={[cx, 0, cx, totalHeight]}
+        points={[
+          segment.fixed * PX_PER_CM,
+          segment.from * PX_PER_CM,
+          segment.fixed * PX_PER_CM,
+          segment.to * PX_PER_CM,
+        ]}
         stroke="#d1d5db"
         strokeWidth={0.5}
         listening={false}
-      />,
-    );
-  });
-  let cy = 0;
-  layout.rows.forEach((rowHeight) => {
-    cy += rowHeight * PX_PER_CM;
-    grid.push(
+      />
+    )),
+    ...gridSegments.horizontal.map((segment) => (
       <Line
-        key={`h${cy}`}
+        key={`h-${segment.fixed}-${segment.from}-${segment.to}`}
         name="tablix-grid"
-        points={[0, cy, totalWidth, cy]}
+        points={[
+          segment.from * PX_PER_CM,
+          segment.fixed * PX_PER_CM,
+          segment.to * PX_PER_CM,
+          segment.fixed * PX_PER_CM,
+        ]}
         stroke="#d1d5db"
         strokeWidth={0.5}
         listening={false}
-      />,
-    );
-  });
+      />
+    )),
+  ];
 
   return (
     <>

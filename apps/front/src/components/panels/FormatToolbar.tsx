@@ -11,10 +11,10 @@ import {
   Underline,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { useSystemFonts } from '@/hooks/useSystemFonts';
 import { toHexColor, toPt } from '@/lib/style';
 
 interface FormatToolbarProps {
@@ -24,8 +24,6 @@ interface FormatToolbarProps {
   disabled?: boolean;
 }
 
-const FONT_FAMILIES_FALLBACK = ['Arial', 'Segoe UI', 'Times New Roman', 'Courier New', 'Tahoma'];
-
 /**
  * Barra de formato de texto (como la de Report Builder): fuente, tamaño,
  * negrita/cursiva/subrayado, color, resaltado y alineación/viñetas.
@@ -33,23 +31,7 @@ const FONT_FAMILIES_FALLBACK = ['Arial', 'Segoe UI', 'Times New Roman', 'Courier
  * Las fuentes se leen del **sistema** (registro de Windows vía IPC).
  */
 export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProps): ReactNode {
-  const [fonts, setFonts] = useState<string[]>(FONT_FAMILIES_FALLBACK);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        if (typeof window.api?.listFonts !== 'function') return;
-        const result = await window.api.listFonts();
-        if (!cancelled && result.ok && result.fonts.length > 0) setFonts(result.fonts);
-      } catch {
-        // Sin acceso al sistema: se queda la lista de respaldo.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const fonts = useSystemFonts();
 
   // La fuente del estilo actual siempre debe poder seleccionarse.
   const options =

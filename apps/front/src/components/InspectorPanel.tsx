@@ -22,6 +22,8 @@ export interface InspectorPanelProps {
   onSetStyle: (patch: StylePatch) => void;
   onSetText: (p: number, r: number, value: string) => void;
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
+  /** Abre el editor de texto del textbox (párrafos → runs). */
+  onEditText: (id: string) => void;
 }
 
 /** Columna derecha: estructura del Tablix + propiedades del item seleccionado. */
@@ -40,6 +42,7 @@ export function InspectorPanel({
   onSetStyle,
   onSetText,
   onSetImageOptions,
+  onEditText,
 }: InspectorPanelProps): ReactNode {
   return (
     <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
@@ -62,6 +65,7 @@ export function InspectorPanel({
         onSetStyle={onSetStyle}
         onSetText={onSetText}
         onSetImageOptions={onSetImageOptions}
+        onEditText={onEditText}
       />
     </aside>
   );
