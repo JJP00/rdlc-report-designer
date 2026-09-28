@@ -20,6 +20,14 @@ export class TrueFormatDocument implements RdlcDocument {
   readonly root: TrueFormatNode;
   private dirty = false;
 
+  /**
+   * Elementos que venían **autocerrados** (`<TablixMember />`) y se expandieron
+   * al añadirles un hijo. `XmlElement` limpia su `selfClosing` al añadir y no lo
+   * restaura, así que el byte-exacto se recupera aquí: cuando el nodo vuelve a
+   * quedarse sin hijos, se marca otra vez como autocerrado.
+   */
+  readonly expandedSelfClosing = new WeakSet<XmlElement>();
+
   constructor(private readonly document: XmlDocument) {
     this.root = new TrueFormatNode(document.getRootElement(), null, this);
   }
@@ -120,6 +128,7 @@ export class TrueFormatNode implements RdlcNode {
 
   appendChild(child: RdlcNode): void {
     const wrapped = this.unwrap(child);
+    this.markExpanded();
     this.el.addElement(wrapped.el);
     wrapped.parentNode = this;
     this.doc.markDirty();
@@ -128,6 +137,7 @@ export class TrueFormatNode implements RdlcNode {
   insertBefore(child: RdlcNode, reference: RdlcNode): void {
     const wrapped = this.unwrap(child);
     const ref = this.unwrap(reference);
+    this.markExpanded();
     this.el.addElement(wrapped.el, { before: ref.el });
     wrapped.parentNode = this;
     this.doc.markDirty();
@@ -154,6 +164,7 @@ export class TrueFormatNode implements RdlcNode {
       this.el.children.splice(index - 1, 1);
     }
     wrapped.parentNode = null;
+    this.restoreSelfClosing();
     this.doc.markDirty();
   }
 
@@ -162,6 +173,19 @@ export class TrueFormatNode implements RdlcNode {
   }
 
   /* --------------------------- interno ---------------------------- */
+
+  /** Si el elemento venía autocerrado, recuerda que se ha expandido. */
+  private markExpanded(): void {
+    if (this.el.selfClosing) this.doc.expandedSelfClosing.add(this.el);
+  }
+
+  /** Vuelve a autocerrar el elemento si se expandió él solo y ya no tiene hijos. */
+  private restoreSelfClosing(): void {
+    if (this.el.children.length > 0) return;
+    if (!this.doc.expandedSelfClosing.has(this.el)) return;
+    this.el.selfClosing = true;
+    this.doc.expandedSelfClosing.delete(this.el);
+  }
 
   private elementChildren(): XmlElement[] {
     return this.el.children.filter((child): child is XmlElement => child instanceof XmlElement);

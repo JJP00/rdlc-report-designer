@@ -31,6 +31,9 @@ import {
  *   posiciones cubiertas; al eliminar, los spans que pasan por encima se
  *   acortan. Si la operación dejaría filas huérfanas (una celda con `RowSpan`
  *   que se elimina) o la rejilla sin filas/columnas, se rechaza con un motivo.
+ * - Las celdas nuevas nacen con un **Textbox vacío** dentro (como Report
+ *   Builder y como al separar celdas): listas para escribir y seleccionables,
+ *   sin celdas muertas. Sin `Width/Height`: el tamaño lo pone la celda.
  * - El inverso usa `setNodeText` (texto exacto anterior de cada span) y
  *   `restoreNode`/`removeNode`: el undo vuelve al XML byte a byte.
  * - La **fusión** solo combina celdas contiguas de una misma fila (un tramo
@@ -99,8 +102,9 @@ export function applyAddRow(
     ),
   );
   const cells = row.createElement('TablixCells');
+  const takenNames = new Set<string>();
   for (let column = 0; column < columns.length; column += 1) {
-    if (!covered[column]) cells.appendChild(row.createElement('TablixCell'));
+    if (!covered[column]) cells.appendChild(createCellWithTextbox(ctx, row, takenNames));
   }
   row.appendChild(cells);
   rowsContainer.insertChildAt(row, command.row);
@@ -214,9 +218,10 @@ export function applyAddColumn(
 
   const created: RdlcNode[] = [];
 
-  // Una celda vacía por fila donde la columna nueva no quede cubierta por un
-  // `ColSpan` de la propia fila (que crece) ni por un `RowSpan` de una fila
-  // anterior (que la incluye).
+  // Una celda (con su textbox) por fila donde la columna nueva no quede
+  // cubierta por un `ColSpan` de la propia fila (que crece) ni por un `RowSpan`
+  // de una fila anterior (que la incluye).
+  const takenNames = new Set<string>();
   rows.forEach((row, rowIndex) => {
     const inSpan = positionedCells(row).some(
       (entry) =>
@@ -228,7 +233,7 @@ export function applyAddColumn(
     const cells = row.child('TablixCells');
     if (!cells) return;
     const position = insertCellPosition(row, command.column);
-    const cell = cells.createElement('TablixCell');
+    const cell = createCellWithTextbox(ctx, cells, takenNames);
     cells.insertChildAt(cell, position);
     created.push(cell);
   });
@@ -709,8 +714,9 @@ function removeSpanNode(
 
 /**
  * Celda nueva con un Textbox vacío dentro (sin `Top/Left/Width/Height`: el
- * tamaño lo pone la celda, como en BC). Al separar, la celda que estaba cubierta
- * no queda muerta: nace lista para escribir, como un control insertado.
+ * tamaño lo pone la celda, como en BC). Al añadir una fila/columna o al separar
+ * una fusión, la celda no queda muerta: nace lista para escribir, como un
+ * control insertado en Report Builder.
  */
 function createCellWithTextbox(
   ctx: CommandContext,

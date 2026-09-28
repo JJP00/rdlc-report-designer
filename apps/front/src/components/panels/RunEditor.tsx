@@ -4,8 +4,9 @@ import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useDeferredColor } from '@/hooks/useDeferredColor';
 import { isExpressionRun } from '@/lib/textEditor';
-import { toHexColor, toPt } from '@/lib/style';
+import { toPt } from '@/lib/style';
 import { ExpressionEditor } from './ExpressionEditor';
 
 export interface RunEditorProps {
@@ -205,38 +206,62 @@ export function RunEditor({
           <Underline />
         </Button>
 
-        <label
+        <RunColorField
           title="Color de texto"
-          className="flex h-6 w-8 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted"
-        >
-          <span style={{ color: toHexColor(style?.color, '#111827') }}>A</span>
-          <input
-            type="color"
-            className="h-3.5 w-3.5 cursor-pointer border-0 bg-transparent p-0"
-            value={toHexColor(style?.color, '#111827')}
-            aria-label={`Color del run ${position}`}
-            onChange={(event) => onStyle({ color: event.target.value.toUpperCase() })}
-          />
-        </label>
-        <label
+          ariaLabel={`Color del run ${position}`}
+          value={style?.color}
+          fallback="#111827"
+          onChange={(color) => onStyle({ color })}
+        />
+        <RunColorField
           title="Resaltado"
-          className="flex h-6 w-8 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted"
-        >
-          <span
-            className="rounded-sm px-0.5"
-            style={{ backgroundColor: toHexColor(style?.backgroundColor, '#ffffff') }}
-          >
-            A
-          </span>
-          <input
-            type="color"
-            className="h-3.5 w-3.5 cursor-pointer border-0 bg-transparent p-0"
-            value={toHexColor(style?.backgroundColor, '#ffffff')}
-            aria-label={`Resaltado del run ${position}`}
-            onChange={(event) => onStyle({ backgroundColor: event.target.value.toUpperCase() })}
-          />
-        </label>
+          ariaLabel={`Resaltado del run ${position}`}
+          value={style?.backgroundColor}
+          fallback="#ffffff"
+          highlight
+          onChange={(backgroundColor) => onStyle({ backgroundColor })}
+        />
       </div>
     </div>
+  );
+}
+
+/** Selector de color del run con commit diferido (arrastrar no envía un comando por paso). */
+function RunColorField({
+  title,
+  ariaLabel,
+  value,
+  fallback,
+  highlight,
+  onChange,
+}: {
+  title: string;
+  ariaLabel: string;
+  value?: string;
+  fallback: string;
+  highlight?: boolean;
+  onChange: (color: string) => void;
+}): ReactNode {
+  const { color, change } = useDeferredColor(value, fallback, onChange);
+
+  return (
+    <label
+      title={title}
+      className="flex h-6 w-8 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted"
+    >
+      <span
+        className={highlight ? 'rounded-sm px-0.5' : ''}
+        style={highlight ? { backgroundColor: color } : { color }}
+      >
+        A
+      </span>
+      <input
+        type="color"
+        className="h-3.5 w-3.5 cursor-pointer border-0 bg-transparent p-0"
+        value={color}
+        aria-label={ariaLabel}
+        onChange={(event) => change(event.target.value)}
+      />
+    </label>
   );
 }

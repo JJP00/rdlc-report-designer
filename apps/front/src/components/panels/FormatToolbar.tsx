@@ -14,6 +14,7 @@ import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { useDeferredColor } from '@/hooks/useDeferredColor';
 import { useSystemFonts } from '@/hooks/useSystemFonts';
 import { toHexColor, toPt } from '@/lib/style';
 
@@ -189,32 +190,27 @@ function ColorField({
   onChange: (color: string) => void;
   highlight?: boolean;
 }): ReactNode {
+  // Commit diferido: arrastrar la paleta no lanza un comando por paso.
+  const { color, change } = useDeferredColor(value, highlight ? '#ffffff' : '#111827', onChange);
+
   return (
     <label
       title={title}
-      className={
-        highlight
-          ? 'flex h-7 w-8 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted'
-          : 'flex h-7 w-8 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted'
-      }
+      className="flex h-7 w-8 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted"
     >
       <span
         className={highlight ? 'rounded-sm px-0.5' : ''}
-        style={highlight ? undefined : { color: value }}
+        style={highlight ? { backgroundColor: color } : { color }}
       >
         A
       </span>
       <input
         type="color"
         className="h-4 w-4 cursor-pointer border-0 bg-transparent p-0"
-        value={normalizeColor(value)}
-        onChange={(event) => onChange(event.target.value.toUpperCase())}
+        value={color}
+        aria-label={title}
+        onChange={(event) => change(event.target.value)}
       />
     </label>
   );
-}
-
-/** `<input type=color>` sólo acepta `#rrggbb`; los nombres CSS caen a un gris. */
-function normalizeColor(value: string): string {
-  return /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#111111';
 }

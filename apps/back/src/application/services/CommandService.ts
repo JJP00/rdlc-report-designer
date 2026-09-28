@@ -28,6 +28,8 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'insertItem',
   'duplicateItem',
   'deleteItem',
+  // Renombrar: el índice por nombre (y las referencias del front) cambian.
+  'setName',
   // Interno del pegado: inserta subárbol (mismos efectos que insertItem).
   'insertClone',
   // Fusionar descarta celdas con contenido; separar crea celdas con textbox.

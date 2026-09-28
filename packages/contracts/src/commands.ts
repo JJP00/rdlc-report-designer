@@ -111,8 +111,19 @@ const setName = z.object({
 const setVisibility = z.object({
   cmd: z.literal('setVisibility'),
   id: z.string().min(1),
-  /** `true/false` literal o expresión. */
-  hidden: z.union([z.boolean(), z.string()]),
+  /** `true/false` literal, expresión, o `null` para quitar la visibilidad. */
+  hidden: z.union([z.boolean(), z.string()]).nullable(),
+});
+
+const setMemberVisibility = z.object({
+  cmd: z.literal('setMemberVisibility'),
+  /** Tablix propietario de la jerarquía. */
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  /** Índices de `TablixMember` desde la raíz de su jerarquía. */
+  path: z.array(z.number().int().nonnegative()).min(1),
+  /** `true/false` literal, expresión, o `null` para quitarla. */
+  hidden: z.union([z.boolean(), z.string()]).nullable(),
 });
 
 const setItemOptions = z.object({
@@ -333,6 +344,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setZIndex,
   setName,
   setVisibility,
+  setMemberVisibility,
   setItemOptions,
   setStyle,
   insertItem,

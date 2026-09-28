@@ -144,8 +144,12 @@ export function App(): ReactNode {
     mergeCells,
     unmergeCells,
     setItemStyle,
+    setItemName,
+    setVisibility,
+    setMemberVisibility,
     setImageOptions,
     setRunText,
+    setRunLabel,
     setParagraphs,
     setPageSize,
     setPageMargins,
@@ -248,7 +252,11 @@ export function App(): ReactNode {
             onSetLocation={setItemLocation}
             onSetSize={setItemSize}
             onSetStyle={setItemStyle}
+            onSetName={setItemName}
+            onSetVisibility={setVisibility}
+            onSetMemberVisibility={setMemberVisibility}
             onSetText={setRunText}
+            onSetLabel={setRunLabel}
             onSetImageOptions={setImageOptions}
             onEditText={setEditingTextId}
           />

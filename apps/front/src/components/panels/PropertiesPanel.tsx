@@ -1,10 +1,12 @@
-import type { ItemDto, Length } from '@rdlc-designer/contracts';
+import type { ItemDto, Length, StylePatch } from '@rdlc-designer/contracts';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toCm, cm } from '@/lib/projection';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { BackgroundField } from './BackgroundField';
+import { VisibilityField } from './VisibilityField';
 
 interface PropertiesPanelProps {
   item: ItemDto;
@@ -12,14 +14,22 @@ interface PropertiesPanelProps {
   cellContent?: boolean;
   onSetLocation: (top: Length, left: Length) => void;
   onSetSize: (width: Length, height: Length) => void;
+  onSetStyle: (patch: StylePatch) => void;
+  /** Renombra el elemento (el dominio valida el nombre único). */
+  onSetName: (name: string) => void;
+  /** `null` = quitar la visibilidad declarada. */
+  onSetVisibility: (hidden: boolean | string | null) => void;
 }
 
-/** Panel de propiedades: geometría (commits con Enter o al perder foco). */
+/** Panel de propiedades: geometría, nombre, fondo y visibilidad. */
 export function PropertiesPanel({
   item,
   cellContent,
   onSetLocation,
   onSetSize,
+  onSetStyle,
+  onSetName,
+  onSetVisibility,
 }: PropertiesPanelProps): ReactNode {
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -28,7 +38,7 @@ export function PropertiesPanel({
         <Badge variant="outline">{item.kind}</Badge>
       </div>
 
-      <div className="rounded-md border bg-muted/40 px-2 py-1 font-mono text-xs">{item.id}</div>
+      <NameField key={`${item.id}-name`} name={item.id} onCommit={onSetName} />
 
       <Separator />
 
@@ -72,7 +82,50 @@ export function PropertiesPanel({
       {item.zIndex !== undefined ? (
         <div className="text-xs text-muted-foreground">ZIndex: {item.zIndex}</div>
       ) : null}
+
+      <Separator />
+      <div className="text-xs font-medium text-muted-foreground">Apariencia</div>
+      <BackgroundField item={item} onSetStyle={onSetStyle} />
+      <VisibilityField
+        key={`${item.id}-visibility`}
+        hidden={item.hidden ?? undefined}
+        onChange={onSetVisibility}
+      />
     </div>
+  );
+}
+
+/** Nombre del elemento: editable con commit al confirmar (Enter o blur). */
+function NameField({
+  name,
+  onCommit,
+}: {
+  name: string;
+  onCommit: (name: string) => void;
+}): ReactNode {
+  // Borrador mientras se teclea; el resto del tiempo manda la proyección.
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? name;
+
+  const commit = (): void => {
+    const next = text.trim();
+    if (draft !== null && next !== '' && next !== name) onCommit(next);
+    setDraft(null);
+  };
+
+  return (
+    <Input
+      className="h-7 font-mono text-xs"
+      value={text}
+      aria-label="Nombre del elemento"
+      title="Nombre del elemento (único). Las referencias existentes (ReportItems!…) no se reescriben."
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') commit();
+        if (event.key === 'Escape') setDraft(null);
+      }}
+    />
   );
 }
 

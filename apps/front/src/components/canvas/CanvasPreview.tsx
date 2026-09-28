@@ -260,15 +260,32 @@ function measureSelection(
   // Se mide la **caja** del item (`item-box`) o el borde de la rejilla del
   // Tablix, no el grupo: `getClientRect` incluiría descendientes que sobresalen
   // (texto sin `width`, adornos) e inflaría el marco y los tiradores.
-  const container = node as Konva.Container;
-  const findByName = (name: string): Konva.Node | undefined => {
-    const matches: Konva.Node[] | undefined = container.find?.(
-      (child: Konva.Node) => child.name() === name,
-    );
-    return matches ? matches.at(0) : undefined;
-  };
-  const measured = findByName('tablix-border') ?? findByName('item-box') ?? node;
+  const measured = findOwnAdornment(node, ['tablix-border', 'item-box']) ?? node;
   return measured.getClientRect({ relativeTo: stage });
+}
+
+/**
+ * Busca un adorno **del propio item** (`tablix-border`/`item-box`), no el de un
+ * item anidado: `find()` recorre en profundidad y devolvería el borde del
+ * primer Tablix interno (el borde propio se dibuja al final, tras las celdas),
+ * así que al seleccionar `Tablix2` el marco salía sobre `LinesTable2`.
+ * Se recorre por **niveles**: el adorno propio siempre está más cerca de la
+ * raíz que el de los items anidados.
+ */
+function findOwnAdornment(root: Konva.Node, names: string[]): Konva.Node | undefined {
+  const wanted = new Set(names);
+  let level: Konva.Node[] = (root as Konva.Container).getChildren?.() ?? [];
+  while (level.length > 0) {
+    const found = level.find((node) => wanted.has(node.name()));
+    if (found) return found;
+    const next: Konva.Node[] = [];
+    for (const node of level) {
+      const children = (node as Konva.Container).getChildren?.();
+      if (children) next.push(...children);
+    }
+    level = next;
+  }
+  return undefined;
 }
 
 /** Traduce un evento del DOM (drop, click derecho) a `CanvasHit`. */

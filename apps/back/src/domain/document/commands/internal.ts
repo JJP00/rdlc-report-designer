@@ -36,6 +36,18 @@ export interface SetNodeTextCommand {
 }
 
 /**
+ * Devuelve un **atributo** a su valor anterior (p. ej. el `Name` al renombrar
+ * con `setName`). Los items siempre tienen `Name` (lo exige el XSD), así que no
+ * hace falta quitarlo.
+ */
+export interface SetAttributeCommand {
+  readonly cmd: 'setAttribute';
+  readonly node: RdlcNode;
+  readonly name: string;
+  readonly value: string;
+}
+
+/**
  * Pega un clon del portapapeles: el nodo origen vive **desprendido** del
  * documento (lo guardó `copy`/`cut`), así que cada pegado clona y renombra.
  */
@@ -47,13 +59,18 @@ export interface InsertCloneCommand {
 }
 
 export type InternalCommand =
-  RemoveNodeCommand | RestoreNodeCommand | SetNodeTextCommand | InsertCloneCommand;
+  | RemoveNodeCommand
+  | RestoreNodeCommand
+  | SetNodeTextCommand
+  | SetAttributeCommand
+  | InsertCloneCommand;
 
 export function isInternalCommand(command: { cmd: string }): command is InternalCommand {
   return (
     command.cmd === 'removeNode' ||
     command.cmd === 'restoreNode' ||
     command.cmd === 'setNodeText' ||
+    command.cmd === 'setAttribute' ||
     command.cmd === 'insertClone'
   );
 }

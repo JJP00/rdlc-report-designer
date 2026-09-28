@@ -57,6 +57,16 @@ function rowCells(row: RdlcNode | undefined): RdlcNode[] {
   return row?.child('TablixCells')?.children('TablixCell') ?? [];
 }
 
+/** Textbox de una celda (el contenido real, no los `ColSpan`/`RowSpan`). */
+function cellTextbox(cell: RdlcNode | undefined): RdlcNode | undefined {
+  return cell?.child('CellContents')?.children('Textbox')[0];
+}
+
+/** Nombres de los textboxes de una lista de celdas, en orden. */
+function textboxNames(cells: RdlcNode[]): (string | undefined)[] {
+  return cells.map((cell) => cellTextbox(cell)?.attribute('Name'));
+}
+
 /** Hojas de una jerarquía: cada hoja es una fila/columna del body. */
 function leafCount(hierarchy: RdlcNode | undefined): number {
   const members = hierarchy?.child('TablixMembers');
@@ -98,6 +108,38 @@ describe('F2 · addRow / deleteRow', () => {
 
     applyCommand({ root: doc.root, index }, { cmd: 'addRow', id: 'Tablix3', row: 0 });
     expect(rows(index.get('Tablix3'))[0]?.child('Height')?.text()).toBe(neighborHeight);
+  });
+
+  it('las celdas nuevas nacen con un textbox vacío (nombre único, sin longitudes y XSD válido)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRow', id: 'Tablix3', row: 1 },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const cells = rowCells(rows(index.get('Tablix3'))[1]);
+    expect(cells).toHaveLength(columns(index.get('Tablix3')).length);
+    const names = textboxNames(cells);
+    for (const name of names) expect(name).toMatch(/^Textbox\d+$/);
+    // Sin duplicados dentro del mismo comando.
+    expect(new Set(names).size).toBe(names.length);
+    for (const cell of cells) {
+      const textbox = cellTextbox(cell);
+      // Sin longitudes: el tamaño lo pone la celda, como en BC.
+      expect(textbox?.child('Width')).toBeUndefined();
+      expect(textbox?.child('Height')).toBeUndefined();
+      // Listo para escribir: un párrafo con un run vacío.
+      expect(textbox?.child('Paragraphs')?.children('Paragraph')).toHaveLength(1);
+    }
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
   });
 
   it('elimina la fila y su miembro; se rechaza quedarse sin filas', () => {
@@ -167,6 +209,33 @@ describe('F2 · addColumn / deleteColumn', () => {
       expect(rowCells(row)).toHaveLength(before + 1);
     }
     expect(leafCount(index.get('Tablix3')?.child('TablixColumnHierarchy'))).toBe(before + 1);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('las celdas nuevas de la columna nacen con un textbox vacío (nombre único y XSD válido)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addColumn', id: 'Tablix3', column: 2 },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    // Tablix3 no tiene celdas fusionadas: la celda 2 de cada fila es la nueva.
+    const names: (string | undefined)[] = [];
+    for (const row of rows(index.get('Tablix3'))) {
+      const name = cellTextbox(rowCells(row)[2])?.attribute('Name');
+      expect(name).toMatch(/^Textbox\d+$/);
+      names.push(name);
+    }
+    expect(names).toHaveLength(rows(index.get('Tablix3')).length);
+    expect(new Set(names).size).toBe(names.length);
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
@@ -449,6 +518,7 @@ describe('F2 · celdas fusionadas verticales', () => {
     ).toBe('3');
     // La fila nueva solo tiene la celda de la columna no cubierta.
     expect(rowCells(rowsAfter[1])).toHaveLength(1);
+    expect(cellTextbox(rowCells(rowsAfter[1])[0])?.attribute('Name')).toMatch(/^Textbox\d+$/);
   });
 
   it('eliminar una fila cubierta por un RowSpan lo acorta y el undo es exacto', () => {

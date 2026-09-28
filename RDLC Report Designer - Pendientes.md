@@ -1,5 +1,48 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-25/28 · visibilidad (items y Tablix), nombre/etiqueta/fondo editables y fixes del lienzo** —
+> **Visibilidad de items**: `setVisibility` (literal, expresión o `null` que quita la
+> declaración) y el panel la edita con **Visible / Oculta / Expresión…** (la
+> predeterminada **es visible**: no hay opción «predeterminada»). La proyección
+> lee `Visibility > Hidden` (antes buscaba un hijo directo y nunca llegaba al
+> lienzo) y los ocultos se pintan **atenuados (40 %)** en diseño, editables.
+> **Visibilidad de filas/columnas/grupos**: `setMemberVisibility` (`axis` + `path`
+> de la proyección) con **ojo** y **Σ** en cada miembro del árbol de Estructura;
+> el `Hidden` se escribe con el mismo helper que los items (antes de `ToggleItem`,
+> orden del XSD) y el undo es byte-exacto.
+> **Panel de propiedades**: el **nombre** es editable (`setName`: único,
+> estructural; `rd:DefaultName` se sincroniza como al duplicar; undo con el interno
+> `setAttribute`), la **etiqueta `<Label>`** del caso simple se edita inline
+> (`setParagraphs`) y el **color de fondo** admite literal o **expresión** (`Σ`
+> abre un **diálogo Monaco con números de línea**, reutilizado por la visibilidad).
+> **Selector de color**: commit **diferido** (~250 ms, flush al desmontar) porque
+> el `input type=color` dispara `input` en cada paso del arrastre y antes lanzaba
+> 100+ comandos por segundo (y un `Maximum update depth exceeded` del renderer).
+> **Fixes**: el **autocompletado** era invisible porque el CSS de Monaco está
+> _scoped_ bajo `.monaco-editor`; ahora hay un **host de overflow** propio en el
+> body con esa clase, `pointer-events:auto` y z-index (fuera de diálogos, visible
+> y clicable con ratón y Tab). El **marco de selección** busca el adorno **propio
+> por niveles** (`tablix-border`/`item-box`): `find()` devolvía el borde del primer
+> Tablix anidado (el borde propio se dibuja al final → Tablix2 medía LinesTable2).
+> `addRow`/`addColumn` crean celdas con **Textbox** (no celdas muertas) y se
+> quitaron los «+» por fila/columna (queda el de la cabecera, al final).
+> **Autocerrados**: al quitar el último hijo de un `<X />` se recupera el
+> autocierre (`expandedSelfClosing`) para que el undo sea byte-exacto de verdad.
+>
+> **Punto de retomada (próxima sesión)**:
+>
+> 1. **`TablixCorner` + `TablixHeader`** (proyección + lienzo): la esquina y las
+>    cabeceras de grupo (p. ej. `VATIdentifier_…` en `Tablix7` de
+>    `SalesInvoiceESP`) siguen sin pintarse. Hacerlo **antes** de crear grupos.
+> 2. **Grupos de fila con totales** (bloque 2 de F2): `addRowGroup`,
+>    `deleteRowGroup`, `setGroupExpression`, `setGroupTotals` + UI en la
+>    estructura y pintado de cabecera/total en el lienzo.
+> 3. Menores: **insertar Tablix** (no existe), **bordes** de estilo (siguen
+>    rechazados), `moveItem`, empaquetado electron-builder y CI.
+>
+> Estado: **295 unit tests** (180 back + 115 front), `typecheck` limpio,
+> `react-doctor` **100/100** y **28 E2E** de Playwright verdes.
+
 > **Sesión 2026-09-23/24 · editor de texto del Textbox + fidelidad del lienzo** —
 > **Editor de texto (rework)**: diálogo con **textarea** (el documento completo, un
 > párrafo por línea; las expresiones como **marcadores editables** que muestran la
@@ -341,7 +384,8 @@ Trade-offs documentados:
    bloque del párrafo activo (runs, etiqueta `<Label>` editable, formato por run,
    añadir/quitar/duplicar/mover) y comando `setParagraphs` (undo byte-exacto).
 4. **Tablix visual (Fase 2)** — 🔶 rejilla editable, estructura (bloque 1), rejilla
-   segmentada, fusión por tramos y proyección de anchos por columna acumulada ✅; falta:
+   segmentada, fusión por tramos, proyección de anchos por columna acumulada y
+   **visibilidad de items y de filas/columnas/grupos** ✅; falta:
    **cabeceras de grupo (`TablixMember/TablixHeader`) y esquina (`TablixCorner`)** — hoy
    **no se proyectan ni se pintan**: en informes como `Tablix7` de `SalesInvoiceESP.rdlc` los
    textboxes de la esquina y de las cabeceras (p. ej. `Textbox72/73/75`, `VATIdentifier_…`)
@@ -350,34 +394,38 @@ Trade-offs documentados:
 5. **Matrix (Fase 3)** — ⬜ grupos de columna.
 6. **`moveItem`** (reparentar/reordenar) — ⬜ implementado hasta `insertItem`/`deleteItem`/
    `duplicateItem`; `moveItem` sigue rechazándose explícitamente.
-7. **`setName`** (renombrar elemento) — ⬜ está en el catálogo; falta el comando y el
-   campo editable en el panel de propiedades.
+7. **`setName`** (renombrar elemento) — ✅ hecho (sesión 2026-09-25/28): comando
+   (único, estructural, `rd:DefaultName` sincronizado) y campo editable en el panel.
+8. **Bordes** (`BorderStyle`/`BorderColor`/`BorderWidth` por lado) — ⬜ el contrato los
+   declara (items, párrafos y runs) pero `setStyle` los rechaza con motivo; faltan
+   comandos, proyección, UI por lado y pintado en el lienzo. Lo usan mucho las celdas
+   de Tablix de BC.
 
 ## 🟡 Gaps técnicos de frontend
 
-8. **Rendimiento del lienzo** — 🔶 línea base medida (972 textboxes ≈ 30 fps p50,
+9. **Rendimiento del lienzo** — 🔶 línea base medida (972 textboxes ≈ 30 fps p50,
    [docs/perf/0001-baseline-lienzo.md](docs/perf/0001-baseline-lienzo.md)); faltan las
    optimizaciones: drag sin re-render de React, viewport culling, grid cacheado,
    solo la pestaña activa monta el stage, batching de comandos.
-9. **Arquitectura del lienzo** — 🔶 hay base (capas, selección, drag, snap, **toolbox con
-   drag&drop real**); faltan multi-selección, alineación/distribución y guías inteligentes.
-10. **Lista de variables → inserción en Monaco** — ✅ hecho: inserta en la posición del
+10. **Arquitectura del lienzo** — 🔶 hay base (capas, selección, drag, snap, **toolbox con
+    drag&drop real**); faltan multi-selección, alineación/distribución y guías inteligentes.
+11. **Lista de variables → inserción en Monaco** — ✅ hecho: inserta en la posición del
     cursor del editor registrado (y copia al portapapeles si no hay editor).
-11. **Renombrar en el panel** (doble clic en el nombre), breadcrumb de contenedor
-    (Rectángulo/Celda) y panel de jerarquía del informe (árbol de elementos).
+12. **Breadcrumb de contenedor** (Rectángulo/Celda) y **panel de jerarquía** del informe
+    (árbol de elementos) — ⬜ el renombrado ya vive en el panel de propiedades ✅.
 
 ## 🟠 Proceso y operativa
 
-12. **Empaquetado** — ⬜ electron-builder (MSI/NSIS), decisión de firma, recursos del
+13. **Empaquetado** — ⬜ electron-builder (MSI/NSIS), decisión de firma, recursos del
     renderer (el XSD viaja en `apps/back/resources/`).
-13. **Seguridad Electron** — 🔶 `contextIsolation`, `nodeIntegration:false`, CSP y zod en
+14. **Seguridad Electron** — 🔶 `contextIsolation`, `nodeIntegration:false`, CSP y zod en
     el borde ya están; falta revisar el checklist antes de abrir el repo.
-14. **XML corrupto / inválido** — ✅ resuelto: parse error → no se abre; XSD inválido →
+15. **XML corrupto / inválido** — ✅ resuelto: parse error → no se abre; XSD inválido →
     aviso al importar y **bloqueo al guardar** con lista de problemas.
-15. **Flujo BC** — ⬜ documentar el ciclo exportar layout (página 9650) → editar →
+16. **Flujo BC** — ⬜ documentar el ciclo exportar layout (página 9650) → editar →
     reimportar; evolutivo: desplegar a BC.
-16. **Testing más allá del golden** — 🔶 104 tests (94 back + 10 front); faltan property
-    tests de comandos aleatorios, E2E Playwright del lienzo y CI.
+17. **Testing más allá del golden** — 🔶 295 tests (180 back + 115 front) y **E2E de
+    Playwright del lienzo ✅ (28)**; faltan property tests de comandos aleatorios y CI.
 
 ## ⚪ Decisiones menores
 

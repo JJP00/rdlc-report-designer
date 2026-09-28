@@ -441,7 +441,9 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
   }
 
   private hidden(el: XmlElement): boolean | string | undefined {
-    const raw = textOf(el.getFirstElementByName('Hidden'));
+    // En RDL el `Hidden` va dentro de `Visibility` (no como hijo directo del
+    // item): buscar solo el hijo directo lo perdía en todos los informes de BC.
+    const raw = textOf(el.getFirstElementByName('Visibility')?.getFirstElementByName('Hidden'));
     if (raw === undefined) return undefined;
     if (raw === 'true') return true;
     if (raw === 'false') return false;

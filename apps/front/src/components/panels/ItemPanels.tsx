@@ -11,7 +11,13 @@ export interface ItemPanelsProps {
   onSetLocation: (top: Length, left: Length) => void;
   onSetSize: (width: Length, height: Length) => void;
   onSetStyle: (patch: StylePatch) => void;
+  /** Renombra el elemento (lo valida el dominio). */
+  onSetName: (name: string) => void;
+  /** `null` = quitar la visibilidad declarada. */
+  onSetVisibility: (hidden: boolean | string | null) => void;
   onSetText: (p: number, r: number, value: string) => void;
+  /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
+  onSetLabel: (p: number, r: number, label: string | null) => void;
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
   /** Abre el editor de texto del textbox (párrafos → runs). */
   onEditText: (id: string) => void;
@@ -27,7 +33,10 @@ export function ItemPanels({
   onSetLocation,
   onSetSize,
   onSetStyle,
+  onSetName,
+  onSetVisibility,
   onSetText,
+  onSetLabel,
   onSetImageOptions,
   onEditText,
 }: ItemPanelsProps): ReactNode {
@@ -46,11 +55,15 @@ export function ItemPanels({
         cellContent={cellContent}
         onSetLocation={onSetLocation}
         onSetSize={onSetSize}
+        onSetStyle={onSetStyle}
+        onSetName={onSetName}
+        onSetVisibility={onSetVisibility}
       />
       {item.kind === 'textbox' ? (
         <TextPanel
           item={item as TextboxDto}
           onSetText={onSetText}
+          onSetLabel={onSetLabel}
           onSetStyle={onSetStyle}
           onOpenEditor={() => onEditText(item.id)}
         />

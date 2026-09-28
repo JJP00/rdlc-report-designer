@@ -3,6 +3,7 @@ import {
   expect,
   test,
   type ElectronApplication,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import { copyFileSync, mkdirSync } from 'node:fs';
@@ -72,7 +73,11 @@ test.afterEach(async () => {
 
 interface Projection {
   reportName: string;
-  page: { body: { items: ItemLike[] } };
+  page: {
+    header: { items: ItemLike[] };
+    body: { items: ItemLike[] };
+    footer: { items: ItemLike[] };
+  };
 }
 
 interface CellLike {
@@ -86,11 +91,22 @@ interface ItemLike {
   kind: string;
   top?: { value: number; unit: string };
   left?: { value: number; unit: string };
+  hidden?: boolean | string;
+  style?: { backgroundColor?: string };
+  paragraphs?: { runs: { value: string; label?: string }[] }[];
+  rowHierarchy?: MemberLike[];
+  columnHierarchy?: MemberLike[];
   body?: {
     columns: { value: number; unit: string }[];
     rows: { height: { value: number; unit: string }; cells: (CellLike | null)[] }[];
   };
   children?: ItemLike[];
+}
+
+interface MemberLike {
+  path: number[];
+  hidden?: boolean | string;
+  children: MemberLike[];
 }
 
 /** Proyección viva publicada por el front en dev. */
@@ -178,10 +194,12 @@ interface KonvaLike {
   height(): number;
   x(): number;
   y(): number;
+  opacity?(): number;
   points?(): number[];
   getAttr(name: string): unknown;
   getParent(): KonvaLike;
   getChildren(filter?: (node: KonvaLike) => boolean): KonvaLike[];
+  findOne?(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
   getAbsoluteTransform(): { point(point: { x: number; y: number }): { x: number; y: number } };
   getClientRect(options: { relativeTo: unknown }): {
     x: number;
@@ -189,6 +207,101 @@ interface KonvaLike {
     width: number;
     height: number;
   };
+}
+
+/** Opacidad del nodo Konva de un item (los ocultos se atenúan). */
+async function itemOpacityOnStage(id: string): Promise<number> {
+  return page.evaluate((nodeId) => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+    };
+    const node = stage.findOne((candidate) => candidate.id() === nodeId);
+    return node?.opacity?.() ?? -1;
+  }, id);
+}
+
+/** Relleno del `item-box` del item (para comprobar el color de fondo). */
+async function itemBoxFill(id: string): Promise<string | null> {
+  return page.evaluate((nodeId) => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+    };
+    const node = stage.findOne((candidate) => candidate.id() === nodeId);
+    const box = node?.findOne?.((candidate) => candidate.name() === 'item-box');
+    const fill = box?.getAttr('fill');
+    return typeof fill === 'string' ? fill : null;
+  }, id);
+}
+
+/** Cambia un `input[type=color]` (Playwright no teclea en estos inputs). */
+async function setBackgroundColor(value: string): Promise<void> {
+  await page.locator('input[aria-label="Color de fondo"]').evaluate((el, color) => {
+    const input = el as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(input, color);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+}
+
+/** Fondo proyectado de un item (encabezado, cuerpo o pie). */
+async function itemBackground(id: string): Promise<string | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found) return found.style?.backgroundColor;
+  }
+  return undefined;
+}
+
+/** Visibilidad proyectada de un miembro (fila/columna) por su `path`. */
+async function memberHidden(
+  tablixId: string,
+  axis: 'row' | 'column',
+  path: number[],
+): Promise<boolean | string | undefined> {
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, tablixId);
+  let level = axis === 'row' ? tablix?.rowHierarchy : tablix?.columnHierarchy;
+  let member: MemberLike | undefined;
+  for (const index of path) {
+    member = level?.[index];
+    if (!member) return undefined;
+    level = member.children;
+  }
+  return member?.hidden;
+}
+
+/** Etiqueta `<Label>` del primer run de un textbox (encabezado, cuerpo o pie). */
+async function itemLabel(id: string): Promise<string | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found) return found.paragraphs?.[0]?.runs[0]?.label;
+  }
+  return undefined;
+}
+
+/** Escribe una expresión en el diálogo de expresiones y aplica. */
+async function applyExpressionInDialog(title: string, expression: string): Promise<void> {
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: title })).toBeVisible();
+  const editor = dialog.locator('.monaco-editor');
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.type(expression);
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(dialog).toBeHidden();
+}
+
+/** Visibilidad proyectada de un item (encabezado, cuerpo o pie). */
+async function itemHidden(id: string): Promise<boolean | string | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found) return found.hidden;
+  }
+  return undefined;
 }
 
 /* -------------------------------- tests --------------------------------- */
@@ -327,6 +440,58 @@ async function selectedCell(): Promise<{
         col: number;
       } | null) ?? null,
   );
+}
+
+/** Id del elemento seleccionado en el lienzo (según `__rdlcSelection`). */
+async function selectedId(): Promise<string | null> {
+  return page.evaluate(
+    () =>
+      ((window as never as Record<string, unknown>)['__rdlcSelection'] as { id?: string } | null)
+        ?.id ?? null,
+  );
+}
+
+/** Selecciona un elemento del informe por nombre desde la paleta (Ctrl+K). */
+async function selectItemViaPalette(id: string): Promise<void> {
+  // Con un editor Monaco enfocado, Ctrl+K no llega a la app (es un chord).
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill(id);
+  // Deja que cmdk filtre y asiente la lista: si se pincha mientras se
+  // reordena, el clic puede caer en otra opción.
+  await page.waitForTimeout(250);
+  // Nombre exacto: el matching de la paleta es difuso («Textbox87» también
+  // encaja con «Textbox187»).
+  await page.getByRole('option', { name: new RegExp(`^${id}\\b`) }).click();
+  await expect.poll(selectedId).toBe(id);
+}
+
+/** Texto pintado por un editor Monaco (una expresión, tal cual se ve). */
+async function monacoText(editor: Locator): Promise<string> {
+  return (await editor.locator('.view-lines').innerText()).replace(/\u00a0/g, ' ').trim();
+}
+
+/** Posición del desplegable de sugerencias (visible y por encima de todo). */
+async function suggestWidgetInfo(): Promise<{
+  onTop: boolean;
+  width: number;
+  height: number;
+  rows: string[];
+} | null> {
+  return page.evaluate(() => {
+    const widget = document.querySelector('.suggest-widget');
+    if (!widget) return null;
+    const rect = widget.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    return {
+      onTop: hit?.closest('.suggest-widget') !== null,
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      rows: [...widget.querySelectorAll('.monaco-list-row')].map(
+        (row) => row.textContent?.trim() ?? '',
+      ),
+    };
+  });
 }
 
 function toCm(length: { value: number; unit: string }): number {
@@ -474,6 +639,34 @@ test('el panel de estructura selecciona celdas y añade/quita filas (con undo)',
   await expect.poll(() => tablixRowCount('Tablix3')).toBe(rowsBefore - 1);
   await page.keyboard.press('Control+z');
   await expect.poll(() => tablixRowCount('Tablix3')).toBe(rowsBefore);
+});
+
+test('al añadir una fila, las celdas nuevas nacen con un textbox seleccionable', async () => {
+  // Tablix2 es la única tabla de primer nivel del informe: su fila nueva no
+  // queda tapada por las tablas anidadas que van encima.
+  const point = await tablixBorderPoint('Tablix2');
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+  await expect.poll(selectedId).toBe('Tablix2');
+
+  const rowsBefore = await tablixRowCount('Tablix2');
+  await page.getByRole('button', { name: 'Añadir fila al final' }).click();
+  await expect.poll(() => tablixRowCount('Tablix2')).toBe(rowsBefore + 1);
+
+  // La celda nueva trae un textbox vacío (no celdas muertas).
+  const added = findItem((await projection()).page.body.items, 'Tablix2')?.body?.rows[rowsBefore];
+  const ids = (added?.cells ?? []).map((cell) => cell?.content?.id);
+  expect(ids).toHaveLength(1);
+  expect(ids[0]).toMatch(/^Textbox\d+$/);
+
+  // El lienzo lo pinta y se selecciona como cualquier item.
+  const center = await nodeCenter(ids[0]!);
+  expect(center).not.toBeNull();
+  await page.mouse.click(center!.x, center!.y);
+  await expect.poll(selectedId).toBe(ids[0]);
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => tablixRowCount('Tablix2')).toBe(rowsBefore);
 });
 
 test('borra filas y columnas de una tabla con grupos y celdas fusionadas (y deshace)', async () => {
@@ -1203,4 +1396,209 @@ test('Ctrl+click en celdas contiguas de una fila permite combinar', async () => 
   await expect.poll(() => cellSpans('LinesTable2', 0, 0)).toEqual({ colSpan: 2, rowSpan: 1 });
   await page.keyboard.press('Control+z');
   await expect.poll(() => cellSpans('LinesTable2', 0, 0)).toEqual({ colSpan: 1, rowSpan: 1 });
+});
+
+test('el autocompletado de expresiones muestra el desplegable y elige con ratón y Tab', async () => {
+  await selectItemViaPalette('Textbox4');
+
+  // El panel simple monta el Monaco de la expresión (carga diferida).
+  const container = page.locator('[aria-label="Expresión del run 1.1"]').first();
+  const editor = container.locator('.monaco-editor');
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.press('Control+Space');
+
+  const widget = page.locator('.suggest-widget');
+  await expect(widget).toBeVisible({ timeout: 10_000 });
+
+  // Visible, con tamaño y por encima de todo (el host de overflow del body
+  // necesita la clase `monaco-editor`: sin el CSS scoped quedaría invisible).
+  const info = await suggestWidgetInfo();
+  expect(info).not.toBeNull();
+  expect(info!.onTop).toBe(true);
+  expect(info!.width).toBeGreaterThan(100);
+  expect(info!.height).toBeGreaterThan(40);
+  expect(info!.rows.length).toBeGreaterThan(0);
+
+  // Elegir con el ratón inserta la sugerencia.
+  const before = await monacoText(editor);
+  await widget.locator('.monaco-list-row').first().click();
+  await expect.poll(() => monacoText(editor)).not.toBe(before);
+  expect(await monacoText(editor)).toContain('Fields!');
+
+  // Y con el teclado: Ctrl+Espacio + Tab.
+  await editor.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.press('Control+Space');
+  await expect(widget).toBeVisible();
+  const afterClick = await monacoText(editor);
+  await page.keyboard.press('Tab');
+  await expect.poll(() => monacoText(editor)).not.toBe(afterClick);
+});
+
+test('el autocompletado del editor de texto se ve por encima del diálogo', async () => {
+  await selectItemViaPalette('TextboxVATClauseLbl');
+  await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+
+  // Una expresión nueva en el párrafo activo monta el Monaco inline del run.
+  await page.getByRole('button', { name: 'Añadir expresión' }).click();
+  const editor = page.locator('[role="dialog"] .monaco-editor').last();
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.press('Control+Space');
+
+  await expect(page.locator('.suggest-widget')).toBeVisible({ timeout: 10_000 });
+  const info = await suggestWidgetInfo();
+  expect(info).not.toBeNull();
+  expect(info!.onTop).toBe(true);
+
+  // El borrador se descarta.
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(page.getByRole('dialog')).toBeHidden();
+});
+
+test('seleccionar un Tablix mide su rejilla, no la de un Tablix anidado', async () => {
+  await selectItemViaPalette('Tablix2');
+
+  const selection = await page.evaluate(
+    () =>
+      (window as never as Record<string, unknown>)['__rdlcSelection'] as {
+        id: string;
+        rect: { width: number; height: number };
+      } | null,
+  );
+  expect(selection?.id).toBe('Tablix2');
+  // La rejilla de Tablix2 es 19 × 12.516 cm (≈ 718 × 473 px de papel); el bug
+  // medía el borde del primer Tablix anidado, LinesTable2 (2.576 cm).
+  expect(selection!.rect.width).toBeGreaterThan(700);
+  expect(selection!.rect.height).toBeGreaterThan(400);
+});
+
+test('el panel de propiedades edita la visibilidad y el color de fondo', async () => {
+  // Textbox4 vive en el **encabezado** de página: ni la visibilidad ni el
+  // estilo dependen de la región y sirve igual para el test.
+  await selectItemViaPalette('Textbox4');
+
+  // La predeterminada es visible (Textbox4 no declara `Visibility`).
+  const visibility = page.getByLabel('Visibilidad del elemento');
+  await expect(visibility).toHaveValue('visible');
+
+  // Oculta: se escribe `Hidden=true` y el lienzo la pinta atenuada.
+  await visibility.selectOption('hidden');
+  await expect.poll(() => itemHidden('Textbox4')).toBe(true);
+  await expect.poll(() => itemOpacityOnStage('Textbox4')).toBeLessThan(0.5);
+
+  // Expresión: «Expresión…» abre el diálogo con Monaco (números de línea).
+  await visibility.selectOption('expression');
+  await applyExpressionInDialog('Expresión de visibilidad', '=Fields!BTCItemLbl.Value');
+  await expect.poll(() => itemHidden('Textbox4')).toBe('=Fields!BTCItemLbl.Value');
+  // Las expresiones no se evalúan en diseño: el item se pinta normal.
+  await expect.poll(() => itemOpacityOnStage('Textbox4')).toBe(1);
+
+  // Color literal: se pinta en la caja del item.
+  await setBackgroundColor('#ff0000');
+  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#FF0000');
+  await page.getByRole('button', { name: 'Quitar color de fondo' }).click();
+  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#ffffff');
+
+  // El selector agrupa la ráfaga de `input` del arrastre: tres pasos = **un solo
+  // comando**, así que un único undo vuelve al color anterior (no a un paso
+  // intermedio de la ráfaga).
+  await setBackgroundColor('#aa0000');
+  await setBackgroundColor('#bb0000');
+  await setBackgroundColor('#cc0000');
+  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#CC0000');
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#ffffff');
+
+  // Fondo por expresión (botón Σ): tampoco se evalúa en diseño.
+  const backgroundExpression = '=IIF(Fields!BTCItemLbl.Value, "LightGray", "White")';
+  await page
+    .getByRole('button', { name: 'Abrir editor de la expresión de color de fondo' })
+    .click();
+  await applyExpressionInDialog('Expresión del color de fondo', backgroundExpression);
+  await expect.poll(() => itemBackground('Textbox4')).toBe(backgroundExpression);
+  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#ffffff');
+
+  // Visible quita la declaración: vuelve a la predeterminada.
+  await visibility.selectOption('visible');
+  await expect.poll(() => itemHidden('Textbox4')).toBeUndefined();
+});
+
+test('el panel de propiedades renombra el elemento (con validación y undo)', async () => {
+  await selectItemViaPalette('Textbox4');
+
+  const name = page.getByLabel('Nombre del elemento');
+  await expect(name).toHaveValue('Textbox4');
+
+  // Renombrado válido: la selección y el panel siguen al nombre nuevo.
+  await name.fill('Textbox4Renombrado');
+  await name.press('Enter');
+  await expect.poll(selectedId).toBe('Textbox4Renombrado');
+  await expect(name).toHaveValue('Textbox4Renombrado');
+
+  // Nombre duplicado: lo rechaza el dominio (aviso) y no cambia nada.
+  await name.fill('Tablix2');
+  await name.press('Enter');
+  await expect(page.getByText(/Ya existe un elemento con el nombre/)).toBeVisible();
+  await expect.poll(selectedId).toBe('Textbox4Renombrado');
+
+  // Un solo undo revierte el renombrado; el nombre original vuelve al informe.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await selectItemViaPalette('Textbox4');
+  await expect(page.getByLabel('Nombre del elemento')).toHaveValue('Textbox4');
+});
+
+test('la visibilidad de filas y columnas se edita desde la estructura', async () => {
+  // Tablix3: 2 filas × 6 columnas sin grupos (rutas simples en la proyección).
+  await selectItemViaPalette('Tablix3');
+  await expect(page.getByRole('region', { name: 'Estructura del Tablix' })).toBeVisible();
+
+  // El ojo de la fila 1 escribe `Hidden=true` y el botón pasa a «Mostrar».
+  await page.getByRole('button', { name: 'Ocultar fila 1' }).click();
+  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBe(true);
+  await expect(page.getByRole('button', { name: 'Mostrar fila 1' })).toBeVisible();
+
+  // Σ abre el diálogo de expresión y la escribe en la columna 1.
+  await page.getByRole('button', { name: 'Expresión de visibilidad de la columna 1' }).click();
+  await applyExpressionInDialog('Visibilidad de la columna 1', '=Fields!BTCJobNo.Value <> ""');
+  await expect
+    .poll(() => memberHidden('Tablix3', 'column', [0]))
+    .toBe('=Fields!BTCJobNo.Value <> ""');
+
+  // Mostrar la fila quita la declaración; cada acción es un paso de undo.
+  await page.getByRole('button', { name: 'Mostrar fila 1' }).click();
+  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBeUndefined();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBe(true);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberHidden('Tablix3', 'column', [0])).toBeUndefined();
+});
+
+test('la etiqueta del run se edita desde el panel de propiedades', async () => {
+  // Textbox4 (encabezado): `=Code.GetData(2, 1)` con `<Label>BTCNifCifLbl</Label>`.
+  await selectItemViaPalette('Textbox4');
+  const label = page.getByLabel('Etiqueta del run 1.1');
+  await expect(label).toHaveValue('BTCNifCifLbl');
+
+  // Cambiarla desde el panel (sin abrir el editor de texto).
+  await label.fill('MiEtiqueta');
+  await label.press('Enter');
+  await expect.poll(() => itemLabel('Textbox4')).toBe('MiEtiqueta');
+
+  // Vaciar el campo quita el `<Label>` del XML.
+  await label.fill('');
+  await label.press('Enter');
+  await expect.poll(() => itemLabel('Textbox4')).toBeUndefined();
+
+  // Cada commit es un paso de undo (setParagraphs byte-exacto).
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => itemLabel('Textbox4')).toBe('MiEtiqueta');
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => itemLabel('Textbox4')).toBe('BTCNifCifLbl');
 });

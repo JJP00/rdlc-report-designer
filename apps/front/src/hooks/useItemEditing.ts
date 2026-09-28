@@ -8,6 +8,7 @@ import type {
   StyleDto,
   StylePatch,
   TextboxDto,
+  TextRunDto,
 } from '@rdlc-designer/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiErrorMessage } from '@/lib/errors';
@@ -84,8 +85,21 @@ export interface ItemEditing {
   mergeCells: (id: string, row: number, col: number, rowSpan: number, colSpan: number) => void;
   unmergeCells: (id: string, row: number, col: number) => void;
   setItemStyle: (patch: StylePatch) => void;
+  /** Renombra el elemento (el nombre debe ser único; lo valida el dominio). */
+  setItemName: (name: string) => void;
+  /** Visibilidad del item (`null` = quitarla). */
+  setVisibility: (hidden: boolean | string | null) => void;
+  /** Visibilidad de una fila/columna/grupo de un Tablix (`path` de la proyección). */
+  setMemberVisibility: (
+    tablixId: string,
+    axis: 'row' | 'column',
+    path: number[],
+    hidden: boolean | string | null,
+  ) => void;
   setImageOptions: (patch: ImageOptionsPatch) => void;
   setRunText: (p: number, r: number, value: string) => void;
+  /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
+  setRunLabel: (p: number, r: number, label: string | null) => void;
   /** Reemplaza los párrafos del Textbox (editor de texto): un paso de undo. */
   setParagraphs: (id: string, paragraphs: ParagraphDto[]) => void;
 
@@ -106,6 +120,14 @@ export interface ItemEditing {
 
 function round4(value: number): number {
   return Math.round(value * 10000) / 10000;
+}
+
+/** Run con la etiqueta puesta (`null`/'' la quita). */
+function withLabel(run: TextRunDto, label: string | null): TextRunDto {
+  const next: TextRunDto = { ...run };
+  if (label === null || label === '') delete next.label;
+  else next.label = label;
+  return next;
 }
 
 export function useItemEditing(core: DocumentCore): ItemEditing {
@@ -405,6 +427,51 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [reconcile, selectedItem, sendCommand, updateProjection],
   );
 
+  const setItemName = useCallback(
+    (name: string): void => {
+      if (!selectedItem) return;
+      const id = selectedItem.id;
+
+      // El id del elemento **es** su nombre: si el comando se acepta, la
+      // selección se mueve al nombre nuevo (y la proyección llega por snapshot,
+      // que es estructural).
+      void sendCommand({ cmd: 'setName', id, name }).then((result) => {
+        if (result?.ok) setSelectedId(name);
+      });
+    },
+    [selectedItem, sendCommand, setSelectedId],
+  );
+
+  const setMemberVisibility = useCallback(
+    (
+      tablixId: string,
+      axis: 'row' | 'column',
+      path: number[],
+      hidden: boolean | string | null,
+    ): void => {
+      // El comando pide snapshot (el miembro no viaja en `applied`): la
+      // proyección y el árbol de estructura se refrescan solos.
+      void sendCommand({ cmd: 'setMemberVisibility', id: tablixId, axis, path, hidden });
+    },
+    [sendCommand],
+  );
+
+  const setVisibility = useCallback(
+    (hidden: boolean | string | null): void => {
+      if (!selectedItem) return;
+      const id = selectedItem.id;
+
+      // Optimista: `null` = quitar la visibilidad declarada.
+      updateProjection((projection) =>
+        patchItem(projection, id, hidden === null ? { hidden: undefined } : { hidden }),
+      );
+      void sendCommand({ cmd: 'setVisibility', id, hidden }).then((result) =>
+        reconcile(result?.ok ? result.applied : undefined),
+      );
+    },
+    [reconcile, selectedItem, sendCommand, updateProjection],
+  );
+
   const setImageOptions = useCallback(
     (patch: ImageOptionsPatch): void => {
       if (!selectedItem || selectedItem.kind !== 'image') return;
@@ -442,6 +509,32 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       };
       updateProjection((projection) => patchItem(projection, selectedItem.id, updated));
       void sendCommand({ cmd: 'setText', id: selectedItem.id, p, r, value });
+    },
+    [selectedItem, sendCommand, updateProjection],
+  );
+
+  /**
+   * Etiqueta de diseñador de un run (`<Label>`, lo que BC pinta en lugar de la
+   * expresión). `null` la quita. Se aplica con `setParagraphs` (un paso de undo
+   * y byte-exacto, el mismo camino que el editor de texto).
+   */
+  const setRunLabel = useCallback(
+    (p: number, r: number, label: string | null): void => {
+      if (!selectedItem || selectedItem.kind !== 'textbox') return;
+      const paragraphs = selectedItem.paragraphs.map((paragraph, paragraphIndex) =>
+        paragraphIndex === p
+          ? {
+              ...paragraph,
+              runs: paragraph.runs.map((run, runIndex) =>
+                runIndex === r ? withLabel(run, label) : run,
+              ),
+            }
+          : paragraph,
+      );
+      updateProjection((projection) =>
+        patchItem(projection, selectedItem.id, { ...selectedItem, paragraphs }),
+      );
+      void sendCommand({ cmd: 'setParagraphs', id: selectedItem.id, paragraphs });
     },
     [selectedItem, sendCommand, updateProjection],
   );
@@ -726,8 +819,12 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     mergeCells,
     unmergeCells,
     setItemStyle,
+    setItemName,
+    setVisibility,
+    setMemberVisibility,
     setImageOptions,
     setRunText,
+    setRunLabel,
     setParagraphs,
     insertItem,
     insertAt,

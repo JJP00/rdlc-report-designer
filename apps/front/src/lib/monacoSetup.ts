@@ -25,6 +25,35 @@ window.MonacoEnvironment = {
 
 export const RDLC_LANGUAGE_ID = 'rdlc-expr';
 
+/**
+ * Host de los widgets que desbordan el editor (sugerencias, hover, firmas).
+ *
+ * Monaco los cuelga de aquí con `position: fixed`, y **todo el CSS de Monaco
+ * está scopeado bajo `.monaco-editor`**: el host necesita esa clase o el
+ * desplegable sale sin estilos (invisible; el proveedor sigue funcionando y
+ * Tab inserta). Va en el `body` para escapar del `transform` y del `overflow`
+ * de los diálogos; `pointer-events: auto` lo hace clicable aunque Radix
+ * bloquee el resto de la página (modal) y el z-index lo pone por encima de los
+ * diálogos (z-50).
+ */
+function overflowWidgetsHost(): HTMLElement {
+  let host = document.querySelector<HTMLElement>('[data-rdlc-overflow-widgets]');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'monaco-editor';
+    host.setAttribute('data-rdlc-overflow-widgets', '');
+    Object.assign(host.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      zIndex: '9999',
+      pointerEvents: 'auto',
+    } satisfies Partial<CSSStyleDeclaration>);
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
 const KEYWORD_SET = new Set(VB_KEYWORDS.map((keyword) => keyword.toLowerCase()));
 const BUILTIN_SET = new Set(
   expressionCompletions({ code: { text: '', functions: [] }, fields: [], parameters: [] })
@@ -202,9 +231,10 @@ export function createExpressionEditor(
     quickSuggestions: { other: true, comments: false, strings: false },
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
-    // Las sugerencias/hover viven fuera del contenedor del editor: dentro de un
-    // diálogo (con `transform` y `overflow-hidden`) quedarían recortadas.
-    overflowWidgetsDomNode: document.body,
+    // Las sugerencias/hover viven fuera del editor (los diálogos tienen
+    // `transform` y `overflow-hidden`): en el host de body, con la clase
+    // `monaco-editor` para que el CSS de Monaco les aplique.
+    overflowWidgetsDomNode: overflowWidgetsHost(),
     ariaLabel: options.ariaLabel,
   });
 

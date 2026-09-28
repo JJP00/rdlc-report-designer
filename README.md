@@ -87,7 +87,7 @@ para trazar eventos) y `__rdlcProjection` (la proyección viva).
 con `--mode e2e` (los ganchos se publican también ahí), usa ratón/teclado reales y deja
 traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntuales.
 
-## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-24)
+## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-28)
 
 **Fase 0 (spike round-trip) — cerrada:**
 
@@ -142,16 +142,33 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       una misma fila; las fusiones verticales que ya traiga el fichero se pueden
       separar).
       El **contenido de una celda está anclado**: no se arrastra, se recorta a la celda y el
-      marco de la tabla mide la **rejilla**. Queda pendiente: **grupos de fila con totales**
-      (crear/borrar grupo y total before/after) · [ ] Matrix (F3).
-- [x] **E2E con Playwright sobre Electron** (`pnpm e2e`): selección por borde y por celda,
-      arrastre real de cabeceras con undo, click interno + Esc, estructura (añadir/quitar filas
-      y columnas), menú contextual, anclaje/recorte del contenido, refresco de la rejilla,
-      cabeceras (Shift/Ctrl), borrado en lote, fusión/separación y colores-expresión
-      (16 tests, con reset del documento entre tests).
-- [ ] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [ ] grupos con totales · [ ] Matrix (F3).
+      marco de la tabla mide la **rejilla**. Además, las celdas nuevas de fila/columna nacen
+      con un **Textbox vacío** (no celdas muertas) y los «+» por fila/columna se quitaron
+      (queda el de la cabecera, que añade al final). Queda pendiente: **`TablixCorner` +
+      `TablixHeader`** (esquina y cabeceras de grupo, aún no se proyectan) y **grupos de fila
+      con totales** · [ ] Matrix (F3).
+- [x] **Visibilidad (F2)**: de **items** (`setVisibility`: Visible / Oculta / Expresión…;
+      la predeterminada es visible; la proyección lee `Visibility > Hidden` y los ocultos se
+      pintan **atenuados** en el lienzo) y de **filas/columnas/grupos** del Tablix
+      (`setMemberVisibility` con **ojo** y **Σ** en el árbol de Estructura). Undo byte-exacto.
+- [x] **Panel de propiedades editable**: **nombre** (`setName`, único, sincroniza
+      `rd:DefaultName`), **etiqueta `<Label>`** del run (inline en el caso simple) y **color de
+      fondo** literal o **expresión** (diálogo Monaco con números de línea). El selector de color
+      agrupa la ráfaga del arrastre en **un solo comando** (commit diferido).
+- [x] **Fixes de lienzo/edición (sesión 2026-09-25/28)**: **autocompletado** visible (host de
+      overflow con la clase `monaco-editor`, `pointer-events` y z-index), **marco de selección**
+      por adorno propio (un Tablix ya no mide el borde de su anidado) y **autocerrados**
+      (`<X />`) que recuperan su formato tras el undo.
+- [x] **E2E con Playwright sobre Electron** (`pnpm e2e`, `e2e:run` sin recompilar): selección
+      por borde y por celda, arrastre real de cabeceras con undo, click interno + Esc, estructura
+      (añadir/quitar filas y columnas), menú contextual, anclaje/recorte del contenido, refresco
+      de la rejilla, cabeceras (Shift/Ctrl), borrado en lote, fusión/separación, colores-expresión,
+      autocompletado (panel y diálogo), visibilidad (items y miembros), renombrado y etiqueta
+      (28 tests, con reset del documento entre tests).
+- [ ] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
+      miembros) · [ ] `TablixCorner`/`TablixHeader` · [ ] grupos con totales · [ ] Matrix (F3).
 
-**Calidad (sesiones 2026-09-16, 2026-09-18 y 2026-09-22):**
+**Calidad (sesiones 2026-09-16 a 2026-09-28):**
 
 - [x] **Pendientes M1–M7** cerrados (id al duplicar, aviso al cerrar, motivo de recarga,
       zIndex en pintado y hit-test, `<Code>` vacío, nombres elegidos por el backend,
@@ -172,7 +189,7 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       marcadores de etiqueta/expresión, bloque del párrafo activo con formato por run y Monaco
       inline), lienzo fiel al estilo RDL (texto por run con alineación de párrafo y texto de
       diseño `[etiqueta]` / campo / `[exp]`) y marco de selección medido por la caja del item.
-- [x] **272 unit tests** (162 back + 110 front) + **20 E2E** de Playwright y
+- [x] **295 unit tests** (180 back + 115 front) + **28 E2E** de Playwright y
       `typecheck` limpio.
 
 Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

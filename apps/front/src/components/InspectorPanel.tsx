@@ -20,7 +20,20 @@ export interface InspectorPanelProps {
   onSetLocation: (top: Length, left: Length) => void;
   onSetSize: (width: Length, height: Length) => void;
   onSetStyle: (patch: StylePatch) => void;
+  /** Renombra el elemento (lo valida el dominio). */
+  onSetName: (name: string) => void;
+  /** `null` = quitar la visibilidad declarada. */
+  onSetVisibility: (hidden: boolean | string | null) => void;
+  /** Visibilidad de una fila/columna/grupo de un Tablix. */
+  onSetMemberVisibility: (
+    tablixId: string,
+    axis: 'row' | 'column',
+    path: number[],
+    hidden: boolean | string | null,
+  ) => void;
   onSetText: (p: number, r: number, value: string) => void;
+  /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
+  onSetLabel: (p: number, r: number, label: string | null) => void;
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
   /** Abre el editor de texto del textbox (párrafos → runs). */
   onEditText: (id: string) => void;
@@ -40,7 +53,11 @@ export function InspectorPanel({
   onSetLocation,
   onSetSize,
   onSetStyle,
+  onSetName,
+  onSetVisibility,
+  onSetMemberVisibility,
   onSetText,
+  onSetLabel,
   onSetImageOptions,
   onEditText,
 }: InspectorPanelProps): ReactNode {
@@ -55,6 +72,9 @@ export function InspectorPanel({
           onDeleteRow={(row) => onDeleteRow(tablix.id, row)}
           onAddColumn={(column) => onAddColumn(tablix.id, column)}
           onDeleteColumn={(column) => onDeleteColumn(tablix.id, column)}
+          onSetMemberVisibility={(axis, path, hidden) =>
+            onSetMemberVisibility(tablix.id, axis, path, hidden)
+          }
         />
       ) : null}
       <ItemPanels
@@ -63,7 +83,10 @@ export function InspectorPanel({
         onSetLocation={onSetLocation}
         onSetSize={onSetSize}
         onSetStyle={onSetStyle}
+        onSetName={onSetName}
+        onSetVisibility={onSetVisibility}
         onSetText={onSetText}
+        onSetLabel={onSetLabel}
         onSetImageOptions={onSetImageOptions}
         onEditText={onEditText}
       />

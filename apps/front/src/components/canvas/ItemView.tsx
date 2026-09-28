@@ -15,6 +15,7 @@ import { sortByZIndex } from '@/lib/projection';
 import { paintColor } from '@/lib/style';
 import { tablixLayout, cellRange, isCellInRange, type SelectedCell } from '@/lib/tablix';
 import { browserTextMeasurer, layoutTextbox } from '@/lib/textLayout';
+import { itemOpacity } from '@/lib/visibility';
 import { PX_PER_CM, SNAP_CM, toPx } from './geometry';
 
 /**
@@ -33,6 +34,8 @@ interface NodeGroupProps {
   itemId: string;
   x: number;
   y: number;
+  /** Opacidad de pintado (los items con `Hidden = true` se atenúan). */
+  opacity?: number;
   draggable?: boolean;
   onSelect?: (id: string | null) => void;
   onMoveItem?: (id: string, top: Length, left: Length) => void;
@@ -58,6 +61,7 @@ function NodeGroup({
   itemId,
   x,
   y,
+  opacity,
   draggable,
   onSelect,
   onMoveItem,
@@ -100,6 +104,7 @@ function NodeGroup({
       id={itemId}
       x={x}
       y={y}
+      opacity={opacity}
       draggable={draggable}
       onClick={(event) => {
         if (isSecondaryClick(event)) return;
@@ -203,8 +208,6 @@ export function ItemView({
   cellOwner,
   bounds,
 }: ItemViewProps): ReactNode {
-  if (item.hidden === true) return null;
-
   const x = toPx(item.left);
   const y = toPx(item.top);
   const width = toPx(item.width);
@@ -219,6 +222,9 @@ export function ItemView({
       itemId={item.id}
       x={x}
       y={y}
+      // `Hidden = true` literal se atenúa (el layout sigue editable); las
+      // expresiones no se evalúan en diseño, como en RB.
+      opacity={itemOpacity(item.hidden)}
       draggable={draggable}
       onSelect={onSelect}
       onMoveItem={onMoveItem}

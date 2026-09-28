@@ -12,6 +12,8 @@ interface TextPanelProps {
   item: TextboxDto;
   /** Edita UN TextRun (texto plano o `=expresión`); commit con Enter o al salir. */
   onSetText: (p: number, r: number, value: string) => void;
+  /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
+  onSetLabel: (p: number, r: number, label: string | null) => void;
   /** Estilo del item (fuente, colores, alineación, viñetas). */
   onSetStyle: (patch: StylePatch) => void;
   /** Abre el editor de texto (párrafos → runs). */
@@ -20,12 +22,14 @@ interface TextPanelProps {
 
 /**
  * Panel de texto/expresión. El caso **simple** (un párrafo, un run) se edita
- * aquí mismo; el **texto mixto** (varios párrafos o runs) se edita en el editor
- * de texto que abre el botón (y el menú contextual del item).
+ * aquí mismo (valor y **etiqueta** `<Label>`); el **texto mixto** (varios
+ * párrafos o runs) se edita en el editor de texto que abre el botón (y el menú
+ * contextual del item).
  */
 export function TextPanel({
   item,
   onSetText,
+  onSetLabel,
   onSetStyle,
   onOpenEditor,
 }: TextPanelProps): ReactNode {
@@ -49,6 +53,7 @@ export function TextPanel({
             label={firstRun.label}
             value={firstRun.value}
             onCommit={(value) => onSetText(0, 0, value)}
+            onLabel={(label) => onSetLabel(0, 0, label)}
           />
         ) : (
           <>
@@ -97,16 +102,20 @@ function RunField({
   label,
   value,
   onCommit,
+  onLabel,
 }: {
   index: string;
-  /** Etiqueta de diseñador del run (`<Label>`); se muestra, no se edita. */
+  /** Etiqueta de diseñador del run (`<Label>`). */
   label?: string;
   value: string;
   onCommit: (value: string) => void;
+  onLabel: (label: string | null) => void;
 }): ReactNode {
   // Borrador mientras se teclea: un cambio de la proyección no pisa el texto.
   const [draft, setDraft] = useState<string | null>(null);
+  const [labelDraft, setLabelDraft] = useState<string | null>(null);
   const text = draft ?? value;
+  const labelText = labelDraft ?? label ?? '';
 
   const commit = (): void => {
     if (draft !== null && draft !== value) onCommit(draft);
@@ -115,6 +124,13 @@ function RunField({
   const commitDraftValue = (next: string): void => {
     if (next !== value) onCommit(next);
     setDraft(null);
+  };
+  const commitLabel = (): void => {
+    if (labelDraft !== null) {
+      const next = labelDraft.trim();
+      if (next !== (label ?? '')) onLabel(next === '' ? null : next);
+    }
+    setLabelDraft(null);
   };
 
   const isExpression = value.trimStart().startsWith('=');
@@ -125,11 +141,19 @@ function RunField({
         <Badge variant="secondary" className="font-mono text-[10px]">
           {index}
         </Badge>
-        {label !== undefined ? (
-          <Badge variant="outline" className="text-[10px]">
-            [{label}]
-          </Badge>
-        ) : null}
+        <input
+          className="h-6 w-36 rounded-md border bg-background px-1 font-mono text-[10px]"
+          value={labelText}
+          placeholder="etiqueta (Label)"
+          title="Etiqueta de Business Central (<Label>): BC muestra esta etiqueta en lugar de la expresión"
+          aria-label={`Etiqueta del run ${index}`}
+          onChange={(event) => setLabelDraft(event.target.value)}
+          onBlur={commitLabel}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') commitLabel();
+            if (event.key === 'Escape') setLabelDraft(null);
+          }}
+        />
         {isExpression ? (
           <Badge className="text-[10px]">expresión</Badge>
         ) : (
