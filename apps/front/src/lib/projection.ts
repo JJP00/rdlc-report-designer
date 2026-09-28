@@ -1,4 +1,4 @@
-import type { ItemDto, Length, ProjectionDto } from '@rdlc-designer/contracts';
+import type { ItemDto, Length, ProjectionDto, TablixDto } from '@rdlc-designer/contracts';
 
 /** Utilidades de la proyección (read-model del lienzo). */
 
@@ -37,9 +37,28 @@ export function findItem(projection: ProjectionDto, id: string): ItemDto | undef
 }
 
 /**
- * true si el item es el **contenido directo de una celda** de Tablix: ahí manda
- * la celda (su tamaño lo pone la fila/columna), así que no se redimensiona con
- * tiradores — se redimensiona la columna o la fila.
+ * Contenido de las cabeceras de un Tablix (bandas de columna/fila + esquina),
+ * sin nulos. Viven **fuera de `body.rows`** pero son items normales: hay que
+ * incluirlos en el recorrido para que se puedan seleccionar, editar y contar.
+ */
+export function tablixHeaderItems(tablix: TablixDto): ItemDto[] {
+  const headers = tablix.headers;
+  if (!headers) return [];
+
+  const items: ItemDto[] = [];
+  const push = (cell: ItemDto | null | undefined): void => {
+    if (cell) items.push(cell);
+  };
+  for (const band of headers.columns) band.cells.forEach(push);
+  for (const band of headers.rows) band.cells.forEach(push);
+  for (const row of headers.corner) row.forEach(push);
+  return items;
+}
+
+/**
+ * true si el item es el **contenido directo de una celda** de Tablix (o de una
+ * cabecera/esquina): ahí manda la celda (su tamaño lo pone la fila/columna), así
+ * que no se redimensiona con tiradores.
  */
 export function isCellContent(projection: ProjectionDto, id: string): boolean {
   for (const item of flattenItems(projection)) {
@@ -49,6 +68,7 @@ export function isCellContent(projection: ProjectionDto, id: string): boolean {
         if (cell?.content?.id === id) return true;
       }
     }
+    if (tablixHeaderItems(item).some((header) => header.id === id)) return true;
   }
   return false;
 }
@@ -74,6 +94,11 @@ export function findParentItemId(projection: ProjectionDto, id: string): string 
             const found = search([cell.content], item);
             if (found !== undefined) return found;
           }
+        }
+        for (const header of tablixHeaderItems(item)) {
+          if (header.id === id) return item.id;
+          const found = search([header], item);
+          if (found !== undefined) return found;
         }
       }
     }
@@ -104,6 +129,10 @@ export function findItemInList(items: ItemDto[], id: string): ItemDto | undefine
           }
         }
       }
+      for (const header of tablixHeaderItems(item)) {
+        const found = findItemInList([header], id);
+        if (found) return found;
+      }
     }
   }
   return undefined;
@@ -126,6 +155,7 @@ export function flattenItems(projection: ProjectionDto): ItemDto[] {
             if (cell?.content) walk([cell.content]);
           }
         }
+        walk(tablixHeaderItems(item));
       }
     }
   };
@@ -142,8 +172,8 @@ export function patchItem(
   id: string,
   patch: Partial<ItemDto>,
 ): ProjectionDto {
-  const patchIn = (items: ItemDto[]): ItemDto[] =>
-    items.map((item) => {
+  function patchIn(items: ItemDto[]): ItemDto[] {
+    return items.map((item) => {
       if (item.id === id) return { ...item, ...patch } as ItemDto;
       if (item.kind === 'rectangle') return { ...item, children: patchIn(item.children) };
       if (item.kind === 'tablix') {
@@ -160,10 +190,23 @@ export function patchItem(
               ),
             })),
           },
+          ...(item.headers ? { headers: patchHeaders(item.headers) } : {}),
         };
       }
       return item;
     });
+  }
+
+  function patchHeaders(headers: NonNullable<TablixDto['headers']>): TablixDto['headers'] {
+    const patchCell = (cell: ItemDto | null): ItemDto | null =>
+      cell ? (patchIn([cell])[0] ?? cell) : null;
+    return {
+      ...headers,
+      columns: headers.columns.map((band) => ({ ...band, cells: band.cells.map(patchCell) })),
+      rows: headers.rows.map((band) => ({ ...band, cells: band.cells.map(patchCell) })),
+      corner: headers.corner.map((row) => row.map(patchCell)),
+    };
+  }
 
   return {
     ...projection,

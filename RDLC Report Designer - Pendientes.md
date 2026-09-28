@@ -29,19 +29,34 @@
 > **Autocerrados**: al quitar el último hijo de un `<X />` se recupera el
 > autocierre (`expandedSelfClosing`) para que el undo sea byte-exacto de verdad.
 >
-> **Punto de retomada (próxima sesión)**:
+> **Punto de retomada (próxima sesión)** — plan reordenado tras revisar el corpus:
 >
-> 1. **`TablixCorner` + `TablixHeader`** (proyección + lienzo): la esquina y las
->    cabeceras de grupo (p. ej. `VATIdentifier_…` en `Tablix7` de
->    `SalesInvoiceESP`) siguen sin pintarse. Hacerlo **antes** de crear grupos.
-> 2. **Grupos de fila con totales** (bloque 2 de F2): `addRowGroup`,
->    `deleteRowGroup`, `setGroupExpression`, `setGroupTotals` + UI en la
->    estructura y pintado de cabecera/total en el lienzo.
-> 3. Menores: **insertar Tablix** (no existe), **bordes** de estilo (siguen
->    rechazados), `moveItem`, empaquetado electron-builder y CI.
+> - ✅ **F2.a · `TablixCorner` + `TablixHeader`** (hecho en esta sesión): la
+>   proyección y el lienzo ya pintan las cabeceras **fuera de la rejilla**:
+>   bandas de `TablixMember > TablixHeader` (grosor = `Size`, largo = filas/columnas
+>   que cubre el miembro), esquina `TablixCorner` (celda `[banda de columna][banda
+de fila]`) y un `headers.offset` que desplaza el body. En `Tablix7` de
+>   `SalesInvoiceESP`/`SalesCreditMemoESP` ya se ven `Textbox72` (esquina),
+>   `Textbox73/75` (columnas) y `VATIdentifier_VatAmountLine` (cabecera del grupo,
+>   con `=Sum(...)`); el marco del Tablix mide cabeceras + rejilla y las cabeceras
+>   se seleccionan como contenido anclado (sin tiradores). La proyección expone
+>   `TablixDto.headers` y el front las recorre (`tablixHeaderItems`) para
+>   selección, propiedades, paleta y hit-test; `tablixLayout` devuelve el `offset`.
+> - **F2.b · Gestión de grupos de fila** (siguiente): `setGroupExpression` (editar la
+>   expresión del grupo; lo más útil para tocar informes de BC, que ya traen los
+>   grupos), `addRowGroup` / `deleteRowGroup` (crear/borrar) y decidir si la cabecera
+>   del grupo va al body o a `TablixHeader` (BC usa `TablixHeader`).
+> - **F2.c · Conveniencia de totales** (opcional): los totales **no tienen XML propio**:
+>   son filas estáticas con agregados (`LinesTable2`, fila 5: `=Sum(...)`) y ya se pueden
+>   hacer a mano. Un botón «Añadir total antes/después» que inserte la fila y precargue
+>   `Sum`/`Count`/`First` por columna según el tipo de campo.
+> - **F3 · Matrix** (grupos de **columna** + esquina): reutiliza F2.a/F2.b.
+> - Menores: **insertar Tablix** (no existe), **bordes** de estilo (siguen rechazados),
+>   `setZIndex`/`setItemOptions`/`moveItem` (en el contrato, rechazados), empaquetado
+>   electron-builder y CI.
 >
-> Estado: **295 unit tests** (180 back + 115 front), `typecheck` limpio,
-> `react-doctor` **100/100** y **28 E2E** de Playwright verdes.
+> Estado: **298 unit tests** (183 back + 115 front), `typecheck` limpio,
+> `react-doctor` **100/100** y **29 E2E** de Playwright verdes.
 
 > **Sesión 2026-09-23/24 · editor de texto del Textbox + fidelidad del lienzo** —
 > **Editor de texto (rework)**: diálogo con **textarea** (el documento completo, un
@@ -384,13 +399,12 @@ Trade-offs documentados:
    bloque del párrafo activo (runs, etiqueta `<Label>` editable, formato por run,
    añadir/quitar/duplicar/mover) y comando `setParagraphs` (undo byte-exacto).
 4. **Tablix visual (Fase 2)** — 🔶 rejilla editable, estructura (bloque 1), rejilla
-   segmentada, fusión por tramos, proyección de anchos por columna acumulada y
-   **visibilidad de items y de filas/columnas/grupos** ✅; falta:
-   **cabeceras de grupo (`TablixMember/TablixHeader`) y esquina (`TablixCorner`)** — hoy
-   **no se proyectan ni se pintan**: en informes como `Tablix7` de `SalesInvoiceESP.rdlc` los
-   textboxes de la esquina y de las cabeceras (p. ej. `Textbox72/73/75`, `VATIdentifier_…`)
-   existen en el XML pero no en el lienzo, y el layout no cuenta sus columnas/filas.
-   Después: **grupos de fila con totales** (`addRowGroup`, `setGroupTotals`… ya en el plan).
+   segmentada, fusión por tramos, proyección de anchos por columna acumulada,
+   **visibilidad de items y de filas/columnas/grupos** y **cabeceras
+   (`TablixHeader`) + esquina (`TablixCorner`)** ✅; falta:
+   **gestión de grupos de fila** (`setGroupExpression`, `addRowGroup`,
+   `deleteRowGroup`) y la **conveniencia de totales** (hoy ya se pueden hacer a mano:
+   son filas estáticas con agregados). Después: **Matrix (F3)**.
 5. **Matrix (Fase 3)** — ⬜ grupos de columna.
 6. **`moveItem`** (reparentar/reordenar) — ⬜ implementado hasta `insertItem`/`deleteItem`/
    `duplicateItem`; `moveItem` sigue rechazándose explícitamente.

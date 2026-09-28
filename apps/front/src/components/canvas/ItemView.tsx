@@ -11,7 +11,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
 import { computeDragEnd } from '@/lib/drag';
 import { tablixGrid } from '@/lib/grid';
-import { sortByZIndex } from '@/lib/projection';
+import { sortByZIndex, tablixHeaderItems } from '@/lib/projection';
 import { paintColor } from '@/lib/style';
 import { tablixLayout, cellRange, isCellInRange, type SelectedCell } from '@/lib/tablix';
 import { browserTextMeasurer, layoutTextbox } from '@/lib/textLayout';
@@ -594,11 +594,11 @@ function TablixContent({
   });
 
   // Resaltado del rango: un único rectángulo sobre las filas/columnas elegidas.
-  const columnEdges = [0];
+  const columnEdges = [layout.offset.x];
   layout.columns.forEach((width) =>
     columnEdges.push((columnEdges[columnEdges.length - 1] ?? 0) + width),
   );
-  const rowEdges = [0];
+  const rowEdges = [layout.offset.y];
   layout.rows.forEach((height) => rowEdges.push((rowEdges[rowEdges.length - 1] ?? 0) + height));
   const range = selectedCell?.id === item.id ? cellRange(selectedCell) : null;
   const highlight = range
@@ -676,6 +676,11 @@ function TablixContent({
 
   return (
     <>
+      {/* Cabeceras y esquina (fuera de la rejilla): contenido ya colocado, se
+          pinta como cualquier item (seleccionable; anclado a su celda). */}
+      {tablixHeaderItems(item).map((header) => (
+        <ItemView key={header.id} item={header} onSelect={onSelect} draggable={false} />
+      ))}
       {cells}
       {/* La rejilla va encima de las celdas (los separadores se dibujan en la
           capa de selección, como los tiradores). */}

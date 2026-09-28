@@ -1,5 +1,5 @@
 import type { ItemDto, ScopeRef } from '@rdlc-designer/contracts';
-import { sortByZIndex, toCm } from './projection';
+import { sortByZIndex, tablixHeaderItems, toCm } from './projection';
 import { findCellAt, tablixLayout, type CellRef } from './tablix';
 
 /**
@@ -43,8 +43,16 @@ export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRe
     const relX = point.x - toCm(candidate.left);
     const relY = point.y - toCm(candidate.top);
 
-    // Un Tablix se resuelve por celdas: el contenido de la celda manda.
+    // Un Tablix se resuelve por celdas: el contenido de la celda manda. Las
+    // cabeceras (fuera de la rejilla) van antes: su contenido es un item normal.
     if (candidate.kind === 'tablix') {
+      const header = tablixHeaderItems(candidate).find((entry) =>
+        contains(entry, { x: relX, y: relY }),
+      );
+      if (header) {
+        return { item: header, scope: fallback, index: items.length, point };
+      }
+
       const cell = findCellAt(candidate, relX, relY);
       if (!cell) continue;
       const cellRef: CellRef = { id: candidate.id, row: cell.row, col: cell.col };

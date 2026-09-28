@@ -182,16 +182,27 @@ export interface TablixLayout {
   columns: number[];
   rows: number[];
   cells: TablixCellBox[];
+  /** Desplazamiento de la rejilla por las cabeceras (cm). */
+  offset: { x: number; y: number };
+  /** Ancho/alto **totales** (cabeceras + rejilla). */
   width: number;
   height: number;
 }
 
-/** Cajas de todas las celdas (cm, relativas al Tablix) y medidas de la rejilla. */
+/**
+ * Cajas de todas las celdas (cm, relativas al Tablix) y medidas **totales**.
+ * Las cabeceras (`TablixHeader`/`TablixCorner`) van fuera del body y desplazan
+ * la rejilla: las cajas de celda ya salen con ese desplazamiento sumado.
+ */
 export function tablixLayout(tablix: TablixDto): TablixLayout {
   const columns = tablix.body.columns.map(toCm);
   const rows = tablix.body.rows.map((row) => toCm(row.height));
-  const columnOffsets = cumulative(columns);
-  const rowOffsets = cumulative(rows);
+  const offset = {
+    x: sum((tablix.headers?.rows ?? []).map((band) => toCm(band.size))),
+    y: sum((tablix.headers?.columns ?? []).map((band) => toCm(band.size))),
+  };
+  const columnOffsets = cumulative(columns).map((value) => value + offset.x);
+  const rowOffsets = cumulative(rows).map((value) => value + offset.y);
 
   const cells: TablixCellBox[] = [];
   tablix.body.rows.forEach((row, rowIndex) => {
@@ -216,7 +227,14 @@ export function tablixLayout(tablix: TablixDto): TablixLayout {
     }
   });
 
-  return { columns, rows, cells, width: sum(columns), height: sum(rows) };
+  return {
+    columns,
+    rows,
+    cells,
+    offset,
+    width: sum(columns) + offset.x,
+    height: sum(rows) + offset.y,
+  };
 }
 
 /** Celda que contiene el punto (cm, relativo al Tablix). */

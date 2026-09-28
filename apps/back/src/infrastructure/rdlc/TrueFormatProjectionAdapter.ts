@@ -10,6 +10,8 @@ import type {
   StyleDto,
   TablixCellDto,
   TablixDto,
+  TablixHeaderBandDto,
+  TablixHeadersDto,
   TablixMemberDto,
   TextboxDto,
 } from '@rdlc-designer/contracts';
@@ -253,13 +255,112 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     const column = this.tablixMembers(el.getFirstElementByName('TablixColumnHierarchy'));
     this.inferTotals(row.leaves, rowEls);
 
+    const headers = this.tablixHeaders(el, columns, rowHeights);
+
     return {
       ...base,
       kind: 'tablix',
       body: { columns, rows },
       rowHierarchy: row.members,
       columnHierarchy: column.members,
+      ...(headers ? { headers } : {}),
     };
+  }
+
+  /**
+   * Cabeceras del Tablix (`TablixMember > TablixHeader`) y esquina
+   * (`TablixCorner`). Cada cabecera se coloca como item con su geometría ya
+   * calculada: el **grosor** lo fija el `Size` del miembro y el **largo**, las
+   * filas/columnas que cubre. El `offset` es la suma de las bandas (lo que hay
+   * que desplazar la rejilla del body).
+   */
+  private tablixHeaders(
+    el: XmlElement,
+    columns: Length[],
+    rows: Length[],
+  ): TablixHeadersDto | undefined {
+    const columnBands = rawHeaderBands(el.getFirstElementByName('TablixColumnHierarchy'));
+    const rowBands = rawHeaderBands(el.getFirstElementByName('TablixRowHierarchy'));
+    const offsetTop = sumLengths(columnBands.map((band) => band.size));
+    const offsetLeft = sumLengths(rowBands.map((band) => band.size));
+
+    let bandTop = ZERO;
+    const columnDtos: TablixHeaderBandDto[] = columnBands.map((band) => {
+      const top = bandTop;
+      bandTop = addLengths(bandTop, band.size);
+      return {
+        size: band.size,
+        cells: band.cells.map((cell) =>
+          cell.content
+            ? this.item(cell.content, {
+                top,
+                left: addLengths(offsetLeft, sumLengths(columns.slice(0, cell.start))),
+                width: sumLengths(columns.slice(cell.start, cell.start + cell.span)),
+                height: band.size,
+              })
+            : null,
+        ),
+      };
+    });
+
+    let bandLeft = ZERO;
+    const rowDtos: TablixHeaderBandDto[] = rowBands.map((band) => {
+      const left = bandLeft;
+      bandLeft = addLengths(bandLeft, band.size);
+      return {
+        size: band.size,
+        cells: band.cells.map((cell) =>
+          cell.content
+            ? this.item(cell.content, {
+                top: addLengths(offsetTop, sumLengths(rows.slice(0, cell.start))),
+                left,
+                width: band.size,
+                height: sumLengths(rows.slice(cell.start, cell.start + cell.span)),
+              })
+            : null,
+        ),
+      };
+    });
+
+    const corner = this.tablixCorner(
+      el.getFirstElementByName('TablixCorner'),
+      columnBands,
+      rowBands,
+    );
+
+    if (columnDtos.length === 0 && rowDtos.length === 0 && corner.length === 0) return undefined;
+    return {
+      offset: { top: offsetTop, left: offsetLeft },
+      columns: columnDtos,
+      rows: rowDtos,
+      corner,
+    };
+  }
+
+  /** Esquina: celda `[banda de columna][banda de fila]`; el tamaño lo dan las bandas. */
+  private tablixCorner(
+    cornerEl: XmlElement | undefined,
+    columnBands: RawHeaderBand[],
+    rowBands: RawHeaderBand[],
+  ): (ItemDto | null)[][] {
+    const cornerRows = elementChildren(
+      cornerEl?.getFirstElementByName('TablixCornerRows'),
+      'TablixCornerRow',
+    );
+    return cornerRows.map((rowEl, row) =>
+      elementChildren(rowEl, 'TablixCornerCell').map((cellEl, col) => {
+        const content = nonSpanChild(cellEl.getFirstElementByName('CellContents'));
+        if (!content) return null;
+        const columnBand = columnBands[row];
+        const rowBand = rowBands[col];
+        return this.item(content, {
+          top: sumLengths(columnBands.slice(0, row).map((band) => band.size)),
+          height: columnBand?.size ?? ZERO,
+          left: sumLengths(rowBands.slice(0, col).map((band) => band.size)),
+          width: rowBand?.size ?? ZERO,
+        });
+      }),
+    );
   }
 
   /**
@@ -548,6 +649,79 @@ const CM_PER_UNIT: Record<LengthUnit, number> = {
 function sumLengths(lengths: Length[]): Length {
   const cm = lengths.reduce((acc, length) => acc + length.value * CM_PER_UNIT[length.unit], 0);
   return { value: Number(cm.toFixed(6)), unit: 'cm' };
+}
+
+function addLengths(a: Length, b: Length): Length {
+  return sumLengths([a, b]);
+}
+
+/* --------------------- cabeceras del Tablix (crudo) ---------------------- */
+
+interface RawHeaderCell {
+  /** Primera columna/fila (índice de hoja) que cubre el miembro. */
+  start: number;
+  /** Columnas/filas que cubre (número de hojas bajo el miembro). */
+  span: number;
+  content: XmlElement | undefined;
+}
+
+interface RawHeaderBand {
+  /** Profundidad en la jerarquía (0 = el miembro más externo). */
+  depth: number;
+  size: Length;
+  cells: RawHeaderCell[];
+}
+
+/**
+ * Bandas `TablixHeader` de una jerarquía, agrupadas por profundidad (los
+ * hermanos comparten banda) y ordenadas de fuera a dentro. El `span` de cada
+ * miembro sale del contador de hojas: cada hoja es una fila/columna del body.
+ */
+function rawHeaderBands(hierarchyEl: XmlElement | undefined): RawHeaderBand[] {
+  const container = hierarchyEl?.getFirstElementByName('TablixMembers');
+  if (!container) return [];
+
+  const bands = new Map<number, RawHeaderBand>();
+  let leaf = 0;
+
+  const walk = (parent: XmlElement, depth: number): void => {
+    for (const member of elementChildren(parent, 'TablixMember')) {
+      const start = leaf;
+      const nested = member.getFirstElementByName('TablixMembers');
+      if (nested) walk(nested, depth + 1);
+      else leaf += 1;
+
+      const header = member.getFirstElementByName('TablixHeader');
+      const size = maybeLength(textOf(header?.getFirstElementByName('Size')));
+      if (!header || !size) continue;
+
+      const band = bands.get(depth) ?? { depth, size, cells: [] };
+      band.cells.push({
+        start,
+        span: leaf - start,
+        content: nonSpanChild(header.getFirstElementByName('CellContents')),
+      });
+      bands.set(depth, band);
+    }
+  };
+
+  walk(container, 0);
+  return [...bands.values()].sort((a, b) => a.depth - b.depth);
+}
+
+/** Primer hijo de `CellContents` que no sea un span (el report item de la celda). */
+function nonSpanChild(contents: XmlElement | undefined): XmlElement | undefined {
+  return elementChildren(contents).find(
+    (child) => !['ColSpan', 'RowSpan', 'Height'].includes(child.tagName),
+  );
+}
+
+function elementChildren(parent: XmlElement | undefined, tagName?: string): XmlElement[] {
+  if (!parent) return [];
+  return parent.children.filter(
+    (child): child is XmlElement =>
+      child instanceof XmlElement && (tagName === undefined || child.tagName === tagName),
+  );
 }
 
 function baseName(filePath: string): string {

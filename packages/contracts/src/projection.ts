@@ -157,6 +157,41 @@ export const tablixMemberSchema: z.ZodType<TablixMemberDto> = z.lazy(() =>
   }),
 );
 
+/** Banda de cabeceras: fila superior (columnas) o columna izquierda (filas). */
+export interface TablixHeaderBandDto {
+  /** Grosor de la banda: alto si es de columna, ancho si es de fila. */
+  size: Length;
+  /** Contenido de cada cabecera de la banda, ya colocado (geometría calculada). */
+  cells: (ItemDto | null)[];
+}
+
+export const tablixHeaderBandSchema: z.ZodType<TablixHeaderBandDto> = z.object({
+  size: lengthSchema,
+  cells: z.array(z.lazy(() => itemSchema).nullable()),
+});
+
+/**
+ * Cabeceras del Tablix, **fuera de la rejilla del body**: bandas de
+ * `TablixMember > TablixHeader` (arriba y a la izquierda) y esquina
+ * (`TablixCorner`). `offset` es lo que hay que desplazar la rejilla.
+ */
+export interface TablixHeadersDto {
+  offset: { top: Length; left: Length };
+  /** Bandas superiores (cabeceras de columna), de la más externa a la interna. */
+  columns: TablixHeaderBandDto[];
+  /** Bandas izquierdas (cabeceras de fila), de la más externa a la interna. */
+  rows: TablixHeaderBandDto[];
+  /** Esquina: `[banda de columna][banda de fila]`. */
+  corner: (ItemDto | null)[][];
+}
+
+export const tablixHeadersSchema: z.ZodType<TablixHeadersDto> = z.object({
+  offset: z.object({ top: lengthSchema, left: lengthSchema }),
+  columns: z.array(tablixHeaderBandSchema),
+  rows: z.array(tablixHeaderBandSchema),
+  corner: z.array(z.array(z.lazy(() => itemSchema).nullable())),
+});
+
 export interface TablixDto extends ItemBaseDto {
   kind: 'tablix';
   body: {
@@ -165,7 +200,8 @@ export interface TablixDto extends ItemBaseDto {
   };
   rowHierarchy: TablixMemberDto[];
   columnHierarchy: TablixMemberDto[];
-  corner?: TablixCellDto | null;
+  /** Presente si el Tablix tiene cabeceras y/o esquina. */
+  headers?: TablixHeadersDto;
 }
 
 export const tablixSchema: z.ZodType<TablixDto> = z.object({
@@ -182,7 +218,7 @@ export const tablixSchema: z.ZodType<TablixDto> = z.object({
   }),
   rowHierarchy: z.array(tablixMemberSchema),
   columnHierarchy: z.array(tablixMemberSchema),
-  corner: tablixCellSchema.nullable().optional(),
+  headers: tablixHeadersSchema.optional(),
 });
 
 export const itemSchema: z.ZodType<ItemDto> = z.lazy(() =>

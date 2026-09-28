@@ -20,8 +20,9 @@ export function tablixGrid(tablix: TablixDto): {
   horizontal: GridSegment[];
 } {
   const layout = tablixLayout(tablix);
-  const columnEdges = edges(layout.columns);
-  const rowEdges = edges(layout.rows);
+  // Las fronteras de la rejilla arrancan tras las cabeceras (offset).
+  const columnEdges = edges(layout.columns, layout.offset.x);
+  const rowEdges = edges(layout.rows, layout.offset.y);
   const { cells } = layout;
 
   const coversRow = (cell: TablixCellBox, row: number): boolean =>
@@ -53,10 +54,10 @@ export function tablixGrid(tablix: TablixDto): {
   return { vertical, horizontal };
 }
 
-/** [0, acumulados…]: borde inicial de cada columna/fila. */
-function edges(values: number[]): number[] {
-  const result = [0];
-  let total = 0;
+/** [start, acumulados…]: borde inicial de cada columna/fila (start = cabeceras). */
+function edges(values: number[], start: number): number[] {
+  const result = [round4(start)];
+  let total = start;
   for (const value of values) {
     total += value;
     result.push(round4(total));

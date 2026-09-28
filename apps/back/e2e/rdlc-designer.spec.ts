@@ -1602,3 +1602,44 @@ test('la etiqueta del run se edita desde el panel de propiedades', async () => {
   await page.keyboard.press('Control+z');
   await expect.poll(() => itemLabel('Textbox4')).toBe('BTCNifCifLbl');
 });
+
+test('las cabeceras del Tablix (TablixHeader/TablixCorner) se proyectan y seleccionan', async () => {
+  // Tablix7: cabecera de fila del grupo (VATIdentifier…) + 2 de columna + esquina.
+  await selectItemViaPalette('Tablix7');
+
+  // Los 4 textboxes ya se pintan en el lienzo (antes no se proyectaban).
+  for (const id of ['Textbox72', 'Textbox73', 'Textbox75', 'VATIdentifier_VatAmountLine']) {
+    await expect
+      .poll(
+        () =>
+          page.evaluate((nodeId) => {
+            const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+              findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+            };
+            return Boolean(stage.findOne((candidate) => candidate.id() === nodeId));
+          }, id),
+        { message: `${id} debe estar en el lienzo` },
+      )
+      .toBe(true);
+  }
+
+  // El marco mide cabeceras + rejilla: 7.85172 × 1.2 cm ≈ 296.7 × 45.4 px de papel.
+  const selection = await page.evaluate(
+    () =>
+      (window as never as Record<string, unknown>)['__rdlcSelection'] as {
+        id: string;
+        rect: { width: number; height: number };
+      } | null,
+  );
+  expect(selection?.id).toBe('Tablix7');
+  expect(selection!.rect.width).toBeGreaterThan(290);
+  expect(selection!.rect.height).toBeGreaterThan(40);
+
+  // Click en la cabecera de fila (grupo): selecciona su textbox, anclado a la celda.
+  const header = await nodeCenter('VATIdentifier_VatAmountLine');
+  expect(header).not.toBeNull();
+  await page.mouse.click(header!.x, header!.y);
+  await expect.poll(selectedId).toBe('VATIdentifier_VatAmountLine');
+  await expect(page.getByText('La celda fija la posición y el tamaño del contenido')).toBeVisible();
+  await expect(page.getByLabel('Nombre del elemento')).toHaveValue('VATIdentifier_VatAmountLine');
+});
