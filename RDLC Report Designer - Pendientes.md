@@ -45,7 +45,21 @@ de fila]`) y un `headers.offset` que desplaza el body. En `Tablix7` de
 > - **F2.b · Gestión de grupos de fila** (siguiente): `setGroupExpression` (editar la
 >   expresión del grupo; lo más útil para tocar informes de BC, que ya traen los
 >   grupos), `addRowGroup` / `deleteRowGroup` (crear/borrar) y decidir si la cabecera
->   del grupo va al body o a `TablixHeader` (BC usa `TablixHeader`).
+>   del grupo va al body o a `TablixHeader` (BC usa `TablixHeader`). Lecciones del
+>   ida/vuelta con Report Builder (fichero `SalesInvoiceESP` editado con RB):
+>   - Un grupo puede ser **miembro hoja** (sin `TablixMembers`): es la fila de detalle
+>     que se repite (caso real: `Tablix7`, grupo `=Fields!VATPct_VatAmountLine.Value`
+>     como hoja, con `VATIdentifier_VatAmountLine` en su primera celda). En el árbol
+>     hay que clasificarlo por **`expression`**, no por tener hijos: hoy sale como
+>     fila con `↳` en vez de con el icono de capas.
+>   - RB puede **aplanar** las cabeceras al tocar la tabla: quita `TablixHeader`/
+>     `TablixCorner` y refluye su contenido a **filas/celdas del body** (la esquina
+>     `Textbox72` pasó a `Textbox83` en la fila estática de rótulos). Al gestionar
+>     grupos hay que **preservar `TablixHeader`** si existe (no convertirlo en fila
+>     sin pedirlo) y no asumir que un grupo trae cabecera fuera de la rejilla.
+>   - La inferencia de **totales** es heurística: el `=Sum(...)` puede vivir en la
+>     `TablixHeader` del grupo o en su fila de detalle, no solo en una fila estática
+>     adyacente (en ese caso no hay Σ que mostrar, y está bien).
 > - **F2.c · Conveniencia de totales** (opcional): los totales **no tienen XML propio**:
 >   son filas estáticas con agregados (`LinesTable2`, fila 5: `=Sum(...)`) y ya se pueden
 >   hacer a mano. Un botón «Añadir total antes/después» que inserte la fila y precargue
