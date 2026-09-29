@@ -1,8 +1,9 @@
-import type { RdlcCommand } from '@rdlc-designer/contracts';
+import type { RdlcCommand, ScopeRef } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import { clampPosition } from '../geometry/geometry.js';
 import type { Length } from '../style/Length.js';
+import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
 import { createReportItem } from './itemFactory.js';
 import { resolveScope } from './scope.js';
@@ -48,10 +49,17 @@ export function applyInsertItem(
     return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${name}'`));
   }
 
+  const occupied = occupiedCell(container, command.scope);
+  if (occupied) return left(CommandRejectedError.create(occupied));
+
   // Un item soltado cerca del borde no debe salirse de su banda: se normaliza la
-  // posición igual que hace el drag (`clampPosition`).
+  // posición igual que hace el drag (`clampPosition`). En contenedores que no
+  // son bandas (rectángulo/celda/cabecera/esquina) el item nace donde se pide.
   const regionBounds =
-    command.scope.kind === 'rectangle' || command.scope.kind === 'tablixCell'
+    command.scope.kind === 'rectangle' ||
+    command.scope.kind === 'tablixCell' ||
+    command.scope.kind === 'tablixHeader' ||
+    command.scope.kind === 'tablixCorner'
       ? undefined
       : boundsForRegion(ctx, command.scope.kind);
   const position = clampPosition(
@@ -93,4 +101,19 @@ function boundsForRegion(
   if (region === 'pageHeader') return bounds.header;
   if (region === 'pageFooter') return bounds.footer;
   return bounds.body;
+}
+
+/**
+ * Una celda de cabecera o esquina admite **un** report item (como en RB).
+ * Devuelve el motivo si ya tiene contenido (ignorando `ColSpan`/`RowSpan`).
+ */
+export function occupiedCell(container: RdlcNode, scope: ScopeRef): string | undefined {
+  if (scope.kind !== 'tablixHeader' && scope.kind !== 'tablixCorner') return undefined;
+  const hasContent = container
+    .children()
+    .some((child) => !['ColSpan', 'RowSpan', 'Height'].includes(child.tagName));
+  if (!hasContent) return undefined;
+  return scope.kind === 'tablixHeader'
+    ? 'La celda de cabecera ya tiene contenido'
+    : 'La celda de la esquina ya tiene contenido';
 }

@@ -305,6 +305,11 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
               })
             : null,
         ),
+        members: band.cells.map((cell) => ({
+          path: cell.path,
+          start: cell.start,
+          span: cell.span,
+        })),
       };
     });
 
@@ -324,6 +329,11 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
               })
             : null,
         ),
+        members: band.cells.map((cell) => ({
+          path: cell.path,
+          start: cell.start,
+          span: cell.span,
+        })),
       };
     });
 
@@ -748,6 +758,8 @@ function addLengths(a: Length, b: Length): Length {
 /* --------------------- cabeceras del Tablix (crudo) ---------------------- */
 
 interface RawHeaderCell {
+  /** `path` del miembro en su jerarquía (índices entre hermanos). */
+  path: number[];
   /** Primera columna/fila (índice de hoja) que cubre el miembro. */
   start: number;
   /** Columnas/filas que cubre (número de hojas bajo el miembro). */
@@ -774,28 +786,30 @@ function rawHeaderBands(hierarchyEl: XmlElement | undefined): RawHeaderBand[] {
   const bands = new Map<number, RawHeaderBand>();
   let leaf = 0;
 
-  const walk = (parent: XmlElement, depth: number): void => {
-    for (const member of elementChildren(parent, 'TablixMember')) {
+  const walk = (parent: XmlElement, depth: number, path: number[]): void => {
+    elementChildren(parent, 'TablixMember').forEach((member, index) => {
+      const memberPath = [...path, index];
       const start = leaf;
       const nested = member.getFirstElementByName('TablixMembers');
-      if (nested) walk(nested, depth + 1);
+      if (nested) walk(nested, depth + 1, memberPath);
       else leaf += 1;
 
       const header = member.getFirstElementByName('TablixHeader');
       const size = maybeLength(textOf(header?.getFirstElementByName('Size')));
-      if (!header || !size) continue;
+      if (!header || !size) return;
 
       const band = bands.get(depth) ?? { depth, size, cells: [] };
       band.cells.push({
+        path: memberPath,
         start,
         span: leaf - start,
         content: nonSpanChild(header.getFirstElementByName('CellContents')),
       });
       bands.set(depth, band);
-    }
+    });
   };
 
-  walk(container, 0);
+  walk(container, 0, []);
   return [...bands.values()].sort((a, b) => a.depth - b.depth);
 }
 

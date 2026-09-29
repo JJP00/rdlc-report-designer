@@ -1,6 +1,13 @@
 import type { ItemDto, ScopeRef } from '@rdlc-designer/contracts';
 import { sortByZIndex, tablixHeaderItems, toCm } from './projection';
-import { findCellAt, tablixLayout, type CellRef } from './tablix';
+import {
+  findCellAt,
+  tablixHeaderSlots,
+  tablixLayout,
+  type CellRef,
+  type TablixCornerSlotBox,
+  type TablixHeaderSlotBox,
+} from './tablix';
 
 /**
  * Hit-test del lienzo en coordenadas de la proyección (cm, relativas a la
@@ -31,6 +38,11 @@ export interface CanvasHit {
    * una selección de celdas activa.
    */
   cells?: CellRef[];
+  /**
+   * Caja (cm) de un hueco de cabecera/esquina: al insertar ahí, el item nace
+   * con ese tamaño y en su origen (como en una celda).
+   */
+  slot?: { width: number; height: number };
 }
 
 export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRef): CanvasHit {
@@ -44,13 +56,36 @@ export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRe
     const relY = point.y - toCm(candidate.top);
 
     // Un Tablix se resuelve por celdas: el contenido de la celda manda. Las
-    // cabeceras (fuera de la rejilla) van antes: su contenido es un item normal.
+    // cabeceras (fuera de la rejilla) van antes: su contenido es un item normal
+    // y su **scope es la propia cabecera/esquina** (permite insertar/pegar en
+    // los huecos vacíos y pegar en los ocupados se rechaza en el dominio).
     if (candidate.kind === 'tablix') {
       const header = tablixHeaderItems(candidate).find((entry) =>
         contains(entry, { x: relX, y: relY }),
       );
       if (header) {
+        const slot = slotOfContent(candidate, header.id);
+        if (slot) {
+          return {
+            item: header,
+            scope: slotScope(candidate.id, slot),
+            index: 0,
+            point: { x: relX - slot.x, y: relY - slot.y },
+            slot: { width: slot.width, height: slot.height },
+          };
+        }
         return { item: header, scope: fallback, index: items.length, point };
+      }
+
+      // Huecos vacíos de cabecera/esquina: destinos de inserción (G8).
+      const empty = emptySlotAt(candidate, relX, relY);
+      if (empty) {
+        return {
+          scope: slotScope(candidate.id, empty),
+          index: 0,
+          point: { x: relX - empty.x, y: relY - empty.y },
+          slot: { width: empty.width, height: empty.height },
+        };
       }
 
       const cell = findCellAt(candidate, relX, relY);
@@ -92,6 +127,38 @@ export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRe
 
   // Vacío: se inserta al final de este contenedor.
   return { scope: fallback, index: items.length, point };
+}
+
+type AnySlot = TablixHeaderSlotBox | TablixCornerSlotBox;
+
+/** Hueco de cabecera/esquina que contiene ese item. */
+function slotOfContent(
+  tablix: Extract<ItemDto, { kind: 'tablix' }>,
+  id: string,
+): AnySlot | undefined {
+  const { headers, corners } = tablixHeaderSlots(tablix);
+  return [...headers, ...corners].find((slot) => slot.content?.id === id);
+}
+
+/** Primer hueco **vacío** (cabecera o esquina) bajo el punto. */
+function emptySlotAt(
+  tablix: Extract<ItemDto, { kind: 'tablix' }>,
+  x: number,
+  y: number,
+): AnySlot | undefined {
+  const { headers, corners } = tablixHeaderSlots(tablix);
+  return [...headers, ...corners].find((slot) => !slot.content && containsPoint(slot, x, y));
+}
+
+function containsPoint(slot: AnySlot, x: number, y: number): boolean {
+  return x >= slot.x && x <= slot.x + slot.width && y >= slot.y && y <= slot.y + slot.height;
+}
+
+function slotScope(id: string, slot: AnySlot): ScopeRef {
+  if ('path' in slot) {
+    return { kind: 'tablixHeader', id, axis: slot.axis, path: slot.path };
+  }
+  return { kind: 'tablixCorner', id, row: slot.row, col: slot.col };
 }
 
 function contains(item: ItemDto, point: PointCm): boolean {

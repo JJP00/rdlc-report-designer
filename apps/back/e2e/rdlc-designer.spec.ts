@@ -113,6 +113,10 @@ interface ItemLike {
     columns: { value: number; unit: string }[];
     rows: { height: { value: number; unit: string }; cells: (CellLike | null)[] }[];
   };
+  headers?: {
+    columns: { size: { value: number; unit: string }; cells: (ItemLike | null)[] }[];
+    rows: { size: { value: number; unit: string }; cells: (ItemLike | null)[] }[];
+  };
   children?: ItemLike[];
 }
 
@@ -363,6 +367,19 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
     if (found) return found.hidden;
   }
   return undefined;
+}
+
+/** Id del contenido (si lo hay) de una celda de banda de cabecera. */
+async function headerCellId(
+  tablixId: string,
+  axis: 'column' | 'row',
+  band: number,
+  cell = 0,
+): Promise<string | undefined> {
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, tablixId);
+  const bands = axis === 'column' ? tablix?.headers?.columns : tablix?.headers?.rows;
+  return bands?.[band]?.cells[cell]?.id;
 }
 
 /** true si el item (o algún descendiente suyo) tiene ese id. */
@@ -1774,6 +1791,28 @@ test('el panel edita los bordes por lado y el lienzo los pinta', async () => {
     .poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style)
     .toBe('None');
   await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
+});
+
+test('una cabecera vacía recibe un item insertado (y el undo lo quita)', async () => {
+  // Textbox73 vive en la cabecera de columna 1 de Tablix7.
+  await selectItemViaPalette('Textbox73');
+  const point = await nodeCenter('Textbox73');
+  expect(point).not.toBeNull();
+
+  // Se libera la celda (el corpus no trae huecos de cabecera).
+  await page.keyboard.press('Delete');
+  await expect.poll(() => headerCellId('Tablix7', 'column', 0)).toBeUndefined();
+
+  // Click derecho sobre el hueco: «Insertar» está disponible y el item nace ahí.
+  await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Insertar' }).click();
+  await page.getByRole('menuitem', { name: 'Textbox' }).click();
+
+  await expect.poll(() => headerCellId('Tablix7', 'column', 0)).toBeDefined();
+
+  // Un solo undo quita el item insertado (el borrado previo es otro paso).
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => headerCellId('Tablix7', 'column', 0)).toBeUndefined();
 });
 
 test('arrastrar un textbox a otro contenedor lo reparenta (con undo)', async () => {

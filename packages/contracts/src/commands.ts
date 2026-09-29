@@ -24,6 +24,21 @@ export const scopeRefSchema = z.discriminatedUnion('kind', [
     row: z.number().int().nonnegative(),
     col: z.number().int().nonnegative(),
   }),
+  /** Celda de una cabecera de miembro (`TablixMember > TablixHeader`). */
+  z.object({
+    kind: z.literal('tablixHeader'),
+    id: z.string().min(1),
+    axis: z.enum(['row', 'column']),
+    /** Índices de `TablixMember` desde la raíz de su jerarquía. */
+    path: z.array(z.number().int().nonnegative()).min(1),
+  }),
+  /** Celda de la esquina (`TablixCorner`): fila/celda en orden del XML. */
+  z.object({
+    kind: z.literal('tablixCorner'),
+    id: z.string().min(1),
+    row: z.number().int().nonnegative(),
+    col: z.number().int().nonnegative(),
+  }),
 ]);
 export type ScopeRef = z.infer<typeof scopeRefSchema>;
 

@@ -181,17 +181,31 @@ export const tablixMemberSchema: z.ZodType<TablixMemberDto> = z.lazy(() =>
   }),
 );
 
+/** Miembro al que pertenece una celda de banda (para insertar items). */
+export const tablixHeaderMemberSchema = z.object({
+  /** `path` del miembro en su jerarquía (mismo formato que los comandos). */
+  path: z.array(z.number().int().nonnegative()),
+  /** Primera hoja (fila/columna) que cubre. */
+  start: z.number().int().nonnegative(),
+  /** Hojas que cubre. */
+  span: z.number().int().positive(),
+});
+export type TablixHeaderMemberDto = z.infer<typeof tablixHeaderMemberSchema>;
+
 /** Banda de cabeceras: fila superior (columnas) o columna izquierda (filas). */
 export interface TablixHeaderBandDto {
   /** Grosor de la banda: alto si es de columna, ancho si es de fila. */
   size: Length;
   /** Contenido de cada cabecera de la banda, ya colocado (geometría calculada). */
   cells: (ItemDto | null)[];
+  /** Miembro de cada celda (mismo orden que `cells`). */
+  members?: TablixHeaderMemberDto[];
 }
 
 export const tablixHeaderBandSchema: z.ZodType<TablixHeaderBandDto> = z.object({
   size: lengthSchema,
   cells: z.array(z.lazy(() => itemSchema).nullable()),
+  members: z.array(tablixHeaderMemberSchema).optional(),
 });
 
 /**

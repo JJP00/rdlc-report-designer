@@ -2,6 +2,7 @@ import type { ScopeRef } from '@rdlc-designer/contracts';
 import { childOrCreate } from '../geometry/geometry.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext } from './CommandContext.js';
+import { memberAt, tablixHierarchy } from './tablixParts.js';
 
 /**
  * Resuelve el contenedor real de un scope: siempre devuelve el nodo donde se
@@ -23,6 +24,12 @@ export function resolveScope(ctx: CommandContext, scope: ScopeRef): RdlcNode | u
       const cell = tablixCellAt(ctx, scope);
       return cell ? childOrCreate(cell, 'CellContents') : undefined;
     }
+    // Cabeceras y esquina: la `CellContents` tiene que existir (si el miembro
+    // no tiene `TablixHeader`/esquina, el scope no resuelve y el comando
+    // rechaza con motivo; crear la cabecera es otra operación).
+    case 'tablixHeader':
+    case 'tablixCorner':
+      return findScope(ctx, scope);
   }
 }
 
@@ -43,6 +50,21 @@ export function findScope(ctx: CommandContext, scope: ScopeRef): RdlcNode | unde
       return ctx.index.get(scope.id)?.child('ReportItems');
     case 'tablixCell':
       return tablixCellAt(ctx, scope)?.child('CellContents');
+    case 'tablixHeader': {
+      const tablix = ctx.index.get(scope.id);
+      const members = tablix ? tablixHierarchy(tablix, scope.axis) : undefined;
+      const member = members ? memberAt(members, scope.path) : undefined;
+      return member?.child('TablixHeader')?.child('CellContents');
+    }
+    case 'tablixCorner': {
+      const tablix = ctx.index.get(scope.id);
+      const row = tablix
+        ?.child('TablixCorner')
+        ?.child('TablixCornerRows')
+        ?.children('TablixCornerRow')[scope.row];
+      const cell = row?.children('TablixCornerCell')[scope.col];
+      return cell?.child('CellContents');
+    }
   }
 }
 

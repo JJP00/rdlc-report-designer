@@ -25,13 +25,15 @@ export function insertSpecAt(
   projection: ProjectionDto,
 ): NewItemSpec {
   const size = NEW_ITEM_SIZES[kind];
-  const cell = cellBoxOfScope(projection, hit);
+  // Dentro de una celda o de un hueco de cabecera/esquina, el item ocupa el
+  // hueco (origen 0,0 y su tamaño); fuera, nace en el punto del cursor.
+  const box = hit.slot ?? cellBoxOfScope(projection, hit);
   return {
     kind,
-    top: cm(cell ? 0 : round4(hit.point.y)),
-    left: cm(cell ? 0 : round4(hit.point.x)),
-    width: cell ? cm(round4(cell.width)) : size.width,
-    height: cell ? cm(round4(cell.height)) : size.height,
+    top: cm(box ? 0 : round4(hit.point.y)),
+    left: cm(box ? 0 : round4(hit.point.x)),
+    width: box ? cm(round4(box.width)) : size.width,
+    height: box ? cm(round4(box.height)) : size.height,
     ...(kind === 'textbox' ? { text: '' } : {}),
   };
 }

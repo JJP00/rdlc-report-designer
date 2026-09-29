@@ -237,6 +237,105 @@ export function tablixLayout(tablix: TablixDto): TablixLayout {
   };
 }
 
+/** Hueco de una banda de cabecera (miembro con `TablixHeader`), ocupado o no. */
+export interface TablixHeaderSlotBox {
+  axis: 'row' | 'column';
+  path: number[];
+  /** Rect en cm relativo al origen del Tablix. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  content: ItemDto | null;
+}
+
+/** Hueco de la esquina (`TablixCorner`), ocupado o no. */
+export interface TablixCornerSlotBox {
+  row: number;
+  col: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  content: ItemDto | null;
+}
+
+export interface TablixHeaderSlots {
+  headers: TablixHeaderSlotBox[];
+  corners: TablixCornerSlotBox[];
+}
+
+/**
+ * Cajas de todas las celdas de cabecera y esquina (cm, relativas al Tablix),
+ * incluidas las **vacías**: son los destinos de «Insertar» (G8). La geometría
+ * sale del `members` de cada banda (`path`/`start`/`span`) y de las medidas de
+ * las bandas, igual que en la proyección.
+ */
+export function tablixHeaderSlots(tablix: TablixDto): TablixHeaderSlots {
+  const headers = tablix.headers;
+  if (!headers) return { headers: [], corners: [] };
+
+  const columns = tablix.body.columns.map(toCm);
+  const rows = tablix.body.rows.map((row) => toCm(row.height));
+  const offsetLeft = sum(headers.rows.map((band) => toCm(band.size)));
+  const offsetTop = sum(headers.columns.map((band) => toCm(band.size)));
+
+  const headerSlots: TablixHeaderSlotBox[] = [];
+
+  let bandTop = 0;
+  for (const band of headers.columns) {
+    band.members?.forEach((member, index) => {
+      headerSlots.push({
+        axis: 'column',
+        path: member.path,
+        x: offsetLeft + sum(columns.slice(0, member.start)),
+        y: bandTop,
+        width: sum(columns.slice(member.start, member.start + member.span)),
+        height: toCm(band.size),
+        content: band.cells[index] ?? null,
+      });
+    });
+    bandTop += toCm(band.size);
+  }
+
+  let bandLeft = 0;
+  for (const band of headers.rows) {
+    band.members?.forEach((member, index) => {
+      headerSlots.push({
+        axis: 'row',
+        path: member.path,
+        x: bandLeft,
+        y: offsetTop + sum(rows.slice(0, member.start)),
+        width: toCm(band.size),
+        height: sum(rows.slice(member.start, member.start + member.span)),
+        content: band.cells[index] ?? null,
+      });
+    });
+    bandLeft += toCm(band.size);
+  }
+
+  const corners: TablixCornerSlotBox[] = [];
+  let cornerTop = 0;
+  headers.columns.forEach((columnBand, row) => {
+    let cornerLeft = 0;
+    headers.rows.forEach((rowBand, col) => {
+      corners.push({
+        row,
+        col,
+        x: cornerLeft,
+        y: cornerTop,
+        width: toCm(rowBand.size),
+        height: toCm(columnBand.size),
+        content: headers.corner[row]?.[col] ?? null,
+      });
+      cornerLeft += toCm(rowBand.size);
+    });
+    cornerTop += toCm(columnBand.size);
+  });
+
+  return { headers: headerSlots, corners };
+}
+
 /** Celda que contiene el punto (cm, relativo al Tablix). */
 export function findCellAt(tablix: TablixDto, x: number, y: number): TablixCellBox | undefined {
   const layout = tablixLayout(tablix);

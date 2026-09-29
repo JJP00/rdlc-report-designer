@@ -2,6 +2,7 @@ import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import { insertCloneAt, pastedGeometry } from './cloneInsert.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
+import { occupiedCell } from './insertItem.js';
 import type { InsertCloneCommand } from './internal.js';
 import { resolveScope } from './scope.js';
 
@@ -18,6 +19,9 @@ export function applyInsertClone(
   if (!container) {
     return left(CommandRejectedError.create('No se encontró el contenedor del scope'));
   }
+
+  const occupied = occupiedCell(container, command.scope);
+  if (occupied) return left(CommandRejectedError.create(occupied));
 
   const { name, clone } = insertCloneAt(ctx, container, command.source, command.index);
 

@@ -33,6 +33,7 @@ import {
   selectionCells,
   selectionCols,
   selectionRows,
+  tablixHeaderSlots,
   tablixLayout,
   type SelectedCell,
 } from '@/lib/tablix';
@@ -148,6 +149,10 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     projection && menuHit?.item
       ? (findSiblings(projection, menuHit.item.id)?.length ?? 0) > 1
       : false;
+  // Una cabecera/esquina ocupada no admite más items (como en RB): sin insertar.
+  // Ojo: el hit de un hueco vacío puede devolver el rectángulo contenedor como
+  // `item`; lo que manda es el **contenido del hueco** en la proyección.
+  const headerOccupied = isHeaderSlotOccupied(projection, menuHit);
   const selection =
     cellScope && selectedCell && selectedCell.id === cellScope.id ? selectedCell : null;
   const menuTablix = cellScope && projection ? findItem(projection, cellScope.id) : undefined;
@@ -206,7 +211,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
 
         <ItemActionsMenu
           item={menuHit?.item}
-          hasClipboard={hasClipboard}
+          hasClipboard={hasClipboard && !headerOccupied}
           onCut={onCut}
           onCopy={onCopy}
           onPaste={() => {
@@ -221,22 +226,26 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
           onSendToBack={onSendToBack}
         />
 
-        <ContextMenuSeparator />
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            {INSERT_KINDS.map((kind) => (
-              <ContextMenuItem
-                key={kind}
-                onSelect={() => {
-                  if (menuHit) onInsertAt(kind, menuHit);
-                }}
-              >
-                {itemKindLabel(kind)}
-              </ContextMenuItem>
-            ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+        {!headerOccupied ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                {INSERT_KINDS.map((kind) => (
+                  <ContextMenuItem
+                    key={kind}
+                    onSelect={() => {
+                      if (menuHit) onInsertAt(kind, menuHit);
+                    }}
+                  >
+                    {itemKindLabel(kind)}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </>
+        ) : null}
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -315,6 +324,28 @@ function InsertRowColumnMenu({
       </ContextMenuSubContent>
     </ContextMenuSub>
   );
+}
+
+/** true si el hit cae en una celda de cabecera/esquina **con contenido**. */
+function isHeaderSlotOccupied(projection: ProjectionDto | null, hit: CanvasHit | null): boolean {
+  if (!projection || !hit) return false;
+  const { scope } = hit;
+  if (scope.kind !== 'tablixHeader' && scope.kind !== 'tablixCorner') return false;
+
+  const tablix = findItem(projection, scope.id);
+  if (tablix?.kind !== 'tablix') return false;
+  const slots = tablixHeaderSlots(tablix);
+
+  const slot =
+    scope.kind === 'tablixHeader'
+      ? slots.headers.find(
+          (entry) =>
+            entry.axis === scope.axis &&
+            entry.path.length === scope.path.length &&
+            entry.path.every((value, index) => value === scope.path[index]),
+        )
+      : slots.corners.find((entry) => entry.row === scope.row && entry.col === scope.col);
+  return slot?.content !== null && slot?.content !== undefined;
 }
 
 function cellScopeForMenu(

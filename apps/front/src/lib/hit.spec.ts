@@ -26,6 +26,45 @@ function box(
 
 const fallback = { kind: 'body' } as const;
 
+/**
+ * Tablix con cabecera de columna ocupada (Textbox73), cabecera de fila vacía y
+ * esquina vacía: los tres huecos de G8.
+ */
+function tablixWithHeaders(): TablixDto {
+  return {
+    kind: 'tablix',
+    id: 'T7',
+    top: { value: 0, unit: 'cm' },
+    left: { value: 0, unit: 'cm' },
+    width: { value: 4, unit: 'cm' },
+    height: { value: 2, unit: 'cm' },
+    body: {
+      columns: [{ value: 4, unit: 'cm' }],
+      rows: [{ height: { value: 2, unit: 'cm' }, cells: [{ content: null }] }],
+    },
+    rowHierarchy: [],
+    columnHierarchy: [],
+    headers: {
+      offset: { top: { value: 0.6, unit: 'cm' }, left: { value: 0.5, unit: 'cm' } },
+      columns: [
+        {
+          size: { value: 0.6, unit: 'cm' },
+          cells: [{ ...box('Textbox73', 0.5, 0, 4, 0.6) }],
+          members: [{ path: [0], start: 0, span: 1 }],
+        },
+      ],
+      rows: [
+        {
+          size: { value: 0.5, unit: 'cm' },
+          cells: [null],
+          members: [{ path: [0], start: 0, span: 1 }],
+        },
+      ],
+      corner: [[null]],
+    },
+  };
+}
+
 describe('hitTestItems', () => {
   it('a igualdad de ZIndex, el último hermano del XML gana el hit', () => {
     const items = [box('Fondo', 0, 0, 5, 5), box('Encima', 0, 0, 5, 5)];
@@ -259,6 +298,28 @@ describe('hitTestItems', () => {
       { id: 'Externo', row: 0, col: 0 },
       { id: 'Interno', row: 0, col: 0 },
     ]);
+  });
+
+  it('la cabecera ocupada devuelve su scope (para pegar/propiedades)', () => {
+    const hit = hitTestItems([tablixWithHeaders()], { x: 1, y: 0.3 }, fallback);
+    expect(hit.item?.id).toBe('Textbox73');
+    expect(hit.scope).toEqual({ kind: 'tablixHeader', id: 'T7', axis: 'column', path: [0] });
+    expect(hit.slot).toEqual({ width: 4, height: 0.6 });
+  });
+
+  it('un hueco vacío de cabecera es scope de inserción con su caja', () => {
+    const hit = hitTestItems([tablixWithHeaders()], { x: 0.25, y: 1 }, fallback);
+    expect(hit.item).toBeUndefined();
+    expect(hit.scope).toEqual({ kind: 'tablixHeader', id: 'T7', axis: 'row', path: [0] });
+    expect(hit.slot).toEqual({ width: 0.5, height: 2 });
+    expect(hit.point).toEqual({ x: 0.25, y: 0.4 });
+  });
+
+  it('un hueco vacío de la esquina es scope de inserción', () => {
+    const hit = hitTestItems([tablixWithHeaders()], { x: 0.25, y: 0.3 }, fallback);
+    expect(hit.item).toBeUndefined();
+    expect(hit.scope).toEqual({ kind: 'tablixCorner', id: 'T7', row: 0, col: 0 });
+    expect(hit.slot).toEqual({ width: 0.5, height: 0.6 });
   });
 
   it('un item anidado gana en el hit aunque el rectángulo esté detrás', () => {
