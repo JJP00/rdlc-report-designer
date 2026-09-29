@@ -170,6 +170,61 @@ describe('F1 · insertItem', () => {
   });
 });
 
+describe('F2 · insertItem tablix', () => {
+  it('crea la rejilla 1×1 con textbox, ambas jerarquías y undo byte-exacto', () => {
+    const { xml, doc, index } = open('PalletOutput.rdlc');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'insertItem',
+        scope: { kind: 'body' },
+        index: 0,
+        item: {
+          kind: 'tablix',
+          top: { value: 1, unit: 'cm' },
+          left: { value: 2, unit: 'cm' },
+          width: { value: 8, unit: 'cm' },
+          height: { value: 2.5, unit: 'cm' },
+        },
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const id = applied.value.createdId;
+    expect(id).toMatch(/^Tablix\d+$/);
+    if (!id) return;
+
+    const output = adapter.serialize(doc);
+    const inserted = output.slice(output.indexOf(`Name="${id}"`));
+    expect(inserted).toContain('<TablixBody>');
+    expect(inserted).toContain('<TablixColumnHierarchy>');
+    expect(inserted).toContain('<TablixRowHierarchy>');
+    expect(inserted).toContain('<Width>8cm</Width>');
+
+    // La celda nace con un Textbox con nombre propio (libre y distinto).
+    const rebuilt = DocumentIndex.build(doc.root);
+    const tablix = rebuilt.get(id);
+    const cellTextbox = tablix
+      ?.child('TablixBody')
+      ?.child('TablixRows')
+      ?.child('TablixRow')
+      ?.child('TablixCells')
+      ?.child('TablixCell')
+      ?.child('CellContents')
+      ?.child('Textbox');
+    const textboxName = cellTextbox?.attribute('Name');
+    expect(textboxName).toMatch(/^Textbox\d+$/);
+    expect(textboxName).not.toBe(id);
+    expect(rebuilt.get(textboxName!)).toBeDefined();
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+});
+
 describe('F1 · duplicateItem', () => {
   it('clona el subárbol exacto con nombre nuevo y el undo lo elimina', () => {
     const { xml, doc, index } = open('SalesInvoiceESP.rdlc');

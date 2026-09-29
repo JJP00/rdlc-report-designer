@@ -9,6 +9,7 @@ import {
   Save,
   Settings2,
   Square,
+  Table,
   Trash2,
   Type,
   Undo2,
@@ -121,6 +122,13 @@ export function EditorToolbar({
           kind="image"
           label="Insertar imagen"
           icon={<Image />}
+          disabled={!hasDocument}
+          onInsert={onInsert}
+        />
+        <InsertButton
+          kind="tablix"
+          label="Insertar tabla (Tablix)"
+          icon={<Table />}
           disabled={!hasDocument}
           onInsert={onInsert}
         />

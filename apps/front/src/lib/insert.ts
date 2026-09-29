@@ -14,6 +14,9 @@ export const NEW_ITEM_SIZES: Record<NewItemSpec['kind'], { width: Length; height
   rectangle: { width: { value: 5, unit: 'cm' }, height: { value: 1, unit: 'cm' } },
   line: { width: { value: 4, unit: 'cm' }, height: { value: 0, unit: 'cm' } },
   image: { width: { value: 3, unit: 'cm' }, height: { value: 2, unit: 'cm' } },
+  // Un Tablix nace 1×1; con 2,5 cm de alto hay sitio para su primera fila y
+  // para añadir una cabecera sin reescalar.
+  tablix: { width: { value: 8, unit: 'cm' }, height: { value: 2.5, unit: 'cm' } },
 };
 
 export function insertSpecAt(

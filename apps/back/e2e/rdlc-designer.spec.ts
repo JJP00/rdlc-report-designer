@@ -362,6 +362,32 @@ test('abre el informe y pinta el lienzo', async () => {
   await expect(page.getByText(/\d+ elementos ·/)).toBeVisible();
 });
 
+test('inserta un Tablix nuevo desde la toolbar (1×1 con celda) y el undo lo quita', async () => {
+  const before = await projection();
+  const idsBefore = new Set(before.page.body.items.map((item) => item.id));
+
+  await page.getByRole('button', { name: 'Insertar tabla (Tablix)' }).click();
+
+  await expect
+    .poll(async () => (await projection()).page.body.items.length, { message: 'nace el Tablix' })
+    .toBe(before.page.body.items.length + 1);
+
+  const created = (await projection()).page.body.items.find((item) => !idsBefore.has(item.id));
+  expect(created?.kind).toBe('tablix');
+  expect(created?.body?.columns).toHaveLength(1);
+  expect(created?.body?.rows).toHaveLength(1);
+  expect(created?.body?.rows[0]?.cells).toHaveLength(1);
+  expect(created?.rowHierarchy).toHaveLength(1);
+  expect(created?.columnHierarchy).toHaveLength(1);
+  // La celda nace con un textbox dentro (seleccionable, no muerta).
+  expect(created?.body?.rows[0]?.cells[0]?.content?.kind).toBe('textbox');
+
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => (await projection()).page.body.items.length, { message: 'el undo lo quita' })
+    .toBe(before.page.body.items.length);
+});
+
 test('ningún color del lienzo es una expresión RDL (no se pintan en negro)', async () => {
   const offenders = await page.evaluate(() => {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {

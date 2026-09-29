@@ -9,6 +9,7 @@ import {
   Save,
   Settings2,
   Square,
+  Table,
   Type,
   Undo2,
   Variable,
@@ -51,6 +52,7 @@ const ACTION_ICONS: Record<PaletteActionId, ReactNode> = {
   'insert:rectangle': <Square />,
   'insert:line': <Minus />,
   'insert:image': <Image />,
+  'insert:tablix': <Table />,
   'toggle-variables': <Variable />,
   'report-properties': <Settings2 />,
 };
@@ -64,6 +66,7 @@ const NEEDS_DOCUMENT = new Set<PaletteActionId>([
   'insert:rectangle',
   'insert:line',
   'insert:image',
+  'insert:tablix',
   'report-properties',
   'toggle-variables',
 ]);

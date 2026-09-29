@@ -37,7 +37,7 @@ import {
   type SelectedCell,
 } from '@/lib/tablix';
 
-const INSERT_KINDS = ['textbox', 'rectangle', 'line', 'image'] as const;
+const INSERT_KINDS = ['textbox', 'rectangle', 'line', 'image', 'tablix'] as const;
 
 export interface CanvasAreaProps {
   projection: ProjectionDto | null;

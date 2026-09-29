@@ -62,7 +62,9 @@ export function applyInsertItem(
     regionBounds,
   );
 
-  const node = createReportItem(container, { ...command.item, name, ...position });
+  const node = createReportItem(container, { ...command.item, name, ...position }, {
+    nameFor: (kind) => nextItemName(ctx, kind),
+  });
   container.insertChildAt(node, command.index);
 
   return right({

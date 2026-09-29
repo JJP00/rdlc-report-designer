@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
+import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
+import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { LibXml2SchemaValidatorAdapter } from '../../src/infrastructure/validation/LibXml2SchemaValidatorAdapter.js';
 import { corpusByName, loadCorpus } from '../golden/fixtures.js';
 
@@ -23,6 +26,34 @@ describe('validación XSD RDL 2016/01', () => {
       expect(result.problems, `${name}: ${result.problems.join(' | ')}`).toEqual([]);
       expect(result.valid).toBe(true);
     }
+  });
+
+  it('un Tablix insertado por el editor valida contra el XSD', () => {
+    const adapter = new TrueFormatXmlAdapter();
+    const { xml } = corpusByName('PalletOutput.rdlc');
+    const doc = adapter.parse(xml);
+    const index = DocumentIndex.build(doc.root);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'insertItem',
+        scope: { kind: 'body' },
+        index: 0,
+        item: {
+          kind: 'tablix',
+          top: { value: 1, unit: 'cm' },
+          left: { value: 1, unit: 'cm' },
+          width: { value: 8, unit: 'cm' },
+          height: { value: 2.5, unit: 'cm' },
+        },
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+
+    const result = validator.validate(adapter.serialize(doc));
+    expect(result.problems, result.problems.join(' | ')).toEqual([]);
+    expect(result.valid).toBe(true);
   });
 
   it('detecta XML estructuralmente inválido con problemas legibles', () => {

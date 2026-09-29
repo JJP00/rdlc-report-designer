@@ -116,6 +116,7 @@ export function App(): ReactNode {
     insertRectangle: () => items.insertItem('rectangle'),
     insertLine: () => items.insertItem('line'),
     insertImage: () => items.insertItem('image'),
+    insertTablix: () => items.insertItem('tablix'),
   });
 
   /* Acciones del JSX (los hooks ya resuelven la lógica). */

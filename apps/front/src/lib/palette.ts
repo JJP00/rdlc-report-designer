@@ -66,6 +66,7 @@ export type PaletteActionId =
   | 'insert:rectangle'
   | 'insert:line'
   | 'insert:image'
+  | 'insert:tablix'
   | 'toggle-variables'
   | 'report-properties';
 
@@ -92,6 +93,7 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   { id: 'insert:rectangle', label: 'Insertar rectángulo', group: 'Insertar' },
   { id: 'insert:line', label: 'Insertar línea', group: 'Insertar' },
   { id: 'insert:image', label: 'Insertar imagen', group: 'Insertar' },
+  { id: 'insert:tablix', label: 'Insertar tabla (Tablix)', group: 'Insertar' },
 ];
 
 /** Qué hacer con cada acción (lo cablea el shell del editor). */
@@ -106,6 +108,7 @@ export interface PaletteActionHandlers {
   insertRectangle: () => void;
   insertLine: () => void;
   insertImage: () => void;
+  insertTablix: () => void;
 }
 
 /** Ejecutor de acciones de la paleta (sin `switch` en el componente). */
@@ -121,6 +124,7 @@ export function paletteRunner(handlers: PaletteActionHandlers): (action: Palette
     'insert:rectangle': handlers.insertRectangle,
     'insert:line': handlers.insertLine,
     'insert:image': handlers.insertImage,
+    'insert:tablix': handlers.insertTablix,
   };
   return (action) => map[action]();
 }
