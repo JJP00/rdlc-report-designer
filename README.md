@@ -216,6 +216,13 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       estructura), **renombrar grupo**, **padding por item** y **catálogo de
       imágenes embebidas** con desplegable en el panel de imagen.
 
+- [x] **Ajustes de las pruebas manuales (2026-09-29, 2.ª parte)**: mover un
+      rectángulo/Tablix ya no intenta reparentarlo dentro de sí mismo; el
+      **Tablix se puede borrar** desde el menú contextual (hit del borde +
+      acciones de la selección cuando el click cae en vacío); **«Orden»** también
+      para items dentro de celdas de Tablix; y el **Tablix nuevo nace 2×3**
+      (2 filas × 3 columnas, celdas de 2,5 × 0,6 cm con Textbox en las 6 celdas).
+
 **Calidad (sesiones 2026-09-16 a 2026-09-29):**
 
 - [x] **Pendientes M1–M7** cerrados (id al duplicar, aviso al cerrar, motivo de recarga,
@@ -239,7 +246,7 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       diseño `[etiqueta]` / campo / `[exp]`) y marco de selección medido por la caja del item.
 - [x] **Sesión 2026-09-29**: grupos de fila (F2.b: propiedades, extender, dentro/fuera del
       grupo, grupos hoja) y undo byte-exacto al reinsertar/mover nodos (indentación recordada) ·
-      **bloque de gaps (G1–G13)** con un commit por gap · **397 unit tests**
-      (266 back + 131 front) + **48 E2E** de Playwright y `typecheck` limpio.
+      **bloque de gaps (G1–G13)** con un commit por gap · **400 unit tests**
+      (266 back + 134 front) + **50 E2E** de Playwright y `typecheck` limpio.
 
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).
