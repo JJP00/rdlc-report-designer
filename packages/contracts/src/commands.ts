@@ -284,6 +284,21 @@ const addRowOutsideGroup = z.object({
   height: lengthSchema.optional(),
 });
 
+/**
+ * Fila **dentro del grupo** que contiene la fila indicada, pegada a ella
+ * (`above` = justo antes, `below` = justo después). Si el grupo es **hoja**
+ * (su fila ES el grupo) se convierte en contenedor conservando la fila
+ * original como primer miembro.
+ */
+const addRowInsideGroup = z.object({
+  cmd: z.literal('addRowInsideGroup'),
+  id: z.string().min(1),
+  /** Fila (hoja) del body dentro del grupo. */
+  row: z.number().int().nonnegative(),
+  where: z.enum(['above', 'below']),
+  height: lengthSchema.optional(),
+});
+
 const deleteRow = z.object({
   cmd: z.literal('deleteRow'),
   id: z.string().min(1),
@@ -463,6 +478,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   resizeRow,
   addRow,
   addRowOutsideGroup,
+  addRowInsideGroup,
   deleteRow,
   addColumn,
   deleteColumn,

@@ -12,6 +12,7 @@ import {
 import { nextItemName } from './insertItem.js';
 import {
   detach,
+  insertAfterTags,
   restore,
   setNodeTextChange,
   type Detached,
@@ -66,6 +67,7 @@ const DEFAULT_COLUMN_WIDTH: Length = { value: 2, unit: 'cm' };
 /* ------------------------------- addRow --------------------------------- */
 
 export type AddRowOutsideGroupCommand = Extract<RdlcCommand, { cmd: 'addRowOutsideGroup' }>;
+export type AddRowInsideGroupCommand = Extract<RdlcCommand, { cmd: 'addRowInsideGroup' }>;
 
 /** Plan de inserción de fila: dónde va en el body y dónde su miembro. */
 interface RowInsertPlan {
@@ -152,6 +154,76 @@ export function applyAddRowOutsideGroup(
     },
     command.height,
   );
+}
+
+/**
+ * Fila **dentro del grupo** que contiene la fila `row`, pegada a ella. Si el
+ * grupo es hoja (su fila ES el grupo), se convierte en contenedor con la fila
+ * original como primer miembro; el body no cambia de orden.
+ */
+export function applyAddRowInsideGroup(
+  ctx: CommandContext,
+  command: AddRowInsideGroupCommand,
+): Either<DomainError, CommandOutcome> {
+  const parts = tablixParts(ctx, command.id);
+  if (parts.isLeft()) return left(parts.value);
+  const { rows, hierarchy } = parts.value;
+
+  if (command.row >= rows.length) {
+    return left(
+      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
+    );
+  }
+
+  const chain = memberChainAt(hierarchy, command.row);
+  if (!chain || chain.length === 0) {
+    return left(
+      CommandRejectedError.create(
+        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
+      ),
+    );
+  }
+
+  const leaf = chain[chain.length - 1]!;
+  const group = [...chain].reverse().find((ref) => ref.member.child('Group'));
+  if (!group) {
+    return left(CommandRejectedError.create('La fila no está dentro de un grupo'));
+  }
+
+  const above = command.where === 'above';
+  const created: RdlcNode[] = [];
+  let member: RowInsertPlan['member'];
+
+  if (group.member.equals(leaf.member)) {
+    // Grupo hoja: la fila original pasa a ser su primer miembro (mismo body).
+    const members = group.member.createElement('TablixMembers');
+    members.appendChild(members.createElement('TablixMember'));
+    insertAfterTags(group.member, members, ['Group', 'SortExpressions', 'TablixHeader']);
+    created.push(members);
+    member = { container: members, index: above ? 0 : 1 };
+  } else {
+    member = {
+      container: leaf.container,
+      index: above ? leaf.index : leaf.index + 1,
+    };
+  }
+
+  const outcome = performAddRow(
+    ctx,
+    parts.value,
+    { row: above ? command.row : command.row + 1, member },
+    command.height,
+  );
+  if (outcome.isLeft()) return outcome;
+
+  // El inverso quita también el contenedor creado al convertir el grupo hoja.
+  return right({
+    inverse: [
+      ...inverseCommands(outcome.value),
+      ...created.map((node) => ({ cmd: 'removeNode', node }) as const),
+    ],
+    snapshotOut: true,
+  });
 }
 
 /** Crea la fila (con sus celdas) y el miembro, y devuelve el inverso común. */

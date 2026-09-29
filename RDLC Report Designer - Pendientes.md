@@ -57,10 +57,18 @@ ToggleItem`, desplegable de items del informe).
 > - **`addRowOutsideGroup`**: inserta una fila de relleno **fuera** del grupo que
 >   contiene la celda, pegada a su borde (encima = antes de su primera hoja;
 >   debajo = después de su última hoja). El miembro va al contenedor del padre.
+> - **`addRowInsideGroup`**: fila de relleno **dentro** del grupo, pegada a la
+>   fila de la celda (encima/debajo). Antes, «debajo de la última fila» se
+>   colaba **fuera** (el `addRow` genérico insertaba en el borde del rango); si
+>   el grupo es **hoja** (su fila ES el grupo, caso `Tablix7`/`Tablix1`), el
+>   grupo se convierte en **contenedor** conservando la fila original como
+>   primer miembro (el body no cambia de orden y la cabecera del grupo se
+>   conserva).
 > - **Menú contextual de celda** estilo RB: _Insertar fila o columna_ con
 >   «Dentro del grupo: fila encima/debajo» y «Fuera del grupo: fila
->   encima/debajo» (las de fuera solo si la fila está dentro de un grupo) y
->   **«Propiedades del grupo…»** para el grupo que posee la fila.
+>   encima/debajo» (con grupo, también si es hoja: ahí el grupo pasa a mostrar
+>   las filas anidadas) y **«Propiedades del grupo…»** para el grupo que posee
+>   la fila.
 >
 > **E2E**: `selectItemViaPalette` espera a que el **scroll suave** del «traer a
 > la vista» se asiente antes de calcular puntos (la carrera que destapó el test
@@ -70,20 +78,21 @@ ToggleItem`, desplegable de items del informe).
 >
 > - **Probar en la app** los grupos con un informe grande: propiedades (cambiar
 >   expresión, saltos, ordenación, visibilidad), crear/extender/quitar grupos,
->   filas dentro/fuera del grupo y deshacer; comparar el ida/vuelta con RB.
+>   filas dentro/fuera del grupo (y grupos hoja) y deshacer; comparar el
+>   ida/vuelta con RB.
 > - **F2.c (opcional)**: botón «Añadir total antes/después» (inserta la fila
 >   estática y precarga `Sum`/`Count`/`First` por columna) y, si se pide,
 >   cabeceras de grupo (`TablixHeader`) al crear grupos.
 > - **F3 · Matrix** (grupos de **columna** + esquina): `setGroupExpression`,
 >   `deleteRowGroup` y las opciones del diálogo ya aceptan `axis: 'column'`;
->   faltarían `addColumnGroup`/`addColumnToGroup`.
+>   faltarían `addColumnGroup`/`addColumnToGroup`/`addColumnInsideGroup`.
 > - Menores: **insertar Tablix**, **bordes** de estilo, `setZIndex`/
 >   `setItemOptions`/`moveItem` (en el contrato, rechazados), renombrar grupos
 >   (General) y «Agrupar la fila…» desde el menú contextual (hoy vive en el
 >   árbol), empaquetado electron-builder y CI.
 >
-> Estado: **346 unit tests** (221 back + 125 front), `typecheck` limpio y
-> **36 E2E** de Playwright verdes.
+> Estado: **350 unit tests** (225 back + 125 front), `typecheck` limpio y
+> **37 E2E** de Playwright verdes.
 
 > **Sesión 2026-09-25/28 · visibilidad (items y Tablix), nombre/etiqueta/fondo editables y fixes del lienzo** —
 > **Visibilidad de items**: `setVisibility` (literal, expresión o `null` que quita la
@@ -538,7 +547,7 @@ Trade-offs documentados:
     aviso al importar y **bloqueo al guardar** con lista de problemas.
 16. **Flujo BC** — ⬜ documentar el ciclo exportar layout (página 9650) → editar →
     reimportar; evolutivo: desplegar a BC.
-17. **Testing más allá del golden** — 🔶 346 tests (221 back + 125 front) y **E2E de
+17. **Testing más allá del golden** — 🔶 350 tests (225 back + 125 front) y **E2E de
     Playwright del lienzo ✅ (32)**; faltan property tests de comandos aleatorios y CI.
 
 ## ⚪ Decisiones menores

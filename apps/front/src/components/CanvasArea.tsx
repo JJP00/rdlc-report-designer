@@ -25,7 +25,6 @@ import { itemKindLabel } from '@/lib/palette';
 import { findItem } from '@/lib/projection';
 import {
   canMergeSelection,
-  containerGroupPath,
   formatIndexList,
   hitSelectionCell,
   memberForLeafGroup,
@@ -68,6 +67,8 @@ export interface CanvasAreaProps {
   onAddRow: (id: string, row: number) => void;
   /** Fila de relleno fuera del grupo que contiene la fila (`above`/`below`). */
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
+  /** Fila de relleno dentro del grupo, pegada a la fila (`above`/`below`). */
+  onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
   /** Abre «Propiedades del grupo» del grupo que posee la fila. */
   onOpenGroupProperties: (id: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
   onDeleteRow: (id: string, row: number) => void;
@@ -109,6 +110,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onInsertAt,
     onAddRow,
     onAddRowOutside,
+    onAddRowInside,
     onOpenGroupProperties,
     onDeleteRow,
     onAddColumn,
@@ -170,6 +172,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
             tablix={tablix}
             onAddRow={onAddRow}
             onAddRowOutside={onAddRowOutside}
+            onAddRowInside={onAddRowInside}
             onOpenGroupProperties={onOpenGroupProperties}
             onDeleteRow={onDeleteRow}
             onAddColumn={onAddColumn}
@@ -238,12 +241,14 @@ function InsertRowColumnMenu({
   inGroup,
   onAddRow,
   onAddRowOutside,
+  onAddRowInside,
   onAddColumn,
 }: {
   cellScope: { id: string; row: number; col: number };
   inGroup: boolean;
   onAddRow: (id: string, row: number) => void;
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
+  onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
   onAddColumn: (id: string, column: number) => void;
 }): ReactNode {
   return (
@@ -252,10 +257,10 @@ function InsertRowColumnMenu({
       <ContextMenuSubContent className="w-60">
         {inGroup ? (
           <>
-            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row)}>
+            <ContextMenuItem onSelect={() => onAddRowInside(cellScope.id, cellScope.row, 'above')}>
               Dentro del grupo: fila encima
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row + 1)}>
+            <ContextMenuItem onSelect={() => onAddRowInside(cellScope.id, cellScope.row, 'below')}>
               Dentro del grupo: fila debajo
             </ContextMenuItem>
             <ContextMenuSeparator />
@@ -321,6 +326,7 @@ function TablixMenuItems({
   tablix,
   onAddRow,
   onAddRowOutside,
+  onAddRowInside,
   onOpenGroupProperties,
   onDeleteRow,
   onAddColumn,
@@ -335,6 +341,7 @@ function TablixMenuItems({
   tablix: Extract<ItemDto, { kind: 'tablix' }> | undefined;
   onAddRow: (id: string, row: number) => void;
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
+  onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
   onOpenGroupProperties: (id: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
   onDeleteRow: (id: string, row: number) => void;
   onAddColumn: (id: string, column: number) => void;
@@ -351,10 +358,9 @@ function TablixMenuItems({
   // Tramo a fusionar (una fila, celdas contiguas), contando las sueltas de Ctrl.
   const mergeRange =
     selection && canMergeSelection(selection) ? selectionBounds(selection) : undefined;
-  // Grupo contenedor de la fila (define «dentro/fuera del grupo») y grupo que
-  // la posee (incluye grupos hoja) para «Propiedades del grupo».
-  const inGroup = tablix ? containerGroupPath(tablix, 'row', cellScope.row) : undefined;
-  const ownerGroup = tablix ? memberForLeafGroup(tablix, 'row', cellScope.row) : undefined;
+  // Grupo que posee la fila (incluye grupos hoja) para «dentro/fuera del
+  // grupo» y «Propiedades del grupo».
+  const group = tablix ? memberForLeafGroup(tablix, 'row', cellScope.row) : undefined;
 
   /** Celda ancla de una fusión (`ColSpan`/`RowSpan` > 1) en el layout. */
   const mergedCellAt = (ref: { row: number; col: number }) =>
@@ -373,14 +379,15 @@ function TablixMenuItems({
     <>
       <InsertRowColumnMenu
         cellScope={cellScope}
-        inGroup={inGroup !== undefined}
+        inGroup={group !== undefined}
         onAddRow={onAddRow}
         onAddRowOutside={onAddRowOutside}
+        onAddRowInside={onAddRowInside}
         onAddColumn={onAddColumn}
       />
 
-      {ownerGroup ? (
-        <ContextMenuItem onSelect={() => onOpenGroupProperties(cellScope.id, 'row', ownerGroup)}>
+      {group ? (
+        <ContextMenuItem onSelect={() => onOpenGroupProperties(cellScope.id, 'row', group)}>
           Propiedades del grupo…
         </ContextMenuItem>
       ) : null}

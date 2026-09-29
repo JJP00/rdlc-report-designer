@@ -308,6 +308,118 @@ describe('F2 · addRowOutsideGroup', () => {
   });
 });
 
+describe('F2 · addRowInsideGroup', () => {
+  it('en la última fila del grupo, la fila nueva entra DENTRO (no fuera)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const tablix = index.get('LinesTable2');
+    const rowsBefore = rows(tablix).length;
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowInsideGroup', id: 'LinesTable2', row: 3, where: 'below' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    // El grupo (raíz [2]) gana un hijo; el nivel raíz no cambia.
+    const rootMembers = tablix
+      ?.child('TablixRowHierarchy')
+      ?.child('TablixMembers')
+      ?.children('TablixMember');
+    expect(rootMembers).toHaveLength(4);
+    expect(rootMembers?.[2]?.child('TablixMembers')?.children('TablixMember')).toHaveLength(3);
+    expect(rows(index.get('LinesTable2'))).toHaveLength(rowsBefore + 1);
+    // La fila nueva nace pegada por debajo de la última hoja del grupo (4).
+    expect(
+      rows(index.get('LinesTable2'))?.[4]?.child('TablixCells')?.children('TablixCell'),
+    ).toBeTruthy();
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('encima de la primera fila del grupo también entra dentro', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowInsideGroup', id: 'LinesTable2', row: 2, where: 'above' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const rootMembers = index
+      .get('LinesTable2')
+      ?.child('TablixRowHierarchy')
+      ?.child('TablixMembers')
+      ?.children('TablixMember');
+    expect(rootMembers).toHaveLength(4);
+    expect(rootMembers?.[2]?.child('TablixMembers')?.children('TablixMember')).toHaveLength(3);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('un grupo hoja (Tablix7) se convierte en contenedor conservando su fila', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const tablix = index.get('Tablix7');
+    const group = tablix
+      ?.child('TablixRowHierarchy')
+      ?.child('TablixMembers')
+      ?.children('TablixMember')[0];
+    expect(group?.child('TablixMembers')).toBeUndefined();
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowInsideGroup', id: 'Tablix7', row: 0, where: 'below' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    // La fila original pasa a ser el primer miembro y nace la segunda.
+    expect(group?.child('TablixMembers')?.children('TablixMember')).toHaveLength(2);
+    expect(rows(index.get('Tablix7'))).toHaveLength(2);
+    expect(
+      tablix?.child('TablixRowHierarchy')?.child('TablixMembers')?.children('TablixMember'),
+    ).toHaveLength(1);
+    // La cabecera del grupo se conserva (el grupo sigue siendo el mismo).
+    expect(group?.child('TablixHeader')).toBeDefined();
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('rechaza filas sin grupo y fuera de rango', () => {
+    const { doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+
+    expect(
+      applyCommand(ctx, {
+        cmd: 'addRowInsideGroup',
+        id: 'Tablix3',
+        row: 0,
+        where: 'below',
+      }).isLeft(),
+    ).toBe(true);
+    expect(
+      applyCommand(ctx, {
+        cmd: 'addRowInsideGroup',
+        id: 'LinesTable2',
+        row: 9,
+        where: 'below',
+      }).isLeft(),
+    ).toBe(true);
+  });
+});
+
 describe('F2 · addColumn / deleteColumn', () => {
   it('inserta la columna en todas las filas y su miembro, y el undo es exacto', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');

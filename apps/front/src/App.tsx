@@ -152,6 +152,7 @@ export function App(): ReactNode {
     applyGroupProperties,
     addRowToGroup,
     addRowOutsideGroup,
+    addRowInsideGroup,
     addRowGroup,
     deleteRowGroup,
     setImageOptions,
@@ -231,6 +232,7 @@ export function App(): ReactNode {
             onInsertAt={insertAt}
             onAddRow={addRow}
             onAddRowOutside={addRowOutsideGroup}
+            onAddRowInside={addRowInsideGroup}
             onOpenGroupProperties={(tablixId, axis, member) =>
               setGroupProperties({ tablixId, axis, member })
             }

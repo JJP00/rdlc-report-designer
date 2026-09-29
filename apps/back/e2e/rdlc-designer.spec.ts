@@ -1914,6 +1914,25 @@ test('el menú contextual inserta fila fuera del grupo y abre sus propiedades', 
     .toBe('=Fields!LineNo_Line.Value');
   await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
 
+  // Dentro del grupo, debajo de su ÚLTIMA fila: la fila nace dentro del grupo
+  // (antes se colaba fuera por el borde inferior).
+  const lastContent = tablix?.body.rows[3]?.cells
+    .map((cell) => cell?.content)
+    .find((entry): entry is ItemLike => Boolean(entry));
+  expect(lastContent).toBeTruthy();
+  const lastPoint = await nodeCenter(lastContent!.id);
+  expect(lastPoint).not.toBeNull();
+
+  await page.mouse.click(lastPoint!.x, lastPoint!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
+  await page.getByRole('menuitem', { name: 'Dentro del grupo: fila debajo' }).click();
+  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore + 1);
+  await expect.poll(() => memberChildCount('LinesTable2', 'row', [2])).toBe(3);
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberChildCount('LinesTable2', 'row', [2])).toBe(2);
+  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
+
   // Propiedades del grupo… desde el menú contextual.
   await page.mouse.click(point!.x, point!.y, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Propiedades del grupo…' }).click();
@@ -1923,4 +1942,34 @@ test('el menú contextual inserta fila fuera del grupo y abre sus propiedades', 
   ).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancelar' }).click();
   await expect(dialog).toBeHidden();
+});
+
+test('un grupo hoja (Tablix7) gana una fila dentro y se anida en la estructura', async () => {
+  await selectItemViaPalette('Tablix7');
+  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
+
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, 'Tablix7') as
+    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
+  const content = tablix?.body.rows[0]?.cells
+    .map((cell) => cell?.content)
+    .find((entry): entry is ItemLike => Boolean(entry));
+  expect(content).toBeTruthy();
+  const point = await nodeCenter(content!.id);
+  expect(point).not.toBeNull();
+
+  // «Dentro del grupo, fila debajo»: el grupo hoja pasa a contenedor con la
+  // fila original debajo (el body no cambia de orden).
+  await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
+  await page.getByRole('menuitem', { name: 'Dentro del grupo: fila debajo' }).click();
+  await expect.poll(() => tablixRowCount('Tablix7')).toBe(2);
+  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(2);
+  // En Estructura, el grupo muestra las dos filas anidadas.
+  await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Seleccionar fila 2' })).toBeVisible();
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => tablixRowCount('Tablix7')).toBe(1);
+  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
 });

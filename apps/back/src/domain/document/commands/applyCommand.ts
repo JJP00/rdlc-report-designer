@@ -13,6 +13,7 @@ import { applyResizeColumn, applyResizeRow, applyResizeTable } from './resizeTab
 import {
   applyAddColumn,
   applyAddRow,
+  applyAddRowInsideGroup,
   applyAddRowOutsideGroup,
   applyDeleteColumn,
   applyDeleteColumns,
@@ -68,6 +69,8 @@ export function applyCommand(
       return applyAddRow(ctx, command);
     case 'addRowOutsideGroup':
       return applyAddRowOutsideGroup(ctx, command);
+    case 'addRowInsideGroup':
+      return applyAddRowInsideGroup(ctx, command);
     case 'deleteRow':
       return applyDeleteRow(ctx, command);
     case 'addColumn':

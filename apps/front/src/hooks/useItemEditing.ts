@@ -103,6 +103,8 @@ export interface ItemEditing {
   addRowToGroup: (tablixId: string, row: number, groupPath: number[]) => void;
   /** Inserta una fila de relleno fuera del grupo (`where` = borde). */
   addRowOutsideGroup: (tablixId: string, row: number, where: 'above' | 'below') => void;
+  /** Inserta una fila de relleno dentro del grupo, pegada a la fila indicada. */
+  addRowInsideGroup: (tablixId: string, row: number, where: 'above' | 'below') => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   addRowGroup: (tablixId: string, row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
@@ -500,6 +502,13 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [sendCommand],
   );
 
+  const addRowInsideGroup = useCallback(
+    (tablixId: string, row: number, where: 'above' | 'below'): void => {
+      void sendCommand({ cmd: 'addRowInsideGroup', id: tablixId, row, where });
+    },
+    [sendCommand],
+  );
+
   const deleteRowGroup = useCallback(
     (tablixId: string, axis: 'row' | 'column', path: number[]): void => {
       void sendCommand({ cmd: 'deleteRowGroup', id: tablixId, axis, path });
@@ -876,6 +885,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     applyGroupProperties,
     addRowToGroup,
     addRowOutsideGroup,
+    addRowInsideGroup,
     addRowGroup,
     deleteRowGroup,
     setImageOptions,
