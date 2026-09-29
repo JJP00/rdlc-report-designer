@@ -1,6 +1,6 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
-> **Sesión 2026-09-29 (bloque de gaps P1) · G1–G8 cubiertos** — auditoría del
+> **Sesión 2026-09-29 (bloque de gaps) · G1–G13 cubiertos** — auditoría del
 > 2026-09-29, punto ① del plan. Un commit por gap, con tests y E2E:
 >
 > - **G1 · Insertar Tablix**: variante `tablix` en el contrato y factory con
@@ -30,14 +30,28 @@
 >   `findScope` sin crear contenedores, hit-test de huecos **vacíos** con su
 >   caja (el item nuevo ocupa el hueco) y menú «Insertar» solo en celdas
 >   libres; insertar/pegar en una celda ocupada se rechaza con motivo.
+> - **G9 · Saltos de página de items**: `setItemPageBreak` (Rectangle/Tablix),
+>   proyección de `PageBreak > BreakLocation` y control en el panel.
+> - **G10 · Filtros del Tablix**: `setTablixFilters` (reemplaza el bloque, undo
+>   byte-exacto con el nodo original), proyección de `Filters > Filter` y
+>   diálogo «Filtros…» en la cabecera de la estructura (valores uno por línea).
+> - **G11 · Renombrar grupo**: `setGroupName` (único en el documento) y campo
+>   editable en «Propiedades del grupo» con aviso de que las expresiones de
+>   ámbito no se reescriben.
+> - **G12 · Padding por item**: sección de padding (pt, 4 lados) compartida en
+>   el panel de propiedades (antes solo en el de imagen).
+> - **G13 · Imágenes embebidas**: catálogo de `<EmbeddedImages>` en la meta
+>   (nombre + MIME; el `ImageData` no viaja) y desplegable en el panel de
+>   imagen cuando `Source=Embedded`.
 >
-> Estado: **383 unit tests** (253 back + 130 front), `typecheck` limpio y
-> **44 E2E** de Playwright verdes.
+> Estado: **397 unit tests** (266 back + 131 front), `typecheck` limpio y
+> **48 E2E** de Playwright verdes.
 >
-> **Punto de retomada**: G9–G13 (saltos de página de items, filtros de grupo/
-> Tablix, renombrar grupo, padding por item, imágenes embebidas) — luego el
-> pase de UX con `intent` (U1–U9) y seguir fase (**F2.c** totales → **F3**
-> Matrix), cerrando con T1 (CI/empaquetado).
+> **Punto de retomada**: ② pase de UX con el skill `intent` (U1–U9: guardar
+> como/nuevo/recientes, conflicto completo, multiselección con alinear,
+> jerarquía/breadcrumb, zoom al ancho, acciones nuevas en la paleta, atajos y
+> ARIA) → ③ seguir fase (**F2.c** totales → **F3** Matrix) y cerrar con T1
+> (CI/empaquetado).
 
 > **Sesión 2026-09-29 · F2.b (grupos de fila) + F2.b.2 (feedback de uso: propiedades del grupo)** —
 > **`setGroupExpression`** (edita la expresión del grupo; `axis` + `path` de la
@@ -595,10 +609,11 @@ Trade-offs documentados:
 > de BC · **P2** = acabado · **P3** = proceso. Tamaño: **S** (< 1 sesión),
 > **M** (1 sesión), **L** (varias).
 >
-> **Estado (2026-09-29, bloque de gaps P1)**: ✅ **G1–G8 hechos** (ver el bloque
-> de sesión al principio del fichero). El resto de la tabla sigue pendiente:
-> **G9–G13** (S/M), **U1–U9** (pase `intent`) y **T1–T5**. Las columnas «Estado
-> hoy» describen el punto de partida de la auditoría, antes de este bloque.
+> **Estado (2026-09-29, bloque de gaps)**: ✅ **G1–G13 hechos** (ver el bloque
+> de sesión al principio del fichero). Quedan **U1–U9** (pase `intent`) y
+> **T1–T5**, además de **G14** (que es el trabajo de fase: F2.c totales → F3
+> Matrix). Las columnas «Estado hoy» describen el punto de partida de la
+> auditoría, antes de este bloque.
 
 ### 🎯 P1 · Bloque elegido: menores de alto valor BC
 
@@ -657,8 +672,8 @@ Trade-offs documentados:
 ② pase de UX con el skill `intent` (U1–U9) → ③ seguir fase (**F2.c** totales →
 **F3** Matrix) y cerrar con T1 (CI/empaquetado).
 
-**Progreso**: ① P1 (**G1–G8**) ✅ en el bloque de gaps del 2026-09-29; siguen
-**G9–G13** antes del pase de UX.
+**Progreso**: ① **G1–G13 ✅** en el bloque de gaps del 2026-09-29 (queda G14 =
+F2.c/F3, que ya es fase); sigue ② el pase de UX (`intent`, U1–U9).
 
 ## 🔴 Gaps funcionales (MVP)
 

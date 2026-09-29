@@ -200,7 +200,7 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       documento entre tests).
 - [x] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
       miembros) · [x] `TablixCorner`/`TablixHeader` · [x] grupos de fila · [ ] Matrix (F3).
-- [x] **Bloque de gaps P1 · G1–G8 (sesión 2026-09-29)**: **insertar Tablix**
+- [x] **Bloque de gaps · G1–G13 (sesión 2026-09-29)**: **insertar Tablix**
       (rejilla 1×1 con celda y ambas jerarquías), **bordes por lado** (genérico
       `Border` + overrides de BC con la herencia resuelta propiedad a propiedad,
       panel de 4 lados y pintado en el lienzo), **`moveItem`** (reparentar/
@@ -209,9 +209,12 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       **opciones del item** (`CanGrow`/`KeepTogether` con checkboxes), **z-order**
       («Traer al frente»/«Enviar atrás» con rebase de hermanos), **bandas de
       página** (`setRegionHeight`/`setHeaderFooterOptions` + campos en
-      «Informe…»), el hook `moveItem` renombrado a `moveTo` y **insertar en
+      «Informe…»), el hook `moveItem` renombrado a `moveTo`, **insertar en
       cabeceras/esquina del Tablix** (scopes `tablixHeader`/`tablixCorner` y
-      hit-test de huecos vacíos).
+      hit-test de huecos vacíos), **saltos de página de items**
+      (`setItemPageBreak`), **filtros del Tablix** (diálogo «Filtros…» en la
+      estructura), **renombrar grupo**, **padding por item** y **catálogo de
+      imágenes embebidas** con desplegable en el panel de imagen.
 
 **Calidad (sesiones 2026-09-16 a 2026-09-29):**
 
@@ -236,7 +239,7 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       diseño `[etiqueta]` / campo / `[exp]`) y marco de selección medido por la caja del item.
 - [x] **Sesión 2026-09-29**: grupos de fila (F2.b: propiedades, extender, dentro/fuera del
       grupo, grupos hoja) y undo byte-exacto al reinsertar/mover nodos (indentación recordada) ·
-      **bloque de gaps P1 (G1–G8)** con un commit por gap · **383 unit tests**
-      (253 back + 130 front) + **44 E2E** de Playwright y `typecheck` limpio.
+      **bloque de gaps (G1–G13)** con un commit por gap · **397 unit tests**
+      (266 back + 131 front) + **48 E2E** de Playwright y `typecheck` limpio.
 
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).
