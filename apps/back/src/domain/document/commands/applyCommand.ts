@@ -44,6 +44,7 @@ import {
   applyDeleteRowGroup,
   applySetGroupExpression,
   applySetGroupExpressions,
+  applySetGroupName,
   applySetGroupPageBreaks,
   applySetGroupSorting,
 } from './tablixGroups.js';
@@ -112,6 +113,8 @@ export function applyCommand(
       return applySetMemberToggleItem(ctx, command);
     case 'setGroupExpression':
       return applySetGroupExpression(ctx, command);
+    case 'setGroupName':
+      return applySetGroupName(ctx, command);
     case 'setGroupExpressions':
       return applySetGroupExpressions(ctx, command);
     case 'addRowGroup':

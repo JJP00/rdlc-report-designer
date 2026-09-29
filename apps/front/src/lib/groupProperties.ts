@@ -27,6 +27,8 @@ export interface GroupPageBreakDraft {
 }
 
 export interface GroupPropertiesDraft {
+  /** Nombre del grupo (`Group > @Name`); editable desde G11. */
+  name: string;
   expressions: GroupExpressionDraft[];
   pageBreaks: GroupPageBreakDraft;
   sorting: GroupSortDraft[];
@@ -49,6 +51,7 @@ export function newSortDraft(): GroupSortDraft {
 /** Estado inicial del diálogo a partir del miembro proyectado. */
 export function groupPropertiesDraft(member: TablixMemberDto): GroupPropertiesDraft {
   return {
+    name: member.name ?? '',
     expressions: [newExpressionDraft(member.expression ?? '')],
     pageBreaks: {
       between: member.pageBreaks?.includes('Between') ?? false,
@@ -77,6 +80,10 @@ export function groupPropertiesCommands(
   after: GroupPropertiesDraft,
 ): RdlcCommand[] {
   const commands: RdlcCommand[] = [];
+
+  if (after.name.trim() !== '' && after.name !== before.name) {
+    commands.push({ cmd: 'setGroupName', id: tablixId, axis, path, name: after.name.trim() });
+  }
 
   if (!sameExpressions(before.expressions, after.expressions)) {
     commands.push({
@@ -122,9 +129,10 @@ export function groupPropertiesCommands(
   return commands;
 }
 
-/** true si el borrador se puede aplicar (expresiones y ordenación completas). */
+/** true si el borrador se puede aplicar (nombre, expresiones y ordenación). */
 export function isGroupPropertiesValid(draft: GroupPropertiesDraft): boolean {
   return (
+    draft.name.trim() !== '' &&
     draft.expressions.length > 0 &&
     draft.expressions.every((row) => isUsableExpression(row.expression)) &&
     draft.sorting.every((sort) => isUsableExpression(sort.expression))

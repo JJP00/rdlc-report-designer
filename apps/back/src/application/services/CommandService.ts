@@ -34,6 +34,7 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'moveItem',
   // Renombrar: el índice por nombre (y las referencias del front) cambian.
   'setName',
+  'setGroupName',
   // Interno del pegado: inserta subárbol (mismos efectos que insertItem).
   'insertClone',
   // Fusionar descarta celdas con contenido; separar crea celdas con textbox.

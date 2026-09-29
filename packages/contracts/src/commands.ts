@@ -427,6 +427,19 @@ const addRowGroup = z.object({
 });
 
 /**
+ * Renombra el grupo (`Group > @Name`). El nombre debe ser único en el ámbito
+ * del informe; las expresiones de ámbito (`Sum(…, "Grupo")`) **no** se
+ * reescriben (aviso en la UI).
+ */
+const setGroupName = z.object({
+  cmd: z.literal('setGroupName'),
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  path: z.array(z.number().int().nonnegative()).min(1),
+  name: z.string().min(1),
+});
+
+/**
  * Quita el grupo de un miembro:
  * - Grupo **hoja** (sin hijos): la fila se queda como fila estática.
  * - Grupo **con hijos**: las filas se **elevan** al padre y el miembro
@@ -529,6 +542,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   mergeCells,
   unmergeCells,
   setGroupExpression,
+  setGroupName,
   addRowGroup,
   deleteRowGroup,
   addRowToGroup,

@@ -103,6 +103,14 @@ describe('groupProperties · comandos', () => {
     ]);
   });
 
+  it('manda el renombrado (G11) solo cuando cambia el nombre', () => {
+    const before = groupPropertiesDraft(MEMBER);
+    const after: GroupPropertiesDraft = { ...before, name: '  DetalleNuevo  ' };
+    expect(groupPropertiesCommands('T', 'row', [2], before, after)).toEqual([
+      { cmd: 'setGroupName', id: 'T', axis: 'row', path: [2], name: 'DetalleNuevo' },
+    ]);
+  });
+
   it('detecta cambios de orden y de visibilidad por separado', () => {
     const before = groupPropertiesDraft(MEMBER);
     const moved: GroupPropertiesDraft = { ...before, sorting: [...before.sorting].reverse() };
@@ -118,12 +126,19 @@ describe('groupProperties · comandos', () => {
 });
 
 describe('groupProperties · validación', () => {
-  it('exige expresiones y ordenaciones completas', () => {
-    const empty = groupPropertiesDraft({ path: [0], total: 'none', children: [] });
+  it('exige nombre, expresiones y ordenaciones completas', () => {
+    const empty = groupPropertiesDraft({ path: [0], name: 'G', total: 'none', children: [] });
     expect(isGroupPropertiesValid(empty)).toBe(false);
     expect(
       isGroupPropertiesValid({ ...empty, expressions: [newExpressionDraft('=Fields!A.Value')] }),
     ).toBe(true);
+    expect(
+      isGroupPropertiesValid({
+        ...empty,
+        name: '  ',
+        expressions: [newExpressionDraft('=Fields!A.Value')],
+      }),
+    ).toBe(false);
     expect(isGroupPropertiesValid({ ...empty, expressions: [newExpressionDraft('=')] })).toBe(
       false,
     );

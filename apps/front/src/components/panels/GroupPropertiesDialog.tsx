@@ -144,10 +144,14 @@ function GeneralTab({
     <div className="grid gap-4">
       <div className="grid gap-1">
         <Label htmlFor="group-name">Nombre</Label>
-        <Input id="group-name" value={member.name ?? ''} readOnly className="bg-muted/40" />
+        <Input
+          id="group-name"
+          value={draft.name}
+          onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+        />
         <p className="text-[11px] text-muted-foreground">
-          El nombre identifica el ámbito del grupo (p. ej. en `Sum(..., "Grupo")`): de momento no se
-          edita aquí.
+          Único en el informe. Renombrar el grupo <strong>no reescribe</strong> las expresiones de
+          ámbito existentes (`Sum(…, "Grupo")`): revísalas si las usas.
         </p>
       </div>
 

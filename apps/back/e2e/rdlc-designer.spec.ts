@@ -301,6 +301,15 @@ async function memberHidden(
   return (await memberAtPath(tablixId, axis, path))?.hidden;
 }
 
+/** Nombre proyectado del grupo de un miembro (fila/columna) por su `path`. */
+async function memberName(
+  tablixId: string,
+  axis: 'row' | 'column',
+  path: number[],
+): Promise<string | undefined> {
+  return (await memberAtPath(tablixId, axis, path))?.name;
+}
+
 /** Expresión proyectada de un miembro (fila/columna) por su `path`. */
 async function memberExpression(
   tablixId: string,
@@ -2079,6 +2088,25 @@ test('las propiedades del grupo editan saltos de página y ordenación', async (
     .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value' }]);
   await page.keyboard.press('Control+z');
   await expect.poll(() => memberPageBreaks('Tablix7', 'row', [0])).toBeUndefined();
+});
+
+test('las propiedades del grupo renombran el grupo (con undo)', async () => {
+  await selectItemViaPalette('Tablix7');
+  await page.getByRole('button', { name: 'Propiedades del grupo de la fila 1' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: /Propiedades del grupo/ })).toBeVisible();
+
+  const name = dialog.getByLabel('Nombre');
+  await expect(name).toHaveValue('VATIdentifier_VatAmountLine');
+  await name.fill('VATGrupoNuevo');
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect.poll(() => memberName('Tablix7', 'row', [0])).toBe('VATGrupoNuevo');
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberName('Tablix7', 'row', [0])).toBe('VATIdentifier_VatAmountLine');
 });
 
 test('agrupar una fila crea el grupo sin tocar la rejilla (con undo)', async () => {

@@ -15,6 +15,7 @@ import {
 import { leafAt, memberAt, memberLeafRange, tablixHierarchy } from './tablixParts.js';
 
 export type SetGroupExpressionCommand = Extract<RdlcCommand, { cmd: 'setGroupExpression' }>;
+export type SetGroupNameCommand = Extract<RdlcCommand, { cmd: 'setGroupName' }>;
 export type SetGroupExpressionsCommand = Extract<RdlcCommand, { cmd: 'setGroupExpressions' }>;
 export type AddRowGroupCommand = Extract<RdlcCommand, { cmd: 'addRowGroup' }>;
 export type AddRowToGroupCommand = Extract<RdlcCommand, { cmd: 'addRowToGroup' }>;
@@ -275,6 +276,42 @@ export function applyAddRowToGroup(
 
   return right({
     inverse: [moveNode(leaf.member, position.container, position.index)],
+    snapshotOut: true,
+  });
+}
+
+/* ------------------------------ setGroupName ----------------------------- */
+
+/**
+ * Renombra el grupo (`Group > @Name`). El nombre debe ser único en todo el
+ * documento (el índice incluye items y nombres de grupo). Las expresiones de
+ * ámbito ya escritas (`Sum(Fields!X.Value, "GrupoViejo")`) **no** se reescriben:
+ * es responsabilidad del usuario, con aviso en el diálogo.
+ */
+export function applySetGroupName(
+  ctx: CommandContext,
+  command: SetGroupNameCommand,
+): Either<DomainError, CommandOutcome> {
+  const found = findGroup(ctx, command.id, command.axis, command.path);
+  if (found.isLeft()) return left(found.value);
+  const { group } = found.value;
+
+  const name = command.name.trim();
+  if (name === '') {
+    return left(CommandRejectedError.create('El nombre del grupo no puede estar vacío'));
+  }
+
+  const previous = group.attribute('Name');
+  if (previous === name) return right({ inverse: [] });
+
+  const existing = ctx.index.get(name);
+  if (existing && !existing.equals(group)) {
+    return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${name}'`));
+  }
+
+  group.setAttribute('Name', name);
+  return right({
+    inverse: [{ cmd: 'setAttribute', node: group, name: 'Name', value: previous ?? '' }],
     snapshotOut: true,
   });
 }

@@ -952,6 +952,51 @@ describe('F2.b.3 · addRowToGroup (extender un grupo con filas contiguas)', () =
   });
 });
 
+describe('G11 · setGroupName (renombrar grupo)', () => {
+  it('renombra el grupo hoja (Tablix2 · Details) y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const hierarchy = hierarchyOf(index.get('Tablix2'), 'row');
+    expect(groupName(memberByPath(hierarchy, [0]))).toBe('Details');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setGroupName', id: 'Tablix2', axis: 'row', path: [0], name: 'DetalleNuevo' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    expect(applied.value.snapshotOut).toBe(true);
+
+    expect(groupName(memberByPath(hierarchy, [0]))).toBe('DetalleNuevo');
+    expect(adapter.serialize(doc)).toContain('Group Name="DetalleNuevo"');
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('rechaza nombres ya usados (items u otros grupos) y vacíos', () => {
+    const { doc, index } = open('SalesCreditMemoESP.rdlc');
+
+    const taken = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setGroupName', id: 'Tablix2', axis: 'row', path: [0], name: 'Tablix2' },
+    );
+    expect(taken.isLeft()).toBe(true);
+
+    const blank = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setGroupName', id: 'Tablix2', axis: 'row', path: [0], name: '   ' },
+    );
+    expect(blank.isLeft()).toBe(true);
+
+    const notGroup = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setGroupName', id: 'Tablix3', axis: 'row', path: [0], name: 'Otro' },
+    );
+    expect(notGroup.isLeft()).toBe(true);
+  });
+});
+
 /* ------------------------- XML de casos límite --------------------------- */
 
 /** Tablix mínimo con un grupo, cabecera (con o sin contenido) y un hijo. */
