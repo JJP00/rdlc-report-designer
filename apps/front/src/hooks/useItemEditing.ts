@@ -140,6 +140,13 @@ export interface ItemEditing {
 
   setPageSize: (width: Length, height: Length) => void;
   setPageMargins: (margins: { top: Length; bottom: Length; left: Length; right: Length }) => void;
+  /** Alto de la banda de página (encabezado/pie). */
+  setRegionHeight: (region: 'pageHeader' | 'pageFooter', height: Length) => void;
+  /** Impresión del encabezado/pie en la primera/última página. */
+  setHeaderFooterOptions: (
+    region: 'pageHeader' | 'pageFooter',
+    options: { printOnFirstPage?: boolean; printOnLastPage?: boolean },
+  ) => void;
   setReportCode: (code: string) => void;
 }
 
@@ -787,6 +794,25 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [doc, sendCommand, updateProjection],
   );
 
+  // Bandas de página: la proyección se refresca con el snapshot del comando
+  // (no hay un item que parchear de forma optimista).
+  const setRegionHeight = useCallback(
+    (region: 'pageHeader' | 'pageFooter', height: Length): void => {
+      void sendCommand({ cmd: 'setRegionHeight', region, height });
+    },
+    [sendCommand],
+  );
+
+  const setHeaderFooterOptions = useCallback(
+    (
+      region: 'pageHeader' | 'pageFooter',
+      options: { printOnFirstPage?: boolean; printOnLastPage?: boolean },
+    ): void => {
+      void sendCommand({ cmd: 'setHeaderFooterOptions', region, ...options });
+    },
+    [sendCommand],
+  );
+
   const setReportCode = useCallback(
     (code: string): void => {
       if (!doc) return;
@@ -952,6 +978,8 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     hasClipboard,
     setPageSize,
     setPageMargins,
+    setRegionHeight,
+    setHeaderFooterOptions,
     setReportCode,
   };
 }

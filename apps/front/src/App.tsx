@@ -164,6 +164,8 @@ export function App(): ReactNode {
     setParagraphs,
     setPageSize,
     setPageMargins,
+    setRegionHeight,
+    setHeaderFooterOptions,
     setReportCode,
     hasClipboard,
     reveal,
@@ -302,6 +304,8 @@ export function App(): ReactNode {
         onPropertiesOpenChange={setPropertiesOpen}
         onSetPageSize={setPageSize}
         onSetPageMargins={setPageMargins}
+        onSetRegionHeight={setRegionHeight}
+        onSetHeaderFooterOptions={setHeaderFooterOptions}
         onSetReportCode={setReportCode}
         editingText={editingText}
         onEditingTextOpenChange={(open) => {

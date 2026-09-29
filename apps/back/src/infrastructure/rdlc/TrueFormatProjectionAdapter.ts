@@ -129,6 +129,8 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       width,
       height: this.length(textOf(el?.getFirstElementByName('Height'))),
       items: this.items(el?.getFirstElementByName('ReportItems')),
+      printOnFirstPage: this.bool(textOf(el?.getFirstElementByName('PrintOnFirstPage'))),
+      printOnLastPage: this.bool(textOf(el?.getFirstElementByName('PrintOnLastPage'))),
     };
   }
 

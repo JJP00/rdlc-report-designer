@@ -63,6 +63,9 @@ const PAGE_ORDER = [
   'Style',
 ];
 
+/** Bandas de página: alto, flags de impresión, items y estilo. */
+const PAGE_SECTION_ORDER = ['Height', 'PrintOnFirstPage', 'PrintOnLastPage', 'ReportItems', 'Style'];
+
 const REPORT_SECTION_ORDER = ['Body', 'Width', 'Page', 'Style'];
 
 const REPORT_ORDER = [
@@ -107,6 +110,8 @@ const CONTAINER_ORDERS: Record<string, string[]> = {
   Tablix: TABLIX_ORDER,
   Image: IMAGE_ORDER,
   Page: PAGE_ORDER,
+  PageHeader: PAGE_SECTION_ORDER,
+  PageFooter: PAGE_SECTION_ORDER,
   ReportSection: REPORT_SECTION_ORDER,
   Report: REPORT_ORDER,
   Style: STYLE_ORDER,

@@ -25,6 +25,11 @@ export interface DocumentDialogsProps {
   onPropertiesOpenChange: (open: boolean) => void;
   onSetPageSize: (width: Length, height: Length) => void;
   onSetPageMargins: (margins: { top: Length; bottom: Length; left: Length; right: Length }) => void;
+  onSetRegionHeight: (region: 'pageHeader' | 'pageFooter', height: Length) => void;
+  onSetHeaderFooterOptions: (
+    region: 'pageHeader' | 'pageFooter',
+    options: { printOnFirstPage?: boolean; printOnLastPage?: boolean },
+  ) => void;
   onSetReportCode: (code: string) => void;
   /** Textbox en edición (editor de texto); `undefined` = cerrado. */
   editingText: TextboxDto | undefined;
@@ -43,6 +48,8 @@ export function DocumentDialogs({
   onPropertiesOpenChange,
   onSetPageSize,
   onSetPageMargins,
+  onSetRegionHeight,
+  onSetHeaderFooterOptions,
   onSetReportCode,
   editingText,
   onEditingTextOpenChange,
@@ -60,6 +67,8 @@ export function DocumentDialogs({
           onOpenChange={onPropertiesOpenChange}
           onSetPageSize={onSetPageSize}
           onSetPageMargins={onSetPageMargins}
+          onSetRegionHeight={onSetRegionHeight}
+          onSetHeaderFooterOptions={onSetHeaderFooterOptions}
           onSetReportCode={onSetReportCode}
         />
       ) : null}

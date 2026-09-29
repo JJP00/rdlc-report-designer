@@ -24,6 +24,8 @@ interface JournalEntry {
 const STRUCTURAL_COMMANDS = new Set<string>([
   'setPageSize',
   'setPageMargins',
+  // El alto de banda entra en los límites del índice (clamp de inserción).
+  'setRegionHeight',
   'setReportCode',
   'insertItem',
   'duplicateItem',

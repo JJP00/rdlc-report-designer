@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,6 +22,13 @@ interface ReportPropertiesDialogProps {
   onOpenChange: (open: boolean) => void;
   onSetPageSize: (width: Length, height: Length) => void;
   onSetPageMargins: (margins: { top: Length; bottom: Length; left: Length; right: Length }) => void;
+  /** Alto de la banda de página (encabezado/pie). */
+  onSetRegionHeight: (region: 'pageHeader' | 'pageFooter', height: Length) => void;
+  /** Impresión del encabezado/pie en la primera/última página. */
+  onSetHeaderFooterOptions: (
+    region: 'pageHeader' | 'pageFooter',
+    options: { printOnFirstPage?: boolean; printOnLastPage?: boolean },
+  ) => void;
   onSetReportCode: (code: string) => void;
 }
 
@@ -41,6 +49,8 @@ export function ReportPropertiesDialog({
   onOpenChange,
   onSetPageSize,
   onSetPageMargins,
+  onSetRegionHeight,
+  onSetHeaderFooterOptions,
   onSetReportCode,
 }: ReportPropertiesDialogProps): ReactNode {
   return (
@@ -59,6 +69,8 @@ export function ReportPropertiesDialog({
           projection={projection}
           onSetPageSize={onSetPageSize}
           onSetPageMargins={onSetPageMargins}
+          onSetRegionHeight={onSetRegionHeight}
+          onSetHeaderFooterOptions={onSetHeaderFooterOptions}
           onSetReportCode={onSetReportCode}
         />
       </DialogContent>
@@ -70,6 +82,8 @@ function ReportPropertiesForm({
   projection,
   onSetPageSize,
   onSetPageMargins,
+  onSetRegionHeight,
+  onSetHeaderFooterOptions,
   onSetReportCode,
 }: Omit<ReportPropertiesDialogProps, 'open' | 'onOpenChange'>): ReactNode {
   const [width, setWidth] = useState(() => toCm(projection.page.width));
@@ -80,6 +94,21 @@ function ReportPropertiesForm({
     left: toCm(projection.page.margins.left),
     right: toCm(projection.page.margins.right),
   }));
+  // En RDL los flags de impresión valen `true` por defecto si no se declaran.
+  const [headerHeight, setHeaderHeight] = useState(() => toCm(projection.page.header.height));
+  const [headerFirst, setHeaderFirst] = useState(
+    () => projection.page.header.printOnFirstPage ?? true,
+  );
+  const [headerLast, setHeaderLast] = useState(
+    () => projection.page.header.printOnLastPage ?? true,
+  );
+  const [footerHeight, setFooterHeight] = useState(() => toCm(projection.page.footer.height));
+  const [footerFirst, setFooterFirst] = useState(
+    () => projection.page.footer.printOnFirstPage ?? true,
+  );
+  const [footerLast, setFooterLast] = useState(
+    () => projection.page.footer.printOnLastPage ?? true,
+  );
   const [code, setCode] = useState(() => projection.meta.code.text);
 
   const landscape = width > height;
@@ -95,6 +124,16 @@ function ReportPropertiesForm({
       bottom: cmLength(margins.bottom),
       left: cmLength(margins.left),
       right: cmLength(margins.right),
+    });
+    onSetRegionHeight('pageHeader', cmLength(headerHeight));
+    onSetRegionHeight('pageFooter', cmLength(footerHeight));
+    onSetHeaderFooterOptions('pageHeader', {
+      printOnFirstPage: headerFirst,
+      printOnLastPage: headerLast,
+    });
+    onSetHeaderFooterOptions('pageFooter', {
+      printOnFirstPage: footerFirst,
+      printOnLastPage: footerLast,
     });
   };
 
@@ -160,6 +199,32 @@ function ReportPropertiesForm({
           </div>
         </div>
 
+        <div className="flex flex-col gap-2">
+          <Label className="text-xs text-muted-foreground">Encabezado y pie</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <RegionFields
+              idPrefix="header"
+              title="Encabezado"
+              height={headerHeight}
+              onHeight={setHeaderHeight}
+              first={headerFirst}
+              onFirst={setHeaderFirst}
+              last={headerLast}
+              onLast={setHeaderLast}
+            />
+            <RegionFields
+              idPrefix="footer"
+              title="Pie"
+              height={footerHeight}
+              onHeight={setFooterHeight}
+              first={footerFirst}
+              onFirst={setFooterFirst}
+              last={footerLast}
+              onLast={setFooterLast}
+            />
+          </div>
+        </div>
+
         <DialogFooter>
           <Button onClick={applyPage}>Aplicar</Button>
         </DialogFooter>
@@ -190,6 +255,76 @@ function ReportPropertiesForm({
   );
 }
 
+/** Alto e impresión de una banda de página (encabezado o pie). */
+function RegionFields({
+  idPrefix,
+  title,
+  height,
+  onHeight,
+  first,
+  onFirst,
+  last,
+  onLast,
+}: {
+  idPrefix: string;
+  title: string;
+  height: number;
+  onHeight: (value: number) => void;
+  first: boolean;
+  onFirst: (value: boolean) => void;
+  last: boolean;
+  onLast: (value: boolean) => void;
+}): ReactNode {
+  const name = title.toLowerCase();
+  return (
+    <div className="flex flex-col gap-2 rounded-md border p-2">
+      <span className="text-[11px] font-medium text-muted-foreground">{title}</span>
+      <NumberField label={`Alto del ${name} (cm)`} value={height} onChange={onHeight} />
+      <CheckField
+        id={`${idPrefix}-first`}
+        label="Primera página"
+        ariaLabel={`Imprimir el ${name} en la primera página`}
+        checked={first}
+        onChange={onFirst}
+      />
+      <CheckField
+        id={`${idPrefix}-last`}
+        label="Última página"
+        ariaLabel={`Imprimir el ${name} en la última página`}
+        checked={last}
+        onChange={onLast}
+      />
+    </div>
+  );
+}
+
+/** Checkbox con etiqueta (los flags de impresión de las bandas). */
+function CheckField({
+  id,
+  label,
+  ariaLabel,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  ariaLabel: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}): ReactNode {
+  return (
+    <label htmlFor={id} className="flex cursor-pointer items-center gap-2 text-xs">
+      <Checkbox
+        id={id}
+        aria-label={ariaLabel}
+        checked={checked}
+        onCheckedChange={(state) => onChange(state === true)}
+      />
+      {label}
+    </label>
+  );
+}
+
 function NumberField({
   label,
   value,
@@ -206,6 +341,7 @@ function NumberField({
         className="h-7 text-xs tabular-nums"
         type="number"
         step="0.1"
+        aria-label={label}
         value={value}
         onChange={(event) => {
           const parsed = Number.parseFloat(event.target.value);

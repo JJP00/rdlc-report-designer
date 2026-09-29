@@ -71,12 +71,19 @@ test.afterEach(async () => {
 
 /* ------------------------------- helpers -------------------------------- */
 
+interface RegionLike {
+  items: ItemLike[];
+  height?: { value: number; unit: string };
+  printOnFirstPage?: boolean;
+  printOnLastPage?: boolean;
+}
+
 interface Projection {
   reportName: string;
   page: {
-    header: { items: ItemLike[] };
-    body: { items: ItemLike[] };
-    footer: { items: ItemLike[] };
+    header: RegionLike;
+    body: RegionLike;
+    footer: RegionLike;
   };
 }
 
@@ -353,6 +360,21 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
     if (found) return found.hidden;
   }
   return undefined;
+}
+
+/** Alto proyectado de una banda de página (encabezado/pie), en cm. */
+async function regionHeight(region: 'header' | 'footer'): Promise<number | undefined> {
+  const proj = await projection();
+  return proj.page[region].height?.value;
+}
+
+/** Flag de impresión proyectado de una banda (`PrintOnFirstPage/LastPage`). */
+async function regionFlag(
+  region: 'header' | 'footer',
+  flag: 'printOnFirstPage' | 'printOnLastPage',
+): Promise<boolean | undefined> {
+  const proj = await projection();
+  return proj.page[region][flag];
 }
 
 /** `ZIndex` proyectado de un item. */
@@ -1685,6 +1707,25 @@ test('el menú de celda trae al frente (ZIndex) y el undo lo revierte', async ()
 
   await page.keyboard.press('Control+z');
   await expect.poll(() => itemZIndex('Textbox4')).toBeUndefined();
+});
+
+test('«Informe…» edita el alto y la impresión del encabezado y el pie', async () => {
+  await page.getByRole('button', { name: 'Informe…' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
+
+  await dialog.getByLabel('Alto del encabezado (cm)').fill('2');
+  await dialog.getByLabel('Alto del pie (cm)').fill('1.5');
+  await dialog
+    .getByRole('checkbox', { name: 'Imprimir el encabezado en la primera página' })
+    .click();
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+
+  await expect.poll(() => regionHeight('header')).toBe(2);
+  await expect.poll(() => regionHeight('footer')).toBe(1.5);
+  await expect.poll(() => regionFlag('header', 'printOnFirstPage')).toBe(false);
+  await expect.poll(() => regionFlag('header', 'printOnLastPage')).toBe(true);
+  await expect.poll(() => regionFlag('footer', 'printOnFirstPage')).toBe(true);
 });
 
 test('el panel de propiedades renombra el elemento (con validación y undo)', async () => {
