@@ -42,3 +42,25 @@ export function restore(position: Detached, node: RdlcNode): DomainCommand {
 export function setNodeTextChange(change: TextChange): DomainCommand {
   return { cmd: 'setNodeText', node: change.node, value: change.value };
 }
+
+/** Comando interno para mover un nodo a otro contenedor (undo de elevar filas). */
+export function moveNode(node: RdlcNode, container: RdlcNode, index: number): DomainCommand {
+  return { cmd: 'moveNode', node, container, index };
+}
+
+/**
+ * Inserta el nodo justo después del último hijo con alguno de esos tags
+ * (posición canónica cuando el XSD no impone un orden estricto).
+ */
+export function insertAfterTags(
+  parent: RdlcNode,
+  node: RdlcNode,
+  tags: string[],
+  fallback = 0,
+): void {
+  let index = fallback;
+  parent.children().forEach((child, position) => {
+    if (tags.includes(child.tagName)) index = position + 1;
+  });
+  parent.insertChildAt(node, index);
+}

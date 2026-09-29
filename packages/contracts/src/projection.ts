@@ -137,22 +137,46 @@ export const tablixCellSchema: z.ZodType<TablixCellDto> = z.object({
   content: z.lazy(() => itemSchema).nullable(),
 });
 
+/** Ubicación de un salto de página de grupo (`PageBreak > BreakLocation`). */
+export const tablixBreakLocationSchema = z.enum(['Start', 'End', 'Between']);
+export type TablixBreakLocation = z.infer<typeof tablixBreakLocationSchema>;
+
+export const tablixSortSchema = z.object({
+  /** Expresión de ordenación (`SortExpression > Value`). */
+  value: z.string(),
+  /** Ausente = ascendente (canónico en los ficheros de BC). */
+  direction: z.enum(['Ascending', 'Descending']).optional(),
+});
+export type TablixSortDto = z.infer<typeof tablixSortSchema>;
+
 export interface TablixMemberDto {
   /** Posición en el árbol = `memberPath` de los comandos. */
   path: number[];
+  /** Nombre del grupo (`Group > @Name`); los miembros estáticos no lo traen. */
+  name?: string;
   /** Presente = grupo dinámico; ausente = miembro estático. */
   expression?: string;
   total: 'none' | 'before' | 'after';
   hidden?: boolean | string;
+  /** Ordenación del miembro (`SortExpressions`), en orden de documento. */
+  sortExpressions?: TablixSortDto[];
+  /** Saltos de página del grupo (`PageBreak > BreakLocation`), sin `None`. */
+  pageBreaks?: TablixBreakLocation[];
+  /** Item que alterna la visibilidad (`Visibility > ToggleItem`). */
+  toggleItem?: string;
   children: TablixMemberDto[];
 }
 
 export const tablixMemberSchema: z.ZodType<TablixMemberDto> = z.lazy(() =>
   z.object({
     path: z.array(z.number().int().nonnegative()),
+    name: z.string().optional(),
     expression: z.string().optional(),
     total: z.enum(['none', 'before', 'after']),
     hidden: z.union([z.boolean(), z.string()]).optional(),
+    sortExpressions: z.array(tablixSortSchema).optional(),
+    pageBreaks: z.array(tablixBreakLocationSchema).optional(),
+    toggleItem: z.string().optional(),
     children: z.array(tablixMemberSchema),
   }),
 );

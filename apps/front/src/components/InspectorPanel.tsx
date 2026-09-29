@@ -1,4 +1,10 @@
-import type { ItemDto, Length, StylePatch, TablixDto } from '@rdlc-designer/contracts';
+import type {
+  ItemDto,
+  Length,
+  StylePatch,
+  TablixDto,
+  TablixMemberDto,
+} from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import type { ImageOptionsPatch } from '@/components/panels/ImagePanel';
 import { ItemPanels } from '@/components/panels/ItemPanels';
@@ -31,12 +37,11 @@ export interface InspectorPanelProps {
     path: number[],
     hidden: boolean | string | null,
   ) => void;
-  /** Edita la expresión de un grupo del Tablix (`path` de la proyección). */
-  onSetGroupExpression: (
+  /** Abre «Propiedades del grupo» del miembro indicado. */
+  onOpenGroupProperties: (
     tablixId: string,
     axis: 'row' | 'column',
-    path: number[],
-    expression: string,
+    member: TablixMemberDto,
   ) => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   onAddRowGroup: (tablixId: string, row: number, expression: string) => void;
@@ -67,7 +72,7 @@ export function InspectorPanel({
   onSetName,
   onSetVisibility,
   onSetMemberVisibility,
-  onSetGroupExpression,
+  onOpenGroupProperties,
   onAddRowGroup,
   onDeleteRowGroup,
   onSetText,
@@ -89,9 +94,7 @@ export function InspectorPanel({
           onSetMemberVisibility={(axis, path, hidden) =>
             onSetMemberVisibility(tablix.id, axis, path, hidden)
           }
-          onSetGroupExpression={(axis, path, expression) =>
-            onSetGroupExpression(tablix.id, axis, path, expression)
-          }
+          onOpenGroupProperties={(axis, member) => onOpenGroupProperties(tablix.id, axis, member)}
           onAddRowGroup={(row, expression) => onAddRowGroup(tablix.id, row, expression)}
           onDeleteGroup={(axis, path) => onDeleteRowGroup(tablix.id, axis, path)}
         />

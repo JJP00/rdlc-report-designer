@@ -266,6 +266,8 @@ export interface TablixTreeEntry {
   hidden?: boolean | string;
   /** Hojas (filas/columnas del body, 0-based), también en grupos hoja. */
   index?: number;
+  /** Miembro de la proyección del que sale la entrada (diálogo de propiedades). */
+  member: TablixMemberDto;
 }
 
 /** Árbol de la jerarquía aplanado para el panel (grupos + hojas con su índice). */
@@ -278,6 +280,7 @@ export function tablixTree(members: TablixMemberDto[]): TablixTreeEntry[] {
       const base = {
         depth,
         path: member.path,
+        member,
         total: member.total,
         ...(member.expression !== undefined ? { expression: member.expression } : {}),
         ...(member.hidden !== undefined ? { hidden: member.hidden } : {}),
@@ -308,6 +311,7 @@ export function tablixRowsTree(tablix: TablixDto): TablixTreeEntry[] {
     kind: 'row' as const,
     depth: 0,
     path: [index],
+    member: { path: [index], total: 'none' as const, children: [] },
     total: 'none' as const,
     index,
   }));
@@ -320,6 +324,7 @@ export function tablixColumnsTree(tablix: TablixDto): TablixTreeEntry[] {
     kind: 'row' as const,
     depth: 0,
     path: [index],
+    member: { path: [index], total: 'none' as const, children: [] },
     total: 'none' as const,
     index,
   }));

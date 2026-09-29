@@ -451,19 +451,23 @@ Con estos dos se cubre el 100% del texto: el caso normal usa `setText` (mínimo 
 
 Implementados (F2 parte 2, parte 3 y F2.b):
 
-| Comando                        | Payload                                                                                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resizeColumn`                 | `{ id, column: number, width }`                                                                                                                               |
-| `resizeRow`                    | `{ id, row: number, height }`                                                                                                                                 |
-| `resizeTable`                  | `{ id, top, left, width, height }` (reparto proporcional de la rejilla)                                                                                       |
-| `addRow` / `deleteRow`         | `{ id, row: number }` — sincroniza `TablixRowHierarchy`; respeta `RowSpan`/`ColSpan`                                                                          |
-| `addColumn` / `deleteColumn`   | `{ id, column: number }` — sincroniza `TablixColumnHierarchy`                                                                                                 |
-| `deleteRows` / `deleteColumns` | `{ id, rows/columns: number[] }` — varias en un solo paso de undo                                                                                             |
-| `mergeCells`                   | `{ id, row, col, rowSpan, colSpan }` — solo tramos horizontales (`rowSpan = 1`): el ancla absorbe las celdas contiguas de su fila (las cubiertas desaparecen) |
-| `unmergeCells`                 | `{ id, row, col }` — separa la celda combinada y rellena con celdas vacías                                                                                    |
-| `setGroupExpression`           | `{ id, axis: 'row' \| 'column', path, expression }` — edita `GroupExpressions`; sincroniza la ordenación que espejaba la expresión anterior                   |
-| `addRowGroup`                  | `{ id, row: number, expression }` — envuelve la hoja en un grupo nuevo (`Group` + `SortExpressions` + `TablixMembers`); no crea cabecera ni toca el body      |
-| `deleteRowGroup`               | `{ id, axis: 'row' \| 'column', path }` — quita `Group` y su ordenación: las filas se quedan como filas estáticas y la `TablixHeader` se conserva             |
+| Comando                        | Payload                                                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resizeColumn`                 | `{ id, column: number, width }`                                                                                                                                           |
+| `resizeRow`                    | `{ id, row: number, height }`                                                                                                                                             |
+| `resizeTable`                  | `{ id, top, left, width, height }` (reparto proporcional de la rejilla)                                                                                                   |
+| `addRow` / `deleteRow`         | `{ id, row: number }` — sincroniza `TablixRowHierarchy`; respeta `RowSpan`/`ColSpan`                                                                                      |
+| `addColumn` / `deleteColumn`   | `{ id, column: number }` — sincroniza `TablixColumnHierarchy`                                                                                                             |
+| `deleteRows` / `deleteColumns` | `{ id, rows/columns: number[] }` — varias en un solo paso de undo                                                                                                         |
+| `mergeCells`                   | `{ id, row, col, rowSpan, colSpan }` — solo tramos horizontales (`rowSpan = 1`): el ancla absorbe las celdas contiguas de su fila (las cubiertas desaparecen)             |
+| `unmergeCells`                 | `{ id, row, col }` — separa la celda combinada y rellena con celdas vacías                                                                                                |
+| `setGroupExpression`           | `{ id, axis: 'row' \| 'column', path, expression }` — edita la expresión; sincroniza la ordenación que espejaba la anterior                                               |
+| `setGroupExpressions`          | `{ id, axis, path, expressions: string[] }` — reemplaza la lista (`Group on` / `And on`)                                                                                  |
+| `addRowGroup`                  | `{ id, row: number, expression }` — envuelve la hoja en un grupo nuevo (`Group` + `SortExpressions` + `TablixMembers`); no crea cabecera ni toca el body                  |
+| `deleteRowGroup`               | `{ id, axis, path }` — grupo hoja: la fila queda estática; grupo con hijos: **eleva las filas** al padre y quita el miembro (con `TablixHeader` con contenido se rechaza) |
+| `setGroupPageBreaks`           | `{ id, axis, path, between, start, end }` — un `PageBreak > BreakLocation` por opción (`Between`/`Start`/`End`); otros valores no se tocan                                |
+| `setGroupSorting`              | `{ id, axis, path, sorts: { expression, direction? }[] }` — reemplaza `SortExpressions` (sin dirección = ascendente; lista vacía quita el bloque)                         |
+| `setMemberToggleItem`          | `{ id, axis, path, item: string \| null }` — escribe/quita `Visibility > ToggleItem` (y `Visibility` si queda vacía)                                                      |
 
 Pendiente (F2.c, opcional):
 
@@ -582,9 +586,13 @@ type TablixCellDto = { colSpan?: number; rowSpan?: number; content: ItemDto | nu
 
 type TablixMemberDto = {
   path: number[]; // posición en el árbol = memberPath de los comandos
+  name?: string; // Group > @Name (solo grupos)
   expression?: string; // presente = grupo dinámico; ausente = estático
   total: 'none' | 'before' | 'after';
   hidden?: boolean | string;
+  sortExpressions?: { value: string; direction?: 'Ascending' | 'Descending' }[];
+  pageBreaks?: ('Start' | 'End' | 'Between')[]; // PageBreak > BreakLocation
+  toggleItem?: string; // Visibility > ToggleItem
   children: TablixMemberDto[];
 };
 ```

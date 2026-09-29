@@ -373,11 +373,12 @@ describe('F2.b · deleteRowGroup', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('quita el grupo de un grupo con hijos y ordenación (LinesTable · LineNo)', () => {
+  it('eleva las filas de un grupo con hijos y quita el miembro (LinesTable · LineNo)', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
     const hierarchy = hierarchyOf(index.get('LinesTable'), 'row');
     // 2 filas estáticas + 2 del grupo + 1 de total.
     expect(leafCount(hierarchy)).toBe(5);
+    expect(hierarchy?.child('TablixMembers')?.children('TablixMember')).toHaveLength(4);
 
     const applied = applyCommand(
       { root: doc.root, index },
@@ -386,11 +387,12 @@ describe('F2.b · deleteRowGroup', () => {
     expect(applied.isRight()).toBe(true);
     if (!applied.isRight()) return;
 
-    const member = memberByPath(hierarchy, [2]);
-    expect(member?.child('Group')).toBeUndefined();
-    expect(member?.child('SortExpressions')).toBeUndefined();
-    // Las dos filas del grupo siguen colgando del miembro (sin perder nada).
-    expect(member?.child('TablixMembers')?.children('TablixMember')).toHaveLength(2);
+    // El grupo desaparece y sus dos filas pasan al nivel raíz (sin línea fantasma).
+    const rootMembers = hierarchyOf(index.get('LinesTable'), 'row')?.child('TablixMembers');
+    expect(rootMembers?.children('TablixMember')).toHaveLength(5);
+    expect(memberByPath(hierarchy, [2])?.child('Group')).toBeUndefined();
+    expect(memberByPath(hierarchy, [3])?.child('Group')).toBeUndefined();
+    expect(memberByPath(hierarchy, [2])?.child('TablixMembers')).toBeUndefined();
     expect(leafCount(hierarchy)).toBe(5);
 
     const problems = validator.validate(adapter.serialize(doc)).problems;
@@ -447,7 +449,492 @@ describe('F2.b · deleteRowGroup', () => {
   });
 });
 
+describe('F2.b.2 · deleteRowGroup eleva las filas y protege la cabecera', () => {
+  it('eleva el hijo del grupo de Tablix6 (con orden y visibilidad) y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const hierarchy = hierarchyOf(index.get('Tablix6'), 'row');
+    expect(leafCount(hierarchy)).toBe(2);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'deleteRowGroup', id: 'Tablix6', axis: 'row', path: [1] },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    expect(hierarchy?.child('TablixMembers')?.children('TablixMember')).toHaveLength(2);
+    expect(memberByPath(hierarchy, [1])?.child('Group')).toBeUndefined();
+    expect(memberByPath(hierarchy, [1])?.child('TablixMembers')).toBeUndefined();
+    expect(leafCount(hierarchy)).toBe(2);
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('rechaza quitar un grupo con cabecera con contenido (no se pierde nada)', () => {
+    const { doc, index } = openXml(groupWithHeaderXml('TextboxHeader'));
+    const before = adapter.serialize(doc);
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'deleteRowGroup', id: 'T', axis: 'row', path: [0] },
+    );
+    expect(applied.isLeft()).toBe(true);
+    // El documento queda intacto: se rechaza antes de tocar nada.
+    expect(adapter.serialize(doc)).toBe(before);
+  });
+
+  it('eleva las filas aunque el grupo tenga cabecera vacía (y el undo es exacto)', () => {
+    const { doc, index } = openXml(groupWithHeaderXml(''));
+    const before = adapter.serialize(doc);
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'deleteRowGroup', id: 'T', axis: 'row', path: [0] },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const hierarchy = hierarchyOf(index.get('T'), 'row');
+    expect(hierarchy?.child('TablixMembers')?.children('TablixMember')).toHaveLength(1);
+    expect(memberByPath(hierarchy, [0])?.child('Group')).toBeUndefined();
+    expect(leafCount(hierarchy)).toBe(1);
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(before);
+  });
+});
+
+describe('F2.b.2 · setGroupExpressions', () => {
+  it('reemplaza la lista de expresiones (Group on / And on) y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setGroupExpressions',
+        id: 'Tablix2',
+        axis: 'row',
+        path: [0],
+        expressions: ['=Fields!BTCDocumentNo.Value', '=Fields!BTCNo.Value'],
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const group = memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0]);
+    expect(
+      group
+        ?.child('Group')
+        ?.child('GroupExpressions')
+        ?.children('GroupExpression')
+        .map((node) => node.text()),
+    ).toEqual(['=Fields!BTCDocumentNo.Value', '=Fields!BTCNo.Value']);
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('sincroniza la ordenación que espejaba la primera expresión (Tablix1)', () => {
+    const { doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setGroupExpressions',
+        id: 'Tablix1',
+        axis: 'row',
+        path: [1],
+        expressions: ['=Fields!BTCDocumentNo.Value'],
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const group = memberByPath(hierarchyOf(index.get('Tablix1'), 'row'), [1]);
+    expect(groupExpression(group)).toBe('=Fields!BTCDocumentNo.Value');
+    expect(sortExpressions(group)).toEqual(['=Fields!BTCDocumentNo.Value']);
+  });
+
+  it('rechaza listas vacías o con expresiones en blanco', () => {
+    const { doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+
+    expect(
+      applyCommand(ctx, {
+        cmd: 'setGroupExpressions',
+        id: 'Tablix2',
+        axis: 'row',
+        path: [0],
+        expressions: [],
+      }).isLeft(),
+    ).toBe(true);
+    expect(
+      applyCommand(ctx, {
+        cmd: 'setGroupExpressions',
+        id: 'Tablix2',
+        axis: 'row',
+        path: [0],
+        expressions: [' '],
+      }).isLeft(),
+    ).toBe(true);
+  });
+});
+
+describe('F2.b.2 · setGroupSorting', () => {
+  it('crea la ordenación desde cero (ascendente sin Direction) y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    expect(
+      memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0])?.child('SortExpressions'),
+    ).toBeUndefined();
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setGroupSorting',
+        id: 'Tablix2',
+        axis: 'row',
+        path: [0],
+        sorts: [
+          { expression: '=Fields!BTCDocumentNo.Value', direction: 'Ascending' },
+          { expression: '=Fields!BTCNo.Value', direction: 'Descending' },
+        ],
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const group = memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0]);
+    expect(sortExpressions(group)).toEqual(['=Fields!BTCDocumentNo.Value', '=Fields!BTCNo.Value']);
+    const sortNodes = group?.child('SortExpressions')?.children('SortExpression') ?? [];
+    expect(sortNodes[0]?.child('Direction')).toBeUndefined();
+    expect(sortNodes[1]?.child('Direction')?.text()).toBe('Descending');
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('cambia expresión y dirección de una ordenación existente (Tablix7)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setGroupSorting',
+        id: 'Tablix7',
+        axis: 'row',
+        path: [0],
+        sorts: [{ expression: '=Fields!VATPct_VatAmountLine.Value', direction: 'Descending' }],
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const group = memberByPath(hierarchyOf(index.get('Tablix7'), 'row'), [0]);
+    expect(sortExpressions(group)).toEqual(['=Fields!VATPct_VatAmountLine.Value']);
+    expect(
+      group?.child('SortExpressions')?.child('SortExpression')?.child('Direction')?.text(),
+    ).toBe('Descending');
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('con lista vacía quita el bloque de ordenación y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setGroupSorting', id: 'Tablix7', axis: 'row', path: [0], sorts: [] },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    expect(
+      memberByPath(hierarchyOf(index.get('Tablix7'), 'row'), [0])?.child('SortExpressions'),
+    ).toBeUndefined();
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+});
+
+describe('F2.b.2 · setGroupPageBreaks', () => {
+  it('escribe un PageBreak por opción (Between, Start) y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setGroupPageBreaks',
+        id: 'Tablix2',
+        axis: 'row',
+        path: [0],
+        between: true,
+        start: true,
+        end: false,
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const group = memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0])?.child('Group');
+    expect(
+      group?.children('PageBreak').map((pageBreak) => pageBreak.child('BreakLocation')?.text()),
+    ).toEqual(['Between', 'Start']);
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('quita los gestionados que se desmarcan y respeta los no gestionados', () => {
+    const { doc, index } = openXml(PAGE_BREAK_NONE_XML);
+    const before = adapter.serialize(doc);
+    const ctx = { root: doc.root, index };
+
+    const applied = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'T',
+      axis: 'row',
+      path: [0],
+      between: false,
+      start: true,
+      end: false,
+    });
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const group = memberByPath(hierarchyOf(index.get('T'), 'row'), [0])?.child('Group');
+    expect(
+      group?.children('PageBreak').map((pageBreak) => pageBreak.child('BreakLocation')?.text()),
+    ).toEqual(['None', 'Start']);
+
+    const undo = undoAll(ctx, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(before);
+  });
+
+  it('desmarcar todo quita los PageBreak gestionados (byte-exacto al deshacer)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+
+    const added = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'Tablix7',
+      axis: 'row',
+      path: [0],
+      between: true,
+      start: false,
+      end: false,
+    });
+    expect(added.isRight()).toBe(true);
+    if (!added.isRight()) return;
+    const afterAdd = adapter.serialize(doc);
+
+    const removed = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'Tablix7',
+      axis: 'row',
+      path: [0],
+      between: false,
+      start: false,
+      end: false,
+    });
+    expect(removed.isRight()).toBe(true);
+    if (!removed.isRight()) return;
+    const group = memberByPath(hierarchyOf(index.get('Tablix7'), 'row'), [0])?.child('Group');
+    expect(group?.children('PageBreak')).toHaveLength(0);
+
+    const undo = undoAll(ctx, removed.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(afterAdd);
+    const undoAllAdded = undoAll(ctx, added.value);
+    expect(undoAllAdded.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+});
+
+describe('F2.b.2 · setMemberToggleItem', () => {
+  it('crea Visibility/ToggleItem y el undo es exacto (y quitar lo deja limpio)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+    const member = () => memberByPath(hierarchyOf(index.get('Tablix3'), 'row'), [0]);
+
+    expect(member()?.child('Visibility')).toBeUndefined();
+
+    const applied = applyCommand(ctx, {
+      cmd: 'setMemberToggleItem',
+      id: 'Tablix3',
+      axis: 'row',
+      path: [0],
+      item: 'Textbox1',
+    });
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    expect(member()?.child('Visibility')?.child('ToggleItem')?.text()).toBe('Textbox1');
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undo = undoAll(ctx, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('conserva la Hidden y quita Visibility solo si se queda vacía', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+    // LinesTable fila 1: Visibility > Hidden declarado.
+    const member = () => memberByPath(hierarchyOf(index.get('LinesTable'), 'row'), [0]);
+    const hiddenBefore = member()?.child('Visibility')?.child('Hidden')?.text();
+
+    const applied = applyCommand(ctx, {
+      cmd: 'setMemberToggleItem',
+      id: 'LinesTable',
+      axis: 'row',
+      path: [0],
+      item: 'Textbox1',
+    });
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    expect(member()?.child('Visibility')?.child('ToggleItem')?.text()).toBe('Textbox1');
+    expect(member()?.child('Visibility')?.child('Hidden')?.text()).toBe(hiddenBefore);
+
+    const cleared = applyCommand(ctx, {
+      cmd: 'setMemberToggleItem',
+      id: 'LinesTable',
+      axis: 'row',
+      path: [0],
+      item: null,
+    });
+    expect(cleared.isRight()).toBe(true);
+    if (!cleared.isRight()) return;
+    expect(member()?.child('Visibility')?.child('ToggleItem')).toBeUndefined();
+    expect(member()?.child('Visibility')?.child('Hidden')?.text()).toBe(hiddenBefore);
+
+    const undoCleared = undoAll(ctx, cleared.value);
+    expect(undoCleared.isRight()).toBe(true);
+    const undoApplied = undoAll(ctx, applied.value);
+    expect(undoApplied.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+});
+
 /* ------------------------- XML de casos límite --------------------------- */
+
+/** Tablix mínimo con un grupo, cabecera (con o sin contenido) y un hijo. */
+function groupWithHeaderXml(headerContent: string): string {
+  const content = headerContent
+    ? `<Textbox Name="${headerContent}">
+         <Paragraphs><Paragraph><TextRuns><TextRun><Value>x</Value></TextRun></TextRuns></Paragraph></Paragraphs>
+       </Textbox>`
+    : '';
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="T">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn><Width>2cm</Width></TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.6cm</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="A"><Paragraphs><Paragraph><TextRuns><TextRun><Value>a</Value></TextRun></TextRuns></Paragraph></Paragraphs></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <Group Name="G">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!A.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <TablixHeader>
+                    <Size>0.6cm</Size>
+                    <CellContents>${content}</CellContents>
+                  </TablixHeader>
+                  <TablixMembers>
+                    <TablixMember />
+                  </TablixMembers>
+                </TablixMember>
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <TablixColumnHierarchy>
+              <TablixMembers><TablixMember /></TablixMembers>
+            </TablixColumnHierarchy>
+          </Tablix>
+        </ReportItems>
+        <Height>5cm</Height>
+      </Body>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
+}
+
+const PAGE_BREAK_NONE_XML = `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="T">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn><Width>2cm</Width></TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.6cm</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="A"><Paragraphs><Paragraph><TextRuns><TextRun><Value>a</Value></TextRun></TextRuns></Paragraph></Paragraphs></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <Group Name="G">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!A.Value</GroupExpression>
+                    </GroupExpressions>
+                    <PageBreak>
+                      <BreakLocation>None</BreakLocation>
+                    </PageBreak>
+                  </Group>
+                </TablixMember>
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <TablixColumnHierarchy>
+              <TablixMembers><TablixMember /></TablixMembers>
+            </TablixColumnHierarchy>
+          </Tablix>
+        </ReportItems>
+        <Height>5cm</Height>
+      </Body>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
 
 const MULTI_EXPRESSION_XML = `<?xml version="1.0" encoding="utf-8"?>
 <Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">

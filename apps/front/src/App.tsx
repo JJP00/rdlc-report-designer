@@ -1,7 +1,7 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { CanvasArea } from '@/components/CanvasArea';
-import { DocumentDialogs } from '@/components/DocumentDialogs';
+import { DocumentDialogs, type GroupPropertiesRequest } from '@/components/DocumentDialogs';
 import { EditorBanners } from '@/components/EditorBanners';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { InspectorPanel } from '@/components/InspectorPanel';
@@ -36,6 +36,8 @@ export function App(): ReactNode {
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** Textbox cuyo editor de texto está abierto (párrafos → runs). */
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  /** Grupo cuyas «Propiedades» están abiertas (null = cerrado). */
+  const [groupProperties, setGroupProperties] = useState<GroupPropertiesRequest | null>(null);
 
   const { doc, status, error, dirty, conflict, reloads, hasBackend } = core;
   const { selectedId, selectedItem, selectedCell } = items;
@@ -147,7 +149,7 @@ export function App(): ReactNode {
     setItemName,
     setVisibility,
     setMemberVisibility,
-    setGroupExpression,
+    applyGroupProperties,
     addRowGroup,
     deleteRowGroup,
     setImageOptions,
@@ -258,7 +260,9 @@ export function App(): ReactNode {
             onSetName={setItemName}
             onSetVisibility={setVisibility}
             onSetMemberVisibility={setMemberVisibility}
-            onSetGroupExpression={setGroupExpression}
+            onOpenGroupProperties={(tablixId, axis, member) =>
+              setGroupProperties({ tablixId, axis, member })
+            }
             onAddRowGroup={addRowGroup}
             onDeleteRowGroup={deleteRowGroup}
             onSetText={setRunText}
@@ -289,6 +293,9 @@ export function App(): ReactNode {
           if (!open) setEditingTextId(null);
         }}
         onApplyParagraphs={setParagraphs}
+        groupProperties={groupProperties}
+        onCloseGroupProperties={() => setGroupProperties(null)}
+        onApplyGroupProperties={applyGroupProperties}
       />
 
       <CommandPalette

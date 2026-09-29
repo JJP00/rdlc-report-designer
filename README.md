@@ -156,12 +156,20 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       (edita la expresión del grupo y sincroniza su ordenación si la espejaba),
       `addRowGroup` (envuelve una fila en un grupo nuevo — `Group` + orden por la
       expresión + `TablixMembers` — sin tocar el body) y `deleteRowGroup` (quita el
-      grupo y su ordenación: las filas se quedan como filas estáticas y la
-      `TablixHeader` se conserva). Los **grupos hoja** de BC (`Tablix2 · Details`,
-      `Tablix7`) se clasifican por `expression` y se pintan como grupos en el árbol;
-      cada grupo tiene **lápiz** (editar expresión) y **Ungroup**, y cada fila estática
-      un botón para **agruparla**. El undo es byte-exacto (se recuerda la indentación
-      al desprender nodos).
+      grupo: un grupo hoja deja la fila estática; un grupo con hijos **eleva las
+      filas** al padre; con cabecera con contenido se rechaza). Los **grupos hoja**
+      de BC (`Tablix2 · Details`, `Tablix7`) se clasifican por `expression` y se
+      pintan como grupos en el árbol; cada fila estática tiene un botón para
+      **agruparla**. El undo es byte-exacto (se recuerda la indentación al
+      desprender nodos).
+- [x] **Propiedades del grupo · F2.b.2 (sesión 2026-09-29)**: el lápiz de cada grupo
+      abre un diálogo con **General** (nombre + expresiones con desplegable de
+      variables y `fx`), **Saltos de página** (`Between`/`Start`/`End`),
+      **Ordenación** (lista con A→Z/Z→A y mover/eliminar) y **Visibilidad**
+      (Mostrar/Ocultar/expresión + `ToggleItem`). «Aplicar» manda **solo las
+      secciones cambiadas** (un comando por sección, un paso de undo cada una):
+      `setGroupExpressions`, `setGroupPageBreaks`, `setGroupSorting`,
+      `setMemberVisibility` y `setMemberToggleItem`.
 - [x] **Visibilidad (F2)**: de **items** (`setVisibility`: Visible / Oculta / Expresión…;
       la predeterminada es visible; la proyección lee `Visibility > Hidden` y los ocultos se
       pintan **atenuados** en el lienzo) y de **filas/columnas/grupos** del Tablix
@@ -179,8 +187,8 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       (añadir/quitar filas y columnas), menú contextual, anclaje/recorte del contenido, refresco
       de la rejilla, cabeceras (Shift/Ctrl), borrado en lote, fusión/separación, colores-expresión,
       autocompletado (panel y diálogo), visibilidad (items y miembros), renombrado, etiqueta,
-      cabeceras del Tablix y **grupos de fila** (editar expresión, agrupar y quitar grupo con undo;
-      32 tests, con reset del documento entre tests).
+      cabeceras del Tablix y **grupos de fila** (propiedades del grupo, agrupar/quitar con undo;
+      34 tests, con reset del documento entre tests).
 - [x] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
       miembros) · [x] `TablixCorner`/`TablixHeader` · [x] grupos de fila · [ ] Matrix (F3).
 
@@ -205,8 +213,8 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       marcadores de etiqueta/expresión, bloque del párrafo activo con formato por run y Monaco
       inline), lienzo fiel al estilo RDL (texto por run con alineación de párrafo y texto de
       diseño `[etiqueta]` / campo / `[exp]`) y marco de selección medido por la caja del item.
-- [x] **Sesión 2026-09-29**: grupos de fila (F2.b) y undo byte-exacto al reinsertar nodos
-      desprendidos (indentación recordada) · **313 unit tests** (197 back + 116 front) +
-      **32 E2E** de Playwright y `typecheck` limpio.
+- [x] **Sesión 2026-09-29**: grupos de fila (F2.b) + propiedades del grupo (F2.b.2) y undo
+      byte-exacto al reinsertar/mover nodos (indentación recordada) · **334 unit tests**
+      (212 back + 122 front) + **34 E2E** de Playwright y `typecheck` limpio.
 
 Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

@@ -1,7 +1,23 @@
-import type { Length, ParagraphDto, ProjectionDto, TextboxDto } from '@rdlc-designer/contracts';
+import type {
+  Length,
+  ParagraphDto,
+  ProjectionDto,
+  RdlcCommand,
+  TablixMemberDto,
+  TextboxDto,
+} from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
+import { GroupPropertiesDialog } from '@/components/panels/GroupPropertiesDialog';
 import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
 import { TextEditorDialog } from '@/components/panels/TextEditorDialog';
+import { flattenItems } from '@/lib/projection';
+
+/** Grupo cuyas «Propiedades» están abiertas (estado de UI, no del documento). */
+export interface GroupPropertiesRequest {
+  tablixId: string;
+  axis: 'row' | 'column';
+  member: TablixMemberDto;
+}
 
 export interface DocumentDialogsProps {
   projection: ProjectionDto | null;
@@ -14,9 +30,13 @@ export interface DocumentDialogsProps {
   editingText: TextboxDto | undefined;
   onEditingTextOpenChange: (open: boolean) => void;
   onApplyParagraphs: (id: string, paragraphs: ParagraphDto[]) => void;
+  /** «Propiedades del grupo» abiertas; `null` = cerrado. */
+  groupProperties: GroupPropertiesRequest | null;
+  onCloseGroupProperties: () => void;
+  onApplyGroupProperties: (commands: RdlcCommand[]) => void;
 }
 
-/** Diálogos del documento: propiedades del informe y editor de texto. */
+/** Diálogos del documento: propiedades del informe, propiedades del grupo y texto. */
 export function DocumentDialogs({
   projection,
   propertiesOpen,
@@ -27,6 +47,9 @@ export function DocumentDialogs({
   editingText,
   onEditingTextOpenChange,
   onApplyParagraphs,
+  groupProperties,
+  onCloseGroupProperties,
+  onApplyGroupProperties,
 }: DocumentDialogsProps): ReactNode {
   return (
     <>
@@ -38,6 +61,18 @@ export function DocumentDialogs({
           onSetPageSize={onSetPageSize}
           onSetPageMargins={onSetPageMargins}
           onSetReportCode={onSetReportCode}
+        />
+      ) : null}
+
+      {projection && groupProperties ? (
+        <GroupPropertiesDialog
+          tablixId={groupProperties.tablixId}
+          axis={groupProperties.axis}
+          member={groupProperties.member}
+          meta={projection.meta}
+          itemNames={flattenItems(projection).map((item) => item.id)}
+          onApply={onApplyGroupProperties}
+          onClose={onCloseGroupProperties}
         />
       ) : null}
 

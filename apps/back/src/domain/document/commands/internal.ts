@@ -48,6 +48,18 @@ export interface SetAttributeCommand {
 }
 
 /**
+ * Mueve un nodo a otro contenedor/posición (`remove` + `insert`), para inversos
+ * que devuelven subárboles a su sitio (p. ej. elevar las filas al quitar un
+ * grupo). El nodo conserva su indentación recordada.
+ */
+export interface MoveNodeCommand {
+  readonly cmd: 'moveNode';
+  readonly node: RdlcNode;
+  readonly container: RdlcNode;
+  readonly index: number;
+}
+
+/**
  * Pega un clon del portapapeles: el nodo origen vive **desprendido** del
  * documento (lo guardó `copy`/`cut`), así que cada pegado clona y renombra.
  */
@@ -63,6 +75,7 @@ export type InternalCommand =
   | RestoreNodeCommand
   | SetNodeTextCommand
   | SetAttributeCommand
+  | MoveNodeCommand
   | InsertCloneCommand;
 
 export function isInternalCommand(command: { cmd: string }): command is InternalCommand {
@@ -71,6 +84,7 @@ export function isInternalCommand(command: { cmd: string }): command is Internal
     command.cmd === 'restoreNode' ||
     command.cmd === 'setNodeText' ||
     command.cmd === 'setAttribute' ||
+    command.cmd === 'moveNode' ||
     command.cmd === 'insertClone'
   );
 }

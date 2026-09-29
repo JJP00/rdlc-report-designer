@@ -1,4 +1,4 @@
-import type { TablixDto } from '@rdlc-designer/contracts';
+import type { TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
 import {
   Columns3,
   Layers,
@@ -47,8 +47,8 @@ export interface TablixStructurePanelProps {
     path: number[],
     hidden: boolean | string | null,
   ) => void;
-  /** Edita la expresión del grupo apuntado por `path`. */
-  onSetGroupExpression: (axis: 'row' | 'column', path: number[], expression: string) => void;
+  /** Abre «Propiedades del grupo» (expresiones, saltos, ordenación, visibilidad). */
+  onOpenGroupProperties: (axis: 'row' | 'column', member: TablixMemberDto) => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   onAddRowGroup: (row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
@@ -64,7 +64,7 @@ export function TablixStructurePanel({
   onAddColumn,
   onDeleteColumn,
   onSetMemberVisibility,
-  onSetGroupExpression,
+  onOpenGroupProperties,
   onAddRowGroup,
   onDeleteGroup,
 }: TablixStructurePanelProps): ReactNode {
@@ -105,7 +105,7 @@ export function TablixStructurePanel({
         onAdd={onAddRow}
         onDelete={onDeleteRow}
         onSetHidden={onSetMemberVisibility}
-        onSetGroupExpression={onSetGroupExpression}
+        onOpenGroupProperties={onOpenGroupProperties}
         onAddRowGroup={onAddRowGroup}
         onDeleteGroup={onDeleteGroup}
         addLabel={(index) => `Añadir fila encima de la ${index + 1}`}
@@ -136,7 +136,7 @@ export function TablixStructurePanel({
         onAdd={onAddColumn}
         onDelete={onDeleteColumn}
         onSetHidden={onSetMemberVisibility}
-        onSetGroupExpression={onSetGroupExpression}
+        onOpenGroupProperties={onOpenGroupProperties}
         onAddRowGroup={onAddRowGroup}
         onDeleteGroup={onDeleteGroup}
         addLabel={(index) => `Añadir columna a la izquierda de la ${index + 1}`}
@@ -164,7 +164,7 @@ interface StructureSectionProps {
   onAdd: (index: number) => void;
   onDelete: (index: number) => void;
   onSetHidden: (axis: 'row' | 'column', path: number[], hidden: boolean | string | null) => void;
-  onSetGroupExpression: (axis: 'row' | 'column', path: number[], expression: string) => void;
+  onOpenGroupProperties: (axis: 'row' | 'column', member: TablixMemberDto) => void;
   onAddRowGroup: (row: number, expression: string) => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
   addLabel: (index: number) => string;
@@ -185,7 +185,7 @@ function StructureSection({
   onAdd,
   onDelete,
   onSetHidden,
-  onSetGroupExpression,
+  onOpenGroupProperties,
   onAddRowGroup,
   onDeleteGroup,
   addLabel,
@@ -222,7 +222,7 @@ function StructureSection({
             onSelect={onSelect}
             onDelete={onDelete}
             onSetHidden={onSetHidden}
-            onSetGroupExpression={onSetGroupExpression}
+            onOpenGroupProperties={onOpenGroupProperties}
             onAddRowGroup={onAddRowGroup}
             onDeleteGroup={onDeleteGroup}
             deleteLabel={deleteLabel}
@@ -257,59 +257,43 @@ interface StructureRowProps {
   onSelect: (index: number) => void;
   onDelete: (index: number) => void;
   onSetHidden: (axis: 'row' | 'column', path: number[], hidden: boolean | string | null) => void;
-  onSetGroupExpression: (axis: 'row' | 'column', path: number[], expression: string) => void;
+  /** Abre «Propiedades del grupo» del miembro indicado. */
+  onOpenGroupProperties: (axis: 'row' | 'column', member: TablixMemberDto) => void;
   onAddRowGroup: (row: number, expression: string) => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
   deleteLabel: (index: number) => string;
   selectLabel: (index: number) => string;
 }
 
-/** Diálogo abierto en una fila: editar la expresión del grupo o agrupar la fila. */
-type GroupDialogKind = 'edit' | 'group' | null;
-
 /** Fila del árbol: cabecera de grupo (no es una fila del body) u hoja. */
 function StructureRow(props: StructureRowProps): ReactNode {
-  const { entry, axis, onSetGroupExpression, onAddRowGroup } = props;
-  const [dialog, setDialog] = useState<GroupDialogKind>(null);
+  const { entry, axis, onOpenGroupProperties, onAddRowGroup } = props;
+  const [groupDialog, setGroupDialog] = useState(false);
   const index = entry.index;
   const label = memberLabel(entry, axis);
-  const closeDialog = (): void => setDialog(null);
   const isGroupHeader = entry.kind === 'group' && index === undefined;
+  const openProperties = (): void => onOpenGroupProperties(axis, entry.member);
 
   return (
     <>
       {isGroupHeader ? (
-        <GroupHeaderRow {...props} label={label} onEditExpression={() => setDialog('edit')} />
+        <GroupHeaderRow {...props} label={label} onOpenProperties={openProperties} />
       ) : (
         <LeafRow
           {...props}
           index={index ?? 0}
           label={label}
-          onEditExpression={() => setDialog('edit')}
-          onGroupRow={() => setDialog('group')}
+          onOpenProperties={openProperties}
+          onGroupRow={() => setGroupDialog(true)}
         />
       )}
 
-      {dialog === 'edit' ? (
-        <GroupExpressionDialog
-          label={label}
-          leaf={index !== undefined}
-          expression={entry.expression ?? ''}
-          onClose={closeDialog}
-          onApply={(expression) => {
-            closeDialog();
-            if (expression !== null && expression !== entry.expression) {
-              onSetGroupExpression(axis, entry.path, expression);
-            }
-          }}
-        />
-      ) : null}
-      {dialog === 'group' ? (
+      {groupDialog ? (
         <AddGroupDialog
           label={label}
-          onClose={closeDialog}
+          onClose={() => setGroupDialog(false)}
           onApply={(expression) => {
-            closeDialog();
+            setGroupDialog(false);
             if (expression !== null) onAddRowGroup(index ?? 0, expression);
           }}
         />
@@ -325,8 +309,8 @@ function GroupHeaderRow({
   label,
   onSetHidden,
   onDeleteGroup,
-  onEditExpression,
-}: StructureRowProps & { label: string; onEditExpression: () => void }): ReactNode {
+  onOpenProperties,
+}: StructureRowProps & { label: string; onOpenProperties: () => void }): ReactNode {
   return (
     <div
       className="flex items-center gap-1 px-1 py-0.5 text-[11px] text-muted-foreground"
@@ -343,9 +327,9 @@ function GroupHeaderRow({
           onChange={(hidden) => onSetHidden(axis, entry.path, hidden)}
         />
         <IconButton
-          label="Editar expresión del grupo"
-          title="Editar la expresión del grupo…"
-          onClick={onEditExpression}
+          label="Propiedades del grupo"
+          title="Propiedades del grupo (expresiones, saltos, ordenación, visibilidad)…"
+          onClick={onOpenProperties}
         >
           <PencilLine />
         </IconButton>
@@ -375,7 +359,7 @@ function LeafRow({
   onSelect,
   onDelete,
   onSetHidden,
-  onEditExpression,
+  onOpenProperties,
   onGroupRow,
   onDeleteGroup,
   deleteLabel,
@@ -383,7 +367,7 @@ function LeafRow({
 }: StructureRowProps & {
   index: number;
   label: string;
-  onEditExpression: () => void;
+  onOpenProperties: () => void;
   onGroupRow: () => void;
 }): ReactNode {
   const isLeafGroup = entry.kind === 'group';
@@ -423,7 +407,7 @@ function LeafRow({
           entry={entry}
           axis={axis}
           label={label}
-          onEditExpression={onEditExpression}
+          onOpenProperties={onOpenProperties}
           onDeleteGroup={onDeleteGroup}
         />
       ) : (
@@ -475,26 +459,26 @@ function TotalBadge({ total }: { total: 'before' | 'after' }): ReactNode {
   );
 }
 
-/** Botón de un grupo hoja: editar su expresión o quitar el grupo. */
+/** Botón de un grupo hoja: abrir sus propiedades o quitar el grupo. */
 function LeafGroupActions({
   entry,
   axis,
   label,
-  onEditExpression,
+  onOpenProperties,
   onDeleteGroup,
 }: {
   entry: TablixTreeEntry;
   axis: 'row' | 'column';
   label: string;
-  onEditExpression: () => void;
+  onOpenProperties: () => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
 }): ReactNode {
   return (
     <>
       <IconButton
-        label={`Editar expresión del grupo de la ${label}`}
-        title="Editar la expresión del grupo…"
-        onClick={onEditExpression}
+        label={`Propiedades del grupo de la ${label}`}
+        title="Propiedades del grupo (expresiones, saltos, ordenación, visibilidad)…"
+        onClick={onOpenProperties}
       >
         <PencilLine />
       </IconButton>
@@ -549,29 +533,6 @@ function StaticRowActions({
         <Trash2 />
       </IconButton>
     </>
-  );
-}
-
-function GroupExpressionDialog({
-  label,
-  leaf,
-  expression,
-  onClose,
-  onApply,
-}: {
-  label: string;
-  leaf: boolean;
-  expression: string;
-  onClose: () => void;
-  onApply: (expression: string | null) => void;
-}): ReactNode {
-  return (
-    <ExpressionDialog
-      title={leaf ? `Expresión del grupo de la ${label}` : 'Expresión del grupo'}
-      value={expression}
-      onClose={onClose}
-      onApply={(value) => onApply(ensureExpression(value))}
-    />
   );
 }
 

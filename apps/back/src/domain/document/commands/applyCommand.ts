@@ -30,8 +30,15 @@ import { applySetSize } from './setSize.js';
 import { applySetStyle } from './setStyle.js';
 import { applySetText } from './setText.js';
 import { applySetVisibility } from './setVisibility.js';
-import { applySetMemberVisibility } from './memberVisibility.js';
-import { applyAddRowGroup, applyDeleteRowGroup, applySetGroupExpression } from './tablixGroups.js';
+import { applySetMemberToggleItem, applySetMemberVisibility } from './memberVisibility.js';
+import {
+  applyAddRowGroup,
+  applyDeleteRowGroup,
+  applySetGroupExpression,
+  applySetGroupExpressions,
+  applySetGroupPageBreaks,
+  applySetGroupSorting,
+} from './tablixGroups.js';
 
 /**
  * Dispatcher de comandos del dominio (públicos y los internos del journal).
@@ -83,12 +90,20 @@ export function applyCommand(
       return applySetVisibility(ctx, command);
     case 'setMemberVisibility':
       return applySetMemberVisibility(ctx, command);
+    case 'setMemberToggleItem':
+      return applySetMemberToggleItem(ctx, command);
     case 'setGroupExpression':
       return applySetGroupExpression(ctx, command);
+    case 'setGroupExpressions':
+      return applySetGroupExpressions(ctx, command);
     case 'addRowGroup':
       return applyAddRowGroup(ctx, command);
     case 'deleteRowGroup':
       return applyDeleteRowGroup(ctx, command);
+    case 'setGroupPageBreaks':
+      return applySetGroupPageBreaks(ctx, command);
+    case 'setGroupSorting':
+      return applySetGroupSorting(ctx, command);
     case 'setPageSize':
       return applySetPageSize(ctx, command);
     case 'setPageMargins':
@@ -120,6 +135,12 @@ export function applyCommand(
     }
     case 'setAttribute': {
       command.node.setAttribute(command.name, command.value);
+      return right({ inverse: [] });
+    }
+    case 'moveNode': {
+      // El nodo puede vivir en otro contenedor (o estar desprendido): se mueve.
+      command.node.remove();
+      command.container.insertChildAt(command.node, command.index);
       return right({ inverse: [] });
     }
     case 'insertClone':

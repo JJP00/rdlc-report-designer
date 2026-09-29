@@ -8,11 +8,13 @@ import type {
   RegionDto,
   ReportMetaDto,
   StyleDto,
+  TablixBreakLocation,
   TablixCellDto,
   TablixDto,
   TablixHeaderBandDto,
   TablixHeadersDto,
   TablixMemberDto,
+  TablixSortDto,
   TextboxDto,
 } from '@rdlc-designer/contracts';
 import { XmlElement, XmlText } from 'xml-trueformat';
@@ -389,22 +391,32 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
               ?.getFirstElementByName('GroupExpressions')
               ?.getFirstElementByName('GroupExpression'),
           );
+          const name = group?.getAttributeValue('Name');
           const nested = memberEl.getFirstElementByName('TablixMembers');
           const childPath = [...path, index];
           const children = nested ? build(nested, childPath, inGroup || group !== undefined) : [];
           const hidden = textOf(
             memberEl.getFirstElementByName('Visibility')?.getFirstElementByName('Hidden'),
           );
+          const toggleItem = textOf(
+            memberEl.getFirstElementByName('Visibility')?.getFirstElementByName('ToggleItem'),
+          );
+          const sortExpressions = this.memberSortExpressions(memberEl);
+          const pageBreaks = this.memberPageBreaks(group);
           const dto: TablixMemberDto = {
             path: childPath,
             total: 'none',
             children,
+            ...(name !== undefined && name !== '' ? { name } : {}),
             ...(expression !== undefined && expression !== '' ? { expression } : {}),
             ...(hidden !== undefined
               ? {
                   hidden: hidden === 'true' ? true : hidden === 'false' ? false : hidden,
                 }
               : {}),
+            ...(sortExpressions.length > 0 ? { sortExpressions } : {}),
+            ...(pageBreaks.length > 0 ? { pageBreaks } : {}),
+            ...(toggleItem !== undefined && toggleItem !== '' ? { toggleItem } : {}),
           };
           if (children.length === 0) {
             leaves.push({ dto, inGroup: inGroup || group !== undefined });
@@ -413,6 +425,30 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
         });
 
     return { members: build(container, [], false), leaves };
+  }
+
+  /** `SortExpressions` del miembro (dirección ausente = ascendente). */
+  private memberSortExpressions(memberEl: XmlElement): TablixSortDto[] {
+    return elementChildren(memberEl.getFirstElementByName('SortExpressions'), 'SortExpression')
+      .map((sort) => {
+        const value = textOf(sort.getFirstElementByName('Value')) ?? '';
+        const direction = textOf(sort.getFirstElementByName('Direction'));
+        return {
+          value,
+          ...(direction === 'Descending' ? { direction: 'Descending' as const } : {}),
+        };
+      })
+      .filter((sort) => sort.value !== '');
+  }
+
+  /** `PageBreak > BreakLocation` del grupo (solo los valores que editamos). */
+  private memberPageBreaks(group: XmlElement | undefined): TablixBreakLocation[] {
+    return elementChildren(group, 'PageBreak')
+      .map((pageBreak) => textOf(pageBreak.getFirstElementByName('BreakLocation')))
+      .filter(
+        (location): location is TablixBreakLocation =>
+          location === 'Start' || location === 'End' || location === 'Between',
+      );
   }
 
   /**

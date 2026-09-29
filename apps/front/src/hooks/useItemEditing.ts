@@ -4,6 +4,7 @@ import type {
   NewItemSpec,
   ParagraphDto,
   ProjectionDto,
+  RdlcCommand,
   ScopeRef,
   StyleDto,
   StylePatch,
@@ -96,13 +97,8 @@ export interface ItemEditing {
     path: number[],
     hidden: boolean | string | null,
   ) => void;
-  /** Edita la expresión de un grupo del Tablix (`path` de la proyección). */
-  setGroupExpression: (
-    tablixId: string,
-    axis: 'row' | 'column',
-    path: number[],
-    expression: string,
-  ) => void;
+  /** Aplica «Propiedades del grupo»: los comandos ya vienen filtrados. */
+  applyGroupProperties: (commands: RdlcCommand[]) => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   addRowGroup: (tablixId: string, row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
@@ -468,12 +464,13 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   );
 
   /**
-   * Grupos de fila/columna (F2.b): los tres comandos piden snapshot (el miembro
-   * no viaja en `applied`), así que la proyección y el árbol se refrescan solos.
+   * Propiedades del grupo (F2.b.2): el diálogo manda solo las secciones
+   * cambiadas, cada una un comando (y un paso de undo). Los tres comandos piden
+   * snapshot, así que la proyección y el árbol se refrescan solos.
    */
-  const setGroupExpression = useCallback(
-    (tablixId: string, axis: 'row' | 'column', path: number[], expression: string): void => {
-      void sendCommand({ cmd: 'setGroupExpression', id: tablixId, axis, path, expression });
+  const applyGroupProperties = useCallback(
+    (commands: RdlcCommand[]): void => {
+      for (const command of commands) void sendCommand(command);
     },
     [sendCommand],
   );
@@ -858,7 +855,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setItemName,
     setVisibility,
     setMemberVisibility,
-    setGroupExpression,
+    applyGroupProperties,
     addRowGroup,
     deleteRowGroup,
     setImageOptions,

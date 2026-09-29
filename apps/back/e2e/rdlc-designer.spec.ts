@@ -107,6 +107,8 @@ interface MemberLike {
   path: number[];
   expression?: string;
   hidden?: boolean | string;
+  sortExpressions?: { value: string; direction?: string }[];
+  pageBreaks?: string[];
   children: MemberLike[];
 }
 
@@ -254,12 +256,12 @@ async function itemBackground(id: string): Promise<string | undefined> {
   return undefined;
 }
 
-/** Visibilidad proyectada de un miembro (fila/columna) por su `path`. */
-async function memberHidden(
+/** Miembro de la jerarquía (fila/columna) por su `path` en la proyección viva. */
+async function memberAtPath(
   tablixId: string,
   axis: 'row' | 'column',
   path: number[],
-): Promise<boolean | string | undefined> {
+): Promise<MemberLike | undefined> {
   const proj = await projection();
   const tablix = findItem(proj.page.body.items, tablixId);
   let level = axis === 'row' ? tablix?.rowHierarchy : tablix?.columnHierarchy;
@@ -269,7 +271,16 @@ async function memberHidden(
     if (!member) return undefined;
     level = member.children;
   }
-  return member?.hidden;
+  return member;
+}
+
+/** Visibilidad proyectada de un miembro (fila/columna) por su `path`. */
+async function memberHidden(
+  tablixId: string,
+  axis: 'row' | 'column',
+  path: number[],
+): Promise<boolean | string | undefined> {
+  return (await memberAtPath(tablixId, axis, path))?.hidden;
 }
 
 /** Expresión proyectada de un miembro (fila/columna) por su `path`. */
@@ -278,16 +289,7 @@ async function memberExpression(
   axis: 'row' | 'column',
   path: number[],
 ): Promise<string | undefined> {
-  const proj = await projection();
-  const tablix = findItem(proj.page.body.items, tablixId);
-  let level = axis === 'row' ? tablix?.rowHierarchy : tablix?.columnHierarchy;
-  let member: MemberLike | undefined;
-  for (const index of path) {
-    member = level?.[index];
-    if (!member) return undefined;
-    level = member.children;
-  }
-  return member?.expression;
+  return (await memberAtPath(tablixId, axis, path))?.expression;
 }
 
 /** Número de hijos (`TablixMembers`) de un miembro: 0 = grupo hoja. */
@@ -296,16 +298,25 @@ async function memberChildCount(
   axis: 'row' | 'column',
   path: number[],
 ): Promise<number | undefined> {
-  const proj = await projection();
-  const tablix = findItem(proj.page.body.items, tablixId);
-  let level = axis === 'row' ? tablix?.rowHierarchy : tablix?.columnHierarchy;
-  let member: MemberLike | undefined;
-  for (const index of path) {
-    member = level?.[index];
-    if (!member) return undefined;
-    level = member.children;
-  }
-  return member?.children.length;
+  return (await memberAtPath(tablixId, axis, path))?.children.length;
+}
+
+/** Ordenación proyectada del miembro (`SortExpressions`). */
+async function memberSort(
+  tablixId: string,
+  axis: 'row' | 'column',
+  path: number[],
+): Promise<{ value: string; direction?: string }[] | undefined> {
+  return (await memberAtPath(tablixId, axis, path))?.sortExpressions;
+}
+
+/** Saltos de página proyectados del miembro (`PageBreak > BreakLocation`). */
+async function memberPageBreaks(
+  tablixId: string,
+  axis: 'row' | 'column',
+  path: number[],
+): Promise<string[] | undefined> {
+  return (await memberAtPath(tablixId, axis, path))?.pageBreaks;
 }
 
 /** Etiqueta `<Label>` del primer run de un textbox (encabezado, cuerpo o pie). */
@@ -1713,7 +1724,7 @@ test('los grupos hoja se ven en la estructura y su expresión se edita', async (
   await selectItemViaPalette('Tablix7');
   await expect(page.getByRole('region', { name: 'Estructura del Tablix' })).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Editar expresión del grupo de la fila 1' }),
+    page.getByRole('button', { name: 'Propiedades del grupo de la fila 1' }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
   await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
@@ -1721,23 +1732,17 @@ test('los grupos hoja se ven en la estructura y su expresión se edita', async (
     .poll(() => memberExpression('Tablix7', 'row', [0]))
     .toBe('=Fields!VATPct_VatAmountLine.Value');
 
-  // Editar la expresión desde el diálogo Monaco.
-  await page.getByRole('button', { name: 'Editar expresión del grupo de la fila 1' }).click();
+  // «Propiedades del grupo» → cambiar la expresión desde el desplegable de variables.
+  await page.getByRole('button', { name: 'Propiedades del grupo de la fila 1' }).click();
   const dialog = page.getByRole('dialog');
   await expect(
-    dialog.getByRole('heading', { name: 'Expresión del grupo de la fila 1' }),
+    dialog.getByRole('heading', { name: 'Propiedades del grupo · VATIdentifier_VatAmountLine' }),
   ).toBeVisible();
-  const editor = dialog.locator('.monaco-editor');
-  await expect(editor).toBeVisible({ timeout: 15_000 });
-  await editor.click();
-  await page.keyboard.press('Control+a');
-  await page.keyboard.type('=Fields!VATIdentifier_VatAmountLine.Value');
+  await dialog.getByLabel('Expresión de grupo').selectOption('=Fields!DocumentNo.Value');
   await dialog.getByRole('button', { name: 'Aplicar' }).click();
   await expect(dialog).toBeHidden();
 
-  await expect
-    .poll(() => memberExpression('Tablix7', 'row', [0]))
-    .toBe('=Fields!VATIdentifier_VatAmountLine.Value');
+  await expect.poll(() => memberExpression('Tablix7', 'row', [0])).toBe('=Fields!DocumentNo.Value');
   // Sigue siendo el mismo grupo hoja: una fila, sin hijos.
   expect(await tablixRowCount('Tablix7')).toBe(1);
   expect(await memberChildCount('Tablix7', 'row', [0])).toBe(0);
@@ -1748,6 +1753,42 @@ test('los grupos hoja se ven en la estructura y su expresión se edita', async (
   await expect
     .poll(() => memberExpression('Tablix7', 'row', [0]))
     .toBe('=Fields!VATPct_VatAmountLine.Value');
+});
+
+test('las propiedades del grupo editan saltos de página y ordenación', async () => {
+  await selectItemViaPalette('Tablix7');
+  await expect
+    .poll(() => memberSort('Tablix7', 'row', [0]))
+    .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value' }]);
+
+  await page.getByRole('button', { name: 'Propiedades del grupo de la fila 1' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: /Propiedades del grupo/ })).toBeVisible();
+
+  // Ordenación: la existente pasa a Z → A.
+  await dialog.getByRole('tab', { name: 'Ordenación' }).click();
+  await dialog.getByLabel('Dirección de la ordenación 1').selectOption('Descending');
+
+  // Saltos de página: «entre cada instancia del grupo».
+  await dialog.getByRole('tab', { name: 'Saltos de página' }).click();
+  await dialog.getByLabel('Entre cada instancia del grupo').check();
+
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect
+    .poll(() => memberSort('Tablix7', 'row', [0]))
+    .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value', direction: 'Descending' }]);
+  await expect.poll(() => memberPageBreaks('Tablix7', 'row', [0])).toEqual(['Between']);
+
+  // Cada sección es un paso de undo (el diálogo manda salto y orden).
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(() => memberSort('Tablix7', 'row', [0]))
+    .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value' }]);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberPageBreaks('Tablix7', 'row', [0])).toBeUndefined();
 });
 
 test('agrupar una fila crea el grupo sin tocar la rejilla (con undo)', async () => {
@@ -1770,8 +1811,8 @@ test('agrupar una fila crea el grupo sin tocar la rejilla (con undo)', async () 
     .toBe('=Fields!BTCNo_BTCHeader.Value');
   // El grupo nuevo envuelve la fila: la rejilla no cambia.
   expect(await tablixRowCount('Tablix3')).toBe(rowsBefore);
-  // El grupo (con hijos) tiene su control y la fila envuelta sigue seleccionable.
-  await expect(page.getByRole('button', { name: 'Editar expresión del grupo' })).toBeVisible();
+  // El grupo (con hijos) tiene sus propiedades y la fila envuelta sigue seleccionable.
+  await expect(page.getByRole('button', { name: 'Propiedades del grupo' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
 
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
@@ -1798,4 +1839,29 @@ test('quitar un grupo deja la fila (y el undo lo restaura)', async () => {
   await expect
     .poll(() => memberExpression('Tablix7', 'row', [0]))
     .toBe('=Fields!VATPct_VatAmountLine.Value');
+});
+
+test('quitar un grupo con hijos eleva las filas (sin línea de grupo fantasma)', async () => {
+  await selectItemViaPalette('LinesTable');
+  const rowsBefore = await tablixRowCount('LinesTable');
+  await expect
+    .poll(() => memberExpression('LinesTable', 'row', [2]))
+    .toBe('=Fields!LineNo_Line.Value');
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
+
+  await page.getByRole('button', { name: 'Quitar grupo' }).click();
+
+  // El grupo desaparece y sus filas pasan al nivel raíz (entradas estáticas).
+  await expect.poll(() => memberExpression('LinesTable', 'row', [2])).toBeUndefined();
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(0);
+  expect(await tablixRowCount('LinesTable')).toBe(rowsBefore);
+  await expect(page.getByRole('button', { name: 'Seleccionar fila 3' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Quitar grupo' })).toBeHidden();
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(() => memberExpression('LinesTable', 'row', [2]))
+    .toBe('=Fields!LineNo_Line.Value');
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
 });

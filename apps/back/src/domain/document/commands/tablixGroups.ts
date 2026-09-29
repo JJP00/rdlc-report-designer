@@ -1,41 +1,59 @@
 import type { RdlcCommand } from '@rdlc-designer/contracts';
+import type { TablixBreakLocation } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome, DomainCommand } from './CommandContext.js';
-import { detach, restore, setNodeTextChange } from './nodeChanges.js';
+import {
+  detach,
+  insertAfterTags,
+  moveNode,
+  restore,
+  setNodeTextChange,
+  type Detached,
+} from './nodeChanges.js';
 import { leafAt, memberAt, tablixHierarchy } from './tablixParts.js';
 
 export type SetGroupExpressionCommand = Extract<RdlcCommand, { cmd: 'setGroupExpression' }>;
+export type SetGroupExpressionsCommand = Extract<RdlcCommand, { cmd: 'setGroupExpressions' }>;
 export type AddRowGroupCommand = Extract<RdlcCommand, { cmd: 'addRowGroup' }>;
 export type DeleteRowGroupCommand = Extract<RdlcCommand, { cmd: 'deleteRowGroup' }>;
+export type SetGroupPageBreaksCommand = Extract<RdlcCommand, { cmd: 'setGroupPageBreaks' }>;
+export type SetGroupSortingCommand = Extract<RdlcCommand, { cmd: 'setGroupSorting' }>;
+
+interface GroupSort {
+  expression: string;
+  direction: 'Ascending' | 'Descending';
+}
 
 /**
- * Grupos de fila del Tablix (F2.b). El modelo RDL: un `TablixMember` con
- * `<Group>` es dinámico (se repite por valor de la expresión) y sus hojas son
- * filas del body.
+ * Grupos del Tablix (F2.b): expresiones, creación/eliminación, saltos de página
+ * y ordenación. El modelo RDL: un `TablixMember` con `<Group>` es dinámico (se
+ * repite por valor de las expresiones) y sus hojas son filas del body.
  *
  * Decisiones (lecciones del ida/vuelta con Report Builder):
  * - Un grupo puede ser **hoja** (sin `TablixMembers`): es la fila de detalle que
- *   se repite (caso real: `Tablix7` de BC). Aquí cuenta como grupo, no como
- *   fila, y `deleteRowGroup` lo degrada a fila estática sin perder la fila.
+ *   se repite (caso real: `Tablix7` de BC). `deleteRowGroup` lo degrada a fila
+ *   estática sin perder la fila (y conserva su `TablixHeader`).
+ * - Un grupo **con hijos**: `deleteRowGroup` **eleva** las filas al padre y el
+ *   miembro desaparece (como RB al quitar el grupo: la línea de grupo no deja
+ *   un contenedor fantasma). Si el grupo trae `TablixHeader` con contenido, se
+ *   rechaza para no perderlo en silencio.
  * - `addRowGroup` **envuelve** la fila elegida en el grupo nuevo (como RB al
  *   agrupar una fila de detalle) y **no toca `TablixHeader`**: no se crea
  *   cabecera ni se convierte ninguna en fila; si el miembro ya tenía cabecera,
  *   se conserva.
- * - `deleteRowGroup` quita el `<Group>` (y su ordenación) del miembro: las
- *   filas que cuelgan se quedan como filas estáticas y una `TablixHeader`
- *   existente se conserva (el miembro pasa a ser un contenedor estático con
- *   cabecera). Un `TablixCorner` no se toca (vive en el Tablix, no en el grupo).
- * - La ordenación (`SortExpressions`) del grupo espeja la expresión: al crearlo
- *   nace ordenado por ella y al editarla se sincroniza si espejaba la anterior
- *   (igual que RB).
+ * - La ordenación (`SortExpressions`) del grupo espeja la expresión: al crear el
+ *   grupo nace ordenado por ella y al editarla se sincroniza si espejaba la
+ *   anterior (igual que RB). Ascendente se **omite** en el XML (canónico de BC).
+ * - Los saltos de página se gestionan solo en `Start`/`End`/`Between`: otros
+ *   valores (`None`, `StartAndEnd`) no se tocan.
  */
 
-/* ------------------------- setGroupExpression ---------------------------- */
+/* ------------------------- expresiones del grupo ------------------------- */
 
 /**
- * Edita la expresión del grupo apuntado por `path`. El nombre del grupo no
+ * Edita la expresión de un grupo apuntado por `path`. El nombre del grupo no
  * cambia (las expresiones de ámbito `Sum(..., "Grupo")` lo referencian).
  */
 export function applySetGroupExpression(
@@ -46,12 +64,11 @@ export function applySetGroupExpression(
   if (found.isLeft()) return left(found.value);
   const { member, group } = found.value;
 
-  const expressions = group.child('GroupExpressions');
-  const existing = expressions?.children('GroupExpression') ?? [];
+  const existing = group.child('GroupExpressions')?.children('GroupExpression') ?? [];
   if (existing.length > 1) {
     return left(
       CommandRejectedError.create(
-        'El grupo tiene varias expresiones: edítalo desde el XML del informe',
+        'El grupo tiene varias expresiones: edítalas desde «Propiedades del grupo»',
       ),
     );
   }
@@ -65,18 +82,42 @@ export function applySetGroupExpression(
   if (previous === expression) return right({ inverse: [] });
 
   const inverse: DomainCommand[] = [];
-  writeGroupExpression(group, expression, inverse);
+  writeGroupExpressions(group, [expression], inverse);
+  syncSortExpressions(member, previous !== undefined ? [previous] : [], [expression], inverse);
 
-  // La ordenación que espejaba la expresión anterior la sigue (como RB): si el
-  // grupo ordenaba por otro campo, se respeta.
-  if (previous !== undefined) {
-    for (const sort of member.child('SortExpressions')?.children('SortExpression') ?? []) {
-      const value = sort.child('Value');
-      if (value?.text() !== previous) continue;
-      inverse.push(setNodeTextChange({ node: value, value: previous }));
-      value.setText(expression);
-    }
+  return right({ inverse, snapshotOut: true });
+}
+
+/**
+ * Reemplaza la lista completa de expresiones del grupo (la primera es el
+ * «Group on» de RB; las siguientes, los «And on»).
+ */
+export function applySetGroupExpressions(
+  ctx: CommandContext,
+  command: SetGroupExpressionsCommand,
+): Either<DomainError, CommandOutcome> {
+  const found = findGroup(ctx, command.id, command.axis, command.path);
+  if (found.isLeft()) return left(found.value);
+  const { member, group } = found.value;
+
+  if (command.expressions.length === 0) {
+    return left(CommandRejectedError.create('El grupo necesita al menos una expresión'));
   }
+
+  const expressions = normalizedExpressions(command.expressions);
+  if (expressions === null) {
+    return left(CommandRejectedError.create('La expresión del grupo no puede estar vacía'));
+  }
+
+  const previous =
+    group
+      .child('GroupExpressions')
+      ?.children('GroupExpression')
+      .map((node) => node.text() ?? '') ?? [];
+
+  const inverse: DomainCommand[] = [];
+  writeGroupExpressions(group, expressions, inverse);
+  syncSortExpressions(member, previous, expressions, inverse);
 
   return right({ inverse, snapshotOut: true });
 }
@@ -135,9 +176,7 @@ export function applyAddRowGroup(
   groupMember.appendChild(group);
 
   const sorts = groupMember.createElement('SortExpressions');
-  const sort = sorts.createElement('SortExpression');
-  sort.appendChild(sort.createElement('Value', expression));
-  sorts.appendChild(sort);
+  sorts.appendChild(createSortExpression(sorts, { expression, direction: 'Ascending' }));
   groupMember.appendChild(sorts);
 
   const nested = groupMember.createElement('TablixMembers');
@@ -156,8 +195,9 @@ export function applyAddRowGroup(
 /* ---------------------------- deleteRowGroup ----------------------------- */
 
 /**
- * Quita el grupo del miembro: se desprenden su `Group` y su `SortExpressions`
- * (la ordenación pertenece al grupo). Ni las filas ni la cabecera se tocan.
+ * Quita el grupo del miembro:
+ * - grupo hoja → se quitan `Group` y su ordenación; la fila se queda estática.
+ * - grupo con hijos → las filas se elevan al padre y el miembro desaparece.
  */
 export function applyDeleteRowGroup(
   ctx: CommandContext,
@@ -167,6 +207,18 @@ export function applyDeleteRowGroup(
   if (found.isLeft()) return left(found.value);
   const { member, group } = found.value;
 
+  const children = member.child('TablixMembers')?.children('TablixMember') ?? [];
+  if (children.length > 0) {
+    if (headerHasContent(member)) {
+      return left(
+        CommandRejectedError.create(
+          'El grupo tiene una cabecera fuera de la rejilla con contenido: bórrala antes de quitar el grupo',
+        ),
+      );
+    }
+    return right(hoistGroup(member, children));
+  }
+
   const inverse: DomainCommand[] = [];
   const groupPosition = detach(group);
   inverse.push(restore(groupPosition, group));
@@ -175,6 +227,130 @@ export function applyDeleteRowGroup(
   if (sorts) {
     const sortsPosition = detach(sorts);
     inverse.push(restore(sortsPosition, sorts));
+  }
+
+  return right({ inverse, snapshotOut: true });
+}
+
+/** Eleva las filas de un grupo al padre y lo quita (undo: al revés). */
+function hoistGroup(member: RdlcNode, children: RdlcNode[]): CommandOutcome {
+  const position = detach(member);
+  const childPositions: Detached[] = children.map((child) => detach(child));
+  children.forEach((child, index) => {
+    position.container.insertChildAt(child, position.index + index);
+  });
+
+  return {
+    inverse: [
+      ...children.map((child, index) =>
+        moveNode(child, childPositions[index]!.container, childPositions[index]!.index),
+      ),
+      restore(position, member),
+    ],
+    snapshotOut: true,
+  };
+}
+
+/* --------------------------- opciones del grupo --------------------------- */
+
+/**
+ * Saltos de página del grupo: un `PageBreak > BreakLocation` por opción marcada
+ * (`Between`, `Start`, `End`), en ese orden. Los saltos con otros valores no se
+ * tocan.
+ */
+export function applySetGroupPageBreaks(
+  ctx: CommandContext,
+  command: SetGroupPageBreaksCommand,
+): Either<DomainError, CommandOutcome> {
+  const found = findGroup(ctx, command.id, command.axis, command.path);
+  if (found.isLeft()) return left(found.value);
+  const { group } = found.value;
+
+  const wanted: TablixBreakLocation[] = [];
+  if (command.between) wanted.push('Between');
+  if (command.start) wanted.push('Start');
+  if (command.end) wanted.push('End');
+
+  const inverse: DomainCommand[] = [];
+  for (const pageBreak of group.children('PageBreak')) {
+    const location = pageBreak.child('BreakLocation')?.text();
+    if (location === undefined || !isManagedBreak(location)) continue;
+    if (wanted.includes(location)) continue;
+    const position = detach(pageBreak);
+    inverse.push(restore(position, pageBreak));
+  }
+
+  for (const location of wanted) {
+    const exists = group
+      .children('PageBreak')
+      .some((pageBreak) => pageBreak.child('BreakLocation')?.text() === location);
+    if (exists) continue;
+    const pageBreak = group.createElement('PageBreak');
+    pageBreak.appendChild(pageBreak.createElement('BreakLocation', location));
+    insertAfterTags(group, pageBreak, [
+      'DocumentMapLabel',
+      'GroupExpressions',
+      'ReGroupExpressions',
+      'PageBreak',
+    ]);
+    inverse.push({ cmd: 'removeNode', node: pageBreak });
+  }
+
+  return right({ inverse, snapshotOut: true });
+}
+
+/** Ordenación del miembro (`SortExpressions`) con dirección por entrada. */
+export function applySetGroupSorting(
+  ctx: CommandContext,
+  command: SetGroupSortingCommand,
+): Either<DomainError, CommandOutcome> {
+  const found = findGroup(ctx, command.id, command.axis, command.path);
+  if (found.isLeft()) return left(found.value);
+  const { member } = found.value;
+
+  const sorts: GroupSort[] = [];
+  for (const sort of command.sorts) {
+    const expression = normalizedExpression(sort.expression);
+    if (expression === null) {
+      return left(CommandRejectedError.create('La expresión de ordenación no puede estar vacía'));
+    }
+    sorts.push({ expression, direction: sort.direction ?? 'Ascending' });
+  }
+
+  const container = member.child('SortExpressions');
+  const inverse: DomainCommand[] = [];
+
+  if (sorts.length === 0) {
+    if (container) {
+      const position = detach(container);
+      inverse.push(restore(position, container));
+    }
+    return right({ inverse, snapshotOut: true });
+  }
+
+  if (!container) {
+    const created = member.createElement('SortExpressions');
+    for (const sort of sorts) created.appendChild(createSortExpression(created, sort));
+    insertAfterTags(member, created, ['Group']);
+    inverse.push({ cmd: 'removeNode', node: created });
+    return right({ inverse, snapshotOut: true });
+  }
+
+  const existing = container.children('SortExpression');
+  const count = Math.max(existing.length, sorts.length);
+  for (let index = 0; index < count; index += 1) {
+    const current = existing[index];
+    const sort = sorts[index];
+    if (current && sort) {
+      writeSortExpression(current, sort, inverse);
+    } else if (current) {
+      const position = detach(current);
+      inverse.push(restore(position, current));
+    } else if (sort) {
+      const created = createSortExpression(container, sort);
+      container.appendChild(created);
+      inverse.push({ cmd: 'removeNode', node: created });
+    }
   }
 
   return right({ inverse, snapshotOut: true });
@@ -222,26 +398,111 @@ function findGroup(
   return right({ member, group });
 }
 
-/** Escribe la expresión del grupo (creando `GroupExpressions` si faltara). */
-function writeGroupExpression(group: RdlcNode, expression: string, inverse: DomainCommand[]): void {
+/** true si la `TablixHeader` del miembro tiene un report item dentro. */
+function headerHasContent(member: RdlcNode): boolean {
+  const contents = member.child('TablixHeader')?.child('CellContents');
+  if (!contents) return false;
+  return contents
+    .children()
+    .some((child) => !['ColSpan', 'RowSpan', 'Height'].includes(child.tagName));
+}
+
+/** Escribe la lista de expresiones en `GroupExpressions` (crea/quita nodos). */
+function writeGroupExpressions(
+  group: RdlcNode,
+  expressions: string[],
+  inverse: DomainCommand[],
+): void {
   const container = group.child('GroupExpressions');
-  if (container) {
-    const node = container.child('GroupExpression');
-    if (node) {
-      inverse.push(setNodeTextChange({ node, value: node.text() ?? '' }));
-      node.setText(expression);
-      return;
+  if (!container) {
+    const created = group.createElement('GroupExpressions');
+    for (const expression of expressions) {
+      created.appendChild(created.createElement('GroupExpression', expression));
     }
-    const created = container.createElement('GroupExpression', expression);
-    container.appendChild(created);
+    // Canónico: `GroupExpressions` va al principio (tras `DocumentMapLabel`).
+    group.insertChildAt(created, group.child('DocumentMapLabel') ? 1 : 0);
     inverse.push({ cmd: 'removeNode', node: created });
     return;
   }
 
-  const createdContainer = group.createElement('GroupExpressions');
-  createdContainer.appendChild(createdContainer.createElement('GroupExpression', expression));
-  group.insertChildAt(createdContainer, 0);
-  inverse.push({ cmd: 'removeNode', node: createdContainer });
+  const existing = container.children('GroupExpression');
+  const count = Math.max(existing.length, expressions.length);
+  for (let index = 0; index < count; index += 1) {
+    const current = existing[index];
+    const expression = expressions[index];
+    if (current && expression !== undefined) {
+      if (current.text() === expression) continue;
+      inverse.push(setNodeTextChange({ node: current, value: current.text() ?? '' }));
+      current.setText(expression);
+    } else if (current) {
+      const position = detach(current);
+      inverse.push(restore(position, current));
+    } else if (expression !== undefined) {
+      const created = container.createElement('GroupExpression', expression);
+      container.appendChild(created);
+      inverse.push({ cmd: 'removeNode', node: created });
+    }
+  }
+}
+
+/** Sincroniza la ordenación que espejaba la primera expresión anterior. */
+function syncSortExpressions(
+  member: RdlcNode,
+  previous: string[],
+  next: string[],
+  inverse: DomainCommand[],
+): void {
+  const from = previous[0];
+  const to = next[0];
+  if (from === undefined || to === undefined || from === to) return;
+  for (const sort of member.child('SortExpressions')?.children('SortExpression') ?? []) {
+    const value = sort.child('Value');
+    if (value?.text() !== from) continue;
+    inverse.push(setNodeTextChange({ node: value, value: from }));
+    value.setText(to);
+  }
+}
+
+/** Escribe `Value`/`Direction` de un `SortExpression` (ascendente = sin nodo). */
+function writeSortExpression(sort: RdlcNode, wanted: GroupSort, inverse: DomainCommand[]): void {
+  const value = sort.child('Value');
+  if (value) {
+    if (value.text() !== wanted.expression) {
+      inverse.push(setNodeTextChange({ node: value, value: value.text() ?? '' }));
+      value.setText(wanted.expression);
+    }
+  } else {
+    const created = sort.createElement('Value', wanted.expression);
+    sort.insertChildAt(created, 0);
+    inverse.push({ cmd: 'removeNode', node: created });
+  }
+
+  const direction = sort.child('Direction');
+  if (wanted.direction === 'Descending') {
+    if (direction) {
+      if (direction.text() !== 'Descending') {
+        inverse.push(setNodeTextChange({ node: direction, value: direction.text() ?? '' }));
+        direction.setText('Descending');
+      }
+    } else {
+      const created = sort.createElement('Direction', 'Descending');
+      sort.appendChild(created);
+      inverse.push({ cmd: 'removeNode', node: created });
+    }
+  } else if (direction) {
+    // Ascendente es el valor por defecto: se omite (canónico en BC).
+    const position = detach(direction);
+    inverse.push(restore(position, direction));
+  }
+}
+
+function createSortExpression(parent: RdlcNode, sort: GroupSort): RdlcNode {
+  const node = parent.createElement('SortExpression');
+  node.appendChild(node.createElement('Value', sort.expression));
+  if (sort.direction === 'Descending') {
+    node.appendChild(node.createElement('Direction', 'Descending'));
+  }
+  return node;
 }
 
 /** Expresión lista para el XML: recortada y con `=` (lo que espera RDL). */
@@ -249,6 +510,20 @@ function normalizedExpression(value: string): string | null {
   const trimmed = value.trim();
   if (trimmed === '' || trimmed === '=') return null;
   return trimmed.startsWith('=') ? trimmed : `=${trimmed}`;
+}
+
+function normalizedExpressions(values: string[]): string[] | null {
+  const result: string[] = [];
+  for (const value of values) {
+    const expression = normalizedExpression(value);
+    if (expression === null) return null;
+    result.push(expression);
+  }
+  return result;
+}
+
+function isManagedBreak(location: string): location is TablixBreakLocation {
+  return location === 'Start' || location === 'End' || location === 'Between';
 }
 
 /**

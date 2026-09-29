@@ -356,16 +356,72 @@ const addRowGroup = z.object({
 });
 
 /**
- * Quita el grupo de un miembro: se elimina su `Group` (y su ordenación) y las
- * filas que cuelgan se quedan como filas estáticas. La cabecera
- * (`TablixHeader`) se conserva: si tiene contenido, el miembro pasa a ser un
- * contenedor estático con cabecera.
+ * Quita el grupo de un miembro:
+ * - Grupo **hoja** (sin hijos): la fila se queda como fila estática.
+ * - Grupo **con hijos**: las filas se **elevan** al padre y el miembro
+ *   desaparece (si trae `TablixHeader` con contenido, se rechaza para no
+ *   perderlo en silencio).
  */
 const deleteRowGroup = z.object({
   cmd: z.literal('deleteRowGroup'),
   id: z.string().min(1),
   axis: z.enum(['row', 'column']),
   path: z.array(z.number().int().nonnegative()).min(1),
+});
+
+/* ------------------------ grupos: opciones (F2.b.2) --------------------- */
+
+/**
+ * Reemplaza la lista de expresiones del grupo (`GroupExpressions`), en orden:
+ * la primera es el «Group on» de RB y las siguientes los «And on».
+ */
+const setGroupExpressions = z.object({
+  cmd: z.literal('setGroupExpressions'),
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  path: z.array(z.number().int().nonnegative()).min(1),
+  expressions: z.array(z.string()).min(1),
+});
+
+/**
+ * Saltos de página del grupo: escribe un `PageBreak > BreakLocation` por cada
+ * opción marcada (`Between`, `Start`, `End`). Los `PageBreak` con otros valores
+ * (`None`, `StartAndEnd`) no se tocan.
+ */
+const setGroupPageBreaks = z.object({
+  cmd: z.literal('setGroupPageBreaks'),
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  path: z.array(z.number().int().nonnegative()).min(1),
+  between: z.boolean(),
+  start: z.boolean(),
+  end: z.boolean(),
+});
+
+/** Ordenación del miembro (`SortExpressions`); sin dirección = ascendente. */
+const setGroupSorting = z.object({
+  cmd: z.literal('setGroupSorting'),
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  path: z.array(z.number().int().nonnegative()).min(1),
+  sorts: z.array(
+    z.object({
+      expression: z.string(),
+      direction: z.enum(['Ascending', 'Descending']).optional(),
+    }),
+  ),
+});
+
+/**
+ * Item que alterna la visibilidad del miembro (`Visibility > ToggleItem`);
+ * `null` quita el `ToggleItem` (y la `Visibility` si se queda vacía).
+ */
+const setMemberToggleItem = z.object({
+  cmd: z.literal('setMemberToggleItem'),
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  path: z.array(z.number().int().nonnegative()).min(1),
+  item: z.string().nullable(),
 });
 
 /* ------------------------------ Unión ----------------------------------- */
@@ -388,6 +444,10 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setGroupExpression,
   addRowGroup,
   deleteRowGroup,
+  setGroupExpressions,
+  setGroupPageBreaks,
+  setGroupSorting,
+  setMemberToggleItem,
   setZIndex,
   setName,
   setVisibility,
