@@ -33,6 +33,7 @@ import { applySetSize } from './setSize.js';
 import { applySetStyle } from './setStyle.js';
 import { applySetText } from './setText.js';
 import { applySetVisibility } from './setVisibility.js';
+import { applySetZIndex } from './setZIndex.js';
 import { applySetMemberToggleItem, applySetMemberVisibility } from './memberVisibility.js';
 import {
   applyAddRowGroup,
@@ -96,6 +97,8 @@ export function applyCommand(
       return applySetItemOptions(ctx, command);
     case 'setName':
       return applySetName(ctx, command);
+    case 'setZIndex':
+      return applySetZIndex(ctx, command);
     case 'setVisibility':
       return applySetVisibility(ctx, command);
     case 'setMemberVisibility':

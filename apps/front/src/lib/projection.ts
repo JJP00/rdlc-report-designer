@@ -37,6 +37,30 @@ export function findItem(projection: ProjectionDto, id: string): ItemDto | undef
 }
 
 /**
+ * Items del **mismo contenedor** (región o rectángulo) que el item dado; es la
+ * lista en la que manda el `ZIndex`. `undefined` si vive en una celda de Tablix
+ * (contenido único: no hay orden que cambiar).
+ */
+export function findSiblings(projection: ProjectionDto, id: string): ItemDto[] | undefined {
+  const search = (items: ItemDto[]): ItemDto[] | undefined => {
+    if (items.some((item) => item.id === id)) return items;
+    for (const item of items) {
+      if (item.kind === 'rectangle') {
+        const found = search(item.children);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
+  return (
+    search(projection.page.header.items) ??
+    search(projection.page.body.items) ??
+    search(projection.page.footer.items)
+  );
+}
+
+/**
  * Contenido de las cabeceras de un Tablix (bandas de columna/fila + esquina),
  * sin nulos. Viven **fuera de `body.rows`** pero son items normales: hay que
  * incluirlos en el recorrido para que se puedan seleccionar, editar y contar.

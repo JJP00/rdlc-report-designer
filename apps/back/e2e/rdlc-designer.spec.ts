@@ -96,6 +96,7 @@ interface ItemLike {
   paragraphs?: { runs: { value: string; label?: string }[] }[];
   canGrow?: boolean;
   keepTogether?: boolean;
+  zIndex?: number;
   rowHierarchy?: MemberLike[];
   columnHierarchy?: MemberLike[];
   body?: {
@@ -350,6 +351,16 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
   for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
     const found = findItem(items, id);
     if (found) return found.hidden;
+  }
+  return undefined;
+}
+
+/** `ZIndex` proyectado de un item. */
+async function itemZIndex(id: string): Promise<number | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found) return found.zIndex;
   }
   return undefined;
 }
@@ -1658,6 +1669,22 @@ test('las opciones del textbox (CanGrow/KeepTogether) se editan y deshacen', asy
   await page.keyboard.press('Control+z');
   await expect(canGrow).toBeChecked();
   await expect.poll(() => itemOption('Textbox4', 'canGrow')).toBe(true);
+});
+
+test('el menú de celda trae al frente (ZIndex) y el undo lo revierte', async () => {
+  // Textbox4 es el primer hijo de Rectangle1 (sin ZIndex); sus hermanos van 1…7.
+  await selectItemViaPalette('Textbox4');
+  const center = await nodeCenter('Textbox4');
+  expect(center).not.toBeNull();
+
+  await page.mouse.click(center!.x, center!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Orden' }).click();
+  await page.getByRole('menuitem', { name: 'Traer al frente' }).click();
+
+  await expect.poll(() => itemZIndex('Textbox4')).toBe(8);
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => itemZIndex('Textbox4')).toBeUndefined();
 });
 
 test('el panel de propiedades renombra el elemento (con validación y undo)', async () => {

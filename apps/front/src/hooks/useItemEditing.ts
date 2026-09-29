@@ -15,7 +15,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiErrorMessage } from '@/lib/errors';
 import type { CanvasHit } from '@/lib/hit';
 import { insertSpecAt } from '@/lib/insert';
-import { cm, findItem, findParentItemId, isCellContent, patchItem, toCm } from '@/lib/projection';
+import {
+  cm,
+  findItem,
+  findParentItemId,
+  findSiblings,
+  isCellContent,
+  patchItem,
+  toCm,
+} from '@/lib/projection';
 import { hitSelectionCell, isCellInRange, isCellSelected, type SelectedCell } from '@/lib/tablix';
 import type { DocumentCore } from './useDocumentCore';
 
@@ -86,6 +94,8 @@ export interface ItemEditing {
   mergeCells: (id: string, row: number, col: number, rowSpan: number, colSpan: number) => void;
   unmergeCells: (id: string, row: number, col: number) => void;
   setItemStyle: (patch: StylePatch) => void;
+  /** Orden de apilado entre los hermanos del mismo contenedor. */
+  zOrder: (direction: 'front' | 'back') => void;
   /** `CanGrow`/`KeepTogether` de un Textbox (apagarlas quita la etiqueta). */
   setItemOptions: (options: { canGrow?: boolean; keepTogether?: boolean }) => void;
   /** Renombra el elemento (el nombre debe ser único; lo valida el dominio). */
@@ -440,6 +450,32 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       );
     },
     [reconcile, selectedItem, sendCommand, updateProjection],
+  );
+
+  /**
+   * «Traer al frente» / «Enviar atrás»: zIndex por delante del máximo (o por
+   * detrás del mínimo) de los **hermanos** del contenedor. Sin hermanos no hay
+   * orden que cambiar. «Enviar atrás» manda `-1` cuando el mínimo es 0: el
+   * dominio corre los hermanos (un solo comando, un paso de undo).
+   */
+  const zOrder = useCallback(
+    (direction: 'front' | 'back'): void => {
+      if (!doc || !selectedItem) return;
+      const siblings = findSiblings(doc.projection, selectedItem.id);
+      const others = siblings?.filter((item) => item.id !== selectedItem.id);
+      if (!others || others.length === 0) return;
+
+      const effective = (item: ItemDto): number => item.zIndex ?? 0;
+      const min = Math.min(...others.map(effective));
+      const max = Math.max(...others.map(effective));
+      const zIndex = direction === 'front' ? max + 1 : min > 0 ? min - 1 : -1;
+      // Al frente: el dominio devuelve el `ZIndex` aplicado y se reconcilia.
+      // Atrás (negativo): el dominio corre a los hermanos y pide snapshot.
+      void sendCommand({ cmd: 'setZIndex', id: selectedItem.id, zIndex }).then((result) =>
+        reconcile(result?.ok ? result.applied : undefined),
+      );
+    },
+    [doc, reconcile, selectedItem, sendCommand],
   );
 
   const setItemOptions = useCallback(
@@ -891,6 +927,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     mergeCells,
     unmergeCells,
     setItemStyle,
+    zOrder,
     setItemOptions,
     setItemName,
     setVisibility,

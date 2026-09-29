@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/context-menu';
 import type { CanvasHit } from '@/lib/hit';
 import { itemKindLabel } from '@/lib/palette';
-import { findItem } from '@/lib/projection';
+import { findItem, findSiblings } from '@/lib/projection';
 import {
   canMergeSelection,
   formatIndexList,
@@ -87,6 +87,9 @@ export interface CanvasAreaProps {
   onEditText: (id: string) => void;
   /** Esc / menú: sube al contenedor del item seleccionado. */
   onSelectParent: () => void;
+  /** Orden de apilado entre los hermanos del contenedor. */
+  onBringToFront: () => void;
+  onSendToBack: () => void;
 }
 
 /** Lienzo + menú contextual (estructura del Tablix, acciones del item e insertar). */
@@ -126,9 +129,16 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onDelete,
     onEditText,
     onSelectParent,
+    onBringToFront,
+    onSendToBack,
   } = props;
 
   const cellScope = cellScopeForMenu(menuHit, selectedCell);
+  // El orden de apilado solo existe entre hermanos del mismo contenedor.
+  const canReorder =
+    projection && menuHit?.item
+      ? (findSiblings(projection, menuHit.item.id)?.length ?? 0) > 1
+      : false;
   const selection =
     cellScope && selectedCell && selectedCell.id === cellScope.id ? selectedCell : null;
   const menuTablix = cellScope && projection ? findItem(projection, cellScope.id) : undefined;
@@ -196,6 +206,9 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
           onDelete={onDelete}
           onEditText={onEditText}
           onSelectParent={onSelectParent}
+          canReorder={canReorder}
+          onBringToFront={onBringToFront}
+          onSendToBack={onSendToBack}
         />
 
         <ContextMenuSeparator />
@@ -524,6 +537,9 @@ function ItemActionsMenu({
   onDelete,
   onEditText,
   onSelectParent,
+  canReorder,
+  onBringToFront,
+  onSendToBack,
 }: {
   item: ItemDto | undefined;
   hasClipboard: boolean;
@@ -534,6 +550,9 @@ function ItemActionsMenu({
   onDelete: () => void;
   onEditText: (id: string) => void;
   onSelectParent: () => void;
+  canReorder: boolean;
+  onBringToFront: () => void;
+  onSendToBack: () => void;
 }): ReactNode {
   if (!item) {
     return (
@@ -564,6 +583,15 @@ function ItemActionsMenu({
       </ContextMenuItem>
       {item.kind === 'textbox' ? (
         <ContextMenuItem onSelect={() => onEditText(item.id)}>Editar texto…</ContextMenuItem>
+      ) : null}
+      {canReorder ? (
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>Orden</ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            <ContextMenuItem onSelect={onBringToFront}>Traer al frente</ContextMenuItem>
+            <ContextMenuItem onSelect={onSendToBack}>Enviar atrás</ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
       ) : null}
       <ContextMenuSeparator />
       <ContextMenuItem variant="destructive" onSelect={onDelete}>

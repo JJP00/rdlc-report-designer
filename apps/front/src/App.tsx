@@ -147,6 +147,7 @@ export function App(): ReactNode {
     mergeCells,
     unmergeCells,
     setItemStyle,
+    zOrder,
     setItemOptions,
     setItemName,
     setVisibility,
@@ -252,6 +253,8 @@ export function App(): ReactNode {
             onDelete={deleteSelected}
             onEditText={setEditingTextId}
             onSelectParent={selectParent}
+            onBringToFront={() => zOrder('front')}
+            onSendToBack={() => zOrder('back')}
           />
 
           <InspectorPanel
