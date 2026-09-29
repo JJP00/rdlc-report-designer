@@ -226,4 +226,4 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       grupo, grupos hoja) y undo byte-exacto al reinsertar/mover nodos (indentación recordada) ·
       **350 unit tests** (225 back + 125 front) + **37 E2E** de Playwright y `typecheck` limpio.
 
-Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).
+Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

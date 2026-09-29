@@ -76,6 +76,10 @@ ToggleItem`, desplegable de items del informe).
 >
 > **Punto de retomada (próxima sesión)**:
 >
+> - **Cubrir gaps auditados** (sección «🔎 Auditoría de gaps (2026-09-29)»):
+>   primero los P1 (G1 insertar Tablix, G2 bordes, G3 `moveItem`, G4–G6 contrato,
+>   G8 cabeceras del Tablix…), después el pase de UX con el skill `intent`
+>   (U1–U9) y luego seguir fase (F2.c → F3).
 > - **Probar en la app** los grupos con un informe grande: propiedades (cambiar
 >   expresión, saltos, ordenación, visibilidad), crear/extender/quitar grupos,
 >   filas dentro/fuera del grupo (y grupos hoja) y deshacer; comparar el
@@ -493,7 +497,77 @@ Trade-offs documentados:
 | Undo/redo con journal (inversos múltiples por comando)                                                 | ✅            |
 | Tests: 94 back + 10 front (golden, comandos, invariantes, integración, fuentes, XSD)                   | ✅            |
 
+## 🔎 Auditoría de gaps (2026-09-29) — backlog antes de F3
+
+> Revisión **contrato ↔ dominio ↔ proyección ↔ UI** sobre el código (no solo el
+> plan): comandos declarados sin implementar, campos del DTO que nadie rellena,
+> scopes que faltan y UX de fichero/editor. Plan de las próximas sesiones:
+> **① cubrir gaps → ② pase de UX con el skill `intent` → ③ seguir fase**
+> (F2.c totales → F3 Matrix). Prioridad: **P1** = se nota a diario con informes
+> de BC · **P2** = acabado · **P3** = proceso. Tamaño: **S** (< 1 sesión),
+> **M** (1 sesión), **L** (varias).
+
+### 🎯 P1 · Bloque elegido: menores de alto valor BC
+
+| #   | Gap                                   | Estado hoy                                                                                                                                                                            | Qué falta                                                                                                                                                                                                             | Tam. |
+| --- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| G1  | **Insertar Tablix**                   | `KIND_PREFIX` ya contempla `tablix`, pero `newItemSpecSchema` no tiene la variante y `createReportItem` cae al `else` → **crearía un `<Image>` vacío** (trampa latente, XSD inválido) | Variante `tablix` en el contrato; rama en la factory (`TablixBody` 1×1 con textbox + ambas jerarquías + `Height`/`Width`/`Style`, XSD válido); botón en toolbar/paleta/menú; tamaño por defecto                       | S    |
+| G2  | **Bordes por lado**                   | Contrato OK (`StyleDto.border`); `setStyle` los **rechaza** (`SUPPORTED_KEYS`), la proyección no lee `<Border>`, no hay UI ni pintado                                                 | Escribir/leer `Style/Border/{Top,Left,Bottom,Right}` (`Style`/`Color`/`Width`); parche con lados **nullables** (quitar un lado); UI en el panel (4 lados); pintado por lado en el lienzo (BC los usa mucho en celdas) | M    |
+| G3  | **`moveItem` (reparentar/reordenar)** | Rechazado a propósito (test en `commands.spec.ts`); arrastrar un hijo fuera de su rectángulo/celda **no lo saca**                                                                     | Comando con validación de ciclos + índice de destino; `growContainer` de origen/destino; drag&drop que reparenta (y/o «Mover a…» en el menú); undo byte-exacto (`moveNode`)                                           | M    |
+
+### 🧩 P1/P2 · Completar el contrato (comandos declarados, hoy rechazados)
+
+| #   | Gap                                          | Estado hoy                                                                                                    | Qué falta                                                                                         | Tam. |
+| --- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---- |
+| G4  | `setItemOptions` (`CanGrow`/`KeepTogether`)  | Proyectados; sin comando ni UI (el front ni los muestra)                                                      | Comando + checkboxes en el panel de propiedades                                                   | S    |
+| G5  | `setZIndex`                                  | Proyectado (pintado y hit-test lo respetan); el panel lo muestra como texto; sin comando                      | Comando + «Traer al frente / Enviar atrás» (menú contextual y/o atajos)                           | S    |
+| G6  | `setRegionHeight` + `setHeaderFooterOptions` | Contrato OK; **la proyección tampoco lee `printOnFirstPage/printOnLastPage`**; sin UI                         | Proyectar los flags; comandos + campos en «Informe…» (alto de banda y imprimir en primera/última) | S    |
+| G7  | Colisión de nombre `moveItem`                | `useItemEditing.moveItem(id, top, left)` es mover con `setLocation`; el `moveItem` del contrato es reparentar | Renombrar el del hook (`moveTo`) al implementar G3                                                | S    |
+
+### 🖼️ P1/P2 · Edición que se echa en falta con informes de BC
+
+| #   | Gap                                         | Estado hoy                                                                                                                      | Qué falta                                                                                      | Tam. |
+| --- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---- |
+| G8  | **Insertar en cabecera/esquina del Tablix** | No hay scope `tablixHeader`/`tablixCorner`: los items existentes se editan/borran, pero **no se puede añadir** (RB sí)          | Scopes nuevos + `resolveScope` + hit-test de las celdas de cabecera + menú/arrastrar           | M    |
+| G9  | **Saltos de página de items**               | Los grupos tienen su pestaña (F2.b.2), pero el `<PageBreak>` de `Rectangle`/`Tablix` (el corpus tiene uno) no se ve ni se edita | Proyectar `pageBreak` del item + comando + control en el panel                                 | S    |
+| G10 | **Filtros** (grupo/Tablix/DataSet)          | `<Filters>` (BC los usa en `Tablix7`) se conservan pero no se editan; la pestaña del diálogo de grupo no existe                 | Pestaña «Filtros» (expresión/operador/valores) reutilizando el patrón del diálogo de grupo     | M    |
+| G11 | **Renombrar grupo**                         | El Nombre del diálogo de grupo es solo lectura                                                                                  | `setGroupName` (único entre ámbitos) + campo editable con aviso de referencias                 | S    |
+| G12 | **Padding por item**                        | `setStyle` lo soporta; UI solo en el panel de imagen                                                                            | Sección de padding (4 lados, pt) en el panel de propiedades                                    | S    |
+| G13 | **Imágenes embebidas**                      | `Source=Embedded` no lista `<EmbeddedImages>` ni se proyectan                                                                   | Proyectar catálogo + desplegable en el panel de imagen                                         | S    |
+| G14 | F2.c totales / F3 Matrix                    | Planificados                                                                                                                    | «Añadir total antes/después» (`Sum`/`Count`/`First` por columna) y grupos de columna + esquina | M/L  |
+
+### 🎛️ P2 · UX/editor (pase con el skill `intent`)
+
+| #   | Gap                                                           | Estado hoy                                                                                                                                       | Qué falta                                                                                                 | Tam. |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ---- |
+| U1  | **Guardar como / Nuevo / recientes / abrir soltando fichero** | `IPC_CHANNELS.createNew` y `saveAs` + sus schemas **existen en el contrato pero no están implementados** (ni en preload ni en `RdlcApi`); sin UI | Implementar canales, «Guardar como…»/«Nuevo…», lista de recientes y drag&drop de `.rdlc` sobre la ventana | M    |
+| U2  | **Conflicto de fichero completo**                             | Hoy: banner + «guardar = sobrescribir / cerrar = descartar» (H2)                                                                                 | Diálogo Recargar / Sobrescribir / Guardar como                                                            | M    |
+| U3  | **Multiselección de items** + alinear/distribuir              | Solo selección única de item o de celdas                                                                                                         | Selección múltiple (Shift/Ctrl en lienzo), caja de selección, alinear/distribuir y guías                  | L    |
+| U4  | **Jerarquía del informe / breadcrumb**                        | El árbol del Tablix existe; no hay árbol de items ni breadcrumb de contenedor (gap #12)                                                          | Panel de jerarquía + breadcrumb (Rectángulo/Celda)                                                        | M    |
+| U5  | Z-order                                                       | = G5                                                                                                                                             | Botones/atajos en el menú                                                                                 | S    |
+| U6  | Zoom «ajustar al ancho»/100 %                                 | Solo +/− del 20 % al 200 %                                                                                                                       | Presets y atajo                                                                                           | S    |
+| U7  | Paleta Ctrl+K                                                 | Acciones actuales fijas (abrir/guardar/undo/redo/inserts)                                                                                        | Añadir las acciones nuevas (Tablix, guardar como, bordes…)                                                | S    |
+| U8  | «Agrupar la fila…» en el menú contextual                      | Solo el ⊕ del árbol («Propiedades del grupo…» ya está en el menú)                                                                                | Acción en el submenú tipo Row Group                                                                       | S    |
+| U9  | Atajos y ARIA de los diálogos nuevos                          | Ctrl+C/X/V/D/Z/Y/K, flechas, Supr, Esc; diálogos con foco Radix                                                                                  | Repaso de teclado/accesibilidad de los diálogos nuevos (pase `intent`/`include`)                          | S    |
+
+### 🛠️ P3 · Técnicos/proceso
+
+| #   | Gap                                       | Estado hoy                                                            | Qué falta                                                                                  | Tam. |
+| --- | ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---- |
+| T1  | **CI + empaquetado**                      | Nada                                                                  | GitHub Actions (typecheck + unit + E2E) y electron-builder (MSI/NSIS), firma y recursos    | M    |
+| T2  | **Endurecer Electron**                    | `contextIsolation`, `nodeIntegration:false`, CSP y zod en el borde ✅ | `will-navigate`, `setWindowOpenHandler`, revisar `sandbox`/permisos                        | S    |
+| T3  | **Rendimiento del lienzo**                | Línea base medida (972 textboxes ≈ 30 fps)                            | Viewport culling, drag sin re-render, grid cacheado, solo la pestaña activa monta el stage | L    |
+| T4  | **Property tests** de comandos aleatorios | No hay                                                                | Generador + invariantes (undo byte-exacto)                                                 | M    |
+| T5  | **Flujo BC documentado** (página 9650)    | No hay                                                                | Guía exportar → editar → reimportar y evolutivo de despliegue                              | S    |
+
+**Plan acordado (2026-09-29)**: ① cubrir gaps (G1–G13, priorizando P1) →
+② pase de UX con el skill `intent` (U1–U9) → ③ seguir fase (**F2.c** totales →
+**F3** Matrix) y cerrar con T1 (CI/empaquetado).
+
 ## 🔴 Gaps funcionales (MVP)
+
+> Actualizado tras la **auditoría 2026-09-29** (backlog priorizado arriba:
+> G1–G14, U1–U9, T1–T5). Esta lista se mantiene como estado por área.
 
 1. **Buscador / command palette (Ctrl+K)** — ✅ hecho (sesión 2026-09-16): busca
    elementos por nombre y contenido, variables y acciones; shadcn `Command` en `Dialog`.
