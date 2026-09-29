@@ -322,6 +322,13 @@ export const codeFunctionSchema = z.object({
 });
 export type CodeFunctionDto = z.infer<typeof codeFunctionSchema>;
 
+/** Imagen incrustada del informe (`<EmbeddedImages>`); el `ImageData` no viaja. */
+export const embeddedImageSchema = z.object({
+  name: z.string(),
+  mimeType: z.string().optional(),
+});
+export type EmbeddedImageDto = z.infer<typeof embeddedImageSchema>;
+
 export const reportMetaSchema = z.object({
   /** Bloque `<Code>` VB custom del informe. */
   code: z.object({
@@ -337,6 +344,8 @@ export const reportMetaSchema = z.object({
       prompt: z.string().optional(),
     }),
   ),
+  /** Catálogo de imágenes embebidas (para el desplegable del panel de imagen). */
+  embeddedImages: z.array(embeddedImageSchema).optional(),
 });
 export type ReportMetaDto = z.infer<typeof reportMetaSchema>;
 

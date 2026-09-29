@@ -1,4 +1,10 @@
-import type { ItemDto, Length, StylePatch, TextboxDto } from '@rdlc-designer/contracts';
+import type {
+  EmbeddedImageDto,
+  ItemDto,
+  Length,
+  StylePatch,
+  TextboxDto,
+} from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { ImagePanel, type ImageOptionsPatch } from '@/components/panels/ImagePanel';
 import { PropertiesPanel, type ItemOptionsPatch } from '@/components/panels/PropertiesPanel';
@@ -23,6 +29,8 @@ export interface ItemPanelsProps {
   /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
   onSetLabel: (p: number, r: number, label: string | null) => void;
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
+  /** Catálogo `<EmbeddedImages>` del informe (panel de imagen). */
+  embeddedImages?: EmbeddedImageDto[];
   /** Abre el editor de texto del textbox (párrafos → runs). */
   onEditText: (id: string) => void;
 }
@@ -44,6 +52,7 @@ export function ItemPanels({
   onSetText,
   onSetLabel,
   onSetImageOptions,
+  embeddedImages,
   onEditText,
 }: ItemPanelsProps): ReactNode {
   if (!item) {
@@ -77,7 +86,12 @@ export function ItemPanels({
         />
       ) : null}
       {item.kind === 'image' ? (
-        <ImagePanel item={item} onSetImageOptions={onSetImageOptions} onSetStyle={onSetStyle} />
+        <ImagePanel
+          item={item}
+          onSetImageOptions={onSetImageOptions}
+          onSetStyle={onSetStyle}
+          embeddedImages={embeddedImages}
+        />
       ) : null}
     </>
   );

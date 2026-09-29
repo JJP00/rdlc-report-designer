@@ -1,4 +1,5 @@
 import type {
+  EmbeddedImageDto,
   ItemDto,
   Length,
   StylePatch,
@@ -58,6 +59,8 @@ export interface InspectorPanelProps {
   /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
   onSetLabel: (p: number, r: number, label: string | null) => void;
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
+  /** Catálogo `<EmbeddedImages>` del informe (panel de imagen). */
+  embeddedImages?: EmbeddedImageDto[];
   /** Abre el editor de texto del textbox (párrafos → runs). */
   onEditText: (id: string) => void;
 }
@@ -88,6 +91,7 @@ export function InspectorPanel({
   onSetText,
   onSetLabel,
   onSetImageOptions,
+  embeddedImages,
   onEditText,
 }: InspectorPanelProps): ReactNode {
   return (
@@ -123,6 +127,7 @@ export function InspectorPanel({
         onSetText={onSetText}
         onSetLabel={onSetLabel}
         onSetImageOptions={onSetImageOptions}
+        embeddedImages={embeddedImages}
         onEditText={onEditText}
       />
     </aside>

@@ -1,4 +1,4 @@
-import type { ImageDto, StylePatch } from '@rdlc-designer/contracts';
+import type { EmbeddedImageDto, ImageDto, StylePatch } from '@rdlc-designer/contracts';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ interface ImagePanelProps {
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
   /** Padding (y otros estilos) del item. */
   onSetStyle: (patch: StylePatch) => void;
+  /** Catálogo `<EmbeddedImages>` del informe (desplegable de `Source=Embedded`). */
+  embeddedImages?: EmbeddedImageDto[];
 }
 
 const SOURCES = [
@@ -47,7 +49,12 @@ const SIZINGS = [
  * (radios). El padding vive en el panel de propiedades (G12) y el ToolTip no se
  * ofrece (no se usa en BC).
  */
-export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelProps): ReactNode {
+export function ImagePanel({
+  item,
+  onSetImageOptions,
+  onSetStyle,
+  embeddedImages = [],
+}: ImagePanelProps): ReactNode {
   return (
     <div className="flex flex-col gap-3 border-t p-3">
       <div className="flex items-center justify-between">
@@ -74,7 +81,11 @@ export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelPr
         </select>
       </div>
 
-      <ValueSection item={item} onSetImageOptions={onSetImageOptions} />
+      <ValueSection
+        item={item}
+        embeddedImages={embeddedImages}
+        onSetImageOptions={onSetImageOptions}
+      />
 
       <MimeSection item={item} onSetImageOptions={onSetImageOptions} />
 
@@ -134,9 +145,11 @@ function ensureExpression(text: string): string {
 
 function ValueSection({
   item,
+  embeddedImages,
   onSetImageOptions,
 }: {
   item: ImageDto;
+  embeddedImages: EmbeddedImageDto[];
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
 }): ReactNode {
   // Borrador mientras se escribe: un cambio externo no pisa el texto.
@@ -148,6 +161,38 @@ function ValueSection({
     if (draft !== null && draft !== (item.value ?? '')) onSetImageOptions({ value: draft });
     setDraft(null);
   };
+
+  // Incrustada: el `<Value>` debe ser el nombre de una entrada del catálogo.
+  if (item.source === 'Embedded' && embeddedImages.length > 0) {
+    const options =
+      item.value && !embeddedImages.some((image) => image.name === item.value)
+        ? [...embeddedImages, { name: item.value }]
+        : embeddedImages;
+    return (
+      <div className="grid gap-1">
+        <Label className="text-[11px] text-muted-foreground">Imagen incrustada</Label>
+        <select
+          className="h-7 rounded-md border bg-background px-1 font-mono text-xs"
+          value={item.value ?? ''}
+          aria-label="Imagen incrustada"
+          onChange={(event) => {
+            const picked = embeddedImages.find((image) => image.name === event.target.value);
+            onSetImageOptions({
+              value: event.target.value,
+              ...(picked?.mimeType ? { mimeType: picked.mimeType } : {}),
+            });
+          }}
+        >
+          {item.value ? null : <option value="">(elige una imagen)</option>}
+          {options.map((image) => (
+            <option key={image.name} value={image.name}>
+              {image.mimeType ? `${image.name} · ${image.mimeType}` : image.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-1">

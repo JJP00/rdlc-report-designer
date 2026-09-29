@@ -289,6 +289,7 @@ export function App(): ReactNode {
             onSetText={setRunText}
             onSetLabel={setRunLabel}
             onSetImageOptions={setImageOptions}
+            embeddedImages={doc?.projection.meta.embeddedImages ?? []}
             onEditText={setEditingTextId}
           />
         </main>

@@ -571,8 +571,22 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       });
     }
 
+    const embeddedImages: NonNullable<ReportMetaDto['embeddedImages']> = [];
+    for (const image of root.getFirstElementByName('EmbeddedImages')?.children ?? []) {
+      if (!(image instanceof XmlElement) || image.tagName !== 'EmbeddedImage') continue;
+      const name = image.getAttributeValue('Name');
+      if (!name) continue;
+      const mimeType = textOf(image.getFirstElementByName('MIMEType'));
+      embeddedImages.push(mimeType ? { name, mimeType } : { name });
+    }
+
     const code = textOf(root.getFirstElementByName('Code')) ?? '';
-    return { code: { text: code, functions: parseVbFunctions(code) }, fields, parameters };
+    return {
+      code: { text: code, functions: parseVbFunctions(code) },
+      fields,
+      parameters,
+      embeddedImages,
+    };
   }
 
   /* --------------------------- value objects ---------------------------- */
