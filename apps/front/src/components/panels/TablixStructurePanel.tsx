@@ -2,6 +2,8 @@ import type { TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
 import {
   Columns3,
   Layers,
+  LayersArrowDown,
+  LayersArrowUp,
   LayersPlus,
   PencilLine,
   Plus,
@@ -49,6 +51,8 @@ export interface TablixStructurePanelProps {
   ) => void;
   /** Abre «Propiedades del grupo» (expresiones, saltos, ordenación, visibilidad). */
   onOpenGroupProperties: (axis: 'row' | 'column', member: TablixMemberDto) => void;
+  /** Añade una fila contigua al grupo (extiende su rango de hojas). */
+  onAddRowToGroup: (row: number, groupPath: number[]) => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   onAddRowGroup: (row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
@@ -65,6 +69,7 @@ export function TablixStructurePanel({
   onDeleteColumn,
   onSetMemberVisibility,
   onOpenGroupProperties,
+  onAddRowToGroup,
   onAddRowGroup,
   onDeleteGroup,
 }: TablixStructurePanelProps): ReactNode {
@@ -106,6 +111,7 @@ export function TablixStructurePanel({
         onDelete={onDeleteRow}
         onSetHidden={onSetMemberVisibility}
         onOpenGroupProperties={onOpenGroupProperties}
+        onAddRowToGroup={onAddRowToGroup}
         onAddRowGroup={onAddRowGroup}
         onDeleteGroup={onDeleteGroup}
         addLabel={(index) => `Añadir fila encima de la ${index + 1}`}
@@ -137,6 +143,7 @@ export function TablixStructurePanel({
         onDelete={onDeleteColumn}
         onSetHidden={onSetMemberVisibility}
         onOpenGroupProperties={onOpenGroupProperties}
+        onAddRowToGroup={onAddRowToGroup}
         onAddRowGroup={onAddRowGroup}
         onDeleteGroup={onDeleteGroup}
         addLabel={(index) => `Añadir columna a la izquierda de la ${index + 1}`}
@@ -165,6 +172,7 @@ interface StructureSectionProps {
   onDelete: (index: number) => void;
   onSetHidden: (axis: 'row' | 'column', path: number[], hidden: boolean | string | null) => void;
   onOpenGroupProperties: (axis: 'row' | 'column', member: TablixMemberDto) => void;
+  onAddRowToGroup: (row: number, groupPath: number[]) => void;
   onAddRowGroup: (row: number, expression: string) => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
   addLabel: (index: number) => string;
@@ -186,6 +194,7 @@ function StructureSection({
   onDelete,
   onSetHidden,
   onOpenGroupProperties,
+  onAddRowToGroup,
   onAddRowGroup,
   onDeleteGroup,
   addLabel,
@@ -218,11 +227,13 @@ function StructureSection({
             axis={axis}
             selected={entry.index !== undefined && entry.index === selectedIndex}
             canDelete={rowCount > 1}
+            total={rowCount}
             detail={detail(entry)}
             onSelect={onSelect}
             onDelete={onDelete}
             onSetHidden={onSetHidden}
             onOpenGroupProperties={onOpenGroupProperties}
+            onAddRowToGroup={onAddRowToGroup}
             onAddRowGroup={onAddRowGroup}
             onDeleteGroup={onDeleteGroup}
             deleteLabel={deleteLabel}
@@ -253,12 +264,15 @@ interface StructureRowProps {
   axis: 'row' | 'column';
   selected: boolean;
   canDelete: boolean;
+  /** Total de hojas del eje (filas o columnas), para saber los bordes. */
+  total: number;
   detail?: string;
   onSelect: (index: number) => void;
   onDelete: (index: number) => void;
   onSetHidden: (axis: 'row' | 'column', path: number[], hidden: boolean | string | null) => void;
   /** Abre «Propiedades del grupo» del miembro indicado. */
   onOpenGroupProperties: (axis: 'row' | 'column', member: TablixMemberDto) => void;
+  onAddRowToGroup: (row: number, groupPath: number[]) => void;
   onAddRowGroup: (row: number, expression: string) => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
   deleteLabel: (index: number) => string;
@@ -306,11 +320,15 @@ function StructureRow(props: StructureRowProps): ReactNode {
 function GroupHeaderRow({
   entry,
   axis,
+  total,
   label,
   onSetHidden,
   onDeleteGroup,
+  onAddRowToGroup,
   onOpenProperties,
 }: StructureRowProps & { label: string; onOpenProperties: () => void }): ReactNode {
+  const isRowGroup = axis === 'row' && entry.member.children.length > 0;
+
   return (
     <div
       className="flex items-center gap-1 px-1 py-0.5 text-[11px] text-muted-foreground"
@@ -326,6 +344,9 @@ function GroupHeaderRow({
           label={label}
           onChange={(hidden) => onSetHidden(axis, entry.path, hidden)}
         />
+        {isRowGroup ? (
+          <AddAdjacentRows entry={entry} total={total} onAddRowToGroup={onAddRowToGroup} />
+        ) : null}
         <IconButton
           label="Propiedades del grupo"
           title="Propiedades del grupo (expresiones, saltos, ordenación, visibilidad)…"
@@ -343,6 +364,43 @@ function GroupHeaderRow({
         </IconButton>
       </span>
     </div>
+  );
+}
+
+/**
+ * Extiende el grupo con la fila contigua por arriba o por abajo (la fila
+ * vecina pasa a ser su primera/última hoja, sin cambiar el body).
+ */
+function AddAdjacentRows({
+  entry,
+  total,
+  onAddRowToGroup,
+}: {
+  entry: TablixTreeEntry;
+  total: number;
+  onAddRowToGroup: (row: number, groupPath: number[]) => void;
+}): ReactNode {
+  return (
+    <>
+      {entry.leafStart > 0 ? (
+        <IconButton
+          label={`Añadir la fila ${entry.leafStart} al grupo`}
+          title="Añadir la fila anterior a este grupo"
+          onClick={() => onAddRowToGroup(entry.leafStart - 1, entry.path)}
+        >
+          <LayersArrowUp />
+        </IconButton>
+      ) : null}
+      {entry.leafEnd < total - 1 ? (
+        <IconButton
+          label={`Añadir la fila ${entry.leafEnd + 2} al grupo`}
+          title="Añadir la fila siguiente a este grupo"
+          onClick={() => onAddRowToGroup(entry.leafEnd + 1, entry.path)}
+        >
+          <LayersArrowDown />
+        </IconButton>
+      ) : null}
+    </>
   );
 }
 

@@ -43,6 +43,8 @@ export interface InspectorPanelProps {
     axis: 'row' | 'column',
     member: TablixMemberDto,
   ) => void;
+  /** Añade una fila contigua al grupo (extiende su rango de hojas). */
+  onAddRowToGroup: (tablixId: string, row: number, groupPath: number[]) => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   onAddRowGroup: (tablixId: string, row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
@@ -73,6 +75,7 @@ export function InspectorPanel({
   onSetVisibility,
   onSetMemberVisibility,
   onOpenGroupProperties,
+  onAddRowToGroup,
   onAddRowGroup,
   onDeleteRowGroup,
   onSetText,
@@ -95,6 +98,7 @@ export function InspectorPanel({
             onSetMemberVisibility(tablix.id, axis, path, hidden)
           }
           onOpenGroupProperties={(axis, member) => onOpenGroupProperties(tablix.id, axis, member)}
+          onAddRowToGroup={(row, groupPath) => onAddRowToGroup(tablix.id, row, groupPath)}
           onAddRowGroup={(row, expression) => onAddRowGroup(tablix.id, row, expression)}
           onDeleteGroup={(axis, path) => onDeleteRowGroup(tablix.id, axis, path)}
         />

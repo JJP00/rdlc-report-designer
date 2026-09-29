@@ -170,6 +170,12 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       secciones cambiadas** (un comando por sección, un paso de undo cada una):
       `setGroupExpressions`, `setGroupPageBreaks`, `setGroupSorting`,
       `setMemberVisibility` y `setMemberToggleItem`.
+- [x] **Extender grupos y filas fuera del grupo · F2.b.3 (sesión 2026-09-29)**:
+      `addRowToGroup` mueve una fila **contigua** al grupo (botones ↑/↓ en su
+      cabecera: «Añadir la fila N al grupo»; los grupos hoja lo rechazan) y
+      `addRowOutsideGroup` inserta una fila de relleno pegada al borde del grupo
+      desde el **menú contextual de celda** estilo RB (_Dentro del grupo_ /
+      _Fuera del grupo_ + **Propiedades del grupo…**).
 - [x] **Visibilidad (F2)**: de **items** (`setVisibility`: Visible / Oculta / Expresión…;
       la predeterminada es visible; la proyección lee `Visibility > Hidden` y los ocultos se
       pintan **atenuados** en el lienzo) y de **filas/columnas/grupos** del Tablix
@@ -187,8 +193,9 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       (añadir/quitar filas y columnas), menú contextual, anclaje/recorte del contenido, refresco
       de la rejilla, cabeceras (Shift/Ctrl), borrado en lote, fusión/separación, colores-expresión,
       autocompletado (panel y diálogo), visibilidad (items y miembros), renombrado, etiqueta,
-      cabeceras del Tablix y **grupos de fila** (propiedades del grupo, agrupar/quitar con undo;
-      34 tests, con reset del documento entre tests).
+      cabeceras del Tablix y **grupos de fila** (propiedades del grupo, agrupar, extender con la
+      fila contigua, quitar, filas fuera del grupo con undo; 36 tests, con reset del documento
+      entre tests).
 - [x] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
       miembros) · [x] `TablixCorner`/`TablixHeader` · [x] grupos de fila · [ ] Matrix (F3).
 
@@ -213,8 +220,8 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       marcadores de etiqueta/expresión, bloque del párrafo activo con formato por run y Monaco
       inline), lienzo fiel al estilo RDL (texto por run con alineación de párrafo y texto de
       diseño `[etiqueta]` / campo / `[exp]`) y marco de selección medido por la caja del item.
-- [x] **Sesión 2026-09-29**: grupos de fila (F2.b) + propiedades del grupo (F2.b.2) y undo
-      byte-exacto al reinsertar/mover nodos (indentación recordada) · **334 unit tests**
-      (212 back + 122 front) + **34 E2E** de Playwright y `typecheck` limpio.
+- [x] **Sesión 2026-09-29**: grupos de fila (F2.b: propiedades, extender, dentro/fuera del
+      grupo) y undo byte-exacto al reinsertar/mover nodos (indentación recordada) · **346 unit
+      tests** (221 back + 125 front) + **36 E2E** de Playwright y `typecheck` limpio.
 
 Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

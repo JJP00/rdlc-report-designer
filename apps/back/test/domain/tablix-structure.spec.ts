@@ -192,6 +192,122 @@ describe('F2 · addRow / deleteRow', () => {
   });
 });
 
+describe('F2 · addRowOutsideGroup', () => {
+  it('inserta la fila fuera del grupo por encima (miembro antes del grupo)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const rowsBefore = rows(index.get('LinesTable')).length;
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowOutsideGroup', id: 'LinesTable', row: 2, where: 'above' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    // La fila nace justo antes de la primera hoja del grupo (índice 2).
+    expect(rows(index.get('LinesTable'))).toHaveLength(rowsBefore + 1);
+    expect(rowCells(rows(index.get('LinesTable'))[2])).toHaveLength(
+      columns(index.get('LinesTable')).length,
+    );
+    // El miembro nuevo es el anterior al grupo en el nivel raíz: 5 miembros.
+    const rootMembers = index
+      .get('LinesTable')
+      ?.child('TablixRowHierarchy')
+      ?.child('TablixMembers')
+      ?.children('TablixMember');
+    expect(rootMembers).toHaveLength(5);
+    expect(rootMembers?.[2]?.child('Group')).toBeUndefined();
+    expect(rootMembers?.[3]?.child('Group')?.attribute('Name')).toBe('LineNo');
+    expect(rootMembers?.[3]?.child('TablixMembers')?.children('TablixMember')).toHaveLength(2);
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('inserta la fila fuera del grupo por debajo (miembro después del grupo)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const rowsBefore = rows(index.get('LinesTable')).length;
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowOutsideGroup', id: 'LinesTable', row: 3, where: 'below' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    // El grupo cubre las hojas 2-3: la fila nueva nace en la 4 (tras el grupo).
+    expect(rows(index.get('LinesTable'))).toHaveLength(rowsBefore + 1);
+    const rootMembers = index
+      .get('LinesTable')
+      ?.child('TablixRowHierarchy')
+      ?.child('TablixMembers')
+      ?.children('TablixMember');
+    expect(rootMembers?.[2]?.child('Group')?.attribute('Name')).toBe('LineNo');
+    expect(rootMembers?.[3]?.child('Group')).toBeUndefined();
+    expect(rootMembers?.[4]?.child('Group')).toBeUndefined();
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('un grupo hoja también admite fila fuera (antes de su única hoja)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowOutsideGroup', id: 'Tablix7', row: 0, where: 'above' },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    expect(rows(index.get('Tablix7'))).toHaveLength(2);
+    const rootMembers = index
+      .get('Tablix7')
+      ?.child('TablixRowHierarchy')
+      ?.child('TablixMembers')
+      ?.children('TablixMember');
+    expect(rootMembers).toHaveLength(2);
+    expect(rootMembers?.[1]?.child('Group')).toBeDefined();
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('rechaza filas sin grupo y fuera de rango', () => {
+    const { doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+
+    // Tablix3 no tiene grupos.
+    expect(
+      applyCommand(ctx, {
+        cmd: 'addRowOutsideGroup',
+        id: 'Tablix3',
+        row: 0,
+        where: 'above',
+      }).isLeft(),
+    ).toBe(true);
+    expect(
+      applyCommand(ctx, {
+        cmd: 'addRowOutsideGroup',
+        id: 'LinesTable',
+        row: 9,
+        where: 'below',
+      }).isLeft(),
+    ).toBe(true);
+  });
+});
+
 describe('F2 · addColumn / deleteColumn', () => {
   it('inserta la columna en todas las filas y su miembro, y el undo es exacto', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');

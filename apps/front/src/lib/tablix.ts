@@ -266,8 +266,17 @@ export interface TablixTreeEntry {
   hidden?: boolean | string;
   /** Hojas (filas/columnas del body, 0-based), también en grupos hoja. */
   index?: number;
+  /** Rango de hojas que cubre la entrada (0-based, inclusive). */
+  leafStart: number;
+  leafEnd: number;
   /** Miembro de la proyección del que sale la entrada (diálogo de propiedades). */
   member: TablixMemberDto;
+}
+
+/** Hojas (filas/columnas) que cubre un miembro del árbol. */
+function memberLeafCount(member: TablixMemberDto): number {
+  if (member.children.length === 0) return 1;
+  return member.children.reduce((total, child) => total + memberLeafCount(child), 0);
 }
 
 /** Árbol de la jerarquía aplanado para el panel (grupos + hojas con su índice). */
@@ -277,19 +286,23 @@ export function tablixTree(members: TablixMemberDto[]): TablixTreeEntry[] {
 
   const walk = (list: TablixMemberDto[], depth: number): void => {
     for (const member of list) {
+      const isLeaf = member.children.length === 0;
+      const leafStart = leaf;
+      const leafEnd = leafStart + memberLeafCount(member) - 1;
       const base = {
         depth,
         path: member.path,
         member,
+        leafStart,
+        leafEnd,
         total: member.total,
         ...(member.expression !== undefined ? { expression: member.expression } : {}),
         ...(member.hidden !== undefined ? { hidden: member.hidden } : {}),
       };
-      const isLeaf = member.children.length === 0;
       if (member.expression !== undefined || !isLeaf) {
-        entries.push({ kind: 'group', ...base, ...(isLeaf ? { index: leaf } : {}) });
+        entries.push({ kind: 'group', ...base, ...(isLeaf ? { index: leafStart } : {}) });
       } else {
-        entries.push({ kind: 'row', ...base, index: leaf });
+        entries.push({ kind: 'row', ...base, index: leafStart });
       }
       if (isLeaf) leaf += 1;
       else walk(member.children, depth + 1);
@@ -314,6 +327,8 @@ export function tablixRowsTree(tablix: TablixDto): TablixTreeEntry[] {
     member: { path: [index], total: 'none' as const, children: [] },
     total: 'none' as const,
     index,
+    leafStart: index,
+    leafEnd: index,
   }));
 }
 
@@ -327,7 +342,68 @@ export function tablixColumnsTree(tablix: TablixDto): TablixTreeEntry[] {
     member: { path: [index], total: 'none' as const, children: [] },
     total: 'none' as const,
     index,
+    leafStart: index,
+    leafEnd: index,
   }));
+}
+
+/** Cadena de miembros que contiene la hoja (de fuera a dentro; incluye la hoja). */
+export function memberChain(
+  tablix: TablixDto,
+  axis: 'row' | 'column',
+  index: number,
+): TablixMemberDto[] | undefined {
+  const members = axis === 'row' ? tablix.rowHierarchy : tablix.columnHierarchy;
+  let remaining = index;
+  const chain: TablixMemberDto[] = [];
+
+  const walk = (list: TablixMemberDto[]): boolean => {
+    for (const member of list) {
+      chain.push(member);
+      if (member.children.length > 0) {
+        if (walk(member.children)) return true;
+      } else if (remaining === 0) {
+        return true;
+      } else {
+        remaining -= 1;
+      }
+      chain.pop();
+    }
+    return false;
+  };
+
+  return walk(members) ? chain : undefined;
+}
+
+/**
+ * Grupo **contenedor** (con hijos) más interno que contiene la hoja: el que
+ * define «dentro/fuera del grupo» en el menú contextual. `undefined` si la
+ * fila no está dentro de un grupo.
+ */
+export function containerGroupPath(
+  tablix: TablixDto,
+  axis: 'row' | 'column',
+  index: number,
+): number[] | undefined {
+  const chain = memberChain(tablix, axis, index);
+  if (!chain) return undefined;
+  // Sin la propia hoja: un grupo hoja no «contiene» su fila, ES su fila.
+  const group = [...chain.slice(0, -1)].reverse().find((member) => member.expression !== undefined);
+  return group?.path;
+}
+
+/**
+ * Grupo más interno que **posee** la hoja (incluye el propio grupo hoja): el
+ * destino de «Propiedades del grupo» para esa fila.
+ */
+export function memberForLeafGroup(
+  tablix: TablixDto,
+  axis: 'row' | 'column',
+  index: number,
+): TablixMemberDto | undefined {
+  const chain = memberChain(tablix, axis, index);
+  if (!chain) return undefined;
+  return [...chain].reverse().find((member) => member.expression !== undefined);
 }
 
 function cumulative(values: number[]): number[] {

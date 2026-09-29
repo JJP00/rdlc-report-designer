@@ -270,6 +270,20 @@ const addRow = z.object({
   height: lengthSchema.optional(),
 });
 
+/**
+ * Fila **fuera del grupo** que contiene la fila indicada: nace pegada a su
+ * borde (`above` = antes de la primera hoja del grupo, `below` = después de la
+ * última) y el miembro va al contenedor del padre, no dentro del grupo.
+ */
+const addRowOutsideGroup = z.object({
+  cmd: z.literal('addRowOutsideGroup'),
+  id: z.string().min(1),
+  /** Fila (hoja) del body que marca el grupo; `above`/`below` su borde. */
+  row: z.number().int().nonnegative(),
+  where: z.enum(['above', 'below']),
+  height: lengthSchema.optional(),
+});
+
 const deleteRow = z.object({
   cmd: z.literal('deleteRow'),
   id: z.string().min(1),
@@ -369,6 +383,20 @@ const deleteRowGroup = z.object({
   path: z.array(z.number().int().nonnegative()).min(1),
 });
 
+/**
+ * Añade a un grupo una fila **contigua** a su rango de hojas: la fila pasa a
+ * ser la primera o la última hoja del grupo. Solo se admite si toca el rango
+ * (antes o después) para no reordenar las hojas del body.
+ */
+const addRowToGroup = z.object({
+  cmd: z.literal('addRowToGroup'),
+  id: z.string().min(1),
+  /** Índice de la fila del body (hoja, 0-based) que se mueve al grupo. */
+  row: z.number().int().nonnegative(),
+  /** Grupo destino (`path` de la proyección: índices de `TablixMember`). */
+  groupPath: z.array(z.number().int().nonnegative()).min(1),
+});
+
 /* ------------------------ grupos: opciones (F2.b.2) --------------------- */
 
 /**
@@ -434,6 +462,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   resizeColumn,
   resizeRow,
   addRow,
+  addRowOutsideGroup,
   deleteRow,
   addColumn,
   deleteColumn,
@@ -444,6 +473,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setGroupExpression,
   addRowGroup,
   deleteRowGroup,
+  addRowToGroup,
   setGroupExpressions,
   setGroupPageBreaks,
   setGroupSorting,

@@ -20,6 +20,8 @@ import {
 import {
   leafAt,
   leafInsertionPoint,
+  memberChainAt,
+  memberLeafRange,
   positionedCells,
   tablixColumns,
   tablixRows,
@@ -63,13 +65,23 @@ const DEFAULT_COLUMN_WIDTH: Length = { value: 2, unit: 'cm' };
 
 /* ------------------------------- addRow --------------------------------- */
 
+export type AddRowOutsideGroupCommand = Extract<RdlcCommand, { cmd: 'addRowOutsideGroup' }>;
+
+/** Plan de inserción de fila: dónde va en el body y dónde su miembro. */
+interface RowInsertPlan {
+  /** Índice del body donde nace la fila. */
+  row: number;
+  /** Contenedor e índice del `TablixMember` nuevo. */
+  member: { container: RdlcNode; index: number };
+}
+
 export function applyAddRow(
   ctx: CommandContext,
   command: AddRowCommand,
 ): Either<DomainError, CommandOutcome> {
   const parts = tablixParts(ctx, command.id);
   if (parts.isLeft()) return left(parts.value);
-  const { body, rowsContainer, columns, rows, members } = parts.value;
+  const { rows, members } = parts.value;
 
   if (command.row > rows.length) {
     return left(
@@ -77,8 +89,82 @@ export function applyAddRow(
     );
   }
 
+  // Miembro estático en la posición de hoja equivalente (dentro del grupo).
+  return performAddRow(
+    ctx,
+    parts.value,
+    {
+      row: command.row,
+      member: leafInsertionPoint(members, command.row),
+    },
+    command.height,
+  );
+}
+
+/**
+ * Fila **fuera del grupo** que contiene la fila `row`: se apoya en el grupo más
+ * interno de su cadena (si el propio miembro es un grupo hoja, ese mismo) y el
+ * nuevo miembro se inserta en el contenedor del padre, antes o después del
+ * grupo; la fila del body nace pegada a su borde.
+ */
+export function applyAddRowOutsideGroup(
+  ctx: CommandContext,
+  command: AddRowOutsideGroupCommand,
+): Either<DomainError, CommandOutcome> {
+  const parts = tablixParts(ctx, command.id);
+  if (parts.isLeft()) return left(parts.value);
+  const { rows, hierarchy } = parts.value;
+
+  if (command.row >= rows.length) {
+    return left(
+      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
+    );
+  }
+
+  const chain = memberChainAt(hierarchy, command.row);
+  if (!chain || chain.length === 0) {
+    return left(
+      CommandRejectedError.create(
+        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
+      ),
+    );
+  }
+
+  // El grupo más interno de la cadena (el propio miembro puede ser grupo hoja).
+  const group = [...chain].reverse().find((ref) => ref.member.child('Group'));
+  if (!group) {
+    return left(CommandRejectedError.create('La fila no está dentro de un grupo'));
+  }
+
+  const range = memberLeafRange(hierarchy, group.member);
+  if (!range) {
+    return left(CommandRejectedError.create('No se pudo localizar el rango de hojas del grupo'));
+  }
+
+  const above = command.where === 'above';
+  return performAddRow(
+    ctx,
+    parts.value,
+    {
+      // La fila nace pegada al borde del grupo (encima o debajo de sus hojas).
+      row: above ? range.start : range.end + 1,
+      member: { container: group.container, index: above ? group.index : group.index + 1 },
+    },
+    command.height,
+  );
+}
+
+/** Crea la fila (con sus celdas) y el miembro, y devuelve el inverso común. */
+function performAddRow(
+  ctx: CommandContext,
+  parts: TablixParts,
+  plan: RowInsertPlan,
+  height: Length | undefined,
+): Either<DomainError, CommandOutcome> {
+  const { body, rowsContainer, columns, rows } = parts;
+
   const changes: TextChange[] = [];
-  const covered = coverByRowSpan(rows, command.row, columns.length, changes);
+  const covered = coverByRowSpan(rows, plan.row, columns.length, changes);
   if (covered.every(Boolean)) {
     return left(
       CommandRejectedError.create(
@@ -93,9 +179,7 @@ export function applyAddRow(
   row.appendChild(
     row.createElement(
       'Height',
-      command.height
-        ? formatLength(command.height)
-        : neighborText(rows, command.row, 'Height', DEFAULT_ROW_HEIGHT),
+      height ? formatLength(height) : neighborText(rows, plan.row, 'Height', DEFAULT_ROW_HEIGHT),
     ),
   );
   const cells = row.createElement('TablixCells');
@@ -104,13 +188,11 @@ export function applyAddRow(
     if (!covered[column]) cells.appendChild(createCellWithTextbox(ctx, row, takenNames));
   }
   row.appendChild(cells);
-  rowsContainer.insertChildAt(row, command.row);
+  rowsContainer.insertChildAt(row, plan.row);
   created.push(row);
 
-  // Miembro estático en la posición de hoja equivalente.
-  const point = leafInsertionPoint(members, command.row);
-  const member = point.container.createElement('TablixMember');
-  point.container.insertChildAt(member, point.index);
+  const member = plan.member.container.createElement('TablixMember');
+  plan.member.container.insertChildAt(member, plan.member.index);
   created.push(member);
 
   return right({

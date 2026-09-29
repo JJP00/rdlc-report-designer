@@ -93,6 +93,70 @@ export interface LeafRef {
   index: number;
 }
 
+/** Miembro con su contenedor e índice en él (cadena raíz → hoja). */
+export type MemberRef = LeafRef;
+
+/**
+ * Cadena de miembros desde la raíz hasta la hoja n-ésima (0-based), con el
+ * contenedor y el índice de cada uno: el último elemento es la hoja.
+ */
+export function memberChainAt(
+  hierarchy: RdlcNode | undefined,
+  leaf: number,
+): MemberRef[] | undefined {
+  const root = hierarchy?.child('TablixMembers');
+  if (!root || leaf < 0) return undefined;
+
+  let remaining = leaf;
+  const chain: MemberRef[] = [];
+  const walk = (container: RdlcNode): boolean => {
+    const children = memberChildren(container);
+    for (let index = 0; index < children.length; index += 1) {
+      const member = children[index]!;
+      chain.push({ member, container, index });
+      const sub = member.child('TablixMembers');
+      if (sub) {
+        if (walk(sub)) return true;
+      } else if (remaining === 0) {
+        return true;
+      } else {
+        remaining -= 1;
+      }
+      chain.pop();
+    }
+    return false;
+  };
+
+  return walk(root) ? chain : undefined;
+}
+
+/** Rango de hojas (0-based, inclusive) que cubre un miembro del árbol. */
+export function memberLeafRange(
+  hierarchy: RdlcNode | undefined,
+  target: RdlcNode,
+): { start: number; end: number } | undefined {
+  const root = hierarchy?.child('TablixMembers');
+  if (!root) return undefined;
+
+  let leaf = 0;
+  let found: { start: number; end: number } | undefined;
+  const walk = (container: RdlcNode): void => {
+    for (const member of memberChildren(container)) {
+      if (found) return;
+      if (member.equals(target)) {
+        found = { start: leaf, end: leaf + leafCount(member) - 1 };
+        return;
+      }
+      const nested = member.child('TablixMembers');
+      if (nested) walk(nested);
+      else leaf += 1;
+    }
+  };
+
+  walk(root);
+  return found;
+}
+
 /** Hoja n-ésima (0-based) del árbol, con su contenedor e índice. */
 export function leafAt(hierarchy: RdlcNode | undefined, leaf: number): LeafRef | undefined {
   const root = hierarchy?.child('TablixMembers');

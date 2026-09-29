@@ -832,6 +832,126 @@ describe('F2.b.2 · setMemberToggleItem', () => {
   });
 });
 
+describe('F2.b.3 · addRowToGroup (extender un grupo con filas contiguas)', () => {
+  it('añade la fila anterior al grupo y el undo es exacto (LinesTable · LineNo)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const hierarchy = hierarchyOf(index.get('LinesTable'), 'row');
+    expect(
+      memberByPath(hierarchy, [2])?.child('TablixMembers')?.children('TablixMember'),
+    ).toHaveLength(2);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowToGroup', id: 'LinesTable', row: 1, groupPath: [2] },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    // La fila 1 es ahora la primera hoja del grupo; el body no cambia.
+    // (El miembro raíz [1] desaparece: el grupo baja a la posición [1].)
+    expect(
+      memberByPath(hierarchy, [1])?.child('TablixMembers')?.children('TablixMember'),
+    ).toHaveLength(3);
+    expect(hierarchy?.child('TablixMembers')?.children('TablixMember')).toHaveLength(3);
+    expect(leafCount(hierarchy)).toBe(5);
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('añade la fila siguiente (el total) al grupo y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const hierarchy = hierarchyOf(index.get('LinesTable'), 'row');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowToGroup', id: 'LinesTable', row: 4, groupPath: [2] },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    expect(
+      memberByPath(hierarchy, [2])?.child('TablixMembers')?.children('TablixMember'),
+    ).toHaveLength(3);
+    expect(leafCount(hierarchy)).toBe(5);
+
+    const undo = undoAll({ root: doc.root, index }, applied.value);
+    expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('rechaza añadir filas a un grupo hoja (su fila desaparecería)', () => {
+    const { doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+
+    expect(
+      applyCommand(ctx, { cmd: 'addRowToGroup', id: 'Tablix1', row: 0, groupPath: [1] }).isLeft(),
+    ).toBe(true);
+    expect(
+      applyCommand(ctx, { cmd: 'addRowToGroup', id: 'Tablix7', row: 0, groupPath: [0] }).isLeft(),
+    ).toBe(true);
+  });
+
+  it('rechaza filas no contiguas, ya incluidas o destinos que no son grupo', () => {
+    const { doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+
+    // La fila 0 no toca el rango del grupo [2] (hojas 2-3).
+    expect(
+      applyCommand(ctx, {
+        cmd: 'addRowToGroup',
+        id: 'LinesTable',
+        row: 0,
+        groupPath: [2],
+      }).isLeft(),
+    ).toBe(true);
+    // Ya está dentro del grupo.
+    expect(
+      applyCommand(ctx, {
+        cmd: 'addRowToGroup',
+        id: 'LinesTable',
+        row: 2,
+        groupPath: [2],
+      }).isLeft(),
+    ).toBe(true);
+    // El destino es una fila estática (no un grupo).
+    expect(
+      applyCommand(ctx, {
+        cmd: 'addRowToGroup',
+        id: 'LinesTable',
+        row: 1,
+        groupPath: [0],
+      }).isLeft(),
+    ).toBe(true);
+    // La fila ya es ese grupo hoja.
+    expect(
+      applyCommand(ctx, { cmd: 'addRowToGroup', id: 'Tablix7', row: 0, groupPath: [0] }).isLeft(),
+    ).toBe(true);
+    // Fuera de rango.
+    expect(
+      applyCommand(ctx, {
+        cmd: 'addRowToGroup',
+        id: 'LinesTable',
+        row: 9,
+        groupPath: [2],
+      }).isLeft(),
+    ).toBe(true);
+  });
+
+  it('rechaza mover la única fila de un grupo (lo dejaría sin hojas)', () => {
+    const { doc, index } = openXml(TWO_GROUPS_XML);
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRowToGroup', id: 'T', row: 0, groupPath: [1] },
+    );
+    expect(applied.isLeft()).toBe(true);
+  });
+});
+
 /* ------------------------- XML de casos límite --------------------------- */
 
 /** Tablix mínimo con un grupo, cabecera (con o sin contenido) y un hijo. */
@@ -922,6 +1042,68 @@ const PAGE_BREAK_NONE_XML = `<?xml version="1.0" encoding="utf-8"?>
                       <BreakLocation>None</BreakLocation>
                     </PageBreak>
                   </Group>
+                </TablixMember>
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <TablixColumnHierarchy>
+              <TablixMembers><TablixMember /></TablixMembers>
+            </TablixColumnHierarchy>
+          </Tablix>
+        </ReportItems>
+        <Height>5cm</Height>
+      </Body>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
+
+/** Tablix mínimo con dos grupos de un único hijo (para validaciones). */
+const TWO_GROUPS_XML = `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="T">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn><Width>2cm</Width></TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.6cm</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="A"><Paragraphs><Paragraph><TextRuns><TextRun><Value>a</Value></TextRun></TextRuns></Paragraph></Paragraphs></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+                <TablixRow>
+                  <Height>0.6cm</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="B"><Paragraphs><Paragraph><TextRuns><TextRun><Value>b</Value></TextRun></TextRuns></Paragraph></Paragraphs></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <Group Name="G1">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!A.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <TablixMembers>
+                    <TablixMember />
+                  </TablixMembers>
+                </TablixMember>
+                <TablixMember>
+                  <Group Name="G2">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!B.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <TablixMembers>
+                    <TablixMember />
+                  </TablixMembers>
                 </TablixMember>
               </TablixMembers>
             </TablixRowHierarchy>

@@ -4,6 +4,7 @@ import type {
   NewItemSpec,
   ProjectionDto,
   ScopeRef,
+  TablixMemberDto,
 } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
@@ -24,8 +25,10 @@ import { itemKindLabel } from '@/lib/palette';
 import { findItem } from '@/lib/projection';
 import {
   canMergeSelection,
+  containerGroupPath,
   formatIndexList,
   hitSelectionCell,
+  memberForLeafGroup,
   rangeCols,
   selectionBounds,
   selectionCells,
@@ -63,6 +66,10 @@ export interface CanvasAreaProps {
   onInsertAt: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
   /** Estructura del Tablix desde el menú contextual de una celda. */
   onAddRow: (id: string, row: number) => void;
+  /** Fila de relleno fuera del grupo que contiene la fila (`above`/`below`). */
+  onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
+  /** Abre «Propiedades del grupo» del grupo que posee la fila. */
+  onOpenGroupProperties: (id: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
   onDeleteRow: (id: string, row: number) => void;
   onAddColumn: (id: string, column: number) => void;
   onDeleteColumn: (id: string, column: number) => void;
@@ -101,6 +108,8 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onResizeRow,
     onInsertAt,
     onAddRow,
+    onAddRowOutside,
+    onOpenGroupProperties,
     onDeleteRow,
     onAddColumn,
     onDeleteColumn,
@@ -160,6 +169,8 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
             selection={selection}
             tablix={tablix}
             onAddRow={onAddRow}
+            onAddRowOutside={onAddRowOutside}
+            onOpenGroupProperties={onOpenGroupProperties}
             onDeleteRow={onDeleteRow}
             onAddColumn={onAddColumn}
             onDeleteColumn={onDeleteColumn}
@@ -221,6 +232,63 @@ function menuLabel(
  * parte de la selección (aunque el elemento más interno sea de un tablix
  * anidado), manda esa; si no, la celda del scope del hit.
  */
+/** Submenú «Insertar fila o columna» (con dentro/fuera del grupo si aplica). */
+function InsertRowColumnMenu({
+  cellScope,
+  inGroup,
+  onAddRow,
+  onAddRowOutside,
+  onAddColumn,
+}: {
+  cellScope: { id: string; row: number; col: number };
+  inGroup: boolean;
+  onAddRow: (id: string, row: number) => void;
+  onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
+  onAddColumn: (id: string, column: number) => void;
+}): ReactNode {
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>Insertar fila o columna</ContextMenuSubTrigger>
+      <ContextMenuSubContent className="w-60">
+        {inGroup ? (
+          <>
+            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row)}>
+              Dentro del grupo: fila encima
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row + 1)}>
+              Dentro del grupo: fila debajo
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => onAddRowOutside(cellScope.id, cellScope.row, 'above')}>
+              Fuera del grupo: fila encima
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onAddRowOutside(cellScope.id, cellScope.row, 'below')}>
+              Fuera del grupo: fila debajo
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        ) : (
+          <>
+            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row)}>
+              Fila encima
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row + 1)}>
+              Fila debajo
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+        <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col)}>
+          Columna a la izquierda
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col + 1)}>
+          Columna a la derecha
+        </ContextMenuItem>
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+
 function cellScopeForMenu(
   hit: CanvasHit | null,
   selection: SelectedCell | null,
@@ -252,6 +320,8 @@ function TablixMenuItems({
   selection,
   tablix,
   onAddRow,
+  onAddRowOutside,
+  onOpenGroupProperties,
   onDeleteRow,
   onAddColumn,
   onDeleteColumn,
@@ -264,6 +334,8 @@ function TablixMenuItems({
   selection: SelectedCell | null;
   tablix: Extract<ItemDto, { kind: 'tablix' }> | undefined;
   onAddRow: (id: string, row: number) => void;
+  onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
+  onOpenGroupProperties: (id: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
   onDeleteRow: (id: string, row: number) => void;
   onAddColumn: (id: string, column: number) => void;
   onDeleteColumn: (id: string, column: number) => void;
@@ -274,12 +346,15 @@ function TablixMenuItems({
 }): ReactNode {
   const layout = tablix ? tablixLayout(tablix) : undefined;
   const selectedRefs = selection ? selectionCells(selection) : [];
-  const multipleCells = selectedRefs.length > 1;
   const rowsTouched = selection ? selectionRows(selection) : [];
   const colsTouched = selection ? selectionCols(selection) : [];
   // Tramo a fusionar (una fila, celdas contiguas), contando las sueltas de Ctrl.
   const mergeRange =
     selection && canMergeSelection(selection) ? selectionBounds(selection) : undefined;
+  // Grupo contenedor de la fila (define «dentro/fuera del grupo») y grupo que
+  // la posee (incluye grupos hoja) para «Propiedades del grupo».
+  const inGroup = tablix ? containerGroupPath(tablix, 'row', cellScope.row) : undefined;
+  const ownerGroup = tablix ? memberForLeafGroup(tablix, 'row', cellScope.row) : undefined;
 
   /** Celda ancla de una fusión (`ColSpan`/`RowSpan` > 1) en el layout. */
   const mergedCellAt = (ref: { row: number; col: number }) =>
@@ -296,67 +371,125 @@ function TablixMenuItems({
 
   return (
     <>
-      <ContextMenuSub>
-        <ContextMenuSubTrigger>Insertar fila o columna</ContextMenuSubTrigger>
-        <ContextMenuSubContent className="w-52">
-          <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row)}>
-            Fila encima
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row + 1)}>
-            Fila debajo
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col)}>
-            Columna a la izquierda
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col + 1)}>
-            Columna a la derecha
-          </ContextMenuItem>
-        </ContextMenuSubContent>
-      </ContextMenuSub>
+      <InsertRowColumnMenu
+        cellScope={cellScope}
+        inGroup={inGroup !== undefined}
+        onAddRow={onAddRow}
+        onAddRowOutside={onAddRowOutside}
+        onAddColumn={onAddColumn}
+      />
+
+      {ownerGroup ? (
+        <ContextMenuItem onSelect={() => onOpenGroupProperties(cellScope.id, 'row', ownerGroup)}>
+          Propiedades del grupo…
+        </ContextMenuItem>
+      ) : null}
 
       {/* Borrado: con varias celdas se borran sus filas/columnas en lote. */}
-      {multipleCells ? (
-        <>
-          <ContextMenuItem
-            variant="destructive"
-            onSelect={() => onDeleteRows(cellScope.id, rowsTouched)}
-          >
-            {rowsTouched.length > 1
-              ? `Eliminar filas ${formatIndexList(rowsTouched)}`
-              : `Eliminar fila ${rowsTouched[0]! + 1}`}
-          </ContextMenuItem>
-          <ContextMenuItem
-            variant="destructive"
-            onSelect={() => onDeleteColumns(cellScope.id, colsTouched)}
-          >
-            {colsTouched.length > 1
-              ? `Eliminar columnas ${formatIndexList(colsTouched)}`
-              : `Eliminar columna ${colsTouched[0]! + 1}`}
-          </ContextMenuItem>
-        </>
-      ) : (
-        <>
-          <ContextMenuItem
-            variant="destructive"
-            onSelect={() => onDeleteRow(cellScope.id, cellScope.row)}
-          >
-            Eliminar fila {cellScope.row + 1}
-          </ContextMenuItem>
-          <ContextMenuItem
-            variant="destructive"
-            onSelect={() => onDeleteColumn(cellScope.id, cellScope.col)}
-          >
-            Eliminar columna {cellScope.col + 1}
-          </ContextMenuItem>
-        </>
-      )}
+      <DeleteRowsColumnsMenu
+        cellScope={cellScope}
+        rowsTouched={rowsTouched}
+        colsTouched={colsTouched}
+        onDeleteRow={onDeleteRow}
+        onDeleteColumn={onDeleteColumn}
+        onDeleteRows={onDeleteRows}
+        onDeleteColumns={onDeleteColumns}
+      />
 
-      {/* Fusión: solo un tramo contiguo de celdas de una misma fila. */}
+      <MergeCellsMenu
+        cellScope={cellScope}
+        mergeRange={mergeRange}
+        mergeColumns={mergeRange ? rangeCols(mergeRange) : 0}
+        mergedAnchor={mergedAnchor}
+        onMergeCells={onMergeCells}
+        onUnmergeCells={onUnmergeCells}
+      />
+      <ContextMenuSeparator />
+    </>
+  );
+}
+
+/** Borrado de la fila/columna de la celda, o en lote de las celdas elegidas. */
+function DeleteRowsColumnsMenu({
+  cellScope,
+  rowsTouched,
+  colsTouched,
+  onDeleteRow,
+  onDeleteColumn,
+  onDeleteRows,
+  onDeleteColumns,
+}: {
+  cellScope: { id: string; row: number; col: number };
+  rowsTouched: number[];
+  colsTouched: number[];
+  onDeleteRow: (id: string, row: number) => void;
+  onDeleteColumn: (id: string, column: number) => void;
+  onDeleteRows: (id: string, rows: number[]) => void;
+  onDeleteColumns: (id: string, columns: number[]) => void;
+}): ReactNode {
+  const multiple = rowsTouched.length > 1 || colsTouched.length > 1;
+  if (multiple) {
+    return (
+      <>
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={() => onDeleteRows(cellScope.id, rowsTouched)}
+        >
+          {rowsTouched.length > 1
+            ? `Eliminar filas ${formatIndexList(rowsTouched)}`
+            : `Eliminar fila ${rowsTouched[0]! + 1}`}
+        </ContextMenuItem>
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={() => onDeleteColumns(cellScope.id, colsTouched)}
+        >
+          {colsTouched.length > 1
+            ? `Eliminar columnas ${formatIndexList(colsTouched)}`
+            : `Eliminar columna ${colsTouched[0]! + 1}`}
+        </ContextMenuItem>
+      </>
+    );
+  }
+  return (
+    <>
+      <ContextMenuItem
+        variant="destructive"
+        onSelect={() => onDeleteRow(cellScope.id, cellScope.row)}
+      >
+        Eliminar fila {cellScope.row + 1}
+      </ContextMenuItem>
+      <ContextMenuItem
+        variant="destructive"
+        onSelect={() => onDeleteColumn(cellScope.id, cellScope.col)}
+      >
+        Eliminar columna {cellScope.col + 1}
+      </ContextMenuItem>
+    </>
+  );
+}
+
+/** Fusión: combinar un tramo contiguo de una fila o separar la celda del hit. */
+function MergeCellsMenu({
+  cellScope,
+  mergeRange,
+  mergeColumns,
+  mergedAnchor,
+  onMergeCells,
+  onUnmergeCells,
+}: {
+  cellScope: { id: string; row: number; col: number };
+  mergeRange: { row0: number; col0: number } | undefined;
+  mergeColumns: number;
+  mergedAnchor: { row: number; col: number } | undefined;
+  onMergeCells: (id: string, row: number, col: number, rowSpan: number, colSpan: number) => void;
+  onUnmergeCells: (id: string, row: number, col: number) => void;
+}): ReactNode {
+  return (
+    <>
       {mergeRange ? (
         <ContextMenuItem
           onSelect={() =>
-            onMergeCells(cellScope.id, mergeRange.row0, mergeRange.col0, 1, rangeCols(mergeRange))
+            onMergeCells(cellScope.id, mergeRange.row0, mergeRange.col0, 1, mergeColumns)
           }
         >
           Combinar celdas
@@ -369,7 +502,6 @@ function TablixMenuItems({
           Separar celdas
         </ContextMenuItem>
       ) : null}
-      <ContextMenuSeparator />
     </>
   );
 }

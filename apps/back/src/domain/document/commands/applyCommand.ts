@@ -13,6 +13,7 @@ import { applyResizeColumn, applyResizeRow, applyResizeTable } from './resizeTab
 import {
   applyAddColumn,
   applyAddRow,
+  applyAddRowOutsideGroup,
   applyDeleteColumn,
   applyDeleteColumns,
   applyDeleteRow,
@@ -33,6 +34,7 @@ import { applySetVisibility } from './setVisibility.js';
 import { applySetMemberToggleItem, applySetMemberVisibility } from './memberVisibility.js';
 import {
   applyAddRowGroup,
+  applyAddRowToGroup,
   applyDeleteRowGroup,
   applySetGroupExpression,
   applySetGroupExpressions,
@@ -64,6 +66,8 @@ export function applyCommand(
       return applyResizeRow(ctx, command);
     case 'addRow':
       return applyAddRow(ctx, command);
+    case 'addRowOutsideGroup':
+      return applyAddRowOutsideGroup(ctx, command);
     case 'deleteRow':
       return applyDeleteRow(ctx, command);
     case 'addColumn':
@@ -98,6 +102,8 @@ export function applyCommand(
       return applySetGroupExpressions(ctx, command);
     case 'addRowGroup':
       return applyAddRowGroup(ctx, command);
+    case 'addRowToGroup':
+      return applyAddRowToGroup(ctx, command);
     case 'deleteRowGroup':
       return applyDeleteRowGroup(ctx, command);
     case 'setGroupPageBreaks':

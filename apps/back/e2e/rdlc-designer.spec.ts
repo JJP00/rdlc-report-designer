@@ -1865,3 +1865,62 @@ test('quitar un grupo con hijos eleva las filas (sin línea de grupo fantasma)',
     .toBe('=Fields!LineNo_Line.Value');
   await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
 });
+
+test('extender un grupo con la fila contigua desde la estructura (con undo)', async () => {
+  await selectItemViaPalette('LinesTable');
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
+
+  // La fila anterior (1-based 2) pasa a ser la primera hoja del grupo: el
+  // miembro raíz [1] desaparece y el grupo baja a la posición [1].
+  await page.getByRole('button', { name: 'Añadir la fila 2 al grupo' }).click();
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [1])).toBe(3);
+  await expect
+    .poll(() => memberExpression('LinesTable', 'row', [1]))
+    .toBe('=Fields!LineNo_Line.Value');
+  // El body no cambia: sigue teniendo 5 filas.
+  expect(await tablixRowCount('LinesTable')).toBe(5);
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
+});
+
+test('el menú contextual inserta fila fuera del grupo y abre sus propiedades', async () => {
+  // Celda de la primera fila del grupo LineNo de LinesTable2 (fila 3, hoja 2).
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, 'LinesTable2') as
+    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
+  const content = tablix?.body.rows[2]?.cells
+    .map((cell) => cell?.content)
+    .find((entry): entry is ItemLike => Boolean(entry));
+  expect(content).toBeTruthy();
+
+  const point = await nodeCenter(content!.id);
+  expect(point).not.toBeNull();
+  const rowsBefore = await tablixRowCount('LinesTable2');
+
+  // Fuera del grupo, encima: la fila nace antes del grupo (el grupo baja a [3]).
+  await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
+  await page.getByRole('menuitem', { name: 'Fuera del grupo: fila encima' }).click();
+  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore + 1);
+  await expect.poll(() => memberExpression('LinesTable2', 'row', [2])).toBeUndefined();
+  await expect
+    .poll(() => memberExpression('LinesTable2', 'row', [3]))
+    .toBe('=Fields!LineNo_Line.Value');
+
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(() => memberExpression('LinesTable2', 'row', [2]))
+    .toBe('=Fields!LineNo_Line.Value');
+  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
+
+  // Propiedades del grupo… desde el menú contextual.
+  await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Propiedades del grupo…' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(
+    dialog.getByRole('heading', { name: 'Propiedades del grupo · LineNo' }),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(dialog).toBeHidden();
+});

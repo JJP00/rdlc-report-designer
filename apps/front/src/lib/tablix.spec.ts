@@ -4,6 +4,7 @@ import {
   canMergeSelection,
   cellBoxAt,
   cellRange,
+  containerGroupPath,
   findCellAt,
   findOwnerTablix,
   formatIndexList,
@@ -11,6 +12,7 @@ import {
   isCellInRange,
   isCellSelected,
   isRectangleSelection,
+  memberForLeafGroup,
   rangeCols,
   rangeRows,
   selectionBounds,
@@ -243,6 +245,37 @@ describe('tablix · árbol de estructura', () => {
     ]);
     expect(entries[0]?.expression).toBe('=Fields!DocumentNo.Value');
     expect(entries[0]?.depth).toBe(0);
+  });
+
+  it('leafStart/leafEnd cubren el rango de hojas de cada miembro', () => {
+    const entries = tablixTree(TABLIX.rowHierarchy);
+    expect(entries.map((entry) => [entry.kind, entry.leafStart, entry.leafEnd])).toEqual([
+      ['row', 0, 0],
+      ['group', 1, 2],
+      ['row', 1, 1],
+      ['row', 2, 2],
+      ['row', 3, 3],
+    ]);
+  });
+
+  it('containerGroupPath devuelve el grupo contenedor sin contar la propia hoja', () => {
+    // En TABLIX, las hojas 1 y 2 están dentro del grupo [1]; 0 y 3 no.
+    expect(containerGroupPath(TABLIX, 'row', 1)).toEqual([1]);
+    expect(containerGroupPath(TABLIX, 'row', 2)).toEqual([1]);
+    expect(containerGroupPath(TABLIX, 'row', 0)).toBeUndefined();
+    expect(containerGroupPath(TABLIX, 'row', 3)).toBeUndefined();
+  });
+
+  it('memberForLeafGroup incluye el propio grupo hoja (destino de propiedades)', () => {
+    const withLeafGroup: TablixDto = {
+      ...TABLIX,
+      rowHierarchy: [
+        { path: [0], expression: '=Fields!X.Value', total: 'none', children: [] },
+        leaf([1]),
+      ],
+    };
+    expect(memberForLeafGroup(withLeafGroup, 'row', 0)?.path).toEqual([0]);
+    expect(memberForLeafGroup(withLeafGroup, 'row', 1)).toBeUndefined();
   });
 });
 

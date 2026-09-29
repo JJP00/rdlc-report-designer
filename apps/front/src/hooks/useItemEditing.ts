@@ -99,6 +99,10 @@ export interface ItemEditing {
   ) => void;
   /** Aplica «Propiedades del grupo»: los comandos ya vienen filtrados. */
   applyGroupProperties: (commands: RdlcCommand[]) => void;
+  /** Añade una fila contigua al grupo (extiende su rango de hojas). */
+  addRowToGroup: (tablixId: string, row: number, groupPath: number[]) => void;
+  /** Inserta una fila de relleno fuera del grupo (`where` = borde). */
+  addRowOutsideGroup: (tablixId: string, row: number, where: 'above' | 'below') => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   addRowGroup: (tablixId: string, row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
@@ -482,6 +486,20 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [sendCommand],
   );
 
+  const addRowToGroup = useCallback(
+    (tablixId: string, row: number, groupPath: number[]): void => {
+      void sendCommand({ cmd: 'addRowToGroup', id: tablixId, row, groupPath });
+    },
+    [sendCommand],
+  );
+
+  const addRowOutsideGroup = useCallback(
+    (tablixId: string, row: number, where: 'above' | 'below'): void => {
+      void sendCommand({ cmd: 'addRowOutsideGroup', id: tablixId, row, where });
+    },
+    [sendCommand],
+  );
+
   const deleteRowGroup = useCallback(
     (tablixId: string, axis: 'row' | 'column', path: number[]): void => {
       void sendCommand({ cmd: 'deleteRowGroup', id: tablixId, axis, path });
@@ -856,6 +874,8 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setVisibility,
     setMemberVisibility,
     applyGroupProperties,
+    addRowToGroup,
+    addRowOutsideGroup,
     addRowGroup,
     deleteRowGroup,
     setImageOptions,

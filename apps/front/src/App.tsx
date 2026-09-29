@@ -150,6 +150,8 @@ export function App(): ReactNode {
     setVisibility,
     setMemberVisibility,
     applyGroupProperties,
+    addRowToGroup,
+    addRowOutsideGroup,
     addRowGroup,
     deleteRowGroup,
     setImageOptions,
@@ -228,6 +230,10 @@ export function App(): ReactNode {
             onResizeRow={resizeRow}
             onInsertAt={insertAt}
             onAddRow={addRow}
+            onAddRowOutside={addRowOutsideGroup}
+            onOpenGroupProperties={(tablixId, axis, member) =>
+              setGroupProperties({ tablixId, axis, member })
+            }
             onDeleteRow={deleteRow}
             onAddColumn={addColumn}
             onDeleteColumn={deleteColumn}
@@ -263,6 +269,7 @@ export function App(): ReactNode {
             onOpenGroupProperties={(tablixId, axis, member) =>
               setGroupProperties({ tablixId, axis, member })
             }
+            onAddRowToGroup={addRowToGroup}
             onAddRowGroup={addRowGroup}
             onDeleteRowGroup={deleteRowGroup}
             onSetText={setRunText}

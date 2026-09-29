@@ -12,11 +12,12 @@ import {
   setNodeTextChange,
   type Detached,
 } from './nodeChanges.js';
-import { leafAt, memberAt, tablixHierarchy } from './tablixParts.js';
+import { leafAt, memberAt, memberLeafRange, tablixHierarchy } from './tablixParts.js';
 
 export type SetGroupExpressionCommand = Extract<RdlcCommand, { cmd: 'setGroupExpression' }>;
 export type SetGroupExpressionsCommand = Extract<RdlcCommand, { cmd: 'setGroupExpressions' }>;
 export type AddRowGroupCommand = Extract<RdlcCommand, { cmd: 'addRowGroup' }>;
+export type AddRowToGroupCommand = Extract<RdlcCommand, { cmd: 'addRowToGroup' }>;
 export type DeleteRowGroupCommand = Extract<RdlcCommand, { cmd: 'deleteRowGroup' }>;
 export type SetGroupPageBreaksCommand = Extract<RdlcCommand, { cmd: 'setGroupPageBreaks' }>;
 export type SetGroupSortingCommand = Extract<RdlcCommand, { cmd: 'setGroupSorting' }>;
@@ -188,6 +189,92 @@ export function applyAddRowGroup(
   // El undo quita el grupo (con sus nodos nuevos) y devuelve la hoja a su sitio.
   return right({
     inverse: [restore(position, leaf.member), { cmd: 'removeNode', node: groupMember }],
+    snapshotOut: true,
+  });
+}
+
+/* ---------------------------- addRowToGroup ------------------------------ */
+
+/**
+ * Añade una fila **contigua** al grupo: la hoja pasa a ser la primera (si va
+ * justo antes del rango del grupo) o la última (si va justo después). Si el
+ * grupo era hoja (sin `TablixMembers`), nace su contenedor de miembros.
+ */
+export function applyAddRowToGroup(
+  ctx: CommandContext,
+  command: AddRowToGroupCommand,
+): Either<DomainError, CommandOutcome> {
+  const tablix = ctx.index.get(command.id);
+  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+
+  const hierarchy = tablix.child('TablixRowHierarchy');
+  const root = hierarchy?.child('TablixMembers');
+  const rows = tablix.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? [];
+  if (!hierarchy || !root) {
+    return left(
+      CommandRejectedError.create(`El Tablix '${command.id}' no tiene jerarquía de filas`),
+    );
+  }
+  if (command.row >= rows.length) {
+    return left(
+      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
+    );
+  }
+
+  const leaf = leafAt(hierarchy, command.row);
+  if (!leaf) {
+    return left(
+      CommandRejectedError.create(
+        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
+      ),
+    );
+  }
+
+  const target = memberAt(root, command.groupPath);
+  if (!target?.child('Group')) {
+    return left(CommandRejectedError.create('El destino no es un grupo: no declara <Group>'));
+  }
+  if (target.equals(leaf.member)) {
+    return left(CommandRejectedError.create('La fila ya es ese grupo'));
+  }
+
+  // Un grupo hoja (sin miembros) ES su fila: añadirle hijos la haría desaparecer.
+  const nested = target.child('TablixMembers');
+  if (!nested) {
+    return left(
+      CommandRejectedError.create(
+        'El grupo es una fila (grupo hoja): no se le pueden añadir más filas',
+      ),
+    );
+  }
+
+  const range = memberLeafRange(hierarchy, target);
+  if (!range) {
+    return left(CommandRejectedError.create('No se pudo localizar el rango de hojas del grupo'));
+  }
+  if (command.row >= range.start && command.row <= range.end) {
+    return left(CommandRejectedError.create('La fila ya está dentro del grupo'));
+  }
+  if (command.row !== range.start - 1 && command.row !== range.end + 1) {
+    return left(CommandRejectedError.create('Solo se pueden añadir filas contiguas al grupo'));
+  }
+
+  // Si la fila fuese el único hijo de su grupo, este se quedaría sin hojas.
+  if (
+    leaf.container.children('TablixMember').length === 1 &&
+    leaf.container.parent?.tagName === 'TablixMember'
+  ) {
+    return left(
+      CommandRejectedError.create('La fila es la única de su grupo: muévela con el grupo'),
+    );
+  }
+
+  const position = detach(leaf.member);
+  if (command.row < range.start) nested.insertChildAt(leaf.member, 0);
+  else nested.appendChild(leaf.member);
+
+  return right({
+    inverse: [moveNode(leaf.member, position.container, position.index)],
     snapshotOut: true,
   });
 }

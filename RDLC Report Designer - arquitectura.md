@@ -464,6 +464,8 @@ Implementados (F2 parte 2, parte 3 y F2.b):
 | `setGroupExpression`           | `{ id, axis: 'row' \| 'column', path, expression }` — edita la expresión; sincroniza la ordenación que espejaba la anterior                                               |
 | `setGroupExpressions`          | `{ id, axis, path, expressions: string[] }` — reemplaza la lista (`Group on` / `And on`)                                                                                  |
 | `addRowGroup`                  | `{ id, row: number, expression }` — envuelve la hoja en un grupo nuevo (`Group` + `SortExpressions` + `TablixMembers`); no crea cabecera ni toca el body                  |
+| `addRowToGroup`                | `{ id, row: number, groupPath }` — mueve una fila contigua al grupo (antes de su primera hoja o después de la última); los grupos hoja lo rechazan                        |
+| `addRowOutsideGroup`           | `{ id, row, where: 'above' \| 'below', height? }` — fila de relleno pegada al borde del grupo, con el miembro en el contenedor del padre                                  |
 | `deleteRowGroup`               | `{ id, axis, path }` — grupo hoja: la fila queda estática; grupo con hijos: **eleva las filas** al padre y quita el miembro (con `TablixHeader` con contenido se rechaza) |
 | `setGroupPageBreaks`           | `{ id, axis, path, between, start, end }` — un `PageBreak > BreakLocation` por opción (`Between`/`Start`/`End`); otros valores no se tocan                                |
 | `setGroupSorting`              | `{ id, axis, path, sorts: { expression, direction? }[] }` — reemplaza `SortExpressions` (sin dirección = ascendente; lista vacía quita el bloque)                         |
