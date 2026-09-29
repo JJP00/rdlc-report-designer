@@ -150,6 +150,7 @@ export function App(): ReactNode {
     setItemStyle,
     zOrder,
     setItemOptions,
+    setItemPageBreak,
     setItemName,
     setVisibility,
     setMemberVisibility,
@@ -277,6 +278,7 @@ export function App(): ReactNode {
             onSetName={setItemName}
             onSetVisibility={setVisibility}
             onSetItemOptions={setItemOptions}
+            onSetPageBreak={setItemPageBreak}
             onSetMemberVisibility={setMemberVisibility}
             onOpenGroupProperties={(tablixId, axis, member) =>
               setGroupProperties({ tablixId, axis, member })

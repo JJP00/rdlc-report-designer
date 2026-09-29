@@ -13,6 +13,9 @@ import { VisibilityField } from './VisibilityField';
 /** Kinds cuyo borde se pinta en el lienzo (donde la UI no engaña). */
 const BORDER_KINDS = new Set(['textbox', 'rectangle', 'image']);
 
+/** Kinds que admiten `PageBreak` en el XSD (y que el editor soporta). */
+const PAGE_BREAK_KINDS = new Set(['rectangle', 'tablix']);
+
 /** Opciones del item que no son estilo (`CanGrow`/`KeepTogether`). */
 export interface ItemOptionsPatch {
   canGrow?: boolean;
@@ -32,6 +35,8 @@ interface PropertiesPanelProps {
   onSetVisibility: (hidden: boolean | string | null) => void;
   /** `CanGrow`/`KeepTogether` (solo Textbox). */
   onSetItemOptions: (options: ItemOptionsPatch) => void;
+  /** Salto de página del item (Rectangle/Tablix). */
+  onSetPageBreak: (breakLocation: 'None' | 'Start' | 'End' | 'Between') => void;
 }
 
 /** Panel de propiedades: geometría, nombre, fondo y visibilidad. */
@@ -44,6 +49,7 @@ export function PropertiesPanel({
   onSetName,
   onSetVisibility,
   onSetItemOptions,
+  onSetPageBreak,
 }: PropertiesPanelProps): ReactNode {
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -95,6 +101,28 @@ export function PropertiesPanel({
 
       {item.zIndex !== undefined ? (
         <div className="text-xs text-muted-foreground">ZIndex: {item.zIndex}</div>
+      ) : null}
+
+      {PAGE_BREAK_KINDS.has(item.kind) ? (
+        <>
+          <Separator />
+          <div className="grid gap-1">
+            <Label className="text-[11px] text-muted-foreground">Salto de página</Label>
+            <select
+              className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              aria-label="Salto de página"
+              value={item.pageBreak ?? 'None'}
+              onChange={(event) =>
+                onSetPageBreak(event.target.value as 'Start' | 'End' | 'Between' | 'None')
+              }
+            >
+              <option value="None">Sin salto</option>
+              <option value="Start">Al inicio</option>
+              <option value="End">Al final</option>
+              <option value="Between">Entre instancias</option>
+            </select>
+          </div>
+        </>
       ) : null}
 
       {item.kind === 'textbox' ? (

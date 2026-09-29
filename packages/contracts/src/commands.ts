@@ -162,6 +162,16 @@ const setItemOptions = z.object({
   keepTogether: z.boolean().optional(),
 });
 
+/**
+ * Salto de página del **item** (`PageBreak > BreakLocation`; Rectangle/Tablix…).
+ * `null` (o `None`) quita el bloque.
+ */
+const setItemPageBreak = z.object({
+  cmd: z.literal('setItemPageBreak'),
+  id: z.string().min(1),
+  breakLocation: z.enum(['None', 'Start', 'End', 'Between']).nullable(),
+});
+
 const setStyle = z.object({
   cmd: z.literal('setStyle'),
   id: z.string().min(1),
@@ -531,6 +541,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setVisibility,
   setMemberVisibility,
   setItemOptions,
+  setItemPageBreak,
   setStyle,
   insertItem,
   deleteItem,

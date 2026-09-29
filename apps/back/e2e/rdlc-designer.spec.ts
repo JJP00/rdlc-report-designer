@@ -107,6 +107,7 @@ interface ItemLike {
   canGrow?: boolean;
   keepTogether?: boolean;
   zIndex?: number;
+  pageBreak?: string;
   rowHierarchy?: MemberLike[];
   columnHierarchy?: MemberLike[];
   body?: {
@@ -365,6 +366,16 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
   for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
     const found = findItem(items, id);
     if (found) return found.hidden;
+  }
+  return undefined;
+}
+
+/** Salto de página proyectado de un item (`PageBreak > BreakLocation`). */
+async function itemPageBreak(id: string): Promise<string | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found) return found.pageBreak;
   }
   return undefined;
 }
@@ -1787,6 +1798,19 @@ test('el panel edita los bordes por lado y el lienzo los pinta', async () => {
   await page.keyboard.press('Control+z');
   await expect.poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style).toBe('None');
   await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
+});
+
+test('el panel edita el salto de página de un rectángulo (con undo)', async () => {
+  // Rectangle2 (encabezado) no declara `PageBreak`.
+  await selectItemViaPalette('Rectangle2');
+  const pageBreak = page.getByLabel('Salto de página');
+  await expect(pageBreak).toHaveValue('None');
+
+  await pageBreak.selectOption('Start');
+  await expect.poll(() => itemPageBreak('Rectangle2')).toBe('Start');
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => itemPageBreak('Rectangle2')).toBeUndefined();
 });
 
 test('una cabecera vacía recibe un item insertado (y el undo lo quita)', async () => {

@@ -29,6 +29,10 @@ export type ParagraphDto = z.infer<typeof paragraphSchema>;
 
 /* ------------------------------ Items ---------------------------------- */
 
+/** Salto de página declarado en un item (`PageBreak > BreakLocation`). */
+export const itemPageBreakSchema = z.enum(['None', 'Start', 'End', 'StartAndEnd', 'Between']);
+export type ItemPageBreak = z.infer<typeof itemPageBreakSchema>;
+
 export interface ItemBaseDto {
   /** = `Name` del elemento (clave del índice del dominio). */
   id: string;
@@ -39,6 +43,8 @@ export interface ItemBaseDto {
   zIndex?: number;
   /** Booleano literal o expresión. */
   hidden?: boolean | string;
+  /** Salto de página del propio item (Rectangle/Tablix…). */
+  pageBreak?: ItemPageBreak;
   style?: StyleDto;
 }
 
@@ -50,6 +56,7 @@ export const itemBaseShape = {
   height: lengthSchema,
   zIndex: z.number().int().optional(),
   hidden: z.union([z.boolean(), z.string()]).optional(),
+  pageBreak: itemPageBreakSchema.optional(),
   style: styleSchema.optional(),
 } as const;
 

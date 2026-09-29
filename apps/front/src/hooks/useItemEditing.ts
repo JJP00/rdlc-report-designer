@@ -100,6 +100,8 @@ export interface ItemEditing {
   zOrder: (direction: 'front' | 'back') => void;
   /** `CanGrow`/`KeepTogether` de un Textbox (apagarlas quita la etiqueta). */
   setItemOptions: (options: { canGrow?: boolean; keepTogether?: boolean }) => void;
+  /** Salto de página del item (`None`/`null` quitan el bloque). */
+  setItemPageBreak: (breakLocation: 'None' | 'Start' | 'End' | 'Between') => void;
   /** Renombra el elemento (el nombre debe ser único; lo valida el dominio). */
   setItemName: (name: string) => void;
   /** Visibilidad del item (`null` = quitarla). */
@@ -517,6 +519,23 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       void sendCommand({ cmd: 'setItemOptions', id: selectedItem.id, ...options });
     },
     [selectedItem, sendCommand],
+  );
+
+  const setItemPageBreak = useCallback(
+    (breakLocation: 'None' | 'Start' | 'End' | 'Between'): void => {
+      if (!selectedItem) return;
+      const id = selectedItem.id;
+      // Optimista: `None` = sin salto declarado.
+      updateProjection((projection) =>
+        patchItem(projection, id, {
+          pageBreak: breakLocation === 'None' ? undefined : breakLocation,
+        }),
+      );
+      void sendCommand({ cmd: 'setItemPageBreak', id, breakLocation }).then((result) =>
+        reconcile(result?.ok ? result.applied : undefined),
+      );
+    },
+    [reconcile, selectedItem, sendCommand, updateProjection],
   );
 
   const setItemName = useCallback(
@@ -980,6 +999,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setItemStyle,
     zOrder,
     setItemOptions,
+    setItemPageBreak,
     setItemName,
     setVisibility,
     setMemberVisibility,

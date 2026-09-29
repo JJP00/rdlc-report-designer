@@ -24,6 +24,7 @@ const REPORT_ITEM_ORDER = [
   'ZIndex',
   'Visibility',
   'ToolTip',
+  'PageBreak',
 ];
 
 const TEXTBOX_ORDER = [

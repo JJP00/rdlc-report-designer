@@ -2,6 +2,7 @@ import type {
   BorderStyle,
   CodeFunctionDto,
   ItemDto,
+  ItemPageBreak,
   Length,
   LengthUnit,
   ParagraphDto,
@@ -54,6 +55,7 @@ interface ItemBaseOut {
   height: Length;
   zIndex?: number;
   hidden?: boolean | string;
+  pageBreak?: ItemPageBreak;
   style?: StyleDto;
 }
 
@@ -158,11 +160,15 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       width: declared.width ?? fallback?.width ?? ZERO,
       height: declared.height ?? fallback?.height ?? ZERO,
     };
+    const breakLocation = textOf(
+      el.getFirstElementByName('PageBreak')?.getFirstElementByName('BreakLocation'),
+    );
     const base: ItemBaseOut = {
       id: el.getAttributeValue('Name') ?? `${el.tagName}__${(this.unknownCounter += 1)}`,
       ...geometry,
       zIndex: this.int(textOf(el.getFirstElementByName('ZIndex'))),
       hidden: this.hidden(el),
+      ...(isItemPageBreak(breakLocation) ? { pageBreak: breakLocation } : {}),
       style: this.style(el.getFirstElementByName('Style')),
     };
 
@@ -720,6 +726,16 @@ const BORDER_SIDES = [
 ] as const;
 
 const BORDER_STYLE_VALUES: BorderStyle[] = ['None', 'Solid', 'Dashed', 'Dotted', 'Double'];
+
+function isItemPageBreak(value: string | undefined): value is ItemPageBreak {
+  return (
+    value === 'None' ||
+    value === 'Start' ||
+    value === 'End' ||
+    value === 'StartAndEnd' ||
+    value === 'Between'
+  );
+}
 
 /* ------------------------------- helpers --------------------------------- */
 

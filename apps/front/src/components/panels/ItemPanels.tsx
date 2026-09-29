@@ -17,6 +17,8 @@ export interface ItemPanelsProps {
   onSetVisibility: (hidden: boolean | string | null) => void;
   /** `CanGrow`/`KeepTogether` (solo Textbox). */
   onSetItemOptions: (options: ItemOptionsPatch) => void;
+  /** Salto de página del item (Rectangle/Tablix). */
+  onSetPageBreak: (breakLocation: 'None' | 'Start' | 'End' | 'Between') => void;
   onSetText: (p: number, r: number, value: string) => void;
   /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
   onSetLabel: (p: number, r: number, label: string | null) => void;
@@ -38,6 +40,7 @@ export function ItemPanels({
   onSetName,
   onSetVisibility,
   onSetItemOptions,
+  onSetPageBreak,
   onSetText,
   onSetLabel,
   onSetImageOptions,
@@ -62,6 +65,7 @@ export function ItemPanels({
         onSetName={onSetName}
         onSetVisibility={onSetVisibility}
         onSetItemOptions={onSetItemOptions}
+        onSetPageBreak={onSetPageBreak}
       />
       {item.kind === 'textbox' ? (
         <TextPanel

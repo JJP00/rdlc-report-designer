@@ -33,6 +33,8 @@ export interface InspectorPanelProps {
   onSetVisibility: (hidden: boolean | string | null) => void;
   /** `CanGrow`/`KeepTogether` (solo Textbox). */
   onSetItemOptions: (options: ItemOptionsPatch) => void;
+  /** Salto de página del item (Rectangle/Tablix). */
+  onSetPageBreak: (breakLocation: 'None' | 'Start' | 'End' | 'Between') => void;
   /** Visibilidad de una fila/columna/grupo de un Tablix. */
   onSetMemberVisibility: (
     tablixId: string,
@@ -77,6 +79,7 @@ export function InspectorPanel({
   onSetName,
   onSetVisibility,
   onSetItemOptions,
+  onSetPageBreak,
   onSetMemberVisibility,
   onOpenGroupProperties,
   onAddRowToGroup,
@@ -116,6 +119,7 @@ export function InspectorPanel({
         onSetName={onSetName}
         onSetVisibility={onSetVisibility}
         onSetItemOptions={onSetItemOptions}
+        onSetPageBreak={onSetPageBreak}
         onSetText={onSetText}
         onSetLabel={onSetLabel}
         onSetImageOptions={onSetImageOptions}
