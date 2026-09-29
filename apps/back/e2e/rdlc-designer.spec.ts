@@ -105,6 +105,7 @@ interface ItemLike {
 
 interface MemberLike {
   path: number[];
+  expression?: string;
   hidden?: boolean | string;
   children: MemberLike[];
 }
@@ -269,6 +270,42 @@ async function memberHidden(
     level = member.children;
   }
   return member?.hidden;
+}
+
+/** Expresión proyectada de un miembro (fila/columna) por su `path`. */
+async function memberExpression(
+  tablixId: string,
+  axis: 'row' | 'column',
+  path: number[],
+): Promise<string | undefined> {
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, tablixId);
+  let level = axis === 'row' ? tablix?.rowHierarchy : tablix?.columnHierarchy;
+  let member: MemberLike | undefined;
+  for (const index of path) {
+    member = level?.[index];
+    if (!member) return undefined;
+    level = member.children;
+  }
+  return member?.expression;
+}
+
+/** Número de hijos (`TablixMembers`) de un miembro: 0 = grupo hoja. */
+async function memberChildCount(
+  tablixId: string,
+  axis: 'row' | 'column',
+  path: number[],
+): Promise<number | undefined> {
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, tablixId);
+  let level = axis === 'row' ? tablix?.rowHierarchy : tablix?.columnHierarchy;
+  let member: MemberLike | undefined;
+  for (const index of path) {
+    member = level?.[index];
+    if (!member) return undefined;
+    level = member.children;
+  }
+  return member?.children.length;
 }
 
 /** Etiqueta `<Label>` del primer run de un textbox (encabezado, cuerpo o pie). */
@@ -464,6 +501,31 @@ async function selectItemViaPalette(id: string): Promise<void> {
   // encaja con «Textbox187»).
   await page.getByRole('option', { name: new RegExp(`^${id}\\b`) }).click();
   await expect.poll(selectedId).toBe(id);
+  // La paleta «trae a la vista» con scroll suave: si un `nodeCenter` se
+  // calcula a media animación, el click cae en otro sitio.
+  await waitCanvasScrollSettled();
+}
+
+/**
+ * Espera a que el scroll del lienzo deje de moverse (el «traer a la vista» de
+ * la paleta usa `scrollTo({ behavior: 'smooth' })`).
+ */
+async function waitCanvasScrollSettled(): Promise<void> {
+  let previous = '';
+  let stable = 0;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const current = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      const scroller = canvas?.closest('.overflow-auto');
+      return scroller instanceof HTMLElement
+        ? `${scroller.scrollLeft}:${scroller.scrollTop}`
+        : 'none';
+    });
+    stable = current === previous ? stable + 1 : 0;
+    if (stable >= 2) return;
+    previous = current;
+    await page.waitForTimeout(50);
+  }
 }
 
 /** Texto pintado por un editor Monaco (una expresión, tal cual se ve). */
@@ -1642,4 +1704,98 @@ test('las cabeceras del Tablix (TablixHeader/TablixCorner) se proyectan y selecc
   await expect.poll(selectedId).toBe('VATIdentifier_VatAmountLine');
   await expect(page.getByText('La celda fija la posición y el tamaño del contenido')).toBeVisible();
   await expect(page.getByLabel('Nombre del elemento')).toHaveValue('VATIdentifier_VatAmountLine');
+});
+
+/* ------------------------- F2.b · grupos de fila ------------------------- */
+
+test('los grupos hoja se ven en la estructura y su expresión se edita', async () => {
+  // Tablix7: el grupo `=Fields!VATPct_VatAmountLine.Value` ES la fila (sin hijos).
+  await selectItemViaPalette('Tablix7');
+  await expect(page.getByRole('region', { name: 'Estructura del Tablix' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Editar expresión del grupo de la fila 1' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
+  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
+  await expect
+    .poll(() => memberExpression('Tablix7', 'row', [0]))
+    .toBe('=Fields!VATPct_VatAmountLine.Value');
+
+  // Editar la expresión desde el diálogo Monaco.
+  await page.getByRole('button', { name: 'Editar expresión del grupo de la fila 1' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(
+    dialog.getByRole('heading', { name: 'Expresión del grupo de la fila 1' }),
+  ).toBeVisible();
+  const editor = dialog.locator('.monaco-editor');
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type('=Fields!VATIdentifier_VatAmountLine.Value');
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect
+    .poll(() => memberExpression('Tablix7', 'row', [0]))
+    .toBe('=Fields!VATIdentifier_VatAmountLine.Value');
+  // Sigue siendo el mismo grupo hoja: una fila, sin hijos.
+  expect(await tablixRowCount('Tablix7')).toBe(1);
+  expect(await memberChildCount('Tablix7', 'row', [0])).toBe(0);
+
+  // Un solo undo devuelve la expresión (byte-exacto).
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(() => memberExpression('Tablix7', 'row', [0]))
+    .toBe('=Fields!VATPct_VatAmountLine.Value');
+});
+
+test('agrupar una fila crea el grupo sin tocar la rejilla (con undo)', async () => {
+  // Tablix3: 2 filas estáticas, sin grupos.
+  await selectItemViaPalette('Tablix3');
+  const rowsBefore = await tablixRowCount('Tablix3');
+
+  await page.getByRole('button', { name: 'Agrupar la fila 1…' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Agrupar la fila 1' })).toBeVisible();
+  const editor = dialog.locator('.monaco-editor');
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.type('=Fields!BTCNo_BTCHeader.Value');
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect
+    .poll(() => memberExpression('Tablix3', 'row', [0]))
+    .toBe('=Fields!BTCNo_BTCHeader.Value');
+  // El grupo nuevo envuelve la fila: la rejilla no cambia.
+  expect(await tablixRowCount('Tablix3')).toBe(rowsBefore);
+  // El grupo (con hijos) tiene su control y la fila envuelta sigue seleccionable.
+  await expect(page.getByRole('button', { name: 'Editar expresión del grupo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberExpression('Tablix3', 'row', [0])).toBeUndefined();
+  expect(await tablixRowCount('Tablix3')).toBe(rowsBefore);
+});
+
+test('quitar un grupo deja la fila (y el undo lo restaura)', async () => {
+  await selectItemViaPalette('Tablix7');
+  await expect
+    .poll(() => memberExpression('Tablix7', 'row', [0]))
+    .toBe('=Fields!VATPct_VatAmountLine.Value');
+
+  await page.getByRole('button', { name: 'Quitar grupo de la fila 1' }).click();
+  await expect.poll(() => memberExpression('Tablix7', 'row', [0])).toBeUndefined();
+  // La fila se queda: el body no cambia y sigue seleccionable como fila.
+  expect(await tablixRowCount('Tablix7')).toBe(1);
+  await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Quitar grupo de la fila 1' })).toBeHidden();
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(() => memberExpression('Tablix7', 'row', [0]))
+    .toBe('=Fields!VATPct_VatAmountLine.Value');
 });

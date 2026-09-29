@@ -251,6 +251,12 @@ export function cellBoxAt(tablix: TablixDto, row: number, col: number): TablixCe
 }
 
 export interface TablixTreeEntry {
+  /**
+   * `group` = miembro dinámico (con `expression`) o contenedor con hijos;
+   * `row` = hoja estática. Un **grupo hoja** (sin hijos) es las dos cosas: se
+   * clasifica por `expression` (lecciones del ida/vuelta con RB) y trae `index`
+   * porque **es** una fila/columna del body.
+   */
   kind: 'group' | 'row';
   /** Profundidad en el árbol (indentación del panel). */
   depth: number;
@@ -258,7 +264,7 @@ export interface TablixTreeEntry {
   expression?: string;
   total: 'none' | 'before' | 'after';
   hidden?: boolean | string;
-  /** Solo en `kind: 'row'`: índice de fila/columna (hoja, 0-based). */
+  /** Hojas (filas/columnas del body, 0-based), también en grupos hoja. */
   index?: number;
 }
 
@@ -276,13 +282,14 @@ export function tablixTree(members: TablixMemberDto[]): TablixTreeEntry[] {
         ...(member.expression !== undefined ? { expression: member.expression } : {}),
         ...(member.hidden !== undefined ? { hidden: member.hidden } : {}),
       };
-      if (member.children.length > 0) {
-        entries.push({ kind: 'group', ...base });
-        walk(member.children, depth + 1);
+      const isLeaf = member.children.length === 0;
+      if (member.expression !== undefined || !isLeaf) {
+        entries.push({ kind: 'group', ...base, ...(isLeaf ? { index: leaf } : {}) });
       } else {
         entries.push({ kind: 'row', ...base, index: leaf });
-        leaf += 1;
       }
+      if (isLeaf) leaf += 1;
+      else walk(member.children, depth + 1);
     }
   };
 

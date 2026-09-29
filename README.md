@@ -87,7 +87,7 @@ para trazar eventos) y `__rdlcProjection` (la proyección viva).
 con `--mode e2e` (los ganchos se publican también ahí), usa ratón/teclado reales y deja
 traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntuales.
 
-## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-28)
+## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-29)
 
 **Fase 0 (spike round-trip) — cerrada:**
 
@@ -144,15 +144,24 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       El **contenido de una celda está anclado**: no se arrastra, se recorta a la celda y el
       marco de la tabla mide la **rejilla**. Además, las celdas nuevas de fila/columna nacen
       con un **Textbox vacío** (no celdas muertas) y los «+» por fila/columna se quitaron
-      (queda el de la cabecera, que añade al final). Queda pendiente: **gestión de grupos de
-      fila** (`setGroupExpression`, `addRowGroup`, `deleteRowGroup`) y la conveniencia de
-      **totales** (hoy ya se hacen a mano: son filas estáticas con agregados) · [ ] Matrix (F3).
+      (queda el de la cabecera, que añade al final). Queda pendiente la conveniencia de
+      **totales** (F2.c, opcional: hoy ya se hacen a mano, son filas estáticas con agregados).
 - [x] **Cabeceras del Tablix · F2.a (sesión 2026-09-28)**: proyección y lienzo de
       **`TablixHeader`** (bandas de cabecera de columna/fila: grosor = `Size` del miembro,
       largo = filas/columnas que cubre) y **`TablixCorner`** (esquina), con un `offset` que
       desplaza la rejilla del body; el marco mide cabeceras + rejilla y las cabeceras se
       seleccionan como contenido anclado. En `Tablix7` ya se ven `Textbox72/73/75` y
       `VATIdentifier_VatAmountLine`.
+- [x] **Grupos de fila del Tablix · F2.b (sesión 2026-09-29)**: `setGroupExpression`
+      (edita la expresión del grupo y sincroniza su ordenación si la espejaba),
+      `addRowGroup` (envuelve una fila en un grupo nuevo — `Group` + orden por la
+      expresión + `TablixMembers` — sin tocar el body) y `deleteRowGroup` (quita el
+      grupo y su ordenación: las filas se quedan como filas estáticas y la
+      `TablixHeader` se conserva). Los **grupos hoja** de BC (`Tablix2 · Details`,
+      `Tablix7`) se clasifican por `expression` y se pintan como grupos en el árbol;
+      cada grupo tiene **lápiz** (editar expresión) y **Ungroup**, y cada fila estática
+      un botón para **agruparla**. El undo es byte-exacto (se recuerda la indentación
+      al desprender nodos).
 - [x] **Visibilidad (F2)**: de **items** (`setVisibility`: Visible / Oculta / Expresión…;
       la predeterminada es visible; la proyección lee `Visibility > Hidden` y los ocultos se
       pintan **atenuados** en el lienzo) y de **filas/columnas/grupos** del Tablix
@@ -169,12 +178,13 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       por borde y por celda, arrastre real de cabeceras con undo, click interno + Esc, estructura
       (añadir/quitar filas y columnas), menú contextual, anclaje/recorte del contenido, refresco
       de la rejilla, cabeceras (Shift/Ctrl), borrado en lote, fusión/separación, colores-expresión,
-      autocompletado (panel y diálogo), visibilidad (items y miembros), renombrado, etiqueta y
-      cabeceras del Tablix (29 tests, con reset del documento entre tests).
-- [ ] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
-      miembros) · [x] `TablixCorner`/`TablixHeader` · [ ] grupos de fila · [ ] Matrix (F3).
+      autocompletado (panel y diálogo), visibilidad (items y miembros), renombrado, etiqueta,
+      cabeceras del Tablix y **grupos de fila** (editar expresión, agrupar y quitar grupo con undo;
+      32 tests, con reset del documento entre tests).
+- [x] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
+      miembros) · [x] `TablixCorner`/`TablixHeader` · [x] grupos de fila · [ ] Matrix (F3).
 
-**Calidad (sesiones 2026-09-16 a 2026-09-28):**
+**Calidad (sesiones 2026-09-16 a 2026-09-29):**
 
 - [x] **Pendientes M1–M7** cerrados (id al duplicar, aviso al cerrar, motivo de recarga,
       zIndex en pintado y hit-test, `<Code>` vacío, nombres elegidos por el backend,
@@ -195,7 +205,8 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       marcadores de etiqueta/expresión, bloque del párrafo activo con formato por run y Monaco
       inline), lienzo fiel al estilo RDL (texto por run con alineación de párrafo y texto de
       diseño `[etiqueta]` / campo / `[exp]`) y marco de selección medido por la caja del item.
-- [x] **298 unit tests** (183 back + 115 front) + **29 E2E** de Playwright y
-      `typecheck` limpio.
+- [x] **Sesión 2026-09-29**: grupos de fila (F2.b) y undo byte-exacto al reinsertar nodos
+      desprendidos (indentación recordada) · **313 unit tests** (197 back + 116 front) +
+      **32 E2E** de Playwright y `typecheck` limpio.
 
 Estado detallado y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

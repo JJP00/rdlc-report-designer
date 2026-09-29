@@ -147,6 +147,9 @@ export function App(): ReactNode {
     setItemName,
     setVisibility,
     setMemberVisibility,
+    setGroupExpression,
+    addRowGroup,
+    deleteRowGroup,
     setImageOptions,
     setRunText,
     setRunLabel,
@@ -255,6 +258,9 @@ export function App(): ReactNode {
             onSetName={setItemName}
             onSetVisibility={setVisibility}
             onSetMemberVisibility={setMemberVisibility}
+            onSetGroupExpression={setGroupExpression}
+            onAddRowGroup={addRowGroup}
+            onDeleteRowGroup={deleteRowGroup}
             onSetText={setRunText}
             onSetLabel={setRunLabel}
             onSetImageOptions={setImageOptions}

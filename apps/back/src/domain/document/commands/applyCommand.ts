@@ -31,6 +31,7 @@ import { applySetStyle } from './setStyle.js';
 import { applySetText } from './setText.js';
 import { applySetVisibility } from './setVisibility.js';
 import { applySetMemberVisibility } from './memberVisibility.js';
+import { applyAddRowGroup, applyDeleteRowGroup, applySetGroupExpression } from './tablixGroups.js';
 
 /**
  * Dispatcher de comandos del dominio (públicos y los internos del journal).
@@ -82,6 +83,12 @@ export function applyCommand(
       return applySetVisibility(ctx, command);
     case 'setMemberVisibility':
       return applySetMemberVisibility(ctx, command);
+    case 'setGroupExpression':
+      return applySetGroupExpression(ctx, command);
+    case 'addRowGroup':
+      return applyAddRowGroup(ctx, command);
+    case 'deleteRowGroup':
+      return applyDeleteRowGroup(ctx, command);
     case 'setPageSize':
       return applySetPageSize(ctx, command);
     case 'setPageMargins':

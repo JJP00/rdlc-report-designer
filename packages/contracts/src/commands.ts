@@ -324,6 +324,50 @@ const unmergeCells = z.object({
   col: z.number().int().nonnegative(),
 });
 
+/* ------------------------ grupos de fila (F2.b) -------------------------- */
+
+/**
+ * Edita la expresión de un grupo (`Group > GroupExpressions`). El miembro se
+ * busca por `path` en la jerarquía del eje. Si la ordenación del grupo espejaba
+ * la expresión anterior, se sincroniza (como hace Report Builder).
+ */
+const setGroupExpression = z.object({
+  cmd: z.literal('setGroupExpression'),
+  /** Tablix propietario de la jerarquía. */
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  /** Índices de `TablixMember` desde la raíz de su jerarquía. */
+  path: z.array(z.number().int().nonnegative()).min(1),
+  /** Expresión RDL (`=Fields!...`); no puede quedar vacía. */
+  expression: z.string(),
+});
+
+/**
+ * Envuelve una fila (hoja del `TablixRowHierarchy`) en un **grupo nuevo** con
+ * esa expresión: la fila pasa a ser el detalle del grupo. No crea cabecera
+ * (la del grupo es opcional en RDL; BC las pone en `TablixHeader` si las hay).
+ */
+const addRowGroup = z.object({
+  cmd: z.literal('addRowGroup'),
+  id: z.string().min(1),
+  /** Índice de la fila del body (hoja, 0-based) que se agrupa. */
+  row: z.number().int().nonnegative(),
+  expression: z.string(),
+});
+
+/**
+ * Quita el grupo de un miembro: se elimina su `Group` (y su ordenación) y las
+ * filas que cuelgan se quedan como filas estáticas. La cabecera
+ * (`TablixHeader`) se conserva: si tiene contenido, el miembro pasa a ser un
+ * contenedor estático con cabecera.
+ */
+const deleteRowGroup = z.object({
+  cmd: z.literal('deleteRowGroup'),
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  path: z.array(z.number().int().nonnegative()).min(1),
+});
+
 /* ------------------------------ Unión ----------------------------------- */
 
 export const commandSchema = z.discriminatedUnion('cmd', [
@@ -341,6 +385,9 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   deleteColumns,
   mergeCells,
   unmergeCells,
+  setGroupExpression,
+  addRowGroup,
+  deleteRowGroup,
   setZIndex,
   setName,
   setVisibility,

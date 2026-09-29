@@ -28,6 +28,14 @@ export class TrueFormatDocument implements RdlcDocument {
    */
   readonly expandedSelfClosing = new WeakSet<XmlElement>();
 
+  /**
+   * Indentación (`XmlText`) que precedía a un elemento al desconectarlo. Al
+   * reinsertar **el mismo nodo** (undo de eliminar/desprender) se devuelve tal
+   * cual: sin esto, reinsertar en un contenedor que se quedó sin elementos
+   * perdía la indentación y el undo dejaba de ser byte-exacto.
+   */
+  readonly removedIndent = new WeakMap<XmlElement, XmlText>();
+
   constructor(private readonly document: XmlDocument) {
     this.root = new TrueFormatNode(document.getRootElement(), null, this);
   }
@@ -129,7 +137,7 @@ export class TrueFormatNode implements RdlcNode {
   appendChild(child: RdlcNode): void {
     const wrapped = this.unwrap(child);
     this.markExpanded();
-    this.el.addElement(wrapped.el);
+    this.insertFormatted(wrapped);
     wrapped.parentNode = this;
     this.doc.markDirty();
   }
@@ -138,7 +146,7 @@ export class TrueFormatNode implements RdlcNode {
     const wrapped = this.unwrap(child);
     const ref = this.unwrap(reference);
     this.markExpanded();
-    this.el.addElement(wrapped.el, { before: ref.el });
+    this.insertFormatted(wrapped, ref.el);
     wrapped.parentNode = this;
     this.doc.markDirty();
   }
@@ -158,10 +166,12 @@ export class TrueFormatNode implements RdlcNode {
     const index = this.el.children.indexOf(wrapped.el);
     if (index === -1) return;
     this.el.children.splice(index, 1);
-    // Quita también el whitespace de indentación que precede al elemento.
+    // Quita también el whitespace de indentación que precede al elemento, pero
+    // lo **recuerda**: si el nodo vuelve (undo), se reinserta tal cual.
     const previous = this.el.children[index - 1];
     if (previous instanceof XmlText && previous.isWhitespace()) {
       this.el.children.splice(index - 1, 1);
+      this.doc.removedIndent.set(wrapped.el, previous);
     }
     wrapped.parentNode = null;
     this.restoreSelfClosing();
@@ -173,6 +183,32 @@ export class TrueFormatNode implements RdlcNode {
   }
 
   /* --------------------------- interno ---------------------------- */
+
+  /**
+   * Inserta el elemento copiando el formato de los vecinos (`addElement`), o
+   * devolviendo la indentación que el nodo tenía cuando se desconectó: en un
+   * contenedor que se quedó sin elementos no hay vecino del que copiar y el
+   * undo dejaría de ser byte-exacto.
+   */
+  private insertFormatted(node: TrueFormatNode, reference?: XmlElement): void {
+    const indent = this.doc.removedIndent.get(node.el);
+    if (!indent) {
+      if (reference) this.el.addElement(node.el, { before: reference });
+      else this.el.addElement(node.el);
+      return;
+    }
+
+    // Se inserta [indentación original, nodo] donde lo haría `addElement`.
+    let index = reference ? this.el.children.indexOf(reference) : this.el.children.length;
+    while (
+      index > 0 &&
+      this.el.children[index - 1] instanceof XmlText &&
+      (this.el.children[index - 1] as XmlText).isWhitespace()
+    ) {
+      index -= 1;
+    }
+    this.el.addChild(index, indent, node.el);
+  }
 
   /** Si el elemento venía autocerrado, recuerda que se ha expandido. */
   private markExpanded(): void {

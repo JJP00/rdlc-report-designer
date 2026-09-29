@@ -1,9 +1,9 @@
 import type { RdlcCommand } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
-import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome, DomainCommand } from './CommandContext.js';
 import { clearHidden, visibilityValue, writeHidden } from './setVisibility.js';
+import { memberAt, tablixHierarchy } from './tablixParts.js';
 
 export type SetMemberVisibilityCommand = Extract<RdlcCommand, { cmd: 'setMemberVisibility' }>;
 
@@ -23,8 +23,7 @@ export function applySetMemberVisibility(
   const tablix = ctx.index.get(command.id);
   if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
 
-  const hierarchyTag = command.axis === 'row' ? 'TablixRowHierarchy' : 'TablixColumnHierarchy';
-  const root = tablix.child(hierarchyTag)?.child('TablixMembers');
+  const root = tablixHierarchy(tablix, command.axis);
   if (!root) {
     return left(
       CommandRejectedError.create(
@@ -53,19 +52,4 @@ export function applySetMemberVisibility(
   }
 
   return right({ inverse, snapshotOut: true });
-}
-
-/** Miembro en `path` (índices entre hermanos `TablixMember` en cada nivel). */
-function memberAt(root: RdlcNode, path: number[]): RdlcNode | undefined {
-  let container = root;
-  let member: RdlcNode | undefined;
-
-  for (const index of path) {
-    member = container.children('TablixMember')[index];
-    if (!member) return undefined;
-    const nested = member.child('TablixMembers');
-    if (nested) container = nested;
-  }
-
-  return member;
 }

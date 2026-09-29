@@ -231,6 +231,19 @@ describe('tablix · árbol de estructura', () => {
     expect(entries).toHaveLength(2);
     expect(entries[0]?.index).toBe(0);
   });
+
+  it('un grupo hoja (sin hijos) se clasifica por su expresión y conserva su fila', () => {
+    const entries = tablixTree([
+      { path: [0], expression: '=Fields!DocumentNo.Value', total: 'none', children: [] },
+      leaf([1]),
+    ]);
+    expect(entries.map((entry) => [entry.kind, entry.index])).toEqual([
+      ['group', 0],
+      ['row', 1],
+    ]);
+    expect(entries[0]?.expression).toBe('=Fields!DocumentNo.Value');
+    expect(entries[0]?.depth).toBe(0);
+  });
 });
 
 describe('tablix · tablix propietario', () => {

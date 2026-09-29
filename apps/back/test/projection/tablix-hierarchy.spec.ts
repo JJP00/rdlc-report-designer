@@ -99,4 +99,20 @@ describe('proyección · jerarquías del Tablix', () => {
     const tablix = tablixByName(project('SalesCreditMemoESP.rdlc'), 'LinesTable');
     expect(tablix!.rowHierarchy[0]!.hidden).toBe('=Fields!BTCJobNo.Value <> ""');
   });
+
+  it('proyecta grupos hoja (sin hijos) con su expresión: son filas que se repiten', () => {
+    // Tablix2 (`Details`) y Tablix7 (`VATIdentifier_VatAmountLine`): el grupo
+    // ES la fila de detalle; el front lo clasifica por `expression`, no por
+    // tener hijos.
+    const details = tablixByName(project('SalesCreditMemoESP.rdlc'), 'Tablix2');
+    expect(details!.rowHierarchy).toHaveLength(1);
+    expect(details!.rowHierarchy[0]!.expression).toBe('=Fields!DocumentNo.Value');
+    expect(details!.rowHierarchy[0]!.children).toEqual([]);
+    expect(leafCount(details!.rowHierarchy)).toBe(details!.body.rows.length);
+
+    const vat = tablixByName(project('SalesCreditMemoESP.rdlc'), 'Tablix7');
+    expect(vat!.rowHierarchy).toHaveLength(1);
+    expect(vat!.rowHierarchy[0]!.expression).toBe('=Fields!VATPct_VatAmountLine.Value');
+    expect(vat!.rowHierarchy[0]!.children).toEqual([]);
+  });
 });

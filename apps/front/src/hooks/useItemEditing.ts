@@ -96,6 +96,17 @@ export interface ItemEditing {
     path: number[],
     hidden: boolean | string | null,
   ) => void;
+  /** Edita la expresión de un grupo del Tablix (`path` de la proyección). */
+  setGroupExpression: (
+    tablixId: string,
+    axis: 'row' | 'column',
+    path: number[],
+    expression: string,
+  ) => void;
+  /** Envuelve la fila en un grupo nuevo con esa expresión. */
+  addRowGroup: (tablixId: string, row: number, expression: string) => void;
+  /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
+  deleteRowGroup: (tablixId: string, axis: 'row' | 'column', path: number[]) => void;
   setImageOptions: (patch: ImageOptionsPatch) => void;
   setRunText: (p: number, r: number, value: string) => void;
   /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
@@ -452,6 +463,31 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       // El comando pide snapshot (el miembro no viaja en `applied`): la
       // proyección y el árbol de estructura se refrescan solos.
       void sendCommand({ cmd: 'setMemberVisibility', id: tablixId, axis, path, hidden });
+    },
+    [sendCommand],
+  );
+
+  /**
+   * Grupos de fila/columna (F2.b): los tres comandos piden snapshot (el miembro
+   * no viaja en `applied`), así que la proyección y el árbol se refrescan solos.
+   */
+  const setGroupExpression = useCallback(
+    (tablixId: string, axis: 'row' | 'column', path: number[], expression: string): void => {
+      void sendCommand({ cmd: 'setGroupExpression', id: tablixId, axis, path, expression });
+    },
+    [sendCommand],
+  );
+
+  const addRowGroup = useCallback(
+    (tablixId: string, row: number, expression: string): void => {
+      void sendCommand({ cmd: 'addRowGroup', id: tablixId, row, expression });
+    },
+    [sendCommand],
+  );
+
+  const deleteRowGroup = useCallback(
+    (tablixId: string, axis: 'row' | 'column', path: number[]): void => {
+      void sendCommand({ cmd: 'deleteRowGroup', id: tablixId, axis, path });
     },
     [sendCommand],
   );
@@ -822,6 +858,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setItemName,
     setVisibility,
     setMemberVisibility,
+    setGroupExpression,
+    addRowGroup,
+    deleteRowGroup,
     setImageOptions,
     setRunText,
     setRunLabel,

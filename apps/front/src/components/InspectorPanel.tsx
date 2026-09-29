@@ -31,6 +31,17 @@ export interface InspectorPanelProps {
     path: number[],
     hidden: boolean | string | null,
   ) => void;
+  /** Edita la expresión de un grupo del Tablix (`path` de la proyección). */
+  onSetGroupExpression: (
+    tablixId: string,
+    axis: 'row' | 'column',
+    path: number[],
+    expression: string,
+  ) => void;
+  /** Envuelve la fila en un grupo nuevo con esa expresión. */
+  onAddRowGroup: (tablixId: string, row: number, expression: string) => void;
+  /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
+  onDeleteRowGroup: (tablixId: string, axis: 'row' | 'column', path: number[]) => void;
   onSetText: (p: number, r: number, value: string) => void;
   /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
   onSetLabel: (p: number, r: number, label: string | null) => void;
@@ -56,6 +67,9 @@ export function InspectorPanel({
   onSetName,
   onSetVisibility,
   onSetMemberVisibility,
+  onSetGroupExpression,
+  onAddRowGroup,
+  onDeleteRowGroup,
   onSetText,
   onSetLabel,
   onSetImageOptions,
@@ -75,6 +89,11 @@ export function InspectorPanel({
           onSetMemberVisibility={(axis, path, hidden) =>
             onSetMemberVisibility(tablix.id, axis, path, hidden)
           }
+          onSetGroupExpression={(axis, path, expression) =>
+            onSetGroupExpression(tablix.id, axis, path, expression)
+          }
+          onAddRowGroup={(row, expression) => onAddRowGroup(tablix.id, row, expression)}
+          onDeleteGroup={(axis, path) => onDeleteRowGroup(tablix.id, axis, path)}
         />
       ) : null}
       <ItemPanels

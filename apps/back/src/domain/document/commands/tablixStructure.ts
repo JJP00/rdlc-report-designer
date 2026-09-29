@@ -11,6 +11,13 @@ import {
 } from './CommandContext.js';
 import { nextItemName } from './insertItem.js';
 import {
+  detach,
+  restore,
+  setNodeTextChange,
+  type Detached,
+  type TextChange,
+} from './nodeChanges.js';
+import {
   leafAt,
   leafInsertionPoint,
   positionedCells,
@@ -53,16 +60,6 @@ export type UnmergeCellsCommand = Extract<RdlcCommand, { cmd: 'unmergeCells' }>;
 
 const DEFAULT_ROW_HEIGHT: Length = { value: 0.5, unit: 'cm' };
 const DEFAULT_COLUMN_WIDTH: Length = { value: 2, unit: 'cm' };
-
-interface TextChange {
-  node: RdlcNode;
-  value: string;
-}
-
-interface Detached {
-  container: RdlcNode;
-  index: number;
-}
 
 /* ------------------------------- addRow --------------------------------- */
 
@@ -118,7 +115,7 @@ export function applyAddRow(
 
   return right({
     inverse: [
-      ...changes.map((change) => setNodeText(change)),
+      ...changes.map(setNodeTextChange),
       ...created.map((node) => ({ cmd: 'removeNode', node }) as const),
     ],
     snapshotOut: true,
@@ -178,7 +175,7 @@ export function applyDeleteRow(
 
   return right({
     inverse: [
-      ...changes.map((change) => setNodeText(change)),
+      ...changes.map(setNodeTextChange),
       restore(rowRestore, row),
       restore(memberRestore, leaf.member),
       ...(containerRestore ? [restore(containerRestore, leaf.container)] : []),
@@ -258,7 +255,7 @@ export function applyAddColumn(
 
   return right({
     inverse: [
-      ...changes.map((change) => setNodeText(change)),
+      ...changes.map(setNodeTextChange),
       ...created.map((node) => ({ cmd: 'removeNode', node }) as const),
     ],
     snapshotOut: true,
@@ -328,7 +325,7 @@ export function applyDeleteColumn(
 
   return right({
     inverse: [
-      ...changes.map((change) => setNodeText(change)),
+      ...changes.map(setNodeTextChange),
       ...removedCells.map(({ node, restore: position }) => restore(position, node)),
       restore(columnRestore, column),
       restore(memberRestore, leaf.member),
@@ -475,7 +472,7 @@ export function applyMergeCells(
 
   return right({
     inverse: [
-      ...changes.map((change) => setNodeText(change)),
+      ...changes.map(setNodeTextChange),
       ...removed.map(({ node, restore: position }) => restore(position, node)),
       ...created.map((node) => ({ cmd: 'removeNode', node }) as const),
     ],
@@ -754,29 +751,6 @@ function emptyTextbox(parent: RdlcNode, name: string): RdlcNode {
 function neighborText(nodes: RdlcNode[], index: number, tag: string, fallback: Length): string {
   const neighbor = nodes[index] ?? nodes[index - 1] ?? nodes[0];
   return neighbor?.child(tag)?.text() ?? formatLength(fallback);
-}
-
-/** Desconecta el nodo recordando dónde volver a insertarlo. */
-function detach(node: RdlcNode): Detached {
-  const container = node.parent;
-  if (!container) throw new Error(`El nodo '${node.tagName}' no tiene contenedor`);
-  const index = container.children().findIndex((child) => child.equals(node));
-  node.remove();
-  return { container, index };
-}
-
-function restore(position: Detached, node: RdlcNode): DomainCommand {
-  return {
-    cmd: 'restoreNode',
-    node,
-    container: position.container,
-    index: position.index,
-    name: node.attribute('Name') ?? node.tagName,
-  };
-}
-
-function setNodeText(change: TextChange): DomainCommand {
-  return { cmd: 'setNodeText', node: change.node, value: change.value };
 }
 
 /**

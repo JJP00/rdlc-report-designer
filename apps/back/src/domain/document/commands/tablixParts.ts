@@ -59,6 +59,27 @@ function memberChildren(container: RdlcNode): RdlcNode[] {
   return container.children('TablixMember');
 }
 
+/** Raíz `TablixMembers` de la jerarquía de un eje (`row`/`column`). */
+export function tablixHierarchy(tablix: RdlcNode, axis: 'row' | 'column'): RdlcNode | undefined {
+  const hierarchy = axis === 'row' ? 'TablixRowHierarchy' : 'TablixColumnHierarchy';
+  return tablix.child(hierarchy)?.child('TablixMembers');
+}
+
+/** Miembro en `path` (índices entre hermanos `TablixMember` en cada nivel). */
+export function memberAt(root: RdlcNode, path: number[]): RdlcNode | undefined {
+  let container = root;
+  let member: RdlcNode | undefined;
+
+  for (const index of path) {
+    member = memberChildren(container)[index];
+    if (!member) return undefined;
+    const nested = member.child('TablixMembers');
+    if (nested) container = nested;
+  }
+
+  return member;
+}
+
 /** Número de hojas bajo un miembro (él mismo si no tiene `TablixMembers`). */
 export function leafCount(member: RdlcNode): number {
   const sub = member.child('TablixMembers');

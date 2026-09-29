@@ -1,5 +1,63 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-29 · F2.b (gestión de grupos de fila)** —
+> **`setGroupExpression`** (edita la expresión del grupo; `axis` + `path` de la
+> proyección), **`addRowGroup`** (envuelve la fila elegida en un grupo nuevo:
+> `Group` + `GroupExpressions` + `SortExpressions` ordenando por la expresión y
+> `TablixMembers` con la hoja; el body no cambia) y **`deleteRowGroup`** (quita
+> `Group` y su ordenación; las filas que cuelgan se quedan como filas
+> estáticas). Decisiones del ida/vuelta con Report Builder:
+>
+> - El grupo nuevo **no crea cabecera** (RB la añade aparte) y nunca se
+>   convierte una `TablixHeader` en fila: `deleteRowGroup` **degrada** el
+>   miembro (conserva cabecera, hijos y filas); un `TablixCorner` ni se toca.
+> - Los **grupos hoja** (`Tablix2 · Details`, `Tablix7`,
+>   `Tablix1 · BTCBillNo1`) se clasifican por **`expression`**, no por tener
+>   hijos: en el árbol salen con el icono de capas y su fila sigue siendo
+>   seleccionable (la entrada lleva `index`).
+> - La **ordenación espeja la expresión**: el grupo nuevo nace ordenado por
+>   ella y `setGroupExpression` sincroniza el `SortExpression` que espejaba la
+>   anterior (si el grupo ordenaba por otro campo, se respeta: caso `Tablix7`).
+> - El **nombre** del grupo sale del primer campo de la expresión
+>   (`=Fields!X.Value` → `X`, como RB) y es único entre los nombres de ámbito
+>   (`Group` y `DataSet`); si ya existe, añade 1, 2…
+> - Los grupos con **varias expresiones** se rechazan al editarlos (no hay
+>   forma inequívoca de editar «la» expresión).
+>
+> **Panel**: cada grupo tiene **lápiz** (editar expresión con el diálogo Monaco,
+> con `=` automático) y **Ungroup** (quitar el grupo); cada fila estática, un
+> botón de **capas+** para agruparla. La cabecera del grupo con hijos no es
+> seleccionable (no es una fila); los grupos hoja sí (son su fila). El dominio
+> permite **anidar** (`addRowGroup` acepta cualquier hoja, incluso un grupo
+> hoja), pero la UI de esta sesión no expone «agrupar un grupo hoja» (solo
+> editar su expresión o quitarlo).
+>
+> **Infra (byte-exacto)**: al desprender un nodo se **recuerda la indentación**
+> que lo precedía (`removedIndent`) y al reinsertarlo se devuelve tal cual; sin
+> eso, reinsertar en un contenedor que se quedó sin elementos (`<TablixMember>`
+> sin hijos, `<TablixMembers>` con un solo miembro) perdía la indentación y el
+> undo dejaba de ser byte-exacto. `detach`/`restore`/`setNodeText` se
+> extrajeron a `nodeChanges.ts` (los comparten estructura y grupos).
+> **E2E**: `selectItemViaPalette` espera a que el **scroll suave** del «traer a
+> la vista» se asiente antes de calcular puntos (la carrera que destapó el test
+> de cabeceras al cambiar los tiempos de render).
+>
+> **Punto de retomada (próxima sesión)**:
+>
+> - **Probar en la app** los grupos con un informe grande (crear grupo, editar
+>   su expresión, quitar el grupo y deshacer) y comparar el ida/vuelta con RB.
+> - **F2.c (opcional)**: botón «Añadir total antes/después» (inserta la fila
+>   estática y precarga `Sum`/`Count`/`First` por columna) y, si se pide,
+>   cabeceras de grupo (`TablixHeader`) al crear grupos.
+> - **F3 · Matrix** (grupos de **columna** + esquina): `setGroupExpression` y
+>   `deleteRowGroup` ya aceptan `axis: 'column'`; faltaría `addColumnGroup`.
+> - Menores: **insertar Tablix**, **bordes** de estilo, `setZIndex`/
+>   `setItemOptions`/`moveItem` (en el contrato, rechazados), empaquetado
+>   electron-builder y CI.
+>
+> Estado: **313 unit tests** (197 back + 116 front), `typecheck` limpio y
+> **32 E2E** de Playwright verdes.
+
 > **Sesión 2026-09-25/28 · visibilidad (items y Tablix), nombre/etiqueta/fondo editables y fixes del lienzo** —
 > **Visibilidad de items**: `setVisibility` (literal, expresión o `null` que quita la
 > declaración) y el panel la edita con **Visible / Oculta / Expresión…** (la
@@ -414,10 +472,10 @@ Trade-offs documentados:
    añadir/quitar/duplicar/mover) y comando `setParagraphs` (undo byte-exacto).
 4. **Tablix visual (Fase 2)** — 🔶 rejilla editable, estructura (bloque 1), rejilla
    segmentada, fusión por tramos, proyección de anchos por columna acumulada,
-   **visibilidad de items y de filas/columnas/grupos** y **cabeceras
-   (`TablixHeader`) + esquina (`TablixCorner`)** ✅; falta:
-   **gestión de grupos de fila** (`setGroupExpression`, `addRowGroup`,
-   `deleteRowGroup`) y la **conveniencia de totales** (hoy ya se pueden hacer a mano:
+   **visibilidad de items y de filas/columnas/grupos**, **cabeceras
+   (`TablixHeader`) + esquina (`TablixCorner`)** y **gestión de grupos de fila**
+   (F2.b: `setGroupExpression`, `addRowGroup`, `deleteRowGroup`) ✅; falta la
+   **conveniencia de totales** (F2.c, opcional: hoy ya se pueden hacer a mano,
    son filas estáticas con agregados). Después: **Matrix (F3)**.
 5. **Matrix (Fase 3)** — ⬜ grupos de columna.
 6. **`moveItem`** (reparentar/reordenar) — ⬜ implementado hasta `insertItem`/`deleteItem`/
@@ -452,8 +510,8 @@ Trade-offs documentados:
     aviso al importar y **bloqueo al guardar** con lista de problemas.
 16. **Flujo BC** — ⬜ documentar el ciclo exportar layout (página 9650) → editar →
     reimportar; evolutivo: desplegar a BC.
-17. **Testing más allá del golden** — 🔶 295 tests (180 back + 115 front) y **E2E de
-    Playwright del lienzo ✅ (28)**; faltan property tests de comandos aleatorios y CI.
+17. **Testing más allá del golden** — 🔶 313 tests (197 back + 116 front) y **E2E de
+    Playwright del lienzo ✅ (32)**; faltan property tests de comandos aleatorios y CI.
 
 ## ⚪ Decisiones menores
 

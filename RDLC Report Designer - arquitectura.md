@@ -449,7 +449,7 @@ Con estos dos se cubre el 100% del texto: el caso normal usa `setText` (mínimo 
 
 ## 4. Tablix — Fase 2
 
-Implementados (F2 parte 2 y parte 3, bloque 1):
+Implementados (F2 parte 2, parte 3 y F2.b):
 
 | Comando                        | Payload                                                                                                                                                       |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -461,19 +461,25 @@ Implementados (F2 parte 2 y parte 3, bloque 1):
 | `deleteRows` / `deleteColumns` | `{ id, rows/columns: number[] }` — varias en un solo paso de undo                                                                                             |
 | `mergeCells`                   | `{ id, row, col, rowSpan, colSpan }` — solo tramos horizontales (`rowSpan = 1`): el ancla absorbe las celdas contiguas de su fila (las cubiertas desaparecen) |
 | `unmergeCells`                 | `{ id, row, col }` — separa la celda combinada y rellena con celdas vacías                                                                                    |
+| `setGroupExpression`           | `{ id, axis: 'row' \| 'column', path, expression }` — edita `GroupExpressions`; sincroniza la ordenación que espejaba la expresión anterior                   |
+| `addRowGroup`                  | `{ id, row: number, expression }` — envuelve la hoja en un grupo nuevo (`Group` + `SortExpressions` + `TablixMembers`); no crea cabecera ni toca el body      |
+| `deleteRowGroup`               | `{ id, axis: 'row' \| 'column', path }` — quita `Group` y su ordenación: las filas se quedan como filas estáticas y la `TablixHeader` se conserva             |
 
-Pendientes (F2 parte 3, bloque 2):
+Pendiente (F2.c, opcional):
 
-| Comando              | Payload                                                              |
-| -------------------- | -------------------------------------------------------------------- |
-| `addRowGroup`        | `{ id, expression, position, total?: 'before' \| 'after' }`          |
-| `deleteRowGroup`     | `{ id, memberPath: number[] }`                                       |
-| `setGroupExpression` | `{ id, memberPath: number[], expression }`                           |
-| `setGroupTotals`     | `{ id, memberPath: number[], total: 'none' \| 'before' \| 'after' }` |
+| Comando          | Payload                                                              |
+| ---------------- | -------------------------------------------------------------------- |
+| `setGroupTotals` | `{ id, memberPath: number[], total: 'none' \| 'before' \| 'after' }` |
+
+Los totales de RDL no tienen XML propio (son filas estáticas con agregados), así
+que la vía barata es insertar la fila y precargar `Sum`/`Count`/`First` por
+columna desde la UI, sin comando nuevo.
 
 ## 5. Matrix — Fase 3
 
-Misma familia que los grupos de fila, sobre `TablixColumnHierarchy`: `addColumnGroup`, `deleteColumnGroup`, `setColumnGroupExpression`, `setColumnGroupTotals`.
+Misma familia que los grupos de fila, sobre `TablixColumnHierarchy`:
+`setGroupExpression` y `deleteRowGroup` ya aceptan `axis: 'column'`; faltarían
+`addColumnGroup`, `deleteColumnGroup` y `setColumnGroupTotals`.
 
 ## Lo que NO son comandos
 
