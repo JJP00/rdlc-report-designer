@@ -61,6 +61,20 @@ const paddingPatchSchema = z
   })
   .strict();
 
+/** Parche de un lado del borde: el valor completo, o `null` para quitar el override. */
+const borderSidePatchSchema = borderSideSchema.nullable();
+
+/** Parche de bordes por lado (`null` en un lado = quitar su override por lado). */
+export const borderSidesPatchSchema = z
+  .object({
+    top: borderSidePatchSchema.optional(),
+    left: borderSidePatchSchema.optional(),
+    bottom: borderSidePatchSchema.optional(),
+    right: borderSidePatchSchema.optional(),
+  })
+  .strict();
+export type BorderSidesPatch = z.infer<typeof borderSidesPatchSchema>;
+
 export const stylePatchSchema = z
   .object({
     fontFamily: optional(z.string()),
@@ -73,7 +87,7 @@ export const stylePatchSchema = z
     textAlign: optional(z.enum(['Left', 'Center', 'Right', 'Justify'])),
     verticalAlign: optional(z.enum(['Top', 'Middle', 'Bottom'])),
     padding: optional(paddingPatchSchema),
-    border: optional(borderSidesSchema),
+    border: optional(borderSidesPatchSchema),
     format: optional(z.string()),
     listStyle: optional(z.enum(['None', 'Bulleted', 'Numbered'])),
   })

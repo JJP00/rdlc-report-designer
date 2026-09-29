@@ -7,7 +7,11 @@ import { Separator } from '@/components/ui/separator';
 import { toCm, cm } from '@/lib/projection';
 import { useState, type ReactNode } from 'react';
 import { BackgroundField } from './BackgroundField';
+import { BorderField } from './BorderField';
 import { VisibilityField } from './VisibilityField';
+
+/** Kinds cuyo borde se pinta en el lienzo (donde la UI no engaña). */
+const BORDER_KINDS = new Set(['textbox', 'rectangle', 'image']);
 
 /** Opciones del item que no son estilo (`CanGrow`/`KeepTogether`). */
 export interface ItemOptionsPatch {
@@ -115,6 +119,9 @@ export function PropertiesPanel({
       <Separator />
       <div className="text-xs font-medium text-muted-foreground">Apariencia</div>
       <BackgroundField item={item} onSetStyle={onSetStyle} />
+      {BORDER_KINDS.has(item.kind) ? (
+        <BorderField border={item.style?.border} onSetStyle={onSetStyle} />
+      ) : null}
       <VisibilityField
         key={`${item.id}-visibility`}
         hidden={item.hidden ?? undefined}

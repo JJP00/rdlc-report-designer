@@ -1,4 +1,10 @@
-import type { RdlcCommand, StylePatch } from '@rdlc-designer/contracts';
+import type {
+  BorderSide,
+  BorderSides,
+  BorderSidesPatch,
+  RdlcCommand,
+  StylePatch,
+} from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import { childOrCreate, insertCanonical, readLength, writeLength } from '../geometry/geometry.js';
@@ -8,8 +14,9 @@ import type { CommandContext, CommandOutcome, DomainCommand } from './CommandCon
 
 export type SetStyleCommand = Extract<RdlcCommand, { cmd: 'setStyle' }>;
 
-/** Nodo de `<Style>` quitado por un parche `null`, con su sitio exacto. */
+/** Nodo quitado por un parche `null`, con su contenedor y sitio exactos. */
 interface RemovedStyleNode {
+  /** Contenedor del nodo (el `<Style>` o un borde por lado). */
   style: RdlcNode;
   node: RdlcNode;
   index: number;
@@ -22,6 +29,16 @@ const PADDING_SIDES = [
   { key: 'bottom', tag: 'PaddingBottom' },
   { key: 'right', tag: 'PaddingRight' },
 ] as const;
+
+/** Bordes por lado: tag del override en `<Style>` (el genérico es `<Border>`). */
+const BORDER_SIDES = [
+  { key: 'top', tag: 'TopBorder' },
+  { key: 'left', tag: 'LeftBorder' },
+  { key: 'bottom', tag: 'BottomBorder' },
+  { key: 'right', tag: 'RightBorder' },
+] as const;
+
+const BORDER_STYLES = new Set(['None', 'Solid', 'Dashed', 'Dotted', 'Double']);
 
 const SIMPLE_TAGS: Record<string, string> = {
   fontFamily: 'FontFamily',
@@ -37,12 +54,7 @@ const SIMPLE_TAGS: Record<string, string> = {
 };
 
 /** Claves del parche soportadas por este comando (el resto se rechaza). */
-const SUPPORTED_KEYS = new Set<string>([
-  ...Object.keys(SIMPLE_TAGS),
-  'fontSize',
-  'padding',
-  // `border` está en el contrato pero aún no se escribe ni se proyecta.
-]);
+const SUPPORTED_KEYS = new Set<string>([...Object.keys(SIMPLE_TAGS), 'fontSize', 'padding', 'border']);
 
 /**
  * Estilo del item (`<Style>` del Textbox/Rectangle/…): fuente, colores,
@@ -70,7 +82,7 @@ export function applySetStyle(
 
   const styleExisted = node.child('Style') !== undefined;
   const style = childOrCreate(node, 'Style');
-  const { previous, removed } = writeStylePatch(style, command.style);
+  const { previous, removed, changes } = writeStylePatch(style, command.style);
 
   const restored = syncShadowingStyles(node, command.style);
 
@@ -96,6 +108,7 @@ export function applySetStyle(
       ...reinsert,
       { cmd: 'setStyle', id: command.id, style: previous },
       ...restored,
+      ...changes,
     ],
     applied: [{ id: command.id, values: { style: readStyle(style) } }],
     // Con overrides tocados el front necesita la proyección nueva (párrafos y
@@ -116,25 +129,34 @@ export function applySetStyle(
 export function writeStylePatch(
   style: RdlcNode,
   patch: StylePatch,
-): { previous: StylePatch; removed: RemovedStyleNode[] } {
+): { previous: StylePatch; removed: RemovedStyleNode[]; changes: DomainCommand[] } {
   const previous: StylePatch = {};
   const removed: RemovedStyleNode[] = [];
+  const changes: DomainCommand[] = [];
 
-  // Índices **originales** de los hijos: si se quitan varios tags seguidos, los
-  // índices vivos ya no sirven para devolverlos a su sitio (cada borrado mueve
-  // a los siguientes). Con el mapa prístino, el undo los reinserta en orden
-  // ascendente y el XML queda igual que al principio.
-  const originalIndex = new Map<string, number>();
-  style.children().forEach((child, index) => {
-    if (!originalIndex.has(child.tagName)) originalIndex.set(child.tagName, index);
-  });
+  // Índices **originales** de los hijos de cada contenedor: si se quitan varios
+  // tags seguidos, los índices vivos ya no sirven para devolverlos a su sitio
+  // (cada borrado mueve a los siguientes). Con el mapa prístino, el undo los
+  // reinserta en orden ascendente y el XML queda igual que al principio.
+  const originalIndexes = new Map<RdlcNode, Map<string, number>>();
+  const indexesOf = (parent: RdlcNode): Map<string, number> => {
+    let map = originalIndexes.get(parent);
+    if (!map) {
+      map = new Map();
+      parent.children().forEach((child, index) => {
+        if (!map!.has(child.tagName)) map!.set(child.tagName, index);
+      });
+      originalIndexes.set(parent, map);
+    }
+    return map;
+  };
 
-  const removeTag = (tag: string): void => {
-    const child = style.child(tag);
-    const index = originalIndex.get(tag);
+  const removeTag = (parent: RdlcNode, tag: string): void => {
+    const child = parent.child(tag);
+    const index = indexesOf(parent).get(tag);
     if (!child || index === undefined) return;
     child.remove();
-    removed.push({ style, node: child, index });
+    removed.push({ style: parent, node: child, index });
   };
 
   for (const [key, value] of Object.entries(patch)) {
@@ -147,7 +169,7 @@ export function writeStylePatch(
         const sideValue = value === null ? null : sides[side.key];
         if (sideValue === undefined) continue;
         if (sideValue === null) {
-          removeTag(side.tag);
+          removeTag(style, side.tag);
           continue;
         }
         prevPadding[side.key] = readLength(style, side.tag) ?? null;
@@ -159,11 +181,16 @@ export function writeStylePatch(
       continue;
     }
 
+    if (key === 'border') {
+      writeBorderPatch(style, value as BorderSidesPatch | null, changes, removeTag);
+      continue;
+    }
+
     const tag = SIMPLE_TAGS[key] ?? (key === 'fontSize' ? 'FontSize' : undefined);
     if (!tag) continue;
 
     if (value === null) {
-      removeTag(tag);
+      removeTag(style, tag);
       continue;
     }
 
@@ -177,7 +204,73 @@ export function writeStylePatch(
     setChildText(style, tag, String(value));
   }
 
-  return { previous, removed };
+  return { previous, removed, changes };
+}
+
+/**
+ * Bordes: `null` quita toda la declaración (genérico + lados); un lado a
+ * `null` quita su override (el genérico vuelve a aplicar). El parche de un lado
+ * escribe `Style` (obligatorio en el contrato) y, **si vienen**, `Color`/
+ * `Width`; lo no enviado no se toca: cambiar solo el estilo no borra el grosor
+ * del corpus. Inversos explícitos → undo byte-exacto.
+ */
+function writeBorderPatch(
+  style: RdlcNode,
+  patch: BorderSidesPatch | null,
+  changes: DomainCommand[],
+  removeTag: (parent: RdlcNode, tag: string) => void,
+): void {
+  if (patch === null) {
+    for (const tag of ['Border', 'TopBorder', 'BottomBorder', 'LeftBorder', 'RightBorder']) {
+      removeTag(style, tag);
+    }
+    return;
+  }
+
+  for (const side of BORDER_SIDES) {
+    const sideValue = patch[side.key];
+    if (sideValue === undefined) continue;
+    if (sideValue === null) {
+      removeTag(style, side.tag);
+      continue;
+    }
+
+    let node = style.child(side.tag);
+    if (!node) {
+      node = style.createElement(side.tag);
+      insertCanonical(style, side.tag, node);
+      changes.push({ cmd: 'removeNode', node });
+    }
+    writeBorderSide(node, sideValue, changes);
+  }
+}
+
+/** Contenido de un borde (`Style` obligatorio; `Color`/`Width` opcionales). */
+function writeBorderSide(node: RdlcNode, side: BorderSide, changes: DomainCommand[]): void {
+  writeBorderChild(node, 'Style', side.style, changes);
+  if (side.color !== undefined) writeBorderChild(node, 'Color', side.color, changes);
+  if (side.width !== undefined) {
+    writeBorderChild(node, 'Width', formatLength(side.width), changes);
+  }
+}
+
+function writeBorderChild(
+  node: RdlcNode,
+  tag: string,
+  value: string,
+  changes: DomainCommand[],
+): void {
+  const existing = node.child(tag);
+  if (existing) {
+    const previous = existing.text() ?? '';
+    if (previous === value) return;
+    existing.setText(value);
+    changes.push({ cmd: 'setNodeText', node: existing, value: previous });
+    return;
+  }
+  const created = node.createElement(tag, value);
+  insertCanonical(node, tag, created);
+  changes.push({ cmd: 'removeNode', node: created });
 }
 
 function setChildText(style: RdlcNode, tagName: string, value: string): void {
@@ -286,7 +379,42 @@ export function readStyle(style: RdlcNode): Record<string, unknown> {
   }
   if (Object.keys(padding).length > 0) result.padding = padding;
 
+  const border = readBorder(style);
+  if (border) result.border = border;
+
   return result;
+}
+
+/**
+ * Bordes **resueltos por lado**: gana el override (`TopBorder`…) y, en su
+ * defecto, el genérico (`Border`), fusión **propiedad a propiedad** (BC escribe
+ * `<Border><Style>Solid</Style></Border>` + `<TopBorder><Width>1pt</Width></TopBorder>`).
+ */
+export function readBorder(style: RdlcNode): BorderSides | undefined {
+  const generic = style.child('Border');
+  const border: BorderSides = {};
+  let any = false;
+
+  for (const side of BORDER_SIDES) {
+    const node = style.child(side.tag);
+    if (!node && !generic) continue;
+
+    const styleValue = node?.child('Style')?.text() ?? generic?.child('Style')?.text();
+    const color = node?.child('Color')?.text() ?? generic?.child('Color')?.text();
+    const width = parseLength(node?.child('Width')?.text() ?? generic?.child('Width')?.text());
+    const resolvedStyle =
+      styleValue !== undefined && BORDER_STYLES.has(styleValue) ? styleValue : undefined;
+    if (resolvedStyle === undefined && color === undefined && width === undefined) continue;
+
+    border[side.key] = {
+      style: (resolvedStyle as BorderSide['style'] | undefined) ?? 'None',
+      ...(color !== undefined ? { color } : {}),
+      ...(width !== undefined ? { width } : {}),
+    };
+    any = true;
+  }
+
+  return any ? border : undefined;
 }
 
 /** Reexport para tests: longitud formateada tal cual se escribe en el XML. */

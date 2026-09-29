@@ -284,7 +284,14 @@ function renderContent(
     case 'line':
       return <LineContent width={width} height={height} />;
     case 'image':
-      return <ImagePlaceholder width={width} height={height} source={item.source} />;
+      return (
+        <ImagePlaceholder
+          width={width}
+          height={height}
+          source={item.source}
+          border={item.style?.border}
+        />
+      );
     case 'tablix':
       return (
         <TablixContent
@@ -346,6 +353,7 @@ function TextboxContent({
           stroke="#e5e7eb"
           strokeWidth={0.5}
         />
+        <ItemBorder border={style?.border} width={width} height={height} />
         {layout.runs.map((run) => (
           <KonvaText
             key={`${run.paragraph}-${Math.round(run.x)}-${run.y}-${run.text}`}
@@ -398,6 +406,7 @@ function RectangleContent({
         stroke="#9ca3af"
         strokeWidth={0.5}
       />
+      <ItemBorder border={item.style?.border} width={width} height={height} />
       {sortByZIndex(item.children).map((child) => (
         <ItemView
           key={child.id}
@@ -434,6 +443,70 @@ function UnknownContent({ width, height }: { width: number; height: number }): R
 }
 
 /**
+ * Bordes declarados por lado (la proyección ya resolvió el genérico `Border`
+ * con los overrides `TopBorder`…). `Double` se aproxima con dos líneas
+ * paralelas; las expresiones de color no se evalúan en diseño.
+ */
+function ItemBorder({
+  border,
+  width,
+  height,
+}: {
+  border?: StyleDto['border'];
+  width: number;
+  height: number;
+}): ReactNode {
+  if (!border) return null;
+
+  const lines: ReactNode[] = [];
+  for (const side of ['top', 'left', 'bottom', 'right'] as const) {
+    const value = border[side];
+    if (!value || value.style === 'None') continue;
+
+    const stroke = paintColor(value.color, '#111827');
+    const thickness = value.width ? Math.max(toPx(value.width), 0.75) : 1.4;
+    const dash =
+      value.style === 'Dashed' ? [4, 3] : value.style === 'Dotted' ? [1, 2] : undefined;
+    // `Double`: dos líneas con hueco entre ellas.
+    const insets = value.style === 'Double' ? [thickness, thickness * 3] : [thickness / 2];
+
+    insets.forEach((inset, index) => {
+      lines.push(
+        <Line
+          key={`${side}-${index}`}
+          name="item-border"
+          listening={false}
+          points={sidePoints(side, inset, width, height)}
+          stroke={stroke}
+          strokeWidth={thickness}
+          {...(dash ? { dash } : {})}
+        />,
+      );
+    });
+  }
+
+  return <>{lines}</>;
+}
+
+function sidePoints(
+  side: 'top' | 'left' | 'bottom' | 'right',
+  inset: number,
+  width: number,
+  height: number,
+): number[] {
+  switch (side) {
+    case 'top':
+      return [0, inset, width, inset];
+    case 'bottom':
+      return [0, height - inset, width, height - inset];
+    case 'left':
+      return [inset, 0, inset, height];
+    case 'right':
+      return [width - inset, 0, width - inset, height];
+  }
+}
+
+/**
  * Placeholder de imagen: en tiempo de diseño no hay datos (el `<Value>` es una
  * expresión / URL), así que se dibuja un marco con el icono de imagen y el
  * origen — como hace Report Builder.
@@ -442,10 +515,12 @@ function ImagePlaceholder({
   width,
   height,
   source,
+  border,
 }: {
   width: number;
   height: number;
   source?: string;
+  border?: StyleDto['border'];
 }): ReactNode {
   const inset = Math.min(width, height) * 0.15;
   const frame = {
@@ -470,6 +545,7 @@ function ImagePlaceholder({
         stroke="#9ca3af"
         dash={[4, 3]}
       />
+      <ItemBorder border={border} width={width} height={height} />
       {/* Montañita + sol: pictograma clásico de imagen */}
       <Line
         points={[

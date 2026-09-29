@@ -66,6 +66,9 @@ const PAGE_ORDER = [
 /** Bandas de página: alto, flags de impresión, items y estilo. */
 const PAGE_SECTION_ORDER = ['Height', 'PrintOnFirstPage', 'PrintOnLastPage', 'ReportItems', 'Style'];
 
+/** Contenido de un borde (genérico o por lado), en el orden de BC. */
+const BORDER_ORDER = ['Color', 'Style', 'Width'];
+
 const REPORT_SECTION_ORDER = ['Body', 'Width', 'Page', 'Style'];
 
 const REPORT_ORDER = [
@@ -112,6 +115,11 @@ const CONTAINER_ORDERS: Record<string, string[]> = {
   Page: PAGE_ORDER,
   PageHeader: PAGE_SECTION_ORDER,
   PageFooter: PAGE_SECTION_ORDER,
+  Border: BORDER_ORDER,
+  TopBorder: BORDER_ORDER,
+  BottomBorder: BORDER_ORDER,
+  LeftBorder: BORDER_ORDER,
+  RightBorder: BORDER_ORDER,
   ReportSection: REPORT_SECTION_ORDER,
   Report: REPORT_ORDER,
   Style: STYLE_ORDER,

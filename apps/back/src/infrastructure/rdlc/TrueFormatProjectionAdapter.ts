@@ -1,4 +1,5 @@
 import type {
+  BorderStyle,
   CodeFunctionDto,
   ItemDto,
   Length,
@@ -655,9 +656,60 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       );
     }
 
+    const border = this.border(el);
+    if (border) style.border = border;
+
     return Object.keys(style).length > 0 ? style : undefined;
   }
+
+  /**
+   * Bordes **resueltos por lado** con la herencia del genérico **propiedad a
+   * propiedad**: BC escribe `<Border><Style>Solid</Style></Border>` +
+   * `<TopBorder><Width>1pt</Width></TopBorder>` (el lado solo cambia el ancho).
+   */
+  private border(el: XmlElement): StyleDto['border'] {
+    const generic = el.getFirstElementByName('Border');
+    const border: NonNullable<StyleDto['border']> = {};
+    let any = false;
+
+    for (const side of BORDER_SIDES) {
+      const node = el.getFirstElementByName(side.tag);
+      if (!node && !generic) continue;
+
+      const rawStyle =
+        textOf(node?.getFirstElementByName('Style')) ??
+        textOf(generic?.getFirstElementByName('Style'));
+      const color =
+        textOf(node?.getFirstElementByName('Color')) ??
+        textOf(generic?.getFirstElementByName('Color'));
+      const width = maybeLength(
+        textOf(node?.getFirstElementByName('Width')) ??
+          textOf(generic?.getFirstElementByName('Width')),
+      );
+      const styleValue = BORDER_STYLE_VALUES.find((value) => value === rawStyle);
+      if (styleValue === undefined && color === undefined && width === undefined) continue;
+
+      border[side.key] = {
+        style: styleValue ?? 'None',
+        ...(color !== undefined ? { color } : {}),
+        ...(width !== undefined ? { width } : {}),
+      };
+      any = true;
+    }
+
+    return any ? border : undefined;
+  }
 }
+
+/** Lados de un borde: override en `Style` por cada lado. */
+const BORDER_SIDES = [
+  { key: 'top', tag: 'TopBorder' },
+  { key: 'left', tag: 'LeftBorder' },
+  { key: 'bottom', tag: 'BottomBorder' },
+  { key: 'right', tag: 'RightBorder' },
+] as const;
+
+const BORDER_STYLE_VALUES: BorderStyle[] = ['None', 'Solid', 'Dashed', 'Dotted', 'Double'];
 
 /* ------------------------------- helpers --------------------------------- */
 

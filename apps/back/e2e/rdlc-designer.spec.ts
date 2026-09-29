@@ -99,7 +99,10 @@ interface ItemLike {
   top?: { value: number; unit: string };
   left?: { value: number; unit: string };
   hidden?: boolean | string;
-  style?: { backgroundColor?: string };
+  style?: {
+    backgroundColor?: string;
+    border?: Record<string, { style?: string; color?: string }>;
+  };
   paragraphs?: { runs: { value: string; label?: string }[] }[];
   canGrow?: boolean;
   keepTogether?: boolean;
@@ -360,6 +363,41 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
     if (found) return found.hidden;
   }
   return undefined;
+}
+
+/** Borde proyectado de un lado del item (`style.border.<side>`). */
+async function itemBorderSide(
+  id: string,
+  side: 'top' | 'left' | 'bottom' | 'right',
+): Promise<{ style?: string; color?: string } | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found) return found.style?.border?.[side];
+  }
+  return undefined;
+}
+
+/** Colores de las líneas `item-border` pintadas dentro del nodo de un item. */
+async function itemBorderStrokes(id: string): Promise<string[]> {
+  return page.evaluate((nodeId) => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      find(selector: (node: KonvaLike) => boolean): KonvaLike[];
+    };
+    const strokes: string[] = [];
+    for (const node of stage.find((candidate) => candidate.name() === 'item-border')) {
+      // Sube por los padres hasta dar con el grupo del item que se busca.
+      let current: KonvaLike | undefined = node.getParent();
+      while (current) {
+        if (current.id() === nodeId) {
+          strokes.push(String(node.getAttr('stroke')));
+          break;
+        }
+        current = current.getParent();
+      }
+    }
+    return strokes;
+  }, id);
 }
 
 /** Alto proyectado de una banda de página (encabezado/pie), en cm. */
@@ -1707,6 +1745,28 @@ test('el menú de celda trae al frente (ZIndex) y el undo lo revierte', async ()
 
   await page.keyboard.press('Control+z');
   await expect.poll(() => itemZIndex('Textbox4')).toBeUndefined();
+});
+
+test('el panel edita los bordes por lado y el lienzo los pinta', async () => {
+  // Textbox4 declara el genérico `<Border><Style>None</Style>` (sin lados).
+  await selectItemViaPalette('Textbox4');
+  const topStyle = page.getByLabel('Borde superior: estilo');
+  await expect(topStyle).toHaveValue('None');
+  await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
+
+  await topStyle.selectOption('Solid');
+  await expect
+    .poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style)
+    .toBe('Solid');
+  // La línea se pinta dentro del nodo del item (color por defecto).
+  await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual(['#111827']);
+
+  // Un solo undo revierte estilo y pintado.
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style)
+    .toBe('None');
+  await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
 });
 
 test('«Informe…» edita el alto y la impresión del encabezado y el pie', async () => {

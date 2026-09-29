@@ -448,6 +448,17 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
             ...((target[key] as Record<string, unknown> | undefined) ?? {}),
             ...(value as Record<string, unknown>),
           };
+        } else if (key === 'border') {
+          // Parche por lado: un lado a `null` quita su override.
+          const next: Record<string, unknown> = {
+            ...((target[key] as Record<string, unknown> | undefined) ?? {}),
+          };
+          for (const [side, sideValue] of Object.entries(value as Record<string, unknown>)) {
+            if (sideValue === null) delete next[side];
+            else if (sideValue !== undefined) next[side] = sideValue;
+          }
+          if (Object.keys(next).length > 0) target[key] = next;
+          else delete target[key];
         } else target[key] = value;
       }
 

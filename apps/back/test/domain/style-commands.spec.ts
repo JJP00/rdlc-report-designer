@@ -221,20 +221,7 @@ describe('F1 · setStyle', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('rechaza el estilo de bordes (no está implementado, no se ignora en silencio)', () => {
-    const { doc, index } = open('PalletOutput.rdlc');
-
-    const applied = applyCommand(
-      { root: doc.root, index },
-      {
-        cmd: 'setStyle',
-        id: 'Textbox25',
-        style: { border: { top: { style: 'Solid', width: { value: 1, unit: 'pt' } } } },
-      },
-    );
-    expect(applied.isLeft()).toBe(true);
-    if (applied.isLeft()) expect(applied.value.code).toBe('E_COMMAND_REJECTED');
-  });
+  // Los bordes por lado (G2) viven en `border-commands.spec.ts`.
 });
 
 describe('F1 · setStyle · precedencia run > párrafo > item', () => {
