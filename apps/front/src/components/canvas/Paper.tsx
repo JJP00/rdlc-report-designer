@@ -1,6 +1,7 @@
 import type { Length } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { Group, Layer, Rect } from 'react-konva';
+import type { DropInfo } from '@/lib/dragTypes';
 import { sortByZIndex } from '@/lib/projection';
 import type { SelectedCell } from '@/lib/tablix';
 import type { PaperLayout } from './bands';
@@ -11,7 +12,7 @@ export interface PaperProps {
   layout: PaperLayout;
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
-  onMoveTo?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   /** Redimensionar una columna/fila de la rejilla de un Tablix. */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;

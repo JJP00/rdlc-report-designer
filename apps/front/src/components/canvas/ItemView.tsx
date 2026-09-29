@@ -10,6 +10,7 @@ import type Konva from 'konva';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
 import { computeDragEnd } from '@/lib/drag';
+import type { DropInfo } from '@/lib/dragTypes';
 import { tablixGrid } from '@/lib/grid';
 import { sortByZIndex, tablixHeaderItems } from '@/lib/projection';
 import { paintColor } from '@/lib/style';
@@ -38,7 +39,7 @@ interface NodeGroupProps {
   opacity?: number;
   draggable?: boolean;
   onSelect?: (id: string | null) => void;
-  onMoveTo?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   /** Límites del contenedor (px) y tamaño del item para no salir de él. */
   bounds?: { width: number; height: number };
   itemSize?: { width: number; height: number };
@@ -76,6 +77,9 @@ function NodeGroup({
     pointerY: number;
     nodeX: number;
     nodeY: number;
+    /** Distancia del puntero al origen del item al agarrar (cm). */
+    grabCmX: number;
+    grabCmY: number;
   } | null>(null);
 
   /**
@@ -129,11 +133,22 @@ function NodeGroup({
         // elemento quedaría sin seleccionar al soltar.
         onSelect?.(itemId);
         const node = event.target;
+        const stage = node.getStage();
+        const zoom = stage?.scaleX() ?? 1;
+        const containerRect = stage?.container().getBoundingClientRect();
+        // Punto del item que agarró el puntero (cm): el reparentado lo conserva.
+        const box = stage ? node.getClientRect({ relativeTo: stage }) : { x: 0, y: 0 };
         dragState.current = {
           pointerX: event.evt.clientX,
           pointerY: event.evt.clientY,
           nodeX: node.x(),
           nodeY: node.y(),
+          grabCmX: containerRect
+            ? (event.evt.clientX - (containerRect.left + box.x * zoom)) / zoom / PX_PER_CM
+            : 0,
+          grabCmY: containerRect
+            ? (event.evt.clientY - (containerRect.top + box.y * zoom)) / zoom / PX_PER_CM
+            : 0,
         };
       }}
       onDragMove={(event) => {
@@ -157,6 +172,7 @@ function NodeGroup({
       onDragEnd={(event) => {
         if (event.target !== event.currentTarget) return;
         const node = event.target;
+        const state = dragState.current;
         dragState.current = null;
 
         const { top, left } = computeDragEnd({
@@ -170,7 +186,12 @@ function NodeGroup({
         });
 
         node.position({ x: left * PX_PER_CM, y: top * PX_PER_CM });
-        onMoveTo?.(itemId, { value: top, unit: 'cm' }, { value: left, unit: 'cm' });
+        const drop: DropInfo = {
+          clientX: event.evt.clientX,
+          clientY: event.evt.clientY,
+          grabCm: state ? { x: state.grabCmX, y: state.grabCmY } : { x: 0, y: 0 },
+        };
+        onMoveTo?.(itemId, { value: top, unit: 'cm' }, { value: left, unit: 'cm' }, drop);
       }}
     >
       {children}
@@ -183,7 +204,7 @@ interface ItemViewProps {
   selected?: boolean;
   draggable?: boolean;
   onSelect?: (id: string | null) => void;
-  onMoveTo?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   /** Redimensionar una columna/fila de la rejilla de un Tablix. */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
@@ -258,7 +279,7 @@ function renderContent(
   height: number,
   selected?: boolean,
   onSelect?: (id: string | null) => void,
-  onMoveTo?: (id: string, top: Length, left: Length) => void,
+  onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void,
   onResizeColumn?: (id: string, column: number, width: Length) => void,
   onResizeRow?: (id: string, row: number, height: Length) => void,
   selectedCell?: SelectedCell | null,
@@ -389,7 +410,7 @@ function RectangleContent({
   width: number;
   height: number;
   onSelect?: (id: string | null) => void;
-  onMoveTo?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
   selectedCell?: SelectedCell | null;
@@ -606,7 +627,7 @@ function TablixContent({
   item: TablixDto;
   selected?: boolean;
   onSelect?: (id: string | null) => void;
-  onMoveTo?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
   selectedCell?: SelectedCell | null;

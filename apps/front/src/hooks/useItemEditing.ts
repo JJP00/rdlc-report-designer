@@ -72,6 +72,8 @@ export interface ItemEditing {
   flushNudge: () => void;
   nudge: (dxCm: number, dyCm: number) => void;
   moveTo: (id: string, top: Length, left: Length) => void;
+  /** Reparenta/reordena un item (fin de drag) en un solo paso de undo. */
+  moveItemToScope: (id: string, scope: ScopeRef, index: number, top: Length, left: Length) => void;
   setItemLocation: (top: Length, left: Length) => void;
   setItemSize: (width: Length, height: Length) => void;
   /** Mueve y redimensiona a la vez (tiradores): un paso de undo. */
@@ -384,6 +386,17 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       );
     },
     [doc, reconcile, sendCommand, setStatus, updateProjection],
+  );
+
+  /**
+   * Reparentado por drag&drop: el comando es estructural (pide snapshot), así
+   * que no hay optimismo: la proyección y el árbol llegan del backend.
+   */
+  const moveItemToScope = useCallback(
+    (id: string, scope: ScopeRef, index: number, top: Length, left: Length): void => {
+      void sendCommand({ cmd: 'moveItem', id, toScope: scope, toIndex: index, top, left });
+    },
+    [sendCommand],
   );
 
   const setItemLocation = useCallback(
@@ -950,6 +963,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     flushNudge: () => flushRef.current(),
     nudge,
     moveTo,
+    moveItemToScope,
     setItemLocation,
     setItemSize,
     resizeItem,

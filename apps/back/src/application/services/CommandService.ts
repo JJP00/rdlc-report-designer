@@ -30,6 +30,8 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'insertItem',
   'duplicateItem',
   'deleteItem',
+  // Reparentar/reordenar cambia quién cuelga de quién.
+  'moveItem',
   // Renombrar: el índice por nombre (y las referencias del front) cambian.
   'setName',
   // Interno del pegado: inserta subárbol (mismos efectos que insertItem).

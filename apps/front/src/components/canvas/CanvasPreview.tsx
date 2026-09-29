@@ -8,10 +8,10 @@ import type {
 import type Konva from 'konva';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Stage } from 'react-konva';
-import { ITEM_DRAG_TYPE } from '@/lib/dragTypes';
+import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
-import { cm, findItemInList, isCellContent, toCm } from '@/lib/projection';
+import { cm, findItemInList, findItemScope, isCellContent, toCm } from '@/lib/projection';
 import type { BoxCm } from '@/lib/resize';
 import type { SelectedCell } from '@/lib/tablix';
 import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
@@ -34,7 +34,15 @@ export interface CanvasPreviewProps {
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   /** Se llama al soltar un drag con la posición ya normalizada (cm). */
-  onMoveTo?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
+  /** El drag terminó sobre otro contenedor: reparentar (`moveItem`). */
+  onMoveItemToScope?: (
+    id: string,
+    scope: ScopeRef,
+    index: number,
+    top: Length,
+    left: Length,
+  ) => void;
   /** Se llama al soltar un tirador con la caja normalizada (cm). */
   onResizeItem?: (
     id: string,
@@ -68,6 +76,7 @@ export function CanvasPreview({
   selectedId,
   onSelect,
   onMoveTo,
+  onMoveItemToScope,
   onResizeItem,
   onResizeColumn,
   onResizeRow,
@@ -151,6 +160,30 @@ export function CanvasPreview({
   const stageWidth = layout.sheetWidth * zoom;
   const stageHeight = layout.sheetHeight * zoom;
 
+  /**
+   * Fin de un drag: si el puntero soltó sobre **otro contenedor**, el item se
+   * reparenta (`moveItem`) conservando el punto que se agarró; si no, se mueve
+   * dentro de su contenedor como siempre.
+   */
+  const handleMoveEnd = (id: string, top: Length, left: Length, drop?: DropInfo): void => {
+    const stage = stageRef.current;
+    if (drop && stage && onMoveItemToScope) {
+      const hit = hitAtEvent(stage, zoom, layout, drop);
+      const current = findItemScope(projection, id);
+      if (hit && current && !sameScope(current, hit.scope)) {
+        onMoveItemToScope(
+          id,
+          hit.scope,
+          hit.index,
+          cm(round4(Math.max(0, hit.point.y - drop.grabCm.y))),
+          cm(round4(Math.max(0, hit.point.x - drop.grabCm.x))),
+        );
+        return;
+      }
+    }
+    onMoveTo?.(id, top, left);
+  };
+
   // Bandas actuales en un ref: el efecto de "traer a la vista" no debe
   // re-ejecutarse en cada render (las bandas son un array nuevo cada vez).
   const bandsRef = useRef(visibleBands);
@@ -232,7 +265,7 @@ export function CanvasPreview({
               layout={layout}
               selectedId={selectedId}
               onSelect={onSelect}
-              onMoveTo={onMoveTo}
+              onMoveTo={handleMoveEnd}
               onResizeColumn={onResizeColumn}
               onResizeRow={onResizeRow}
               selectedCell={selectedCell}
@@ -463,4 +496,14 @@ function selectionFrameProps(options: FramePropsOptions): SelectionFrameProps {
 
 function round4(value: number): number {
   return Math.round(value * 10000) / 10000;
+}
+
+/** ¿Los dos scopes son el mismo contenedor? (mover vs reparentar). */
+function sameScope(a: ScopeRef, b: ScopeRef): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === 'rectangle' && b.kind === 'rectangle') return a.id === b.id;
+  if (a.kind === 'tablixCell' && b.kind === 'tablixCell') {
+    return a.id === b.id && a.row === b.row && a.col === b.col;
+  }
+  return true;
 }

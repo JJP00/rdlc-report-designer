@@ -10,31 +10,58 @@ import type { CommandContext } from './CommandContext.js';
 export function resolveScope(ctx: CommandContext, scope: ScopeRef): RdlcNode | undefined {
   switch (scope.kind) {
     case 'body':
-      return regionItems(ctx, section(ctx)?.child('Body'));
+      return regionItems(section(ctx)?.child('Body'));
     case 'pageHeader':
-      return regionItems(ctx, section(ctx)?.child('Page')?.child('PageHeader'));
+      return regionItems(section(ctx)?.child('Page')?.child('PageHeader'));
     case 'pageFooter':
-      return regionItems(ctx, section(ctx)?.child('Page')?.child('PageFooter'));
+      return regionItems(section(ctx)?.child('Page')?.child('PageFooter'));
     case 'rectangle': {
       const node = ctx.index.get(scope.id);
       return node ? childOrCreate(node, 'ReportItems') : undefined;
     }
     case 'tablixCell': {
-      const row = ctx.index
-        .get(scope.id)
-        ?.child('TablixBody')
-        ?.child('TablixRows')
-        ?.children('TablixRow')[scope.row];
-      const cell = row?.child('TablixCells')?.children('TablixCell')[scope.col];
+      const cell = tablixCellAt(ctx, scope);
       return cell ? childOrCreate(cell, 'CellContents') : undefined;
     }
   }
+}
+
+/**
+ * Como `resolveScope` pero **sin crear nada**: devuelve el contenedor solo si
+ * ya existe (los comandos que necesitan deshacer la creación lo usan para
+ * saber si tienen que quitar el contenedor en su inverso).
+ */
+export function findScope(ctx: CommandContext, scope: ScopeRef): RdlcNode | undefined {
+  switch (scope.kind) {
+    case 'body':
+      return section(ctx)?.child('Body')?.child('ReportItems');
+    case 'pageHeader':
+      return section(ctx)?.child('Page')?.child('PageHeader')?.child('ReportItems');
+    case 'pageFooter':
+      return section(ctx)?.child('Page')?.child('PageFooter')?.child('ReportItems');
+    case 'rectangle':
+      return ctx.index.get(scope.id)?.child('ReportItems');
+    case 'tablixCell':
+      return tablixCellAt(ctx, scope)?.child('CellContents');
+  }
+}
+
+function tablixCellAt(
+  ctx: CommandContext,
+  scope: Extract<ScopeRef, { kind: 'tablixCell' }>,
+): RdlcNode | undefined {
+  const row = ctx.index
+    .get(scope.id)
+    ?.child('TablixBody')
+    ?.child('TablixRows')
+    ?.children('TablixRow')[scope.row];
+  return row?.child('TablixCells')?.children('TablixCell')[scope.col];
 }
 
 function section(ctx: CommandContext): RdlcNode | undefined {
   return ctx.root.child('ReportSections')?.child('ReportSection');
 }
 
-function regionItems(ctx: CommandContext, region: RdlcNode | undefined): RdlcNode | undefined {
+function regionItems(region: RdlcNode | undefined): RdlcNode | undefined {
   return region ? childOrCreate(region, 'ReportItems') : undefined;
 }

@@ -365,6 +365,13 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
   return undefined;
 }
 
+/** true si el item (o algún descendiente suyo) tiene ese id. */
+function containsId(item: ItemLike | undefined, id: string): boolean {
+  if (!item) return false;
+  if (item.id === id) return true;
+  return (item.children ?? []).some((child) => containsId(child, id));
+}
+
 /** Borde proyectado de un lado del item (`style.border.<side>`). */
 async function itemBorderSide(
   id: string,
@@ -1767,6 +1774,42 @@ test('el panel edita los bordes por lado y el lienzo los pinta', async () => {
     .poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style)
     .toBe('None');
   await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
+});
+
+test('arrastrar un textbox a otro contenedor lo reparenta (con undo)', async () => {
+  // Textbox4 vive en Rectangle1 (encabezado); el destino es Rectangle2.
+  await selectItemViaPalette('Textbox4');
+  const from = await nodeCenter('Textbox4');
+  const target = await nodeCenter('Rectangle2');
+  expect(from).not.toBeNull();
+  expect(target).not.toBeNull();
+
+  await page.mouse.move(from!.x, from!.y);
+  await page.mouse.down();
+  await page.mouse.move(target!.x, target!.y, { steps: 12 });
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => {
+      const proj = await projection();
+      const r1 = findItem(proj.page.header.items, 'Rectangle1');
+      const r2 = findItem(proj.page.header.items, 'Rectangle2');
+      return {
+        inSource: Boolean(r1?.children?.some((child) => child.id === 'Textbox4')),
+        inTarget: containsId(r2, 'Textbox4'),
+      };
+    })
+    .toEqual({ inSource: false, inTarget: true });
+
+  // Un solo undo lo devuelve a su contenedor y a su sitio.
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => {
+      const proj = await projection();
+      const r1 = findItem(proj.page.header.items, 'Rectangle1');
+      return Boolean(r1?.children?.some((child) => child.id === 'Textbox4'));
+    })
+    .toBe(true);
 });
 
 test('«Informe…» edita el alto y la impresión del encabezado y el pie', async () => {

@@ -133,6 +133,7 @@ export function App(): ReactNode {
     cutSelected,
     pasteAt,
     moveTo,
+    moveItemToScope,
     setItemLocation,
     setItemSize,
     resizeItem,
@@ -231,6 +232,7 @@ export function App(): ReactNode {
             onContextMenuHit={showContextMenu}
             onZoomChange={setZoom}
             onMoveTo={moveTo}
+            onMoveItemToScope={moveItemToScope}
             onResizeItem={resizeItem}
             onResizeColumn={resizeColumn}
             onResizeRow={resizeRow}

@@ -1,4 +1,4 @@
-import type { ItemDto, Length, ProjectionDto, TablixDto } from '@rdlc-designer/contracts';
+import type { ItemDto, Length, ProjectionDto, ScopeRef, TablixDto } from '@rdlc-designer/contracts';
 
 /** Utilidades de la proyección (read-model del lienzo). */
 
@@ -57,6 +57,41 @@ export function findSiblings(projection: ProjectionDto, id: string): ItemDto[] |
     search(projection.page.header.items) ??
     search(projection.page.body.items) ??
     search(projection.page.footer.items)
+  );
+}
+
+/**
+ * Scope en el que vive un item (banda, rectángulo o celda de Tablix).
+ * `undefined` si no se encuentra o si es contenido de una cabecera/esquina de
+ * Tablix (ahí no se reparenta).
+ */
+export function findItemScope(projection: ProjectionDto, id: string): ScopeRef | undefined {
+  const search = (items: ItemDto[], scope: ScopeRef): ScopeRef | undefined => {
+    for (const item of items) {
+      if (item.id === id) return scope;
+      if (item.kind === 'rectangle') {
+        const found = search(item.children, { kind: 'rectangle', id: item.id });
+        if (found) return found;
+      }
+      if (item.kind === 'tablix') {
+        for (let row = 0; row < item.body.rows.length; row += 1) {
+          const entry = item.body.rows[row]!;
+          for (let col = 0; col < entry.cells.length; col += 1) {
+            const content = entry.cells[col]?.content;
+            if (!content) continue;
+            const found = search([content], { kind: 'tablixCell', id: item.id, row, col });
+            if (found) return found;
+          }
+        }
+      }
+    }
+    return undefined;
+  };
+
+  return (
+    search(projection.page.header.items, { kind: 'pageHeader' }) ??
+    search(projection.page.body.items, { kind: 'body' }) ??
+    search(projection.page.footer.items, { kind: 'pageFooter' })
   );
 }
 

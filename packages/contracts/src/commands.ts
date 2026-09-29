@@ -170,6 +170,9 @@ const moveItem = z.object({
   id: z.string().min(1),
   toScope: scopeRefSchema,
   toIndex: z.number().int().nonnegative(),
+  /** Posición relativa al contenedor destino (si el drag la conoce). */
+  top: lengthSchema.optional(),
+  left: lengthSchema.optional(),
 });
 
 const duplicateItem = z.object({

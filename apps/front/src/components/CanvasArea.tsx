@@ -54,6 +54,14 @@ export interface CanvasAreaProps {
   onContextMenuHit: (hit: CanvasHit) => void;
   onZoomChange: (zoom: number) => void;
   onMoveTo: (id: string, top: Length, left: Length) => void;
+  /** El drag soltó sobre otro contenedor: reparentar (`moveItem`). */
+  onMoveItemToScope: (
+    id: string,
+    scope: ScopeRef,
+    index: number,
+    top: Length,
+    left: Length,
+  ) => void;
   /** Tiradores de la selección: mover + redimensionar en un comando. */
   onResizeItem: (
     id: string,
@@ -107,6 +115,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onContextMenuHit,
     onZoomChange,
     onMoveTo,
+    onMoveItemToScope,
     onResizeItem,
     onResizeColumn,
     onResizeRow,
@@ -157,6 +166,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
               onSelect={onSelect}
               onSelectCell={onSelectCell}
               onMoveTo={onMoveTo}
+              onMoveItemToScope={onMoveItemToScope}
               onZoomChange={onZoomChange}
               onContextMenuHit={onContextMenuHit}
               onDropItem={onInsertAt}

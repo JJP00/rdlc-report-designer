@@ -1,6 +1,6 @@
 import type { ProjectionDto, RectangleDto, TablixDto, TextboxDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
-import { cm, countItems, findItem, patchItem, toCm } from './projection';
+import { cm, countItems, findItem, findItemScope, patchItem, toCm } from './projection';
 
 /** Proyección mínima: textbox top-level + rectángulo anidado + tablix con celda. */
 
@@ -103,6 +103,23 @@ describe('lib/projection', () => {
     expect(stats.byKind['rectangle']).toBe(1);
     expect(stats.byKind['tablix']).toBe(1);
     expect(stats.byKind['textbox']).toBe(2);
+  });
+
+  it('encuentra el scope (banda, rectángulo o celda) de un item', () => {
+    const projection = makeProjection();
+    expect(findItemScope(projection, 'Rectangle1')).toEqual({ kind: 'body' });
+    expect(findItemScope(projection, 'TextboxNested')).toEqual({
+      kind: 'rectangle',
+      id: 'Rectangle1',
+    });
+    expect(findItemScope(projection, 'Tablix1')).toEqual({ kind: 'body' });
+    expect(findItemScope(projection, 'TextboxInCell')).toEqual({
+      kind: 'tablixCell',
+      id: 'Tablix1',
+      row: 0,
+      col: 0,
+    });
+    expect(findItemScope(projection, 'NoExiste')).toBeUndefined();
   });
 
   it('convierte longitudes a cm', () => {

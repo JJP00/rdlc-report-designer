@@ -7,6 +7,7 @@ import { applyDeleteItem } from './deleteItem.js';
 import { applyDuplicateItem } from './duplicateItem.js';
 import { applyInsertItem } from './insertItem.js';
 import { applyInsertClone } from './insertClone.js';
+import { applyMoveItem } from './moveItem.js';
 import { applySetLocation } from './setLocation.js';
 import { applySetBounds } from './setBounds.js';
 import { applyResizeColumn, applyResizeRow, applyResizeTable } from './resizeTablix.js';
@@ -138,6 +139,8 @@ export function applyCommand(
       return applyDuplicateItem(ctx, command);
     case 'deleteItem':
       return applyDeleteItem(ctx, command);
+    case 'moveItem':
+      return applyMoveItem(ctx, command);
 
     /* ------------------- internos del journal (undo) ------------------- */
 
