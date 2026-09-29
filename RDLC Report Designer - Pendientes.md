@@ -76,6 +76,9 @@ ToggleItem`, desplegable de items del informe).
 >
 > **Punto de retomada (próxima sesión)**:
 >
+> - **Bug detectado en pruebas**: `Maximum update depth exceeded` al mover
+>   `Tablix7`/`Tablix1` (caso real, sin causa raíz; ver «🐞 Bug pendiente de
+>   cazar (2026-09-29)»). Capturar la traza del componente si vuelve a salir.
 > - **Cubrir gaps auditados** (sección «🔎 Auditoría de gaps (2026-09-29)»):
 >   primero los P1 (G1 insertar Tablix, G2 bordes, G3 `moveItem`, G4–G6 contrato,
 >   G8 cabeceras del Tablix…), después el pase de UX con el skill `intent`
@@ -353,6 +356,52 @@ de fila]`) y un `headers.offset` que desplaza el body. En `Tablix7` de
 > **Lo siguiente (F2, parte 3)**: selección de **celda**, panel/árbol de **estructura**
 > (añadir/quitar fila y columna sincronizando `TablixBody` **y** `TablixRowHierarchy`)
 > y **grupos de fila con totales**.
+
+## 🐞 Bug pendiente de cazar (2026-09-29) — `Maximum update depth exceeded` al mover Tablix anidados
+
+> Detectado **en la app de dev** (sesión de pruebas manual del 2026-09-29 con
+> `SalesCreditMemoESP.rdlc` en copia temporal). Se documenta como **caso real**:
+> no se ha reproducido en simulación y no hay causa raíz todavía, pero si vuelve
+> a aparecer, aquí está el contexto y cómo capturarlo.
+
+- **Síntoma**: React lanza `Maximum update depth exceeded` (bucle de updates) y
+  acto seguido `Uncaught Error` con el mismo mensaje. La app **sigue aceptando
+  comandos** después (en el log, los `setLocation` posteriores se aplican y se
+  ven los `[renderer]` normales), pero la UI puede quedarse bloqueada.
+- **Cuándo** (dos veces, ambas tras mover un Tablix anidado y ~3-4 s después
+  del último comando, sin comandos intermedios):
+  - `11:31:33.886` — tras varios `setLocation` sobre **Tablix7** (v14; flechas/
+    arrastre + undos previos).
+  - `11:31:51.225` — tras un `setLocation` sobre **Tablix1** (v17).
+- **Evidencia** (electron-log del main):
+  ```
+  11:31:33.886 > [renderer] Maximum update depth exceeded. This can happen when a
+    component calls setState inside useEffect, but useEffect either doesn't have a
+    dependency array, or one of the dependencies changes on every render.
+  11:31:33.946 > [renderer] Uncaught Error: Maximum update depth exceeded. ...
+  11:31:36.973 > [renderer] Uncaught Error: Maximum update depth exceeded. ...
+  ```
+- **Qué se intentó para reproducirlo (sin éxito)**: spec temporal de Playwright
+  que seleccionaba `Tablix7`/`Tablix1` por paleta, pulsaba flechas ×4, `Ctrl+Z`
+  ×5, flechas ×3 y hacía 3 arrastres reales del cuerpo del Tablix → **0 errores**
+  de consola. (El spec se borró; no forma parte de la suite.)
+- **Sospechas**: el único `setState` dentro de un `useEffect` del lienzo es la
+  medición del marco (`CanvasPreview`, deps `[selectedId, selectedCell,
+projection, zoom]`); para el bucle haría falta que una de esas dependencias
+  cambiase de identidad en cada render (o un efecto con `setState` sin deps que
+  no hemos visto aún). El `SelectionFrame` tiene un efecto sin deps que **solo
+  escribe en `window`**.
+- **Cómo capturarlo la próxima vez**:
+  1. `main.ts` registra solo `event.message` de la consola del renderer:
+     ampliarlo para loguear también los argumentos (React adjunta la **traza del
+     componente** como argumento adicional) o añadir un `error boundary` que la
+     muestre.
+  2. En un spec de Playwright: `page.on('pageerror', (e) => e.stack)` y
+     `console` con `message.args()`.
+  3. Anotar la **secuencia exacta** de clics/teclas del usuario (el log de
+     comandos no basta: entre los dos crashes hubo ~3 s sin comandos).
+- **Impacto**: sin pérdida de datos conocida; es un bucle de render, no un
+  problema de dominio/undo.
 
 ## 🧠 Lecciones de Konva (para no repetirlas)
 
