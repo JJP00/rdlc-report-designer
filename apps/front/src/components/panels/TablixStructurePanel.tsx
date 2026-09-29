@@ -57,6 +57,8 @@ export interface TablixStructurePanelProps {
   onAddRowGroup: (row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
+  /** Abre el diálogo de filtros del Tablix (`Filters > Filter`). */
+  onOpenFilters: () => void;
 }
 
 export function TablixStructurePanel({
@@ -72,6 +74,7 @@ export function TablixStructurePanel({
   onAddRowToGroup,
   onAddRowGroup,
   onDeleteGroup,
+  onOpenFilters,
 }: TablixStructurePanelProps): ReactNode {
   const rows = tablixRowsTree(tablix);
   const columns = tablixColumnsTree(tablix);
@@ -88,9 +91,21 @@ export function TablixStructurePanel({
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Estructura
         </h2>
-        <span className="text-[10px] text-muted-foreground">
-          {tablix.body.rows.length} filas × {tablix.body.columns.length} columnas
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">
+            {tablix.body.rows.length} filas × {tablix.body.columns.length} columnas
+          </span>
+          <Button
+            variant={tablix.filters && tablix.filters.length > 0 ? 'secondary' : 'ghost'}
+            size="xs"
+            title="Filtros del Tablix (Filters > Filter)"
+            onClick={onOpenFilters}
+          >
+            {tablix.filters && tablix.filters.length > 0
+              ? `Filtros (${tablix.filters.length})`
+              : 'Filtros…'}
+          </Button>
+        </div>
       </header>
 
       <StructureSection

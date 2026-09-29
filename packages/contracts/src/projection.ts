@@ -237,6 +237,32 @@ export const tablixHeadersSchema: z.ZodType<TablixHeadersDto> = z.object({
   corner: z.array(z.array(z.lazy(() => itemSchema).nullable())),
 });
 
+/** Operadores de `Filter/Operator` (RDL). */
+export const tablixFilterOperatorSchema = z.enum([
+  'Equal',
+  'Like',
+  'NotEqual',
+  'GreaterThan',
+  'GreaterThanOrEqual',
+  'LessThan',
+  'LessThanOrEqual',
+  'TopN',
+  'BottomN',
+  'TopPercent',
+  'BottomPercent',
+  'In',
+  'Between',
+]);
+export type TablixFilterOperator = z.infer<typeof tablixFilterOperatorSchema>;
+
+/** Filtro del Tablix (`Filters > Filter`). */
+export const tablixFilterSchema = z.object({
+  expression: z.string(),
+  operator: tablixFilterOperatorSchema,
+  values: z.array(z.string()),
+});
+export type TablixFilterDto = z.infer<typeof tablixFilterSchema>;
+
 export interface TablixDto extends ItemBaseDto {
   kind: 'tablix';
   body: {
@@ -247,6 +273,8 @@ export interface TablixDto extends ItemBaseDto {
   columnHierarchy: TablixMemberDto[];
   /** Presente si el Tablix tiene cabeceras y/o esquina. */
   headers?: TablixHeadersDto;
+  /** Filtros del Tablix (`Filters > Filter`), en orden de documento. */
+  filters?: TablixFilterDto[];
 }
 
 export const tablixSchema: z.ZodType<TablixDto> = z.object({
@@ -264,6 +292,7 @@ export const tablixSchema: z.ZodType<TablixDto> = z.object({
   rowHierarchy: z.array(tablixMemberSchema),
   columnHierarchy: z.array(tablixMemberSchema),
   headers: tablixHeadersSchema.optional(),
+  filters: z.array(tablixFilterSchema).optional(),
 });
 
 export const itemSchema: z.ZodType<ItemDto> = z.lazy(() =>

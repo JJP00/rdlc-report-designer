@@ -42,6 +42,8 @@ const TABLIX_ORDER = [
   'TablixBody',
   'TablixColumnHierarchy',
   'TablixRowHierarchy',
+  // BC escribe el bloque de filtros justo después de las jerarquías.
+  'Filters',
   'RepeatColumnHeaders',
   'RepeatRowHeaders',
   'FixedColumnHeaders',

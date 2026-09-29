@@ -38,6 +38,8 @@ export function App(): ReactNode {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   /** Grupo cuyas «Propiedades» están abiertas (null = cerrado). */
   const [groupProperties, setGroupProperties] = useState<GroupPropertiesRequest | null>(null);
+  /** Tablix cuyos «Filtros…» están abiertos (null = cerrado). */
+  const [filtersTablixId, setFiltersTablixId] = useState<string | null>(null);
 
   const { doc, status, error, dirty, conflict, reloads, hasBackend } = core;
   const { selectedId, selectedItem, selectedCell } = items;
@@ -60,6 +62,13 @@ export function App(): ReactNode {
     () => (doc && selectedItem ? isCellContent(doc.projection, selectedItem.id) : false),
     [doc, selectedItem],
   );
+
+  /** Tablix de los «Filtros…» abiertos (se deriva: si desaparece, se cierra). */
+  const filtersTablix = useMemo(() => {
+    if (!doc || filtersTablixId === null) return null;
+    const item = findItem(doc.projection, filtersTablixId);
+    return item?.kind === 'tablix' ? item : null;
+  }, [doc, filtersTablixId]);
 
   /** Textbox en edición (el editor se monta al abrirlo y no se resincroniza). */
   const editingText = useMemo(() => {
@@ -160,6 +169,7 @@ export function App(): ReactNode {
     addRowInsideGroup,
     addRowGroup,
     deleteRowGroup,
+    setTablixFilters,
     setImageOptions,
     setRunText,
     setRunLabel,
@@ -286,6 +296,7 @@ export function App(): ReactNode {
             onAddRowToGroup={addRowToGroup}
             onAddRowGroup={addRowGroup}
             onDeleteRowGroup={deleteRowGroup}
+            onOpenTablixFilters={setFiltersTablixId}
             onSetText={setRunText}
             onSetLabel={setRunLabel}
             onSetImageOptions={setImageOptions}
@@ -320,6 +331,11 @@ export function App(): ReactNode {
         groupProperties={groupProperties}
         onCloseGroupProperties={() => setGroupProperties(null)}
         onApplyGroupProperties={applyGroupProperties}
+        filtersTablix={filtersTablix}
+        onCloseTablixFilters={() => setFiltersTablixId(null)}
+        onApplyTablixFilters={(filters) => {
+          if (filtersTablixId) setTablixFilters(filtersTablixId, filters);
+        }}
       />
 
       <CommandPalette

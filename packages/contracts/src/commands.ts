@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { lengthSchema } from './common.js';
-import { paragraphSchema } from './projection.js';
+import { paragraphSchema, tablixFilterSchema } from './projection.js';
 import { stylePatchSchema } from './style.js';
 
 /**
@@ -496,6 +496,16 @@ const setGroupPageBreaks = z.object({
   end: z.boolean(),
 });
 
+/**
+ * Reemplaza los filtros del **Tablix** (`Filters > Filter`). Lista vacía quita
+ * el bloque (el undo lo restaura byte a byte).
+ */
+const setTablixFilters = z.object({
+  cmd: z.literal('setTablixFilters'),
+  id: z.string().min(1),
+  filters: z.array(tablixFilterSchema),
+});
+
 /** Ordenación del miembro (`SortExpressions`); sin dirección = ascendente. */
 const setGroupSorting = z.object({
   cmd: z.literal('setGroupSorting'),
@@ -549,6 +559,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setGroupExpressions,
   setGroupPageBreaks,
   setGroupSorting,
+  setTablixFilters,
   setMemberToggleItem,
   setZIndex,
   setName,

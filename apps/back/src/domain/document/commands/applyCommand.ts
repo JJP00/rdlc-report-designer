@@ -30,6 +30,7 @@ import { applySetParagraphs } from './setParagraphs.js';
 import { applySetImageOptions } from './setImageOptions.js';
 import { applySetItemOptions } from './setItemOptions.js';
 import { applySetItemPageBreak } from './setItemPageBreak.js';
+import { applySetTablixFilters } from './setTablixFilters.js';
 import { applySetName } from './setName.js';
 import { applySetReportCode } from './setReportCode.js';
 import { applySetSize } from './setSize.js';
@@ -127,6 +128,8 @@ export function applyCommand(
       return applySetGroupPageBreaks(ctx, command);
     case 'setGroupSorting':
       return applySetGroupSorting(ctx, command);
+    case 'setTablixFilters':
+      return applySetTablixFilters(ctx, command);
     case 'setPageSize':
       return applySetPageSize(ctx, command);
     case 'setPageMargins':

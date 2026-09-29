@@ -3,12 +3,15 @@ import type {
   ParagraphDto,
   ProjectionDto,
   RdlcCommand,
+  TablixDto,
+  TablixFilterDto,
   TablixMemberDto,
   TextboxDto,
 } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { GroupPropertiesDialog } from '@/components/panels/GroupPropertiesDialog';
 import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
+import { TablixFiltersDialog } from '@/components/panels/TablixFiltersDialog';
 import { TextEditorDialog } from '@/components/panels/TextEditorDialog';
 import { flattenItems } from '@/lib/projection';
 
@@ -39,6 +42,10 @@ export interface DocumentDialogsProps {
   groupProperties: GroupPropertiesRequest | null;
   onCloseGroupProperties: () => void;
   onApplyGroupProperties: (commands: RdlcCommand[]) => void;
+  /** Tablix cuyos «Filtros…» están abiertos; `null` = cerrado. */
+  filtersTablix: TablixDto | null;
+  onCloseTablixFilters: () => void;
+  onApplyTablixFilters: (filters: TablixFilterDto[]) => void;
 }
 
 /** Diálogos del documento: propiedades del informe, propiedades del grupo y texto. */
@@ -57,6 +64,9 @@ export function DocumentDialogs({
   groupProperties,
   onCloseGroupProperties,
   onApplyGroupProperties,
+  filtersTablix,
+  onCloseTablixFilters,
+  onApplyTablixFilters,
 }: DocumentDialogsProps): ReactNode {
   return (
     <>
@@ -82,6 +92,14 @@ export function DocumentDialogs({
           itemNames={flattenItems(projection).map((item) => item.id)}
           onApply={onApplyGroupProperties}
           onClose={onCloseGroupProperties}
+        />
+      ) : null}
+
+      {filtersTablix ? (
+        <TablixFiltersDialog
+          filters={filtersTablix.filters ?? []}
+          onApply={onApplyTablixFilters}
+          onClose={onCloseTablixFilters}
         />
       ) : null}
 

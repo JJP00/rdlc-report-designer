@@ -4,6 +4,7 @@ import type {
   ItemDto,
   ItemPageBreak,
   Length,
+  TablixFilterDto,
   LengthUnit,
   ParagraphDto,
   ProjectionDto,
@@ -267,6 +268,7 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     this.inferTotals(row.leaves, rowEls);
 
     const headers = this.tablixHeaders(el, columns, rowHeights);
+    const filters = this.tablixFilters(el.getFirstElementByName('Filters'));
 
     return {
       ...base,
@@ -275,7 +277,26 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       rowHierarchy: row.members,
       columnHierarchy: column.members,
       ...(headers ? { headers } : {}),
+      ...(filters.length > 0 ? { filters } : {}),
     };
+  }
+
+  /** Filtros del Tablix (`Filters > Filter`); los operadores no estándar se omiten. */
+  private tablixFilters(el: XmlElement | undefined): TablixFilterDto[] {
+    const filters: TablixFilterDto[] = [];
+    for (const filter of elementChildren(el, 'Filter')) {
+      const operator = textOf(filter.getFirstElementByName('Operator'));
+      const known = TABLIX_FILTER_OPERATORS.find((value) => value === operator);
+      if (!known) continue;
+      filters.push({
+        expression: textOf(filter.getFirstElementByName('FilterExpression')) ?? '',
+        operator: known,
+        values: elementChildren(filter.getFirstElementByName('FilterValues'), 'FilterValue').map(
+          (value) => textOf(value) ?? '',
+        ),
+      });
+    }
+    return filters;
   }
 
   /**
@@ -740,6 +761,22 @@ const BORDER_SIDES = [
 ] as const;
 
 const BORDER_STYLE_VALUES: BorderStyle[] = ['None', 'Solid', 'Dashed', 'Dotted', 'Double'];
+
+const TABLIX_FILTER_OPERATORS = [
+  'Equal',
+  'Like',
+  'NotEqual',
+  'GreaterThan',
+  'GreaterThanOrEqual',
+  'LessThan',
+  'LessThanOrEqual',
+  'TopN',
+  'BottomN',
+  'TopPercent',
+  'BottomPercent',
+  'In',
+  'Between',
+] as const;
 
 function isItemPageBreak(value: string | undefined): value is ItemPageBreak {
   return (

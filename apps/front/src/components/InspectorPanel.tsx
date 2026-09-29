@@ -55,6 +55,8 @@ export interface InspectorPanelProps {
   onAddRowGroup: (tablixId: string, row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
   onDeleteRowGroup: (tablixId: string, axis: 'row' | 'column', path: number[]) => void;
+  /** Abre el diálogo de filtros del Tablix (`Filters > Filter`). */
+  onOpenTablixFilters: (tablixId: string) => void;
   onSetText: (p: number, r: number, value: string) => void;
   /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
   onSetLabel: (p: number, r: number, label: string | null) => void;
@@ -88,6 +90,7 @@ export function InspectorPanel({
   onAddRowToGroup,
   onAddRowGroup,
   onDeleteRowGroup,
+  onOpenTablixFilters,
   onSetText,
   onSetLabel,
   onSetImageOptions,
@@ -112,6 +115,7 @@ export function InspectorPanel({
           onAddRowToGroup={(row, groupPath) => onAddRowToGroup(tablix.id, row, groupPath)}
           onAddRowGroup={(row, expression) => onAddRowGroup(tablix.id, row, expression)}
           onDeleteGroup={(axis, path) => onDeleteRowGroup(tablix.id, axis, path)}
+          onOpenFilters={() => onOpenTablixFilters(tablix.id)}
         />
       ) : null}
       <ItemPanels

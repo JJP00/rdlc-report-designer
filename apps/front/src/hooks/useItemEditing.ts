@@ -8,6 +8,7 @@ import type {
   ScopeRef,
   StyleDto,
   StylePatch,
+  TablixFilterDto,
   TextboxDto,
   TextRunDto,
 } from '@rdlc-designer/contracts';
@@ -125,6 +126,8 @@ export interface ItemEditing {
   addRowGroup: (tablixId: string, row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
   deleteRowGroup: (tablixId: string, axis: 'row' | 'column', path: number[]) => void;
+  /** Reemplaza los filtros del Tablix (`[]` los quita): un paso de undo. */
+  setTablixFilters: (tablixId: string, filters: TablixFilterDto[]) => void;
   setImageOptions: (patch: ImageOptionsPatch) => void;
   setRunText: (p: number, r: number, value: string) => void;
   /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
@@ -614,6 +617,14 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [sendCommand],
   );
 
+  const setTablixFilters = useCallback(
+    (tablixId: string, filters: TablixFilterDto[]): void => {
+      // El bloque se reemplaza entero y pide snapshot (no hay item que parchear).
+      void sendCommand({ cmd: 'setTablixFilters', id: tablixId, filters });
+    },
+    [sendCommand],
+  );
+
   const setVisibility = useCallback(
     (hidden: boolean | string | null): void => {
       if (!selectedItem) return;
@@ -1009,6 +1020,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     addRowInsideGroup,
     addRowGroup,
     deleteRowGroup,
+    setTablixFilters,
     setImageOptions,
     setRunText,
     setRunLabel,

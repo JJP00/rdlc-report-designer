@@ -119,6 +119,7 @@ interface ItemLike {
     columns: { size: { value: number; unit: string }; cells: (ItemLike | null)[] }[];
     rows: { size: { value: number; unit: string }; cells: (ItemLike | null)[] }[];
   };
+  filters?: { expression: string; operator: string; values: string[] }[];
   children?: ItemLike[];
 }
 
@@ -300,6 +301,15 @@ async function memberHidden(
   path: number[],
 ): Promise<boolean | string | undefined> {
   return (await memberAtPath(tablixId, axis, path))?.hidden;
+}
+
+/** Filtros proyectados de un Tablix (`Filters > Filter`). */
+async function tablixFilters(
+  id: string,
+): Promise<{ expression: string; operator: string; values: string[] }[] | undefined> {
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, id);
+  return tablix?.filters;
 }
 
 /** Nombre proyectado del grupo de un miembro (fila/columna) por su `path`. */
@@ -2117,6 +2127,29 @@ test('las propiedades del grupo editan saltos de página y ordenación', async (
     .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value' }]);
   await page.keyboard.press('Control+z');
   await expect.poll(() => memberPageBreaks('Tablix7', 'row', [0])).toBeUndefined();
+});
+
+test('los filtros del Tablix se editan desde la estructura (con undo)', async () => {
+  await selectItemViaPalette('Tablix7');
+  const expected = {
+    expression: '=Cstr(Len(Fields!VATIdentifier_VatAmountLine.Value))',
+    operator: 'NotEqual',
+    values: ['0'],
+  };
+  await expect.poll(() => tablixFilters('Tablix7')).toEqual([expected]);
+
+  await page.getByRole('button', { name: 'Filtros (1)' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Filtros del Tablix' })).toBeVisible();
+  await dialog.getByLabel('Operador del filtro 1').selectOption('Equal');
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect.poll(() => tablixFilters('Tablix7')).toEqual([{ ...expected, operator: 'Equal' }]);
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => tablixFilters('Tablix7')).toEqual([expected]);
 });
 
 test('las propiedades del grupo renombran el grupo (con undo)', async () => {
