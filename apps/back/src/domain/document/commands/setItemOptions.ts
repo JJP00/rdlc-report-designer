@@ -31,9 +31,7 @@ export function applySetItemOptions(
   // De momento solo el Textbox las proyecta; el resto se rechaza con motivo
   // (nunca ignorar en silencio).
   if (node.tagName !== 'Textbox') {
-    return left(
-      CommandRejectedError.create(`'${command.id}' no admite CanGrow ni KeepTogether`),
-    );
+    return left(CommandRejectedError.create(`'${command.id}' no admite CanGrow ni KeepTogether`));
   }
 
   const inverse: DomainCommand[] = [];

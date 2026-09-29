@@ -64,7 +64,13 @@ const PAGE_ORDER = [
 ];
 
 /** Bandas de página: alto, flags de impresión, items y estilo. */
-const PAGE_SECTION_ORDER = ['Height', 'PrintOnFirstPage', 'PrintOnLastPage', 'ReportItems', 'Style'];
+const PAGE_SECTION_ORDER = [
+  'Height',
+  'PrintOnFirstPage',
+  'PrintOnLastPage',
+  'ReportItems',
+  'Style',
+];
 
 /** Contenido de un borde (genérico o por lado), en el orden de BC. */
 const BORDER_ORDER = ['Color', 'Style', 'Width'];

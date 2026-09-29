@@ -54,7 +54,12 @@ const SIMPLE_TAGS: Record<string, string> = {
 };
 
 /** Claves del parche soportadas por este comando (el resto se rechaza). */
-const SUPPORTED_KEYS = new Set<string>([...Object.keys(SIMPLE_TAGS), 'fontSize', 'padding', 'border']);
+const SUPPORTED_KEYS = new Set<string>([
+  ...Object.keys(SIMPLE_TAGS),
+  'fontSize',
+  'padding',
+  'border',
+]);
 
 /**
  * Estilo del item (`<Style>` del Textbox/Rectangle/…): fuente, colores,

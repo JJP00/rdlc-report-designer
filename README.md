@@ -200,6 +200,18 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       documento entre tests).
 - [x] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
       miembros) · [x] `TablixCorner`/`TablixHeader` · [x] grupos de fila · [ ] Matrix (F3).
+- [x] **Bloque de gaps P1 · G1–G8 (sesión 2026-09-29)**: **insertar Tablix**
+      (rejilla 1×1 con celda y ambas jerarquías), **bordes por lado** (genérico
+      `Border` + overrides de BC con la herencia resuelta propiedad a propiedad,
+      panel de 4 lados y pintado en el lienzo), **`moveItem`** (reparentar/
+      reordenar con validación de ciclos, `Top/Left` opcionales, crecimiento del
+      destino y drag&drop que conserva el punto agarrado; undo byte-exacto),
+      **opciones del item** (`CanGrow`/`KeepTogether` con checkboxes), **z-order**
+      («Traer al frente»/«Enviar atrás» con rebase de hermanos), **bandas de
+      página** (`setRegionHeight`/`setHeaderFooterOptions` + campos en
+      «Informe…»), el hook `moveItem` renombrado a `moveTo` y **insertar en
+      cabeceras/esquina del Tablix** (scopes `tablixHeader`/`tablixCorner` y
+      hit-test de huecos vacíos).
 
 **Calidad (sesiones 2026-09-16 a 2026-09-29):**
 
@@ -224,6 +236,7 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       diseño `[etiqueta]` / campo / `[exp]`) y marco de selección medido por la caja del item.
 - [x] **Sesión 2026-09-29**: grupos de fila (F2.b: propiedades, extender, dentro/fuera del
       grupo, grupos hoja) y undo byte-exacto al reinsertar/mover nodos (indentación recordada) ·
-      **350 unit tests** (225 back + 125 front) + **37 E2E** de Playwright y `typecheck` limpio.
+      **bloque de gaps P1 (G1–G8)** con un commit por gap · **383 unit tests**
+      (253 back + 130 front) + **44 E2E** de Playwright y `typecheck` limpio.
 
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

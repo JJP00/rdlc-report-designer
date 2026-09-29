@@ -1,5 +1,44 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-29 (bloque de gaps P1) · G1–G8 cubiertos** — auditoría del
+> 2026-09-29, punto ① del plan. Un commit por gap, con tests y E2E:
+>
+> - **G1 · Insertar Tablix**: variante `tablix` en el contrato y factory con
+>   rejilla 1×1 (celda con Textbox y ambas jerarquías, XSD válido); botón en
+>   toolbar/paleta/menú contextual y tamaño por defecto 8 × 2,5 cm.
+> - **G2 · Bordes por lado**: `setStyle` escribe `Border`/`TopBorder`… con la
+>   herencia de BC resuelta **propiedad a propiedad** (genérico `Solid` +
+>   `TopBorder` solo con `Width`); la proyección emite los 4 lados; el panel
+>   tiene estilo/color/grosor por lado (color con commit diferido) y el lienzo
+>   pinta las líneas por lado (incluido `Double`).
+> - **G3 · `moveItem`**: reparentar/reordenar con validación de ciclos,
+>   `Top/Left` **opcionales** relativos al destino (al entrar en una celda se
+>   quitan, como el contenido de BC), crecimiento del rectángulo destino y undo
+>   byte-exacto (`moveNode`). El drag&drop del lienzo reparenta solo si el
+>   puntero suelta en otro contenedor y conserva el punto agarrado.
+> - **G4 · `setItemOptions`**: `CanGrow`/`KeepTogether` de un Textbox (apagar
+>   quita la etiqueta, como RB) con checkboxes en el panel.
+> - **G5 · `setZIndex`**: comando + «Traer al frente»/«Enviar atrás» en el menú
+>   contextual; un `zIndex` negativo manda el item detrás de todos corriendo a
+>   los hermanos (un solo paso de undo, XSD válido).
+> - **G6 · Bandas de página**: `setRegionHeight` + `setHeaderFooterOptions`, la
+>   proyección ya lee `PrintOnFirstPage/LastPage` y «Informe…» edita alto y
+>   flags del encabezado y el pie.
+> - **G7**: el hook `moveItem` (mover posición con `setLocation`) pasa a
+>   `moveTo`, libre el nombre del contrato.
+> - **G8 · Insertar en cabecera/esquina**: scopes `tablixHeader`/`tablixCorner`,
+>   `findScope` sin crear contenedores, hit-test de huecos **vacíos** con su
+>   caja (el item nuevo ocupa el hueco) y menú «Insertar» solo en celdas
+>   libres; insertar/pegar en una celda ocupada se rechaza con motivo.
+>
+> Estado: **383 unit tests** (253 back + 130 front), `typecheck` limpio y
+> **44 E2E** de Playwright verdes.
+>
+> **Punto de retomada**: G9–G13 (saltos de página de items, filtros de grupo/
+> Tablix, renombrar grupo, padding por item, imágenes embebidas) — luego el
+> pase de UX con `intent` (U1–U9) y seguir fase (**F2.c** totales → **F3**
+> Matrix), cerrando con T1 (CI/empaquetado).
+
 > **Sesión 2026-09-29 · F2.b (grupos de fila) + F2.b.2 (feedback de uso: propiedades del grupo)** —
 > **`setGroupExpression`** (edita la expresión del grupo; `axis` + `path` de la
 > proyección), **`addRowGroup`** (envuelve la fila elegida en un grupo nuevo:
@@ -555,6 +594,11 @@ Trade-offs documentados:
 > (F2.c totales → F3 Matrix). Prioridad: **P1** = se nota a diario con informes
 > de BC · **P2** = acabado · **P3** = proceso. Tamaño: **S** (< 1 sesión),
 > **M** (1 sesión), **L** (varias).
+>
+> **Estado (2026-09-29, bloque de gaps P1)**: ✅ **G1–G8 hechos** (ver el bloque
+> de sesión al principio del fichero). El resto de la tabla sigue pendiente:
+> **G9–G13** (S/M), **U1–U9** (pase `intent`) y **T1–T5**. Las columnas «Estado
+> hoy» describen el punto de partida de la auditoría, antes de este bloque.
 
 ### 🎯 P1 · Bloque elegido: menores de alto valor BC
 
@@ -613,6 +657,9 @@ Trade-offs documentados:
 ② pase de UX con el skill `intent` (U1–U9) → ③ seguir fase (**F2.c** totales →
 **F3** Matrix) y cerrar con T1 (CI/empaquetado).
 
+**Progreso**: ① P1 (**G1–G8**) ✅ en el bloque de gaps del 2026-09-29; siguen
+**G9–G13** antes del pase de UX.
+
 ## 🔴 Gaps funcionales (MVP)
 
 > Actualizado tras la **auditoría 2026-09-29** (backlog priorizado arriba:
@@ -638,14 +685,15 @@ Trade-offs documentados:
    (F2.c, opcional: hoy ya se pueden hacer a mano, son filas estáticas con
    agregados). Después: **Matrix (F3)**.
 5. **Matrix (Fase 3)** — ⬜ grupos de columna.
-6. **`moveItem`** (reparentar/reordenar) — ⬜ implementado hasta `insertItem`/`deleteItem`/
-   `duplicateItem`; `moveItem` sigue rechazándose explícitamente.
+6. **`moveItem`** (reparentar/reordenar) — ✅ hecho (G3, 2026-09-29): comando con
+   ciclos + `Top/Left` opcionales, crecimiento del destino y drag&drop que
+   reparenta conservando el punto agarrado; undo byte-exacto.
 7. **`setName`** (renombrar elemento) — ✅ hecho (sesión 2026-09-25/28): comando
    (único, estructural, `rd:DefaultName` sincronizado) y campo editable en el panel.
-8. **Bordes** (`BorderStyle`/`BorderColor`/`BorderWidth` por lado) — ⬜ el contrato los
-   declara (items, párrafos y runs) pero `setStyle` los rechaza con motivo; faltan
-   comandos, proyección, UI por lado y pintado en el lienzo. Lo usan mucho las celdas
-   de Tablix de BC.
+8. **Bordes** (`BorderStyle`/`BorderColor`/`BorderWidth` por lado) — ✅ hecho (G2,
+   2026-09-29): `setStyle` escribe genérico + overrides por lado con la herencia
+   resuelta propiedad a propiedad, la proyección emite los 4 lados, el panel los
+   edita y el lienzo los pinta. Lo usan mucho las celdas de Tablix de BC.
 
 ## 🟡 Gaps técnicos de frontend
 

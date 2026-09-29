@@ -164,8 +164,7 @@ describe('G3 · moveItem', () => {
     if (!applied.isRight()) return;
 
     const values = appliedOf(applied.value, 'Rectangle3') as
-      | { width?: { value: number; unit: string } }
-      | undefined;
+      { width?: { value: number; unit: string } } | undefined;
     expect(values?.width?.unit).toBe('cm');
     // De 2.09 cm a 3 (el textbox no declara Width: manda la celda de origen).
     expect(values?.width?.value).toBeGreaterThan(2.5);

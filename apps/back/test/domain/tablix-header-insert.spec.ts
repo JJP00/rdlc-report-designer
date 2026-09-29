@@ -96,7 +96,10 @@ describe('G8 · insertar en cabecera/esquina del Tablix', () => {
     if (!applied.isRight()) return;
 
     const output = xmlAdapter.serialize(doc);
-    const corner = output.slice(output.indexOf('<TablixCorner>'), output.indexOf('</TablixCorner>'));
+    const corner = output.slice(
+      output.indexOf('<TablixCorner>'),
+      output.indexOf('</TablixCorner>'),
+    );
     expect(corner).toContain('Name="TextboxEsquina"');
 
     const undone = undoAll(ctx, applied.value);

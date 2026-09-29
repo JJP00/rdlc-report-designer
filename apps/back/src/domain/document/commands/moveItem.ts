@@ -39,13 +39,12 @@ export function applyMoveItem(
   }
   const containerCreated = existing === undefined;
   if (isSelfOrDescendant(container, node)) {
-    return left(
-      CommandRejectedError.create('No se puede mover un elemento dentro de sí mismo'),
-    );
+    return left(CommandRejectedError.create('No se puede mover un elemento dentro de sí mismo'));
   }
 
   const source = node.parent;
-  if (!source) return left(CommandRejectedError.create(`El elemento '${command.id}' no tiene contenedor`));
+  if (!source)
+    return left(CommandRejectedError.create(`El elemento '${command.id}' no tiene contenedor`));
   const sourceIndex = source.children().findIndex((child) => child.equals(node));
 
   const inverse: DomainCommand[] = [];

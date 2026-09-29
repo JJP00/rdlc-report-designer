@@ -91,9 +91,7 @@ describe('G6 · bandas de página', () => {
     const footer = output.slice(output.indexOf('<PageFooter>'), output.indexOf('</PageFooter>'));
     expect(footer).toContain('<PrintOnFirstPage>false</PrintOnFirstPage>');
     expect(footer).toContain('<PrintOnLastPage>true</PrintOnLastPage>');
-    expect(footer.indexOf('<PrintOnFirstPage>')).toBeLessThan(
-      footer.indexOf('<PrintOnLastPage>'),
-    );
+    expect(footer.indexOf('<PrintOnFirstPage>')).toBeLessThan(footer.indexOf('<PrintOnLastPage>'));
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);

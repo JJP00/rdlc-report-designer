@@ -1779,17 +1779,13 @@ test('el panel edita los bordes por lado y el lienzo los pinta', async () => {
   await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
 
   await topStyle.selectOption('Solid');
-  await expect
-    .poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style)
-    .toBe('Solid');
+  await expect.poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style).toBe('Solid');
   // La línea se pinta dentro del nodo del item (color por defecto).
   await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual(['#111827']);
 
   // Un solo undo revierte estilo y pintado.
   await page.keyboard.press('Control+z');
-  await expect
-    .poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style)
-    .toBe('None');
+  await expect.poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style).toBe('None');
   await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
 });
 

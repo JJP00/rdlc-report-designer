@@ -486,8 +486,7 @@ function ItemBorder({
 
     const stroke = paintColor(value.color, '#111827');
     const thickness = value.width ? Math.max(toPx(value.width), 0.75) : 1.4;
-    const dash =
-      value.style === 'Dashed' ? [4, 3] : value.style === 'Dotted' ? [1, 2] : undefined;
+    const dash = value.style === 'Dashed' ? [4, 3] : value.style === 'Dotted' ? [1, 2] : undefined;
     // `Double`: dos líneas con hueco entre ellas.
     const insets = value.style === 'Double' ? [thickness, thickness * 3] : [thickness / 2];
 
