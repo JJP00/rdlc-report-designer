@@ -86,6 +86,8 @@ export interface ItemEditing {
   mergeCells: (id: string, row: number, col: number, rowSpan: number, colSpan: number) => void;
   unmergeCells: (id: string, row: number, col: number) => void;
   setItemStyle: (patch: StylePatch) => void;
+  /** `CanGrow`/`KeepTogether` de un Textbox (apagarlas quita la etiqueta). */
+  setItemOptions: (options: { canGrow?: boolean; keepTogether?: boolean }) => void;
   /** Renombra el elemento (el nombre debe ser único; lo valida el dominio). */
   setItemName: (name: string) => void;
   /** Visibilidad del item (`null` = quitarla). */
@@ -438,6 +440,16 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       );
     },
     [reconcile, selectedItem, sendCommand, updateProjection],
+  );
+
+  const setItemOptions = useCallback(
+    (options: { canGrow?: boolean; keepTogether?: boolean }): void => {
+      if (!selectedItem || selectedItem.kind !== 'textbox') return;
+      // Sin optimismo: el comando pide snapshot (apagar = quitar la etiqueta y
+      // la proyección devuelve el flag como `undefined`).
+      void sendCommand({ cmd: 'setItemOptions', id: selectedItem.id, ...options });
+    },
+    [selectedItem, sendCommand],
   );
 
   const setItemName = useCallback(
@@ -879,6 +891,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     mergeCells,
     unmergeCells,
     setItemStyle,
+    setItemOptions,
     setItemName,
     setVisibility,
     setMemberVisibility,

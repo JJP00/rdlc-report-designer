@@ -1,7 +1,7 @@
 import type { ItemDto, Length, StylePatch, TextboxDto } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { ImagePanel, type ImageOptionsPatch } from '@/components/panels/ImagePanel';
-import { PropertiesPanel } from '@/components/panels/PropertiesPanel';
+import { PropertiesPanel, type ItemOptionsPatch } from '@/components/panels/PropertiesPanel';
 import { TextPanel } from '@/components/panels/TextPanel';
 
 export interface ItemPanelsProps {
@@ -15,6 +15,8 @@ export interface ItemPanelsProps {
   onSetName: (name: string) => void;
   /** `null` = quitar la visibilidad declarada. */
   onSetVisibility: (hidden: boolean | string | null) => void;
+  /** `CanGrow`/`KeepTogether` (solo Textbox). */
+  onSetItemOptions: (options: ItemOptionsPatch) => void;
   onSetText: (p: number, r: number, value: string) => void;
   /** Etiqueta de diseñador del run (`<Label>`); `null` la quita. */
   onSetLabel: (p: number, r: number, label: string | null) => void;
@@ -35,6 +37,7 @@ export function ItemPanels({
   onSetStyle,
   onSetName,
   onSetVisibility,
+  onSetItemOptions,
   onSetText,
   onSetLabel,
   onSetImageOptions,
@@ -58,6 +61,7 @@ export function ItemPanels({
         onSetStyle={onSetStyle}
         onSetName={onSetName}
         onSetVisibility={onSetVisibility}
+        onSetItemOptions={onSetItemOptions}
       />
       {item.kind === 'textbox' ? (
         <TextPanel

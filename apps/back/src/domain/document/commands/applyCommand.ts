@@ -26,6 +26,7 @@ import { applySetPageMargins } from './setPageMargins.js';
 import { applySetPageSize } from './setPageSize.js';
 import { applySetParagraphs } from './setParagraphs.js';
 import { applySetImageOptions } from './setImageOptions.js';
+import { applySetItemOptions } from './setItemOptions.js';
 import { applySetName } from './setName.js';
 import { applySetReportCode } from './setReportCode.js';
 import { applySetSize } from './setSize.js';
@@ -91,6 +92,8 @@ export function applyCommand(
       return applySetParagraphs(ctx, command);
     case 'setStyle':
       return applySetStyle(ctx, command);
+    case 'setItemOptions':
+      return applySetItemOptions(ctx, command);
     case 'setName':
       return applySetName(ctx, command);
     case 'setVisibility':

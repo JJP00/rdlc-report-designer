@@ -7,6 +7,7 @@ import type {
 } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import type { ImageOptionsPatch } from '@/components/panels/ImagePanel';
+import type { ItemOptionsPatch } from '@/components/panels/PropertiesPanel';
 import { ItemPanels } from '@/components/panels/ItemPanels';
 import { TablixStructurePanel } from '@/components/panels/TablixStructurePanel';
 import type { SelectedCell } from '@/lib/tablix';
@@ -30,6 +31,8 @@ export interface InspectorPanelProps {
   onSetName: (name: string) => void;
   /** `null` = quitar la visibilidad declarada. */
   onSetVisibility: (hidden: boolean | string | null) => void;
+  /** `CanGrow`/`KeepTogether` (solo Textbox). */
+  onSetItemOptions: (options: ItemOptionsPatch) => void;
   /** Visibilidad de una fila/columna/grupo de un Tablix. */
   onSetMemberVisibility: (
     tablixId: string,
@@ -73,6 +76,7 @@ export function InspectorPanel({
   onSetStyle,
   onSetName,
   onSetVisibility,
+  onSetItemOptions,
   onSetMemberVisibility,
   onOpenGroupProperties,
   onAddRowToGroup,
@@ -111,6 +115,7 @@ export function InspectorPanel({
         onSetStyle={onSetStyle}
         onSetName={onSetName}
         onSetVisibility={onSetVisibility}
+        onSetItemOptions={onSetItemOptions}
         onSetText={onSetText}
         onSetLabel={onSetLabel}
         onSetImageOptions={onSetImageOptions}

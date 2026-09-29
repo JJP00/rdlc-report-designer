@@ -2,11 +2,18 @@ import type { ItemDto, Length, StylePatch } from '@rdlc-designer/contracts';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { toCm, cm } from '@/lib/projection';
 import { useState, type ReactNode } from 'react';
 import { BackgroundField } from './BackgroundField';
 import { VisibilityField } from './VisibilityField';
+
+/** Opciones del item que no son estilo (`CanGrow`/`KeepTogether`). */
+export interface ItemOptionsPatch {
+  canGrow?: boolean;
+  keepTogether?: boolean;
+}
 
 interface PropertiesPanelProps {
   item: ItemDto;
@@ -19,6 +26,8 @@ interface PropertiesPanelProps {
   onSetName: (name: string) => void;
   /** `null` = quitar la visibilidad declarada. */
   onSetVisibility: (hidden: boolean | string | null) => void;
+  /** `CanGrow`/`KeepTogether` (solo Textbox). */
+  onSetItemOptions: (options: ItemOptionsPatch) => void;
 }
 
 /** Panel de propiedades: geometría, nombre, fondo y visibilidad. */
@@ -30,6 +39,7 @@ export function PropertiesPanel({
   onSetStyle,
   onSetName,
   onSetVisibility,
+  onSetItemOptions,
 }: PropertiesPanelProps): ReactNode {
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -83,6 +93,25 @@ export function PropertiesPanel({
         <div className="text-xs text-muted-foreground">ZIndex: {item.zIndex}</div>
       ) : null}
 
+      {item.kind === 'textbox' ? (
+        <>
+          <Separator />
+          <div className="text-xs font-medium text-muted-foreground">Opciones</div>
+          <OptionField
+            id="can-grow"
+            label="Crecer con el texto (CanGrow)"
+            checked={item.canGrow ?? false}
+            onChange={(canGrow) => onSetItemOptions({ canGrow })}
+          />
+          <OptionField
+            id="keep-together"
+            label="Mantener junto (KeepTogether)"
+            checked={item.keepTogether ?? false}
+            onChange={(keepTogether) => onSetItemOptions({ keepTogether })}
+          />
+        </>
+      ) : null}
+
       <Separator />
       <div className="text-xs font-medium text-muted-foreground">Apariencia</div>
       <BackgroundField item={item} onSetStyle={onSetStyle} />
@@ -92,6 +121,26 @@ export function PropertiesPanel({
         onChange={onSetVisibility}
       />
     </div>
+  );
+}
+
+/** Checkbox de una opción booleana del item (`false` = etiqueta ausente). */
+function OptionField({
+  id,
+  label,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}): ReactNode {
+  return (
+    <label htmlFor={id} className="flex cursor-pointer items-center gap-2 text-xs">
+      <Checkbox id={id} checked={checked} onCheckedChange={(state) => onChange(state === true)} />
+      {label}
+    </label>
   );
 }
 

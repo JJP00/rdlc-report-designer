@@ -147,6 +147,7 @@ export function App(): ReactNode {
     mergeCells,
     unmergeCells,
     setItemStyle,
+    setItemOptions,
     setItemName,
     setVisibility,
     setMemberVisibility,
@@ -268,6 +269,7 @@ export function App(): ReactNode {
             onSetStyle={setItemStyle}
             onSetName={setItemName}
             onSetVisibility={setVisibility}
+            onSetItemOptions={setItemOptions}
             onSetMemberVisibility={setMemberVisibility}
             onOpenGroupProperties={(tablixId, axis, member) =>
               setGroupProperties({ tablixId, axis, member })

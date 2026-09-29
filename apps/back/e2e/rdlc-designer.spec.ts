@@ -94,6 +94,8 @@ interface ItemLike {
   hidden?: boolean | string;
   style?: { backgroundColor?: string };
   paragraphs?: { runs: { value: string; label?: string }[] }[];
+  canGrow?: boolean;
+  keepTogether?: boolean;
   rowHierarchy?: MemberLike[];
   columnHierarchy?: MemberLike[];
   body?: {
@@ -348,6 +350,19 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
   for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
     const found = findItem(items, id);
     if (found) return found.hidden;
+  }
+  return undefined;
+}
+
+/** Opción booleana proyectada de un Textbox (`CanGrow`/`KeepTogether`). */
+async function itemOption(
+  id: string,
+  option: 'canGrow' | 'keepTogether',
+): Promise<boolean | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found) return found[option];
   }
   return undefined;
 }
@@ -1624,6 +1639,25 @@ test('el panel de propiedades edita la visibilidad y el color de fondo', async (
   // Visible quita la declaración: vuelve a la predeterminada.
   await visibility.selectOption('visible');
   await expect.poll(() => itemHidden('Textbox4')).toBeUndefined();
+});
+
+test('las opciones del textbox (CanGrow/KeepTogether) se editan y deshacen', async () => {
+  // Textbox4 (encabezado) declara ambos flags en el corpus.
+  await selectItemViaPalette('Textbox4');
+  const canGrow = page.getByRole('checkbox', { name: 'Crecer con el texto (CanGrow)' });
+  const keepTogether = page.getByRole('checkbox', { name: 'Mantener junto (KeepTogether)' });
+  await expect(canGrow).toBeChecked();
+  await expect(keepTogether).toBeChecked();
+
+  // Apagar quita la etiqueta (false = predeterminado en RDL).
+  await canGrow.click();
+  await expect.poll(() => itemOption('Textbox4', 'canGrow')).toBeUndefined();
+  await expect(keepTogether).toBeChecked();
+
+  // Un solo undo la restaura.
+  await page.keyboard.press('Control+z');
+  await expect(canGrow).toBeChecked();
+  await expect.poll(() => itemOption('Textbox4', 'canGrow')).toBe(true);
 });
 
 test('el panel de propiedades renombra el elemento (con validación y undo)', async () => {
