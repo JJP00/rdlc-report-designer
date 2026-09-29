@@ -1,10 +1,14 @@
 import type { NewItemSpec } from '@rdlc-designer/contracts';
 import { insertCanonical, writeLength } from '../geometry/geometry.js';
-import { formatLength } from '../style/Length.js';
+import { formatLength, fromCm, toCm, type Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 
 /** Nombre libre que elige quien crea el item (el índice del dominio lo sabe). */
 export type ItemNamer = (kind: string) => string;
+
+/** Rejilla por defecto del Tablix nuevo: 2 filas × 3 columnas (como RB). */
+const TABLIX_ROWS = 2;
+const TABLIX_COLUMNS = 3;
 
 export interface CreateReportItemOptions {
   /** Necesario al crear un Tablix: su celda nace con un Textbox con nombre. */
@@ -52,8 +56,11 @@ export function createReportItem(
 }
 
 /**
- * Tablix nuevo: rejilla 1×1 (una celda con un Textbox vacío) y las dos
- * jerarquías con un miembro hoja cada una — el mínimo que exige el XSD.
+ * Tablix nuevo: rejilla **2 filas × 3 columnas** (con 7,5 × 1,2 cm por defecto
+ * salen celdas de 2,5 × 0,6 cm). Cada celda nace con un Textbox vacío y cada
+ * hoja del body tiene su miembro en ambas jerarquías (el mínimo que exige el
+ * XSD, ya «con cuerpo» para trabajar como en Report Builder).
+ *
  * Los hijos van en el orden que emite BC (`TablixBody` primero y la geometría
  * después; el XSD lo admite como `choice`).
  */
@@ -65,32 +72,41 @@ function createTablix(
   const tablix = container.createElement('Tablix');
   tablix.setAttribute('Name', spec.name);
 
+  const columnWidths = distributeLength(spec.width, TABLIX_COLUMNS);
+  const rowHeights = distributeLength(spec.height, TABLIX_ROWS);
+
   const body = tablix.createElement('TablixBody');
   const columns = body.createElement('TablixColumns');
-  const column = columns.createElement('TablixColumn');
-  column.appendChild(column.createElement('Width', formatLength(spec.width)));
-  columns.appendChild(column);
+  for (const width of columnWidths) {
+    const column = columns.createElement('TablixColumn');
+    column.appendChild(column.createElement('Width', formatLength(width)));
+    columns.appendChild(column);
+  }
 
   const rows = body.createElement('TablixRows');
-  const row = rows.createElement('TablixRow');
-  row.appendChild(row.createElement('Height', formatLength(spec.height)));
-  const cells = row.createElement('TablixCells');
-  const cell = cells.createElement('TablixCell');
-  const contents = cell.createElement('CellContents');
-  const textbox = contents.createElement('Textbox');
-  textbox.setAttribute('Name', nameFor('textbox'));
-  appendTextboxContent(textbox, '');
-  contents.appendChild(textbox);
-  cell.appendChild(contents);
-  cells.appendChild(cell);
-  row.appendChild(cells);
-  rows.appendChild(row);
+  for (const height of rowHeights) {
+    const row = rows.createElement('TablixRow');
+    row.appendChild(row.createElement('Height', formatLength(height)));
+    const cells = row.createElement('TablixCells');
+    for (let column = 0; column < TABLIX_COLUMNS; column += 1) {
+      const cell = cells.createElement('TablixCell');
+      const contents = cell.createElement('CellContents');
+      const textbox = contents.createElement('Textbox');
+      textbox.setAttribute('Name', nameFor('textbox'));
+      appendTextboxContent(textbox, '');
+      contents.appendChild(textbox);
+      cell.appendChild(contents);
+      cells.appendChild(cell);
+    }
+    row.appendChild(cells);
+    rows.appendChild(row);
+  }
   body.appendChild(columns);
   body.appendChild(rows);
 
   tablix.appendChild(body);
-  tablix.appendChild(hierarchy(tablix, 'TablixColumnHierarchy'));
-  tablix.appendChild(hierarchy(tablix, 'TablixRowHierarchy'));
+  tablix.appendChild(hierarchy(tablix, 'TablixColumnHierarchy', TABLIX_COLUMNS));
+  tablix.appendChild(hierarchy(tablix, 'TablixRowHierarchy', TABLIX_ROWS));
 
   tablix.appendChild(tablix.createElement('Top', formatLength(spec.top)));
   tablix.appendChild(tablix.createElement('Left', formatLength(spec.left)));
@@ -101,13 +117,32 @@ function createTablix(
   return tablix;
 }
 
-/** Jerarquía (de fila o columna) con un único miembro hoja. */
-function hierarchy(tablix: RdlcNode, tagName: string): RdlcNode {
+/** Jerarquía (de fila o columna) con `count` miembros hoja. */
+function hierarchy(tablix: RdlcNode, tagName: string, count: number): RdlcNode {
   const hierarchy = tablix.createElement(tagName);
   const members = hierarchy.createElement('TablixMembers');
-  members.appendChild(members.createElement('TablixMember'));
+  for (let index = 0; index < count; index += 1) {
+    members.appendChild(members.createElement('TablixMember'));
+  }
   hierarchy.appendChild(members);
   return hierarchy;
+}
+
+/**
+ * Reparte un ancho/alto total entre `count` celdas (el resto va a la última
+ * para que la suma sea exacta; con 7,5/3 y 1,2/2 salen 2,5 y 0,6 cm).
+ */
+function distributeLength(total: Length, count: number): Length[] {
+  const totalCm = toCm(total);
+  const each = totalCm / count;
+  const result: Length[] = [];
+  let used = 0;
+  for (let index = 0; index < count; index += 1) {
+    const value = index === count - 1 ? totalCm - used : each;
+    used += value;
+    result.push(fromCm(value));
+  }
+  return result;
 }
 
 /** `Paragraphs > Paragraph > TextRuns > TextRun > Value` (+ `CanGrow`). */

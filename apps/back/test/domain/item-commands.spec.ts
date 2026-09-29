@@ -171,7 +171,7 @@ describe('F1 · insertItem', () => {
 });
 
 describe('F2 · insertItem tablix', () => {
-  it('crea la rejilla 1×1 con textbox, ambas jerarquías y undo byte-exacto', () => {
+  it('crea la rejilla 2×3 (celdas con textbox), ambas jerarquías y undo byte-exacto', () => {
     const { xml, doc, index } = open('PalletOutput.rdlc');
 
     const applied = applyCommand(
@@ -184,8 +184,9 @@ describe('F2 · insertItem tablix', () => {
           kind: 'tablix',
           top: { value: 1, unit: 'cm' },
           left: { value: 2, unit: 'cm' },
-          width: { value: 8, unit: 'cm' },
-          height: { value: 2.5, unit: 'cm' },
+          // Total: 7,5 × 1,2 cm → celdas de 2,5 × 0,6 cm.
+          width: { value: 7.5, unit: 'cm' },
+          height: { value: 1.2, unit: 'cm' },
         },
       },
     );
@@ -197,27 +198,45 @@ describe('F2 · insertItem tablix', () => {
     if (!id) return;
 
     const output = adapter.serialize(doc);
-    const inserted = output.slice(output.indexOf(`Name="${id}"`));
+    const start = output.indexOf(`Name="${id}"`);
+    const inserted = output.slice(start, output.indexOf('</Tablix>', start));
     expect(inserted).toContain('<TablixBody>');
     expect(inserted).toContain('<TablixColumnHierarchy>');
     expect(inserted).toContain('<TablixRowHierarchy>');
-    expect(inserted).toContain('<Width>8cm</Width>');
+    // 3 columnas de 2,5 cm y 2 filas de 0,6 cm.
+    expect((inserted.match(/<Width>2\.5cm<\/Width>/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect((inserted.match(/<Height>0\.6cm<\/Height>/g) ?? []).length).toBeGreaterThanOrEqual(2);
 
-    // La celda nace con un Textbox con nombre propio (libre y distinto).
     const rebuilt = DocumentIndex.build(doc.root);
     const tablix = rebuilt.get(id);
-    const cellTextbox = tablix
-      ?.child('TablixBody')
-      ?.child('TablixRows')
-      ?.child('TablixRow')
-      ?.child('TablixCells')
-      ?.child('TablixCell')
-      ?.child('CellContents')
-      ?.child('Textbox');
-    const textboxName = cellTextbox?.attribute('Name');
-    expect(textboxName).toMatch(/^Textbox\d+$/);
-    expect(textboxName).not.toBe(id);
-    expect(rebuilt.get(textboxName!)).toBeDefined();
+    const rows = tablix?.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? [];
+    expect(rows).toHaveLength(2);
+    const firstRowCells = rows[0]?.child('TablixCells')?.children('TablixCell') ?? [];
+    expect(firstRowCells).toHaveLength(3);
+
+    // Las 6 celdas nacen con un Textbox con nombre propio y libre.
+    const textboxNames = rows.flatMap(
+      (row) =>
+        row
+          .child('TablixCells')
+          ?.children('TablixCell')
+          .map((cell) => cell.child('CellContents')?.child('Textbox')?.attribute('Name') ?? '') ??
+        [],
+    );
+    expect(textboxNames).toHaveLength(6);
+    expect(new Set(textboxNames).size).toBe(6);
+    for (const name of textboxNames) {
+      expect(name).toMatch(/^Textbox\d+$/);
+      expect(rebuilt.get(name)).toBeDefined();
+    }
+
+    // Jerarquías a juego: 3 columnas y 2 filas.
+    expect(
+      tablix?.child('TablixColumnHierarchy')?.child('TablixMembers')?.children('TablixMember'),
+    ).toHaveLength(3);
+    expect(
+      tablix?.child('TablixRowHierarchy')?.child('TablixMembers')?.children('TablixMember'),
+    ).toHaveLength(2);
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);

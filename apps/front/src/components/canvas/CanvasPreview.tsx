@@ -11,7 +11,14 @@ import { Stage } from 'react-konva';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
-import { cm, findItemInList, findItemScope, isCellContent, toCm } from '@/lib/projection';
+import {
+  cm,
+  findItemInList,
+  findItemScope,
+  isCellContent,
+  scopeInsideItem,
+  toCm,
+} from '@/lib/projection';
 import type { BoxCm } from '@/lib/resize';
 import type { SelectedCell } from '@/lib/tablix';
 import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
@@ -164,13 +171,21 @@ export function CanvasPreview({
    * Fin de un drag: si el puntero soltó sobre **otro contenedor**, el item se
    * reparenta (`moveItem`) conservando el punto que se agarró; si no, se mueve
    * dentro de su contenedor como siempre.
+   *
+   * Soltar **dentro del propio item** (un rectángulo sobre sí mismo al moverlo
+   * un poco) no reparenta jamás: sería un ciclo y solo debe moverse.
    */
   const handleMoveEnd = (id: string, top: Length, left: Length, drop?: DropInfo): void => {
     const stage = stageRef.current;
     if (drop && stage && onMoveItemToScope) {
       const hit = hitAtEvent(stage, zoom, layout, drop);
       const current = findItemScope(projection, id);
-      if (hit && current && !sameScope(current, hit.scope)) {
+      if (
+        hit &&
+        current &&
+        !sameScope(current, hit.scope) &&
+        !scopeInsideItem(projection, hit.scope, id)
+      ) {
         onMoveItemToScope(
           id,
           hit.scope,

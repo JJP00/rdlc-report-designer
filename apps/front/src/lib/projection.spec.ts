@@ -1,6 +1,15 @@
 import type { ProjectionDto, RectangleDto, TablixDto, TextboxDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
-import { cm, countItems, findItem, findItemScope, patchItem, toCm } from './projection';
+import {
+  cm,
+  countItems,
+  findItem,
+  findItemScope,
+  findSiblings,
+  patchItem,
+  scopeInsideItem,
+  toCm,
+} from './projection';
 
 /** Proyección mínima: textbox top-level + rectángulo anidado + tablix con celda. */
 
@@ -120,6 +129,49 @@ describe('lib/projection', () => {
       col: 0,
     });
     expect(findItemScope(projection, 'NoExiste')).toBeUndefined();
+  });
+
+  it('encuentra hermanos también dentro de celdas de Tablix (orden de items)', () => {
+    const projection = makeProjection();
+    // Contenido único de una celda: no hay orden que cambiar.
+    expect(findSiblings(projection, 'TextboxInCell')).toHaveLength(1);
+
+    // Un rectángulo dentro de la celda con dos hijos sí tiene hermanos.
+    const withRectangle = structuredClone(projection);
+    const tablix = findItem(withRectangle, 'Tablix1');
+    if (tablix?.kind === 'tablix') {
+      tablix.body.rows[0]!.cells[0] = {
+        content: {
+          kind: 'rectangle',
+          id: 'RectInCell',
+          top: { value: 0, unit: 'cm' },
+          left: { value: 0, unit: 'cm' },
+          width: { value: 2, unit: 'cm' },
+          height: { value: 1, unit: 'cm' },
+          children: [textbox('A1'), textbox('A2')],
+        },
+      };
+    }
+    expect(findSiblings(withRectangle, 'A1')?.map((item) => item.id)).toEqual(['A1', 'A2']);
+  });
+
+  it('detecta scopes dentro del propio item (nada de reparentar en ciclo)', () => {
+    const projection = makeProjection();
+    expect(scopeInsideItem(projection, { kind: 'rectangle', id: 'Rectangle1' }, 'Rectangle1')).toBe(
+      true,
+    );
+    expect(scopeInsideItem(projection, { kind: 'body' }, 'Rectangle1')).toBe(false);
+    expect(
+      scopeInsideItem(projection, { kind: 'tablixCell', id: 'Tablix1', row: 0, col: 0 }, 'Tablix1'),
+    ).toBe(true);
+    // Un scope ajeno al item no bloquea el reparentado.
+    expect(
+      scopeInsideItem(
+        projection,
+        { kind: 'tablixCell', id: 'Tablix1', row: 0, col: 0 },
+        'Rectangle1',
+      ),
+    ).toBe(false);
   });
 
   it('convierte longitudes a cm', () => {

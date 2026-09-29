@@ -49,6 +49,17 @@ export function findSiblings(projection: ProjectionDto, id: string): ItemDto[] |
         const found = search(item.children);
         if (found) return found;
       }
+      // Las celdas de Tablix también contienen items (uno por celda): un
+      // rectángulo dentro de una celda sí tiene hermanos que ordenar.
+      if (item.kind === 'tablix') {
+        for (const row of item.body.rows) {
+          for (const cell of row.cells) {
+            if (!cell?.content) continue;
+            const found = search([cell.content]);
+            if (found) return found;
+          }
+        }
+      }
     }
     return undefined;
   };
@@ -58,6 +69,28 @@ export function findSiblings(projection: ProjectionDto, id: string): ItemDto[] |
     search(projection.page.body.items) ??
     search(projection.page.footer.items)
   );
+}
+
+/**
+ * true si el scope es el propio item o un contenedor **dentro** de él: soltar
+ * ahí no puede reparentar (sería un ciclo) y se trata como un movimiento
+ * normal — nada de errores por arrastrar un rectángulo «sobre sí mismo».
+ */
+export function scopeInsideItem(
+  projection: ProjectionDto,
+  scope: ScopeRef,
+  itemId: string,
+): boolean {
+  if (scope.kind === 'body' || scope.kind === 'pageHeader' || scope.kind === 'pageFooter') {
+    return false;
+  }
+
+  let current: string | undefined = scope.id;
+  while (current) {
+    if (current === itemId) return true;
+    current = findParentItemId(projection, current);
+  }
+  return false;
 }
 
 /**

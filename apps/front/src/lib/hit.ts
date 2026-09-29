@@ -89,7 +89,9 @@ export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRe
       }
 
       const cell = findCellAt(candidate, relX, relY);
-      if (!cell) continue;
+      // Fuera de la rejilla (borde, cabeceras sin slot): manda el **Tablix**,
+      // así el click derecho ofrece sus acciones (eliminar/duplicar…).
+      if (!cell) return { item: candidate, scope: fallback, index: items.length, point };
       const cellRef: CellRef = { id: candidate.id, row: cell.row, col: cell.col };
       const scope: ScopeRef = {
         kind: 'tablixCell',

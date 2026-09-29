@@ -92,10 +92,10 @@ describe('insertSpecAt', () => {
     expect(spec.height).toEqual({ value: 1, unit: 'cm' });
   });
 
-  it('el Tablix nace con su tamaño por defecto (8 × 2,5 cm)', () => {
+  it('el Tablix nace con su tamaño por defecto (7,5 × 1,2 cm → celdas 2,5 × 0,6)', () => {
     const spec = insertSpecAt('tablix', hit({ kind: 'body' }, { x: 2, y: 2 }), PROJECTION);
     expect(spec.kind).toBe('tablix');
-    expect(spec.width).toEqual({ value: 8, unit: 'cm' });
-    expect(spec.height).toEqual({ value: 2.5, unit: 'cm' });
+    expect(spec.width).toEqual({ value: 7.5, unit: 'cm' });
+    expect(spec.height).toEqual({ value: 1.2, unit: 'cm' });
   });
 });

@@ -322,6 +322,34 @@ describe('hitTestItems', () => {
     expect(hit.slot).toEqual({ width: 0.5, height: 0.6 });
   });
 
+  it('fuera de la rejilla (bandas sin slot) el hit devuelve el Tablix', () => {
+    const tablix: TablixDto = {
+      kind: 'tablix',
+      id: 'T9',
+      top: { value: 0, unit: 'cm' },
+      left: { value: 0, unit: 'cm' },
+      width: { value: 4, unit: 'cm' },
+      height: { value: 2.6, unit: 'cm' },
+      body: {
+        columns: [{ value: 4, unit: 'cm' }],
+        rows: [{ height: { value: 2, unit: 'cm' }, cells: [{ content: null }] }],
+      },
+      rowHierarchy: [],
+      columnHierarchy: [],
+      headers: {
+        offset: { top: { value: 0.6, unit: 'cm' }, left: { value: 0, unit: 'cm' } },
+        // Banda sin `members` (proyecciones antiguas): cae al Tablix.
+        columns: [{ size: { value: 0.6, unit: 'cm' }, cells: [null] }],
+        rows: [],
+        corner: [],
+      },
+    };
+
+    const hit = hitTestItems([tablix], { x: 2, y: 0.3 }, fallback);
+    expect(hit.item?.id).toBe('T9');
+    expect(hit.scope).toEqual(fallback);
+  });
+
   it('un item anidado gana en el hit aunque el rectángulo esté detrás', () => {
     const nested = box('Anidado', 0, 0, 5, 5);
     const rectangle: RectangleDto = {

@@ -83,9 +83,10 @@ export const newItemSpecSchema = z.discriminatedUnion('kind', [
     style: stylePatchSchema.optional(),
   }),
   /**
-   * Tablix nuevo (F2): nace con una rejilla 1×1 (una celda con un Textbox
-   * vacío) y las dos jerarquías con un miembro hoja cada una, como el mínimo
-   * válido del XSD. El usuario añade filas/columnas desde la estructura.
+   * Tablix nuevo (F2): nace con una rejilla **2 filas × 3 columnas** (cada
+   * celda con un Textbox vacío y ambas jerarquías a juego). El ancho/alto del
+   * spec es el **total** y se reparte entre las celdas (7,5 × 1,2 cm por
+   * defecto → celdas de 2,5 × 0,6 cm).
    */
   z.object({
     kind: z.literal('tablix'),

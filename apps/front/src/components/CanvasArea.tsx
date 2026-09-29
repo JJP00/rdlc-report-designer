@@ -144,11 +144,14 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
   } = props;
 
   const cellScope = cellScopeForMenu(menuHit, selectedCell);
+  // El item del menú: lo que hay bajo el cursor o, si el click cayó en vacío,
+  // lo que está **seleccionado** (así «Eliminar» funciona con un Tablix
+  // seleccionado por su borde aunque el click derecho caiga dentro de una celda).
+  const menuItem =
+    menuHit?.item ?? (selectedId && projection ? findItem(projection, selectedId) : undefined);
   // El orden de apilado solo existe entre hermanos del mismo contenedor.
   const canReorder =
-    projection && menuHit?.item
-      ? (findSiblings(projection, menuHit.item.id)?.length ?? 0) > 1
-      : false;
+    projection && menuItem ? (findSiblings(projection, menuItem.id)?.length ?? 0) > 1 : false;
   // Una cabecera/esquina ocupada no admite más items (como en RB): sin insertar.
   // Ojo: el hit de un hueco vacío puede devolver el rectángulo contenedor como
   // `item`; lo que manda es el **contenido del hueco** en la proyección.
@@ -187,7 +190,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
       </ContextMenuTrigger>
 
       <ContextMenuContent className="w-60">
-        <ContextMenuLabel>{menuLabel(menuHit, cellScope)}</ContextMenuLabel>
+        <ContextMenuLabel>{menuLabel(menuHit, menuItem, cellScope)}</ContextMenuLabel>
         <ContextMenuSeparator />
 
         {cellScope ? (
@@ -210,7 +213,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
         ) : null}
 
         <ItemActionsMenu
-          item={menuHit?.item}
+          item={menuItem}
           hasClipboard={hasClipboard && !headerOccupied}
           onCut={onCut}
           onCopy={onCopy}
@@ -253,9 +256,10 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
 
 function menuLabel(
   menuHit: CanvasHit | null,
+  menuItem: ItemDto | undefined,
   cellScope: { id: string; row: number; col: number } | null,
 ): ReactNode {
-  if (menuHit?.item) return menuHit.item.id;
+  if (menuItem) return menuItem.id;
   if (cellScope) {
     return `${cellScope.id} · fila ${cellScope.row + 1} · columna ${cellScope.col + 1}`;
   }

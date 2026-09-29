@@ -390,6 +390,16 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
   return undefined;
 }
 
+/** Posición proyectada de un item en cm. */
+async function itemLocation(id: string): Promise<{ top: number; left: number } | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found?.top && found.left) return { top: found.top.value, left: found.left.value };
+  }
+  return undefined;
+}
+
 /** Padding proyectado de un lado del item (`style.padding.<side>`). */
 async function itemPadding(
   id: string,
@@ -516,7 +526,7 @@ test('abre el informe y pinta el lienzo', async () => {
   await expect(page.getByText(/\d+ elementos ·/)).toBeVisible();
 });
 
-test('inserta un Tablix nuevo desde la toolbar (1×1 con celda) y el undo lo quita', async () => {
+test('inserta un Tablix nuevo desde la toolbar (2×3 con celdas) y el undo lo quita', async () => {
   const before = await projection();
   const idsBefore = new Set(before.page.body.items.map((item) => item.id));
 
@@ -528,13 +538,17 @@ test('inserta un Tablix nuevo desde la toolbar (1×1 con celda) y el undo lo qui
 
   const created = (await projection()).page.body.items.find((item) => !idsBefore.has(item.id));
   expect(created?.kind).toBe('tablix');
-  expect(created?.body?.columns).toHaveLength(1);
-  expect(created?.body?.rows).toHaveLength(1);
-  expect(created?.body?.rows[0]?.cells).toHaveLength(1);
-  expect(created?.rowHierarchy).toHaveLength(1);
-  expect(created?.columnHierarchy).toHaveLength(1);
-  // La celda nace con un textbox dentro (seleccionable, no muerta).
-  expect(created?.body?.rows[0]?.cells[0]?.content?.kind).toBe('textbox');
+  // 3 columnas de 2,5 cm y 2 filas de 0,6 cm.
+  expect(created?.body?.columns.map((column) => column.value)).toEqual([2.5, 2.5, 2.5]);
+  expect(created?.body?.rows.map((row) => row.height.value)).toEqual([0.6, 0.6]);
+  expect(created?.body?.rows[0]?.cells).toHaveLength(3);
+  expect(created?.body?.rows[1]?.cells).toHaveLength(3);
+  expect(created?.rowHierarchy).toHaveLength(2);
+  expect(created?.columnHierarchy).toHaveLength(3);
+  // Las 6 celdas nacen con un textbox dentro (seleccionables, no muertas).
+  for (const row of created?.body?.rows ?? []) {
+    for (const cell of row.cells) expect(cell?.content?.kind).toBe('textbox');
+  }
 
   await page.keyboard.press('Control+z');
   await expect
@@ -1881,6 +1895,49 @@ test('una cabecera vacía recibe un item insertado (y el undo lo quita)', async 
   // Un solo undo quita el item insertado (el borrado previo es otro paso).
   await page.keyboard.press('Control+z');
   await expect.poll(() => headerCellId('Tablix7', 'column', 0)).toBeUndefined();
+});
+
+test('mover un rectángulo un poco no intenta reparentarlo (sin error)', async () => {
+  // Rectangle2 (encabezado, vacío): arrastrarlo unos píxeles deja el puntero
+  // dentro de él; antes se intentaba reparentar en sí mismo y daba error.
+  await selectItemViaPalette('Rectangle2');
+  const before = await itemLocation('Rectangle2');
+  const from = await nodeCenter('Rectangle2');
+  expect(from).not.toBeNull();
+
+  await page.mouse.move(from!.x, from!.y);
+  await page.mouse.down();
+  await page.mouse.move(from!.x + 14, from!.y + 10, { steps: 6 });
+  await page.mouse.up();
+
+  await expect(page.getByRole('contentinfo')).toContainText('setLocation');
+  await expect(page.getByText(/dentro de sí mismo/)).toHaveCount(0);
+  await expect.poll(() => itemLocation('Rectangle2')).not.toEqual(before);
+});
+
+test('un Tablix seleccionado se elimina desde el menú contextual', async () => {
+  await selectItemViaPalette('Tablix3');
+  await expect.poll(() => tablixRowCount('Tablix3')).toBeGreaterThan(0);
+
+  // Click derecho en vacío (regla): el menú muestra las acciones de la selección.
+  const stageBox = await page.locator('canvas').first().boundingBox();
+  await page.mouse.click(stageBox!.x - 8, stageBox!.y - 8, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Eliminar' }).click();
+
+  await expect
+    .poll(async () => {
+      const proj = await projection();
+      return Boolean(findItem(proj.page.body.items, 'Tablix3'));
+    })
+    .toBe(false);
+
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => {
+      const proj = await projection();
+      return Boolean(findItem(proj.page.body.items, 'Tablix3'));
+    })
+    .toBe(true);
 });
 
 test('arrastrar un textbox a otro contenedor lo reparenta (con undo)', async () => {

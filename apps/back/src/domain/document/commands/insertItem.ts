@@ -70,11 +70,18 @@ export function applyInsertItem(
     regionBounds,
   );
 
+  // Los items anidados que la factory cree (los Textbox de las celdas de un
+  // Tablix) reservan su nombre en este mismo comando para no repetirlo.
+  const taken = new Set<string>();
   const node = createReportItem(
     container,
     { ...command.item, name, ...position },
     {
-      nameFor: (kind) => nextItemName(ctx, kind),
+      nameFor: (kind) => {
+        const nested = nextItemName(ctx, kind, taken);
+        taken.add(nested);
+        return nested;
+      },
     },
   );
   container.insertChildAt(node, command.index);
