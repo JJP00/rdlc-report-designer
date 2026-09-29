@@ -53,7 +53,7 @@ export interface CanvasAreaProps {
   onSelectCell: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   onContextMenuHit: (hit: CanvasHit) => void;
   onZoomChange: (zoom: number) => void;
-  onMoveItem: (id: string, top: Length, left: Length) => void;
+  onMoveTo: (id: string, top: Length, left: Length) => void;
   /** Tiradores de la selección: mover + redimensionar en un comando. */
   onResizeItem: (
     id: string,
@@ -106,7 +106,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onSelectCell,
     onContextMenuHit,
     onZoomChange,
-    onMoveItem,
+    onMoveTo,
     onResizeItem,
     onResizeColumn,
     onResizeRow,
@@ -156,7 +156,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
               selectedCell={selectedCell}
               onSelect={onSelect}
               onSelectCell={onSelectCell}
-              onMoveItem={onMoveItem}
+              onMoveTo={onMoveTo}
               onZoomChange={onZoomChange}
               onContextMenuHit={onContextMenuHit}
               onDropItem={onInsertAt}

@@ -38,7 +38,7 @@ interface NodeGroupProps {
   opacity?: number;
   draggable?: boolean;
   onSelect?: (id: string | null) => void;
-  onMoveItem?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length) => void;
   /** Límites del contenedor (px) y tamaño del item para no salir de él. */
   bounds?: { width: number; height: number };
   itemSize?: { width: number; height: number };
@@ -64,7 +64,7 @@ function NodeGroup({
   opacity,
   draggable,
   onSelect,
-  onMoveItem,
+  onMoveTo,
   bounds,
   itemSize,
   shiftCell,
@@ -170,7 +170,7 @@ function NodeGroup({
         });
 
         node.position({ x: left * PX_PER_CM, y: top * PX_PER_CM });
-        onMoveItem?.(itemId, { value: top, unit: 'cm' }, { value: left, unit: 'cm' });
+        onMoveTo?.(itemId, { value: top, unit: 'cm' }, { value: left, unit: 'cm' });
       }}
     >
       {children}
@@ -183,7 +183,7 @@ interface ItemViewProps {
   selected?: boolean;
   draggable?: boolean;
   onSelect?: (id: string | null) => void;
-  onMoveItem?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length) => void;
   /** Redimensionar una columna/fila de la rejilla de un Tablix. */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
@@ -200,7 +200,7 @@ export function ItemView({
   selected,
   draggable,
   onSelect,
-  onMoveItem,
+  onMoveTo,
   onResizeColumn,
   onResizeRow,
   selectedCell,
@@ -227,7 +227,7 @@ export function ItemView({
       opacity={itemOpacity(item.hidden)}
       draggable={draggable}
       onSelect={onSelect}
-      onMoveItem={onMoveItem}
+      onMoveTo={onMoveTo}
       bounds={draggable ? bounds : undefined}
       itemSize={{ width, height }}
       shiftCell={cellOwner ?? null}
@@ -240,7 +240,7 @@ export function ItemView({
         height,
         selected,
         onSelect,
-        onMoveItem,
+        onMoveTo,
         onResizeColumn,
         onResizeRow,
         selectedCell,
@@ -258,7 +258,7 @@ function renderContent(
   height: number,
   selected?: boolean,
   onSelect?: (id: string | null) => void,
-  onMoveItem?: (id: string, top: Length, left: Length) => void,
+  onMoveTo?: (id: string, top: Length, left: Length) => void,
   onResizeColumn?: (id: string, column: number, width: Length) => void,
   onResizeRow?: (id: string, row: number, height: Length) => void,
   selectedCell?: SelectedCell | null,
@@ -272,7 +272,7 @@ function renderContent(
         <RectangleContent
           item={item}
           onSelect={onSelect}
-          onMoveItem={onMoveItem}
+          onMoveTo={onMoveTo}
           onResizeColumn={onResizeColumn}
           onResizeRow={onResizeRow}
           selectedCell={selectedCell}
@@ -291,7 +291,7 @@ function renderContent(
           item={item}
           selected={selected}
           onSelect={onSelect}
-          onMoveItem={onMoveItem}
+          onMoveTo={onMoveTo}
           onResizeColumn={onResizeColumn}
           onResizeRow={onResizeRow}
           selectedCell={selectedCell}
@@ -371,7 +371,7 @@ function RectangleContent({
   width,
   height,
   onSelect,
-  onMoveItem,
+  onMoveTo,
   onResizeColumn,
   onResizeRow,
   selectedCell,
@@ -381,7 +381,7 @@ function RectangleContent({
   width: number;
   height: number;
   onSelect?: (id: string | null) => void;
-  onMoveItem?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length) => void;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
   selectedCell?: SelectedCell | null;
@@ -403,12 +403,12 @@ function RectangleContent({
           key={child.id}
           item={child}
           onSelect={onSelect}
-          onMoveItem={onMoveItem}
+          onMoveTo={onMoveTo}
           onResizeColumn={onResizeColumn}
           onResizeRow={onResizeRow}
           selectedCell={selectedCell}
           onSelectCell={onSelectCell}
-          draggable={onMoveItem !== undefined}
+          draggable={onMoveTo !== undefined}
           /* Sin bounds: el contenedor no es un límite duro en RDL. */
         />
       ))}
@@ -521,7 +521,7 @@ function TablixContent({
   item,
   selected,
   onSelect,
-  onMoveItem,
+  onMoveTo,
   onResizeColumn,
   onResizeRow,
   selectedCell,
@@ -530,7 +530,7 @@ function TablixContent({
   item: TablixDto;
   selected?: boolean;
   onSelect?: (id: string | null) => void;
-  onMoveItem?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length) => void;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
   selectedCell?: SelectedCell | null;
@@ -579,7 +579,7 @@ function TablixContent({
             <ItemView
               item={cell.content}
               onSelect={onSelect}
-              onMoveItem={onMoveItem}
+              onMoveTo={onMoveTo}
               onResizeColumn={onResizeColumn}
               onResizeRow={onResizeRow}
               selectedCell={selectedCell}

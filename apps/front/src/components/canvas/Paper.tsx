@@ -11,7 +11,7 @@ export interface PaperProps {
   layout: PaperLayout;
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
-  onMoveItem?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length) => void;
   /** Redimensionar una columna/fila de la rejilla de un Tablix. */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
@@ -26,7 +26,7 @@ export function Paper({
   layout,
   selectedId,
   onSelect,
-  onMoveItem,
+  onMoveTo,
   onResizeColumn,
   onResizeRow,
   selectedCell,
@@ -81,7 +81,7 @@ export function Paper({
                 selected={selectedId === item.id}
                 draggable={draggable}
                 onSelect={onSelect}
-                onMoveItem={onMoveItem}
+                onMoveTo={onMoveTo}
                 onResizeColumn={onResizeColumn}
                 onResizeRow={onResizeRow}
                 selectedCell={selectedCell}

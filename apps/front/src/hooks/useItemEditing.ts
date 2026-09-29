@@ -71,7 +71,7 @@ export interface ItemEditing {
   /** Vacía la ráfaga de flechas pendiente (antes de borrar/undo, p. ej.). */
   flushNudge: () => void;
   nudge: (dxCm: number, dyCm: number) => void;
-  moveItem: (id: string, top: Length, left: Length) => void;
+  moveTo: (id: string, top: Length, left: Length) => void;
   setItemLocation: (top: Length, left: Length) => void;
   setItemSize: (width: Length, height: Length) => void;
   /** Mueve y redimensiona a la vez (tiradores): un paso de undo. */
@@ -370,7 +370,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
 
   /* --------------------------- geometría y estilo ------------------------- */
 
-  const moveItem = useCallback(
+  const moveTo = useCallback(
     (id: string, top: Length, left: Length): void => {
       // Cualquier camino (drag, panel, atajos) respeta el anclaje de la celda.
       if (doc && isCellContent(doc.projection, id)) {
@@ -389,9 +389,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   const setItemLocation = useCallback(
     (top: Length, left: Length): void => {
       if (!selectedItem) return;
-      moveItem(selectedItem.id, top, left);
+      moveTo(selectedItem.id, top, left);
     },
-    [moveItem, selectedItem],
+    [moveTo, selectedItem],
   );
 
   const setItemSize = useCallback(
@@ -938,7 +938,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     reveal,
     flushNudge: () => flushRef.current(),
     nudge,
-    moveItem,
+    moveTo,
     setItemLocation,
     setItemSize,
     resizeItem,

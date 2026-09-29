@@ -34,7 +34,7 @@ export interface CanvasPreviewProps {
   selectedId?: string | null;
   onSelect?: (id: string | null) => void;
   /** Se llama al soltar un drag con la posición ya normalizada (cm). */
-  onMoveItem?: (id: string, top: Length, left: Length) => void;
+  onMoveTo?: (id: string, top: Length, left: Length) => void;
   /** Se llama al soltar un tirador con la caja normalizada (cm). */
   onResizeItem?: (
     id: string,
@@ -67,7 +67,7 @@ export function CanvasPreview({
   zoom,
   selectedId,
   onSelect,
-  onMoveItem,
+  onMoveTo,
   onResizeItem,
   onResizeColumn,
   onResizeRow,
@@ -232,12 +232,12 @@ export function CanvasPreview({
               layout={layout}
               selectedId={selectedId}
               onSelect={onSelect}
-              onMoveItem={onMoveItem}
+              onMoveTo={onMoveTo}
               onResizeColumn={onResizeColumn}
               onResizeRow={onResizeRow}
               selectedCell={selectedCell}
               onSelectCell={onSelectCell}
-              draggable={onMoveItem !== undefined}
+              draggable={onMoveTo !== undefined}
             />
 
             <SelectionFrame {...frameProps} />
