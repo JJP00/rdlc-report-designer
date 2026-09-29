@@ -8,6 +8,7 @@ import { toCm, cm } from '@/lib/projection';
 import { useState, type ReactNode } from 'react';
 import { BackgroundField } from './BackgroundField';
 import { BorderField } from './BorderField';
+import { PaddingSection } from './PaddingSection';
 import { VisibilityField } from './VisibilityField';
 
 /** Kinds cuyo borde se pinta en el lienzo (donde la UI no engaña). */
@@ -147,6 +148,7 @@ export function PropertiesPanel({
       <Separator />
       <div className="text-xs font-medium text-muted-foreground">Apariencia</div>
       <BackgroundField item={item} onSetStyle={onSetStyle} />
+      <PaddingSection padding={item.style?.padding} onSetStyle={onSetStyle} />
       {BORDER_KINDS.has(item.kind) ? (
         <BorderField border={item.style?.border} onSetStyle={onSetStyle} />
       ) : null}

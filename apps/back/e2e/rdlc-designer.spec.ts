@@ -102,6 +102,7 @@ interface ItemLike {
   style?: {
     backgroundColor?: string;
     border?: Record<string, { style?: string; color?: string }>;
+    padding?: Record<string, { value: number; unit: string }>;
   };
   paragraphs?: { runs: { value: string; label?: string }[] }[];
   canGrow?: boolean;
@@ -375,6 +376,19 @@ async function itemHidden(id: string): Promise<boolean | string | undefined> {
   for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
     const found = findItem(items, id);
     if (found) return found.hidden;
+  }
+  return undefined;
+}
+
+/** Padding proyectado de un lado del item (`style.padding.<side>`). */
+async function itemPadding(
+  id: string,
+  side: 'top' | 'left' | 'bottom' | 'right',
+): Promise<{ value: number; unit: string } | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found) return found.style?.padding?.[side];
   }
   return undefined;
 }
@@ -1807,6 +1821,21 @@ test('el panel edita los bordes por lado y el lienzo los pinta', async () => {
   await page.keyboard.press('Control+z');
   await expect.poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style).toBe('None');
   await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
+});
+
+test('el panel edita el padding por lado (con undo)', async () => {
+  // Textbox4 (encabezado) declara `PaddingTop 2pt` en el corpus.
+  await selectItemViaPalette('Textbox4');
+  const top = page.getByLabel('Padding superior');
+  await expect(top).toHaveValue('2');
+
+  await top.fill('5');
+  await top.press('Enter');
+  await expect.poll(() => itemPadding('Textbox4', 'top')).toEqual({ value: 5, unit: 'pt' });
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => itemPadding('Textbox4', 'top')).toEqual({ value: 2, unit: 'pt' });
 });
 
 test('el panel edita el salto de página de un rectángulo (con undo)', async () => {

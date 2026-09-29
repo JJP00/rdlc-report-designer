@@ -41,17 +41,11 @@ const SIZINGS = [
   { value: 'Clip', label: 'Recortar', help: 'La imagen se recorta al tamaño del item' },
 ] as const;
 
-const PADDING_SIDES = [
-  { key: 'left', label: 'Izquierdo' },
-  { key: 'right', label: 'Derecho' },
-  { key: 'top', label: 'Superior' },
-  { key: 'bottom', label: 'Inferior' },
-] as const;
-
 /**
  * Propiedades de una imagen, como los diálogos de Report Builder: origen y
- * campo/expresión, MIME (desplegable estándar), tamaño de visualización
- * (radios) y padding. El ToolTip no se ofrece (no se usa en BC).
+ * campo/expresión, MIME (desplegable estándar) y tamaño de visualización
+ * (radios). El padding vive en el panel de propiedades (G12) y el ToolTip no se
+ * ofrece (no se usa en BC).
  */
 export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelProps): ReactNode {
   return (
@@ -102,23 +96,6 @@ export function ImagePanel({ item, onSetImageOptions, onSetStyle }: ImagePanelPr
             </span>
           </label>
         ))}
-      </div>
-
-      {/* ------------------------------ padding ----------------------------- */}
-      <div className="flex flex-col gap-2">
-        <Label className="text-[11px] text-muted-foreground">Padding (pt)</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {PADDING_SIDES.map((side) => (
-            <PaddingField
-              key={side.key}
-              label={side.label}
-              value={paddingValue(item, side.key)}
-              onCommit={(valuePt) =>
-                onSetStyle({ padding: { [side.key]: { value: valuePt, unit: 'pt' } } })
-              }
-            />
-          ))}
-        </div>
       </div>
 
       <Separator />
@@ -274,48 +251,4 @@ function MimeSection({
 
 function stripExpression(text: string): string {
   return text.trimStart().startsWith('=') ? text.trimStart().slice(1).trim() : text;
-}
-
-function paddingValue(item: ImageDto, side: string): number {
-  const length = (
-    item.style?.padding as Record<string, { value: number; unit: string }> | undefined
-  )?.[side];
-  if (!length) return 0;
-  return length.unit === 'pt' ? length.value : Math.round(length.value * 28.35 * 100) / 100;
-}
-
-function PaddingField({
-  label,
-  value,
-  onCommit,
-}: {
-  label: string;
-  value: number;
-  onCommit: (value: number) => void;
-}): ReactNode {
-  // Borrador mientras se teclea; el resto del tiempo manda la proyección.
-  const [draft, setDraft] = useState<string | null>(null);
-  const text = draft ?? String(value);
-
-  const commit = (): void => {
-    const parsed = Number.parseFloat(text.replace(',', '.'));
-    if (draft !== null && Number.isFinite(parsed) && parsed !== value) onCommit(parsed);
-    setDraft(null);
-  };
-
-  return (
-    <div className="grid gap-1">
-      <Label className="text-[10px] text-muted-foreground">{label}</Label>
-      <Input
-        className="h-7 text-xs tabular-nums"
-        value={text}
-        aria-label={label}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit();
-        }}
-      />
-    </div>
-  );
 }
