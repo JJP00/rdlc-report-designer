@@ -30,9 +30,15 @@ const BORDER_STYLES: { value: BorderStyle; label: string }[] = [
 interface BorderFieldProps {
   border: BorderSides | undefined;
   onSetStyle: (patch: StylePatch) => void;
+  /**
+   * Lados con valores distintos entre los items seleccionados (multiselección):
+   * se muestran como «—» y **se pueden editar igualmente** (la edición fija el
+   * valor para todos).
+   */
+  mixedSides?: ReadonlySet<keyof BorderSides>;
 }
 
-export function BorderField({ border, onSetStyle }: BorderFieldProps): ReactNode {
+export function BorderField({ border, onSetStyle, mixedSides }: BorderFieldProps): ReactNode {
   return (
     <div className="grid gap-1.5">
       <Label className="text-[11px] text-muted-foreground">Bordes</Label>
@@ -42,6 +48,7 @@ export function BorderField({ border, onSetStyle }: BorderFieldProps): ReactNode
           side={side.key}
           label={side.label}
           value={border?.[side.key]}
+          mixed={mixedSides?.has(side.key) ?? false}
           onSetStyle={onSetStyle}
         />
       ))}
@@ -53,36 +60,64 @@ function BorderSideRow({
   side,
   label,
   value,
+  mixed,
   onSetStyle,
 }: {
   side: keyof BorderSides;
   label: string;
   value: BorderSide | undefined;
+  mixed: boolean;
   onSetStyle: (patch: StylePatch) => void;
 }): ReactNode {
   const current: BorderSide = value ?? { style: 'None' };
-  const isNone = current.style === 'None';
+  // Con un lado mezclado no se bloquea nada: color y grosor también se editan
+  // (si el estilo representado es «Sin borde», editar color/grosor lo pone Sólido).
+  const isNone = current.style === 'None' && !mixed;
   const { color, change } = useDeferredColor(current.color, '#000000', (next) =>
-    onSetStyle({ border: { [side]: { ...current, color: next } } }),
+    onSetStyle({
+      border: {
+        [side]: {
+          ...current,
+          style: current.style === 'None' ? 'Solid' : current.style,
+          color: next,
+        },
+      },
+    }),
   );
 
   const widthPt = current.width ? Math.round(toPt(current.width) * 100) / 100 : 1;
   const commitWidth = (pt: number): void => {
-    onSetStyle({ border: { [side]: { ...current, width: { value: pt, unit: 'pt' } } } });
+    onSetStyle({
+      border: {
+        [side]: {
+          ...current,
+          style: current.style === 'None' ? 'Solid' : current.style,
+          width: { value: pt, unit: 'pt' },
+        },
+      },
+    });
   };
 
   return (
     <div className="flex items-center gap-1.5">
-      <span className="w-14 shrink-0 text-[11px] text-muted-foreground">{label}</span>
+      <span className="w-14 shrink-0 text-[11px] text-muted-foreground">
+        {label}
+        {mixed ? ' —' : ''}
+      </span>
       <select
         className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         aria-label={`Borde ${label.toLowerCase()}: estilo`}
-        value={current.style}
+        value={mixed ? '' : current.style}
         onChange={(event) => {
           const style = event.target.value as BorderStyle;
           onSetStyle({ border: { [side]: { ...current, style } } });
         }}
       >
+        {mixed ? (
+          <option value="" disabled>
+            —
+          </option>
+        ) : null}
         {BORDER_STYLES.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

@@ -2796,6 +2796,16 @@ test('el lote compara el estilo efectivo (Arial/Visible/8pt) sin declararlo en e
   await expect(page.getByLabel('Fuente de la selección')).toHaveValue('Arial');
   await expect(page.getByLabel('Tamaño de la selección (pt)', { exact: true })).toHaveValue('8.00');
   await expect(page.getByLabel('Visibilidad de la selección')).toHaveValue('visible');
+
+  // Borde izquierdo mezclado (93 Sólido, 95 Sin borde): se marca «—» y se edita.
+  const leftBorder = panel.getByLabel('Borde izquierdo: estilo');
+  await expect(leftBorder).toHaveValue('');
+  await leftBorder.selectOption('Solid');
+  await expect.poll(async () => (await itemBorderSide('Textbox93', 'left'))?.style).toBe('Solid');
+  await expect.poll(async () => (await itemBorderSide('Textbox95', 'left'))?.style).toBe('Solid');
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await itemBorderSide('Textbox95', 'left'))?.style).toBe('None');
 });
 
 test('multiselección: Ctrl+click, alinear en lote y un solo undo', async () => {

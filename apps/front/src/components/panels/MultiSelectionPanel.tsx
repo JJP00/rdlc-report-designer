@@ -1,4 +1,10 @@
-import type { BatchableCommand, ItemDto, StyleDto, StylePatch } from '@rdlc-designer/contracts';
+import type {
+  BatchableCommand,
+  BorderSides,
+  ItemDto,
+  StyleDto,
+  StylePatch,
+} from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import {
   AlignCenterHorizontal,
@@ -258,7 +264,7 @@ function TextSection({
   );
 }
 
-/** Bordes y padding con los mismos controles que el panel de un item. */
+/** Bordes (lados mezclados editables) y padding con los controles del panel de un item. */
 function BoxSection({
   items,
   onStyle,
@@ -266,9 +272,26 @@ function BoxSection({
   items: ItemDto[];
   onStyle: (patch: StylePatch) => void;
 }): ReactNode {
+  /** Lados que difieren entre los seleccionados: se marcan «—» y se dejan editar. */
+  const mixedSides = useMemo(() => {
+    const sides: (keyof BorderSides)[] = ['top', 'left', 'bottom', 'right'];
+    const mixed = new Set<keyof BorderSides>();
+    const sideOf = (item: ItemDto, side: keyof BorderSides): unknown =>
+      item.style?.border?.[side] ?? { style: 'None' };
+    for (const side of sides) {
+      const first = sideOf(items[0]!, side);
+      if (items.some((item) => !sameStyleValue(sideOf(item, side), first))) mixed.add(side);
+    }
+    return mixed;
+  }, [items]);
+
   return (
     <section className="flex flex-col gap-2">
-      <BorderField border={common(items, (item) => item.style?.border)} onSetStyle={onStyle} />
+      <BorderField
+        border={items[0]?.style?.border}
+        mixedSides={mixedSides}
+        onSetStyle={onStyle}
+      />
       <PaddingSection padding={common(items, (item) => item.style?.padding)} onSetStyle={onStyle} />
     </section>
   );
