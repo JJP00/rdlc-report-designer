@@ -1,5 +1,36 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-30 · pase UX U1–U5 (vida de fichero, conflicto, multiselección, jerarquía y z-order) + re-evaluación `intent`** —
+> en paralelo con la 4.ª parte (U6–U9), sobre el mismo árbol. **U1–U5 hechos**:
+>
+> - **U1 · Guardar como / Nuevo / recientes / drag&drop + guardas**: contrato y backend
+>   (`createNew` con **plantilla en blanco XSD-válida**, `saveAs`, `reload`, diálogo de
+>   guardado, **recientes** persistidos en `userData` podando los que ya no existen) y
+>   front (`useDocumentCore` con **intenciones pendientes** y diálogo propio
+>   «Guardar y abrir / Abrir sin guardar / Cancelar»; `useFileDrop`). La sesión anterior se
+>   **cierra al abrir otra** (sin fuga de watcher). **Ctrl+S / Ctrl+Shift+S / Ctrl+N / Ctrl+O**.
+>   El cierre de ventana (X/Alt+F4/quit) pasa por el **main** y decide el front; si el
+>   documento volvió a su estado en disco (`refreshDirty` al deshacer/rehacer) ya no pide guardar.
+> - **U2 · Conflicto completo**: diálogo **Recargar desde disco / Guardar y sobrescribir /
+>   Guardar como…** (+ «Resolver…» en el aviso), sin perder nada mientras se decide.
+> - **U3 · Multiselección + lote**: comando **`batch`** (contrato + dominio + tests
+>   byte-exactos y atómico si un hijo falla) y en el front **Ctrl/Shift+click**, marcos
+>   discontinuos, panel de lote (fuente/tamaño/N/I/S/color/fondo, **alinear**, **distribuir**,
+>   borrar) aplicado en **un solo paso de undo**. **Pendiente acordado**: marco de selección
+>   (arrastrar en vacío) y duplicar/copiar/cortar en lote (ver re-evaluación 0002).
+> - **U4 · Jerarquía/breadcrumb**: `lib/hierarchy.ts` (ruta de contenedores + árbol con
+>   celdas, con tests), barra de **breadcrumb** clicable sobre el lienzo y panel de
+>   **Jerarquía** conmutables desde la toolbar.
+> - **U5 · Z-order**: atajos **Ctrl+Shift+]** / **Ctrl+Shift+[** y pistas en el menú.
+> - **Cierre**: re-evaluación `intent` → `/evaluate` en `docs/ux/0002-evaluacion-ux.md`
+>   (**86/100**, sin P0/P1; P2 = lote incompleto, estados mixtos en el panel, iconos sin
+>   etiqueta y sin hoja de atajos). React Doctor **100/100** tras extraer
+>   `WorkspaceDialogs`/`CanvasColumn`/`LeftPanels` y los hooks `useFileDrop`/`useEditorKeys`/
+>   `usePaletteActions`. Estado: **283 back + 162 front**, `typecheck` limpio y **63 E2E** verdes.
+>
+> **Punto de retomada**: completar U3 (marco de selección + duplicar/copiar/cortar en lote)
+> y los P2/P3 de 0002 (estados mixtos, etiquetas de alinear, hoja de atajos, toolbar/estado).
+
 > **Sesión 2026-09-30 (4.ª parte) · pase UX U6–U9 (zoom, paleta, agrupar la fila, teclado/ARIA)** —
 > segunda sesión trabajando **en paralelo** sobre el mismo árbol (la otra cubre U1–U5:
 > guardar como/nuevo/recientes, conflicto, multiselección, jerarquía y z-order; documentará
