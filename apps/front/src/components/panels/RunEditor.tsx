@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import { useDeferredColor } from '@/hooks/useDeferredColor';
 import { isExpressionRun } from '@/lib/textEditor';
 import { toPt } from '@/lib/style';
@@ -157,19 +158,18 @@ export function RunEditor({
           onChange={(event) => onStyle({ fontFamily: event.target.value })}
         />
 
-        <Input
-          className="h-6 w-12 text-[11px] tabular-nums"
-          type="number"
+        <NumberInput
+          className="h-6 w-14 shrink-0"
+          value={style?.fontSize ? Math.round(toPt(style.fontSize) * 10) / 10 : null}
+          label={`Tamaño del run ${position}`}
+          title="Tamaño (pt): flechas o arrastre"
+          axis="x"
           min={4}
           max={72}
-          title="Tamaño (pt)"
-          aria-label={`Tamaño del run ${position}`}
-          value={style?.fontSize ? Math.round(toPt(style.fontSize) * 10) / 10 : ''}
+          step={1}
+          perPx={0.1}
           placeholder="pt"
-          onChange={(event) => {
-            const value = Number.parseFloat(event.target.value);
-            if (Number.isFinite(value) && value > 0) onStyle({ fontSize: { value, unit: 'pt' } });
-          }}
+          onCommit={(pt) => onStyle({ fontSize: { value: pt, unit: 'pt' } })}
         />
 
         <Button

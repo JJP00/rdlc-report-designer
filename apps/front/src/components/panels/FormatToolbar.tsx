@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import { Separator } from '@/components/ui/separator';
 import { useDeferredColor } from '@/hooks/useDeferredColor';
 import { useSystemFonts } from '@/hooks/useSystemFonts';
@@ -76,19 +76,18 @@ export function FormatToolbar({ style, onSetStyle, disabled }: FormatToolbarProp
           ))}
         </select>
 
-        <Input
-          className="h-7 w-14 text-xs tabular-nums"
-          type="number"
+        <NumberInput
+          className="h-7 w-14 shrink-0"
+          value={fontSizePt}
+          label="Tamaño de fuente (pt)"
+          title="Tamaño (pt): flechas o arrastre"
+          axis="x"
           min={4}
           max={72}
-          title="Tamaño (pt)"
-          value={fontSizePt}
-          onChange={(event) => {
-            const value = Number.parseFloat(event.target.value);
-            if (Number.isFinite(value) && value > 0) {
-              onSetStyle({ fontSize: { value, unit: 'pt' } });
-            }
-          }}
+          step={1}
+          perPx={0.1}
+          disabled={disabled}
+          onCommit={(pt) => onSetStyle({ fontSize: { value: pt, unit: 'pt' } })}
         />
 
         <Separator orientation="vertical" className="mx-0.5 h-5" />

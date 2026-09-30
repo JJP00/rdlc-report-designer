@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toCm } from '@/lib/projection';
@@ -169,8 +169,8 @@ function ReportPropertiesForm({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <NumberField label="Ancho (cm)" value={width} onChange={setWidth} />
-          <NumberField label="Alto (cm)" value={height} onChange={setHeight} />
+          <NumberField label="Ancho (cm)" value={width} onChange={setWidth} axis="x" />
+          <NumberField label="Alto (cm)" value={height} onChange={setHeight} axis="y" />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -179,21 +179,25 @@ function ReportPropertiesForm({
             <NumberField
               label="Superior"
               value={margins.top}
+              axis="y"
               onChange={(value) => setMargins((m) => ({ ...m, top: value }))}
             />
             <NumberField
               label="Inferior"
               value={margins.bottom}
+              axis="y"
               onChange={(value) => setMargins((m) => ({ ...m, bottom: value }))}
             />
             <NumberField
               label="Izquierdo"
               value={margins.left}
+              axis="x"
               onChange={(value) => setMargins((m) => ({ ...m, left: value }))}
             />
             <NumberField
               label="Derecho"
               value={margins.right}
+              axis="x"
               onChange={(value) => setMargins((m) => ({ ...m, right: value }))}
             />
           </div>
@@ -279,7 +283,7 @@ function RegionFields({
   return (
     <div className="flex flex-col gap-2 rounded-md border p-2">
       <span className="text-[11px] font-medium text-muted-foreground">{title}</span>
-      <NumberField label={`Alto del ${name} (cm)`} value={height} onChange={onHeight} />
+      <NumberField label={`Alto del ${name} (cm)`} value={height} onChange={onHeight} axis="y" />
       <CheckField
         id={`${idPrefix}-first`}
         label="Primera página"
@@ -329,24 +333,27 @@ function NumberField({
   label,
   value,
   onChange,
+  axis,
+  invert,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  /** Eje del arrastre del `NumberInput` estándar. */
+  axis?: 'x' | 'y';
+  invert?: boolean;
 }): ReactNode {
   return (
     <div className="grid gap-1">
       <Label className="text-[11px] text-muted-foreground">{label}</Label>
-      <Input
-        className="h-7 text-xs tabular-nums"
-        type="number"
-        step="0.1"
-        aria-label={label}
+      <NumberInput
+        className="h-7 flex-1 text-xs"
         value={value}
-        onChange={(event) => {
-          const parsed = Number.parseFloat(event.target.value);
-          if (Number.isFinite(parsed)) onChange(parsed);
-        }}
+        label={label}
+        axis={axis}
+        invert={invert}
+        min={0}
+        onCommit={onChange}
       />
     </div>
   );

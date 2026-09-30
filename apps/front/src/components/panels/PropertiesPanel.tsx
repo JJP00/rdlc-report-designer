@@ -3,6 +3,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { NumberInput } from '@/components/ui/number-input';
 import { Separator } from '@/components/ui/separator';
 import { toCm, cm } from '@/lib/projection';
 import { useState, type ReactNode } from 'react';
@@ -75,6 +76,8 @@ export function PropertiesPanel({
           label="X (Left)"
           value={toCm(item.left)}
           disabled={cellContent}
+          axis="x"
+          invert={false}
           onCommit={(value) => onSetLocation(item.top, cm(value))}
         />
         <LengthField
@@ -82,6 +85,8 @@ export function PropertiesPanel({
           label="Y (Top)"
           value={toCm(item.top)}
           disabled={cellContent}
+          axis="y"
+          invert={false}
           onCommit={(value) => onSetLocation(cm(value), item.left)}
         />
         <LengthField
@@ -89,6 +94,7 @@ export function PropertiesPanel({
           label="Ancho"
           value={toCm(item.width)}
           disabled={cellContent}
+          axis="x"
           onCommit={(value) => onSetSize(cm(value), item.height)}
         />
         <LengthField
@@ -96,6 +102,7 @@ export function PropertiesPanel({
           label="Alto"
           value={toCm(item.height)}
           disabled={cellContent}
+          axis="y"
           onCommit={(value) => onSetSize(item.width, cm(value))}
         />
       </div>
@@ -215,48 +222,39 @@ function NameField({
   );
 }
 
+/**
+ * Campo de geometría con el `NumberInput` estándar (teclear, flechas y
+ * arrastre). Mientras se escribe manda el borrador: el resto del tiempo pinta
+ * la proyección (arrastrar el item actualiza estos campos sin pisar lo tecleado).
+ */
 function LengthField({
   label,
   value,
   disabled,
+  axis,
+  invert,
   onCommit,
 }: {
   label: string;
   value: number;
   disabled?: boolean;
+  axis: 'x' | 'y';
+  invert?: boolean;
   onCommit: (valueCm: number) => void;
 }): ReactNode {
-  // Borrador mientras se teclea; el resto del tiempo manda la proyección
-  // (arrastrar el item actualiza estos campos sin pisar lo que se escribe).
-  const [draft, setDraft] = useState<string | null>(null);
-  const text = draft ?? format(value);
-
-  const commit = (): void => {
-    const parsed = Number.parseFloat(text.replace(',', '.'));
-    if (!disabled && draft !== null && Number.isFinite(parsed) && Math.abs(parsed - value) > 1e-9) {
-      onCommit(parsed);
-    }
-    setDraft(null);
-  };
-
   return (
     <div className="grid gap-1">
       <Label className="text-[11px] text-muted-foreground">{label}</Label>
-      <Input
-        className="h-7 text-xs tabular-nums"
-        value={text}
-        aria-label={label}
+      <NumberInput
+        value={value}
+        label={label}
         disabled={disabled}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit();
-        }}
+        axis={axis}
+        invert={invert}
+        min={0}
+        className="h-7 flex-1 text-xs"
+        onCommit={onCommit}
       />
     </div>
   );
-}
-
-function format(value: number): string {
-  return Number(value.toFixed(4)).toString();
 }

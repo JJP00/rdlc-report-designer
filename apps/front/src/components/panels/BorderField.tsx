@@ -1,6 +1,7 @@
 import type { BorderSide, BorderSides, BorderStyle, StylePatch } from '@rdlc-designer/contracts';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Label } from '@/components/ui/label';
+import { NumberInput } from '@/components/ui/number-input';
 import { useDeferredColor } from '@/hooks/useDeferredColor';
 import { toPt } from '@/lib/style';
 
@@ -64,16 +65,10 @@ function BorderSideRow({
   const { color, change } = useDeferredColor(current.color, '#000000', (next) =>
     onSetStyle({ border: { [side]: { ...current, color: next } } }),
   );
-  const [widthDraft, setWidthDraft] = useState<string | null>(null);
 
-  const widthPt = current.width ? formatPt(toPt(current.width)) : '1';
-  const commitWidth = (): void => {
-    if (widthDraft === null) return;
-    const parsed = Number.parseFloat(widthDraft.replace(',', '.'));
-    setWidthDraft(null);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      onSetStyle({ border: { [side]: { ...current, width: { value: parsed, unit: 'pt' } } } });
-    }
+  const widthPt = current.width ? Math.round(toPt(current.width) * 100) / 100 : 1;
+  const commitWidth = (pt: number): void => {
+    onSetStyle({ border: { [side]: { ...current, width: { value: pt, unit: 'pt' } } } });
   };
 
   return (
@@ -108,26 +103,19 @@ function BorderSideRow({
           onChange={(event) => change(event.target.value)}
         />
       </label>
-      <input
-        type="number"
-        className="h-7 w-12 shrink-0 rounded-md border border-input bg-background px-1 text-xs tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40"
-        aria-label={`Borde ${label.toLowerCase()}: grosor (pt)`}
-        title="Grosor en puntos"
+      <NumberInput
+        className="h-7 w-16 shrink-0"
+        value={widthPt}
+        label={`Borde ${label.toLowerCase()}: grosor (pt)`}
+        title="Grosor en puntos (flechas o arrastre)"
+        axis="x"
         min={0.25}
         step={0.25}
+        perPx={0.05}
+        suffix="pt"
         disabled={isNone}
-        value={widthDraft ?? widthPt}
-        onChange={(event) => setWidthDraft(event.target.value)}
-        onBlur={commitWidth}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commitWidth();
-          if (event.key === 'Escape') setWidthDraft(null);
-        }}
+        onCommit={commitWidth}
       />
     </div>
   );
-}
-
-function formatPt(value: number): string {
-  return Number(value.toFixed(2)).toString();
 }

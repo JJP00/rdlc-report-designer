@@ -1,4 +1,4 @@
-import type { TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
+import type { Length, TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
 import {
   Columns3,
   Layers,
@@ -14,7 +14,9 @@ import {
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { NumberInput } from '@/components/ui/number-input';
 import { toCm } from '@/lib/projection';
+import { MIN_SIZE_CM, resizeBoundaryTo } from '@/lib/resize';
 import {
   tablixColumnsTree,
   tablixRowsTree,
@@ -59,6 +61,10 @@ export interface TablixStructurePanelProps {
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
   /** Abre el diálogo de filtros del Tablix (`Filters > Filter`). */
   onOpenFilters: () => void;
+  /** Fija el alto de una fila de la rejilla (el contenido sigue a la celda). */
+  onResizeRow: (row: number, height: Length) => void;
+  /** Fija el ancho de una columna de la rejilla (el contenido sigue a la celda). */
+  onResizeColumn: (column: number, width: Length) => void;
 }
 
 export function TablixStructurePanel({
@@ -75,6 +81,8 @@ export function TablixStructurePanel({
   onAddRowGroup,
   onDeleteGroup,
   onOpenFilters,
+  onResizeRow,
+  onResizeColumn,
 }: TablixStructurePanelProps): ReactNode {
   const rows = tablixRowsTree(tablix);
   const columns = tablixColumnsTree(tablix);
@@ -133,11 +141,10 @@ export function TablixStructurePanel({
         deleteLabel={(index) => `Eliminar fila ${index + 1}`}
         selectLabel={(index) => `Seleccionar fila ${index + 1}`}
         addAtEndLabel="Añadir fila al final"
-        detail={(entry) =>
-          entry.index !== undefined
-            ? `${toCm(tablix.body.rows[entry.index]?.height ?? { value: 0, unit: 'cm' }).toFixed(2)} cm`
-            : undefined
+        sizeOf={(entry) =>
+          entry.index !== undefined ? tablix.body.rows[entry.index]?.height : undefined
         }
+        onResizeSize={onResizeRow}
       />
 
       <StructureSection
@@ -165,11 +172,10 @@ export function TablixStructurePanel({
         deleteLabel={(index) => `Eliminar columna ${index + 1}`}
         selectLabel={(index) => `Seleccionar columna ${index + 1}`}
         addAtEndLabel="Añadir columna al final"
-        detail={(entry) =>
-          entry.index !== undefined
-            ? `${toCm(tablix.body.columns[entry.index] ?? { value: 0, unit: 'cm' }).toFixed(2)} cm`
-            : undefined
+        sizeOf={(entry) =>
+          entry.index !== undefined ? tablix.body.columns[entry.index] : undefined
         }
+        onResizeSize={onResizeColumn}
       />
     </section>
   );
@@ -194,7 +200,9 @@ interface StructureSectionProps {
   deleteLabel: (index: number) => string;
   selectLabel: (index: number) => string;
   addAtEndLabel: string;
-  detail: (entry: TablixTreeEntry) => string | undefined;
+  /** Longitud declarada de la hoja (alto de fila / ancho de columna). */
+  sizeOf?: (entry: TablixTreeEntry) => Length | undefined;
+  onResizeSize: (index: number, next: Length) => void;
 }
 
 function StructureSection({
@@ -216,7 +224,8 @@ function StructureSection({
   deleteLabel,
   selectLabel,
   addAtEndLabel,
-  detail,
+  sizeOf,
+  onResizeSize,
 }: StructureSectionProps): ReactNode {
   return (
     <div className="px-2 pb-2 pt-1">
@@ -243,7 +252,7 @@ function StructureSection({
             selected={entry.index !== undefined && entry.index === selectedIndex}
             canDelete={rowCount > 1}
             total={rowCount}
-            detail={detail(entry)}
+            size={sizeOf?.(entry)}
             onSelect={onSelect}
             onDelete={onDelete}
             onSetHidden={onSetHidden}
@@ -251,6 +260,7 @@ function StructureSection({
             onAddRowToGroup={onAddRowToGroup}
             onAddRowGroup={onAddRowGroup}
             onDeleteGroup={onDeleteGroup}
+            onResizeSize={onResizeSize}
             deleteLabel={deleteLabel}
             selectLabel={selectLabel}
           />
@@ -281,7 +291,8 @@ interface StructureRowProps {
   canDelete: boolean;
   /** Total de hojas del eje (filas o columnas), para saber los bordes. */
   total: number;
-  detail?: string;
+  /** Longitud declarada de la hoja (alto de fila / ancho de columna). */
+  size?: Length;
   onSelect: (index: number) => void;
   onDelete: (index: number) => void;
   onSetHidden: (axis: 'row' | 'column', path: number[], hidden: boolean | string | null) => void;
@@ -290,6 +301,7 @@ interface StructureRowProps {
   onAddRowToGroup: (row: number, groupPath: number[]) => void;
   onAddRowGroup: (row: number, expression: string) => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
+  onResizeSize: (index: number, next: Length) => void;
   deleteLabel: (index: number) => string;
   selectLabel: (index: number) => string;
 }
@@ -426,7 +438,7 @@ function LeafRow({
   axis,
   selected,
   canDelete,
-  detail,
+  size,
   index,
   label,
   onSelect,
@@ -435,6 +447,7 @@ function LeafRow({
   onOpenProperties,
   onGroupRow,
   onDeleteGroup,
+  onResizeSize,
   deleteLabel,
   selectLabel,
 }: StructureRowProps & {
@@ -462,12 +475,18 @@ function LeafRow({
       >
         <LeafIdentity entry={entry} index={index} icon={icon} />
         {entry.total !== 'none' ? <TotalBadge total={entry.total} /> : null}
-        {detail ? (
-          <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">
-            {detail}
-          </span>
-        ) : null}
       </button>
+
+      {/* Tamaño de la hoja (cm): al aplicarlo el contenido de la celda la sigue. */}
+      {size ? (
+        <SizeEditor
+          value={size}
+          axis={axis}
+          label={`${axis === 'row' ? 'Alto' : 'Ancho'} de la ${label}`}
+          title={`${axis === 'row' ? 'Alto' : 'Ancho'} de la ${label} (cm). El contenido de la celda se ajusta a la celda.`}
+          onCommit={(cmValue) => onResizeSize(index, resizeBoundaryTo(size, cmValue))}
+        />
+      ) : null}
 
       <MemberVisibilityControl
         hidden={entry.hidden}
@@ -625,6 +644,41 @@ function AddGroupDialog({
       onClose={onClose}
       onApply={(value) => onApply(ensureExpression(value))}
     />
+  );
+}
+
+/**
+ * Editor del tamaño de una fila/columna (en cm): el `NumberInput` estándar
+ * (teclear, flechas ↑/↓ y arrastre con el cursor de redimensionado) aplicado
+ * con la misma matemática que el redimensionado en el lienzo (mínimo y unidad
+ * declarada). El contenido de la celda acompaña al tamaño.
+ */
+function SizeEditor({
+  value,
+  axis,
+  label,
+  title,
+  onCommit,
+}: {
+  value: Length;
+  axis: 'row' | 'column';
+  label: string;
+  title: string;
+  onCommit: (cmValue: number) => void;
+}): ReactNode {
+  return (
+    <div className="ml-auto flex shrink-0 items-center">
+      <NumberInput
+        value={toCm(value)}
+        label={label}
+        title={`${title} Arrastra, usa las flechas o teclea el valor.`}
+        axis={axis === 'row' ? 'y' : 'x'}
+        min={MIN_SIZE_CM}
+        suffix="cm"
+        className="h-6 w-14"
+        onCommit={onCommit}
+      />
+    </div>
   );
 }
 

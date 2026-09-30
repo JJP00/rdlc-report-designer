@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeResize, MIN_SIZE_CM, resizeBoundary, type BoxCm } from './resize';
+import { computeResize, MIN_SIZE_CM, resizeBoundary, resizeBoundaryTo, type BoxCm } from './resize';
 
 /** Redimensionado con tiradores: tamaño mínimo, imán y límites. */
 
@@ -117,5 +117,26 @@ describe('resizeBoundary', () => {
     // 10mm (1cm) + 0.37cm = 1.37cm → imán 1.4cm → 14mm
     expect(resizeBoundary({ value: 10, unit: 'mm' }, 0.37)).toEqual({ value: 14, unit: 'mm' });
     expect(resizeBoundary({ value: 20, unit: 'mm' }, 0.1, null)).toEqual({ value: 21, unit: 'mm' });
+  });
+});
+
+describe('resizeBoundaryTo', () => {
+  it('fija el valor absoluto manteniendo la unidad declarada', () => {
+    expect(resizeBoundaryTo({ value: 2, unit: 'cm' }, 5)).toEqual({ value: 5, unit: 'cm' });
+    expect(resizeBoundaryTo({ value: 20, unit: 'mm' }, 3)).toEqual({ value: 30, unit: 'mm' });
+    expect(resizeBoundaryTo({ value: 56.7, unit: 'pt' }, 2)).toEqual({
+      value: 56.6929,
+      unit: 'pt',
+    });
+  });
+
+  it('no baja del tamaño mínimo', () => {
+    expect(resizeBoundaryTo({ value: 2, unit: 'cm' }, 0.01).value).toBe(MIN_SIZE_CM);
+    // 0.05cm en mm → 0.5mm
+    expect(resizeBoundaryTo({ value: 0.4, unit: 'mm' }, -10).value).toBe(0.5);
+  });
+
+  it('redondea a 4 decimales (sin polvo de coma flotante)', () => {
+    expect(resizeBoundaryTo({ value: 2, unit: 'cm' }, 2.54).value).toBe(2.54);
   });
 });

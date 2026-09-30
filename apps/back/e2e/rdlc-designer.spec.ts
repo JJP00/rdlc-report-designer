@@ -98,6 +98,8 @@ interface ItemLike {
   kind: string;
   top?: { value: number; unit: string };
   left?: { value: number; unit: string };
+  width?: { value: number; unit: string };
+  height?: { value: number; unit: string };
   hidden?: boolean | string;
   style?: {
     backgroundColor?: string;
@@ -1341,6 +1343,91 @@ test('arrastrar el borde de una cabecera redimensiona la columna', async () => {
     .toBeCloseTo(before, 3);
 });
 
+test('el panel Estructura edita el tamaño con flechas, arrastre y tecleo', async () => {
+  // Selecciona el Tablix para que el panel muestre su estructura.
+  const point = await tablixBorderPoint('LinesTable2');
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            (window as never as Record<string, unknown>)['__rdlcSelection'] as {
+              id?: string;
+            } | null
+          )?.id ?? null,
+      ),
+    )
+    .toBe('LinesTable2');
+
+  const contentWidthAt = async (row: number, col: number): Promise<number | null> => {
+    const content = await cellContentAt('LinesTable2', row, col);
+    const width = content?.width;
+    if (!width) return null;
+    switch (width.unit) {
+      case 'cm':
+        return width.value;
+      case 'mm':
+        return width.value / 10;
+      case 'in':
+        return width.value * 2.54;
+      case 'pt':
+        return (width.value * 2.54) / 72;
+    }
+  };
+  const columnWidth = (index: number): Promise<number | undefined> =>
+    tablixColumns('LinesTable2').then((columns) => columns[index]);
+
+  // 1) Teclear: fija el ancho a 3 cm; el contenido de la celda acompaña
+  //    (declarado sincronizado o canónico por el fallback de la celda).
+  const widthInput = page.getByLabel('Ancho de la columna 1', { exact: true });
+  await expect(widthInput).toBeVisible();
+  const originalContentWidth = await contentWidthAt(0, 0);
+  expect(originalContentWidth).not.toBeNull();
+
+  await widthInput.fill('3');
+  await widthInput.press('Enter');
+  await expect.poll(() => columnWidth(0)).toBeCloseTo(3, 3);
+  await expect
+    .poll(() => contentWidthAt(0, 0), { message: 'el contenido sigue a la columna' })
+    .toBeCloseTo(3, 3);
+
+  // El atajo global de undo ignora los INPUT: quitar el foco antes de Ctrl+Z.
+  await widthInput.blur();
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => columnWidth(0)).not.toBeCloseTo(3, 3);
+  await expect.poll(() => contentWidthAt(0, 0)).toBeCloseTo(originalContentWidth!, 3);
+
+  // 2) Flechas ↑/↓: aumentar suma 0,1 cm y reducir lo devuelve.
+  const before2 = (await tablixColumns('LinesTable2'))[1]!;
+  await page.getByLabel('Ancho de la columna 2: aumentar').click();
+  await expect.poll(() => columnWidth(1)).toBeCloseTo(before2 + 0.1, 3);
+  await page.getByLabel('Ancho de la columna 2: reducir').click();
+  await expect.poll(() => columnWidth(1)).toBeCloseTo(before2, 3);
+  // Limpia los dos pasos de undo de las flechas.
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => columnWidth(1)).toBeCloseTo(before2 + 0.1, 3);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => columnWidth(1)).toBeCloseTo(before2, 3);
+
+  // 3) Arrastre sobre el valor con cursor de redimensionado: 30 px ≈ 3 cm.
+  const before1 = (await tablixColumns('LinesTable2'))[0]!;
+  const box = await widthInput.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2 + 30, box!.y + box!.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(() => columnWidth(0), { message: 'el arrastre sobre el valor ajusta el tamaño' })
+    .toBeCloseTo(before1 + 3, 3);
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => columnWidth(0)).toBeCloseTo(before1, 3);
+  await expect.poll(() => contentWidthAt(0, 0)).toBeCloseTo(originalContentWidth!, 3);
+});
+
 test('el editor de texto añade runs y el undo lo revierte', async () => {
   const proj = await projection();
   const content = firstCellContent(proj, 'LinesTable2');
@@ -1870,8 +1957,9 @@ test('el panel edita los bordes por lado y el lienzo los pinta', async () => {
 test('el panel edita el padding por lado (con undo)', async () => {
   // Textbox4 (encabezado) declara `PaddingTop 2pt` en el corpus.
   await selectItemViaPalette('Textbox4');
-  const top = page.getByLabel('Padding superior');
-  await expect(top).toHaveValue('2');
+  const top = page.getByLabel('Padding superior', { exact: true });
+  // El NumberInput estándar muestra el valor con dos decimales fijos.
+  await expect(top).toHaveValue('2.00');
 
   await top.fill('5');
   await top.press('Enter');
@@ -2001,8 +2089,8 @@ test('«Informe…» edita el alto y la impresión del encabezado y el pie', asy
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
 
-  await dialog.getByLabel('Alto del encabezado (cm)').fill('2');
-  await dialog.getByLabel('Alto del pie (cm)').fill('1.5');
+  await dialog.getByLabel('Alto del encabezado (cm)', { exact: true }).fill('2');
+  await dialog.getByLabel('Alto del pie (cm)', { exact: true }).fill('1.5');
   await dialog
     .getByRole('checkbox', { name: 'Imprimir el encabezado en la primera página' })
     .click();

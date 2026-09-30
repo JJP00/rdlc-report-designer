@@ -55,6 +55,10 @@ export interface InspectorPanelProps {
   onAddRowGroup: (tablixId: string, row: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
   onDeleteRowGroup: (tablixId: string, axis: 'row' | 'column', path: number[]) => void;
+  /** Fija el alto de una fila de la rejilla (el contenido sigue a la celda). */
+  onResizeRow: (id: string, row: number, height: Length) => void;
+  /** Fija el ancho de una columna de la rejilla (el contenido sigue a la celda). */
+  onResizeColumn: (id: string, column: number, width: Length) => void;
   /** Abre el diálogo de filtros del Tablix (`Filters > Filter`). */
   onOpenTablixFilters: (tablixId: string) => void;
   onSetText: (p: number, r: number, value: string) => void;
@@ -90,6 +94,8 @@ export function InspectorPanel({
   onAddRowToGroup,
   onAddRowGroup,
   onDeleteRowGroup,
+  onResizeRow,
+  onResizeColumn,
   onOpenTablixFilters,
   onSetText,
   onSetLabel,
@@ -115,6 +121,8 @@ export function InspectorPanel({
           onAddRowToGroup={(row, groupPath) => onAddRowToGroup(tablix.id, row, groupPath)}
           onAddRowGroup={(row, expression) => onAddRowGroup(tablix.id, row, expression)}
           onDeleteGroup={(axis, path) => onDeleteRowGroup(tablix.id, axis, path)}
+          onResizeRow={(row, height) => onResizeRow(tablix.id, row, height)}
+          onResizeColumn={(column, width) => onResizeColumn(tablix.id, column, width)}
           onOpenFilters={() => onOpenTablixFilters(tablix.id)}
         />
       ) : null}

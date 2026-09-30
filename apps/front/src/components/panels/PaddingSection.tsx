@@ -1,20 +1,20 @@
 import type { Padding, StylePatch } from '@rdlc-designer/contracts';
-import { useState, type ReactNode } from 'react';
-import { Input } from '@/components/ui/input';
+import type { ReactNode } from 'react';
 import { Label } from '@/components/ui/label';
+import { NumberInput } from '@/components/ui/number-input';
 import { toPt } from '@/lib/style';
 
 /**
  * Padding del item (`Style/PaddingTop…`), en puntos como la barra de RB. Se
- * edita por lado y se confirma al salir del campo (blur/Enter); el lienzo y BC
- * ya aplican la precedencia run > párrafo > item.
+ * edita por lado con el `NumberInput` estándar (teclear, flechas ↑/↓ y
+ * arrastre); el lienzo y BC ya aplican la precedencia run > párrafo > item.
  */
 
 const PADDING_SIDES = [
-  { key: 'top', label: 'Superior' },
-  { key: 'left', label: 'Izquierdo' },
-  { key: 'bottom', label: 'Inferior' },
-  { key: 'right', label: 'Derecho' },
+  { key: 'top', label: 'Superior', axis: 'y' },
+  { key: 'left', label: 'Izquierdo', axis: 'x' },
+  { key: 'bottom', label: 'Inferior', axis: 'y' },
+  { key: 'right', label: 'Derecho', axis: 'x' },
 ] as const;
 
 export function PaddingSection({
@@ -32,7 +32,8 @@ export function PaddingSection({
           <PaddingField
             key={side.key}
             label={side.label}
-            value={padding?.[side.key] ? formatPt(toPt(padding[side.key]!)) : '0'}
+            axis={side.axis}
+            value={padding?.[side.key] ? Math.round(toPt(padding[side.key]!) * 100) / 100 : 0}
             onCommit={(valuePt) =>
               onSetStyle({ padding: { [side.key]: { value: valuePt, unit: 'pt' } } })
             }
@@ -45,42 +46,27 @@ export function PaddingSection({
 
 function PaddingField({
   label,
+  axis,
   value,
   onCommit,
 }: {
   label: string;
-  value: string;
+  axis: 'x' | 'y';
+  value: number;
   onCommit: (value: number) => void;
 }): ReactNode {
-  // Borrador mientras se teclea; el resto del tiempo manda la proyección.
-  const [draft, setDraft] = useState<string | null>(null);
-  const text = draft ?? value;
-
-  const commit = (): void => {
-    const parsed = Number.parseFloat(text.replace(',', '.'));
-    if (draft !== null && Number.isFinite(parsed) && parsed !== Number.parseFloat(value)) {
-      onCommit(parsed);
-    }
-    setDraft(null);
-  };
-
   return (
     <div className="grid gap-1">
       <Label className="text-[10px] text-muted-foreground">{label}</Label>
-      <Input
-        className="h-7 text-xs tabular-nums"
-        value={text}
-        aria-label={`Padding ${label.toLowerCase()}`}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') commit();
-        }}
+      <NumberInput
+        className="h-7 flex-1 text-xs"
+        value={value}
+        label={`Padding ${label.toLowerCase()}`}
+        axis={axis}
+        min={0}
+        suffix="pt"
+        onCommit={onCommit}
       />
     </div>
   );
-}
-
-function formatPt(value: number): string {
-  return Number(value.toFixed(2)).toString();
 }

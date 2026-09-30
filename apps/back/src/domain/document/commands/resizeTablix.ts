@@ -5,7 +5,7 @@ import { readLength, writeLengthTracking } from '../geometry/geometry.js';
 import { formatLength, fromCm, toCm, type Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
-import { tablixColumns, tablixRows } from './tablixParts.js';
+import { positionedCells, tablixColumns, tablixHierarchy, tablixRows } from './tablixParts.js';
 
 /**
  * Geometría del Tablix: la rejilla (columnas y filas del `TablixBody`) es la que
@@ -47,9 +47,17 @@ export function applyResizeColumn(
   const created: RdlcNode[] = [];
   writeLengthTracking(column, 'Width', clampWidth(command.width), created);
 
+  // El contenido declarado de las celdas cubiertas pasa al nuevo ancho (un
+  // textbox mide lo mismo que su celda); el resto hereda la celda como pueda.
+  const previousTexts: TrackedText[] = [];
+  const columns = tablixColumns(tablix);
+  syncColumnContents(tablix, command.column, columns, previousTexts);
+  syncHeaderContents(tablix, 'column', columns, 'Width', previousTexts);
+
   return right({
     inverse: [
       ...created.map((child) => ({ cmd: 'removeNode', node: child }) as const),
+      ...previousTexts.map(({ node, value }) => ({ cmd: 'setNodeText' as const, node, value })),
       { cmd: 'resizeColumn', id: command.id, column: command.column, width: previous },
     ],
     applied: [{ id: command.id, values: {} }],
@@ -75,9 +83,15 @@ export function applyResizeRow(
   const created: RdlcNode[] = [];
   writeLengthTracking(row, 'Height', clampWidth(command.height), created);
 
+  const previousTexts: TrackedText[] = [];
+  const rows = tablixRows(tablix);
+  syncRowContents(tablix, command.row, rows, previousTexts);
+  syncHeaderContents(tablix, 'row', rows, 'Height', previousTexts);
+
   return right({
     inverse: [
       ...created.map((child) => ({ cmd: 'removeNode', node: child }) as const),
+      ...previousTexts.map(({ node, value }) => ({ cmd: 'setNodeText' as const, node, value })),
       { cmd: 'resizeRow', id: command.id, row: command.row, height: previous },
     ],
     applied: [{ id: command.id, values: {} }],
@@ -137,6 +151,11 @@ export function applyResizeTable(
   if (declaredWidth) declaredWidth.setText(formatLength(sum(nextColumns)));
   if (declaredHeight) declaredHeight.setText(formatLength(sum(nextRows)));
 
+  // 4) El contenido declarado de las celdas sigue a su celda (ancho y alto).
+  syncAllCellContents(tablix, columns, rows, previousTexts);
+  syncHeaderContents(tablix, 'column', columns, 'Width', previousTexts);
+  syncHeaderContents(tablix, 'row', rows, 'Height', previousTexts);
+
   return right({
     inverse: [
       // Lo creado se quita al final del todo (va primero: el undo invierte).
@@ -175,6 +194,131 @@ export function applyResizeTable(
 /* ------------------------------- helpers -------------------------------- */
 
 const ZERO: Length = { value: 0, unit: 'cm' };
+
+/** Texto anterior de un tag tocado (para el inverso byte-exacto). */
+interface TrackedText {
+  node: RdlcNode;
+  value: string;
+}
+
+/**
+ * Primer hijo de `CellContents` que no es span ni `Height`: el report item de
+ * la celda (mismo criterio que la proyección).
+ */
+function contentOf(holder: RdlcNode | undefined): RdlcNode | undefined {
+  return holder
+    ?.child('CellContents')
+    ?.children()
+    .find((child) => !['ColSpan', 'RowSpan', 'Height'].includes(child.tagName));
+}
+
+/**
+ * Ajusta el ancho/alto **declarado** del contenido de una celda al de la celda
+ * nueva. Los contenidos **sin** longitud declarada la heredan solos (forma
+ * canónica de BC): no se inventan etiquetas. El inverso restaura el texto
+ * exacto del tag.
+ */
+function syncContentLength(
+  holder: RdlcNode | undefined,
+  tag: 'Width' | 'Height',
+  next: Length,
+  previousTexts: TrackedText[],
+): void {
+  const tagNode = contentOf(holder)?.child(tag);
+  if (!tagNode) return;
+  const previous = tagNode.text();
+  const nextText = formatLength(next);
+  if (previous === nextText) return;
+  previousTexts.push({ node: tagNode, value: previous ?? '' });
+  tagNode.setText(nextText);
+}
+
+/** Suma de las longitudes de un tramo de columnas/filas (ya escritas). */
+function spanSum(nodes: RdlcNode[], start: number, span: number, tag: 'Width' | 'Height'): Length {
+  let total = 0;
+  for (let index = start; index < Math.min(start + span, nodes.length); index += 1) {
+    total += toCm(readLength(nodes[index]!, tag) ?? ZERO);
+  }
+  return fromCm(total);
+}
+
+/** Contenido declarado de las celdas que cubren la columna: al nuevo ancho. */
+function syncColumnContents(
+  tablix: RdlcNode,
+  column: number,
+  columns: RdlcNode[],
+  previousTexts: TrackedText[],
+): void {
+  for (const row of tablixRows(tablix)) {
+    for (const { cell, col, colSpan } of positionedCells(row)) {
+      if (column < col || col + colSpan <= column) continue;
+      syncContentLength(cell, 'Width', spanSum(columns, col, colSpan, 'Width'), previousTexts);
+    }
+  }
+}
+
+/** Contenido declarado de las celdas que cubren la fila: al nuevo alto. */
+function syncRowContents(
+  tablix: RdlcNode,
+  row: number,
+  rows: RdlcNode[],
+  previousTexts: TrackedText[],
+): void {
+  tablixRows(tablix).forEach((rowNode, rowIndex) => {
+    for (const { cell, rowSpan } of positionedCells(rowNode)) {
+      if (row < rowIndex || rowIndex + rowSpan <= row) continue;
+      syncContentLength(cell, 'Height', spanSum(rows, rowIndex, rowSpan, 'Height'), previousTexts);
+    }
+  });
+}
+
+/** Todas las celdas del body, ancho y alto (redimensionado de la tabla entera). */
+function syncAllCellContents(
+  tablix: RdlcNode,
+  columns: RdlcNode[],
+  rows: RdlcNode[],
+  previousTexts: TrackedText[],
+): void {
+  tablixRows(tablix).forEach((rowNode, rowIndex) => {
+    for (const { cell, col, colSpan, rowSpan } of positionedCells(rowNode)) {
+      syncContentLength(cell, 'Width', spanSum(columns, col, colSpan, 'Width'), previousTexts);
+      syncContentLength(cell, 'Height', spanSum(rows, rowIndex, rowSpan, 'Height'), previousTexts);
+    }
+  });
+}
+
+/**
+ * Cabeceras del Tablix: el ancho (jerarquía de columnas) o alto (jerarquía de
+ * filas) **declarado** de su contenido es el tramo de rejilla que cubre el
+ * miembro; el otro eje lo manda el `Size` de la banda y no cambia al
+ * redimensionar la rejilla del body.
+ */
+function syncHeaderContents(
+  tablix: RdlcNode,
+  axis: 'row' | 'column',
+  gridNodes: RdlcNode[],
+  tag: 'Width' | 'Height',
+  previousTexts: TrackedText[],
+): void {
+  const root = tablixHierarchy(tablix, axis);
+  if (!root) return;
+  let leaf = 0;
+  const walk = (container: RdlcNode): void => {
+    for (const member of container.children('TablixMember')) {
+      const start = leaf;
+      const nested = member.child('TablixMembers');
+      if (nested) walk(nested);
+      else leaf += 1;
+      syncContentLength(
+        member.child('TablixHeader'),
+        tag,
+        spanSum(gridNodes, start, leaf - start, tag),
+        previousTexts,
+      );
+    }
+  };
+  walk(root);
+}
 
 /** true si hay que escribir el tag (cambia el valor, o no existe y no es 0). */
 function needsWrite(current: Length | undefined, next: Length): boolean {

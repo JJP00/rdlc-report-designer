@@ -296,6 +296,8 @@ export function App(): ReactNode {
             onAddRowToGroup={addRowToGroup}
             onAddRowGroup={addRowGroup}
             onDeleteRowGroup={deleteRowGroup}
+            onResizeRow={resizeRow}
+            onResizeColumn={resizeColumn}
             onOpenTablixFilters={setFiltersTablixId}
             onSetText={setRunText}
             onSetLabel={setRunLabel}

@@ -141,7 +141,12 @@ export function resizeBoundary(
   // El mínimo se aplica al final: el imán no puede dejarlo por debajo.
   cm = Math.max(cm, MIN_SIZE_CM);
 
-  const value = fromCm(cm, current.unit);
+  return resizeBoundaryTo(current, cm);
+}
+
+/** Fija una frontera de la rejilla a un valor absoluto (cm), mantiene la unidad. */
+export function resizeBoundaryTo(current: Length, cm: number): Length {
+  const value = fromCm(Math.max(cm, MIN_SIZE_CM), current.unit);
   return { value: Math.round(value * 10000) / 10000, unit: current.unit };
 }
 
