@@ -50,12 +50,17 @@ function agreed<T>(values: (T | undefined)[]): T | undefined {
   if (first === undefined) return undefined;
 
   for (const value of values) {
-    if (value === undefined || !sameValue(value, first)) return undefined;
+    if (value === undefined || !sameStyleValue(value, first)) return undefined;
   }
   return first;
 }
 
-function sameValue(a: unknown, b: unknown): boolean {
+/**
+ * Igualdad **estructural** de valores de estilo: los objetos de la proyección
+ * (`Length`, `padding`, `border`) se construyen nodo a nodo, así que comparar
+ * por referencia siempre dice «distinto» aunque el valor sea idéntico.
+ */
+export function sameStyleValue(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   return JSON.stringify(a) === JSON.stringify(b);
 }

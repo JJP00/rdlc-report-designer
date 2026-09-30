@@ -1,4 +1,4 @@
-import type { BatchableCommand, ItemDto, StylePatch } from '@rdlc-designer/contracts';
+import type { BatchableCommand, ItemDto, StyleDto, StylePatch } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import {
   AlignCenterHorizontal,
@@ -22,7 +22,7 @@ import { BorderField } from '@/components/panels/BorderField';
 import { PaddingSection } from '@/components/panels/PaddingSection';
 import { useSystemFonts } from '@/hooks/useSystemFonts';
 import { alignBoxes, alignCommands, distributeCommands, type AlignBox } from '@/lib/align';
-import { toPt } from '@/lib/style';
+import { effectiveTextStyle, sameStyleValue, toPt } from '@/lib/style';
 
 export interface MultiSelectionPanelProps {
   /** Items seleccionados (en orden de selección). */
@@ -35,11 +35,29 @@ export interface MultiSelectionPanelProps {
   isCellContentId?: (id: string) => boolean;
 }
 
-/** Valor común de una propiedad entre los seleccionados, o `undefined` (mezcla). */
-function common<T>(items: ItemDto[], read: (item: ItemDto) => T): T | undefined {
+/**
+ * Valor común entre los seleccionados, o `undefined` (mezcla). La igualdad es
+ * **estructural**: los objetos de la proyección (bordes, padding…) no comparten
+ * referencia aunque el valor sea idéntico.
+ */
+function common<T>(
+  items: ItemDto[],
+  read: (item: ItemDto) => T,
+  equals: (a: T, b: T) => boolean = sameStyleValue,
+): T | undefined {
   if (items.length === 0) return undefined;
   const first = read(items[0]!);
-  return items.every((item) => read(item) === first) ? first : undefined;
+  return items.every((item) => equals(read(item), first)) ? first : undefined;
+}
+
+/**
+ * Estilo de texto que se está **pintando**: para un textbox, el efectivo
+ * (run > párrafo > item); para el resto, el declarado del item. Comparar solo
+ * lo declarado marcaba «—» entre dos items que se ven iguales pero heredan el
+ * estilo en niveles distintos.
+ */
+function textStyleOf(item: ItemDto): StyleDto | undefined {
+  return item.kind === 'textbox' ? effectiveTextStyle(item) : item.style;
 }
 
 /**
@@ -116,31 +134,28 @@ function TextSection({
   const familyOptions = useMemo(() => {
     const all = new Set(fonts);
     for (const item of items) {
-      const family = item.style?.fontFamily;
+      const family = textStyleOf(item)?.fontFamily;
       if (family) all.add(family);
     }
     return [...all].sort((a, b) => a.localeCompare(b, 'es'));
   }, [fonts, items]);
 
-  const family = common(items, (item) => item.style?.fontFamily);
-  /** Tamaño común en pt (los items pueden declararlo en unidades distintas). */
+  const family = common(items, (item) => textStyleOf(item)?.fontFamily);
+  /** Tamaño común en pt (se compara en pt: los items pueden declararlo en mm, cm…). */
   const sizePt = useMemo(() => {
     if (items.length === 0) return null;
-    const first = items[0]?.style?.fontSize;
-    if (!first) return null;
-    const pt = Math.round(toPt(first) * 100) / 100;
-    const same = items.every(
-      (item) => item.style?.fontSize && Math.abs(toPt(item.style.fontSize) - pt) < 0.01,
-    );
-    return same ? pt : null;
+    const sizes = items.map((item) => textStyleOf(item)?.fontSize);
+    if (sizes.some((size) => !size)) return null;
+    const pt = Math.round(toPt(sizes[0]!) * 100) / 100;
+    return sizes.every((size) => Math.abs(toPt(size!) - pt) < 0.01) ? pt : null;
   }, [items]);
 
-  const bold = !disabled && items.every((item) => item.style?.fontWeight === 'Bold');
-  const italic = !disabled && items.every((item) => item.style?.fontStyle === 'Italic');
+  const bold = !disabled && items.every((item) => textStyleOf(item)?.fontWeight === 'Bold');
+  const italic = !disabled && items.every((item) => textStyleOf(item)?.fontStyle === 'Italic');
   const underlined =
-    !disabled && items.every((item) => item.style?.textDecoration === 'Underline');
-  const color = common(items, (item) => item.style?.color);
-  const background = common(items, (item) => item.style?.backgroundColor);
+    !disabled && items.every((item) => textStyleOf(item)?.textDecoration === 'Underline');
+  const color = common(items, (item) => textStyleOf(item)?.color);
+  const background = common(items, (item) => textStyleOf(item)?.backgroundColor);
 
   return (
     <section className="flex flex-col gap-2">

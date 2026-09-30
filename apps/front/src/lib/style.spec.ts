@@ -1,6 +1,6 @@
 import type { TextboxDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
-import { effectiveTextStyle, paintColor, toHexColor, toPt } from './style';
+import { effectiveTextStyle, paintColor, sameStyleValue, toHexColor, toPt } from './style';
 
 /** Estilo efectivo del textbox: precedencia RDL run > párrafo > item. */
 
@@ -77,6 +77,15 @@ describe('effectiveTextStyle', () => {
     });
 
     expect(effectiveTextStyle(item)?.padding).toEqual({ left: { value: 5, unit: 'pt' } });
+  });
+});
+
+describe('sameStyleValue', () => {
+  it('compara estructuras iguales aunque no compartan referencia', () => {
+    expect(sameStyleValue({ style: 'Solid' }, { style: 'Solid' })).toBe(true);
+    expect(sameStyleValue({ value: 10, unit: 'pt' }, { value: 10, unit: 'pt' })).toBe(true);
+    expect(sameStyleValue({ value: 10, unit: 'pt' }, { value: 12, unit: 'pt' })).toBe(false);
+    expect(sameStyleValue('Bold', 'Bold')).toBe(true);
   });
 });
 

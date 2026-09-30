@@ -1,12 +1,10 @@
 import type { ReportMetaDto } from '@rdlc-designer/contracts';
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
 import { VARIABLE_GROUPS, variableEntries, type VariableEntry } from '@/lib/variables';
 
 interface VariablesPanelProps {
@@ -74,14 +72,15 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex flex-col gap-2 border-b p-3">
+      <div className="flex flex-col gap-2 border-b p-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">Variables</span>
+          <span className="text-xs font-medium text-muted-foreground">Variables</span>
           <div className="flex items-center gap-1">
-            <Badge variant="secondary">{filtered.length}</Badge>
+            <span className="text-[10px] text-muted-foreground">{filtered.length}</span>
             <Button
               variant="ghost"
               size="icon-xs"
+              aria-label={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
               title={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
               onClick={toggleAll}
             >
@@ -92,13 +91,14 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
         <Input
           className="h-7 text-xs"
           placeholder="Buscar campo, parámetro, función…"
+          aria-label="Buscar variables"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-1 p-3">
+        <div className="flex flex-col gap-0.5 p-1">
           {groups.map(([group, list]) => {
             // Al buscar, los grupos con resultados se muestran siempre abiertos.
             const isOpen = searching || !collapsed[group];
@@ -109,11 +109,11 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
                 onOpenChange={() => toggleGroup(group)}
                 className="flex flex-col"
               >
-                <CollapsibleTrigger className="flex w-full items-center gap-1 rounded px-1 py-1 text-left hover:bg-muted">
+                <CollapsibleTrigger className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted">
                   {isOpen ? (
-                    <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                    <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
                   ) : (
-                    <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+                    <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
                   )}
                   <span className="flex-1 text-[11px] font-medium text-muted-foreground">
                     {group}
@@ -128,9 +128,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
                         type="button"
                         onClick={() => pick(entry)}
                         title={entry.expression}
-                        className={cn(
-                          'flex items-center justify-between gap-2 rounded px-1.5 py-1 text-left font-mono text-xs hover:bg-muted',
-                        )}
+                        className="flex items-center justify-between gap-1.5 rounded px-1 py-0.5 text-left font-mono text-[11px] hover:bg-muted"
                       >
                         <span className="truncate">{entry.name}</span>
                         {entry.detail ? (
