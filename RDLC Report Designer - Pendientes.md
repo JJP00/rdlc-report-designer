@@ -1,5 +1,35 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-30 (3.ª parte) · resuelto el E2E flaky del arrastre (aislamiento entre tests)** —
+> la carrera que quedó en la retomada anterior era del **harness**: `resetDocument`
+> comparaba la versión 20 ms después del `Ctrl+Z` y podía cortar con el undo aún en
+> vuelo (o con un commit diferido sin llegar), dejando el estado del test anterior a
+> medias para el siguiente (el arrastre del panel Estructura terminaba en 9,8259).
+> Arreglos:
+>
+> - **`resetDocument` por huella** (`e2e/rdlc-designer.spec.ts`): la parada ya no es un
+>   timeout fijo sino la **huella del documento** (proyección sin `version`) igual a la
+>   del informe recién abierto; cada undo espera el **cambio real de versión**
+>   (`waitForFunction`, 1 s) y, tras converger, una **ventana de calma de 450 ms**
+>   absorbe los commits **diferidos** (ráfagas de flechas/color, 250–400 ms). Si no
+>   converge, falla con la versión y el texto de la barra de estado (antes: silencio y
+>   contaminación del test siguiente).
+> - **Guarda de versión en el front** (`useDocumentCore`): `onDocumentChanged` **ignora
+>   los snapshots con versión anterior** a la proyección viva; un evento retrasado o
+>   duplicado ya no puede pisar un estado más nuevo.
+> - **Test del arrastre**: antes del scrub se espera a que el input muestre el valor
+>   medido (`toHaveValue`) y a que **no tenga foco** (con foco el gesto coloca el cursor
+>   en vez de arrastrar); la base del commit es exactamente la del aserto.
+>
+> Verificación: **51 E2E verdes** en pasada completa y **102 verdes con
+> `--repeat-each=2`** (cada test dos veces en la misma sesión: el aislamiento es real);
+> **410 unit** (273 back + 137 front) y `typecheck` limpio.
+>
+> **Punto de retomada**: probar en la app los editores de tamaño de Estructura
+> (tecleo/flechas/arrastre) y que Ctrl+Z refresca al instante; después **U3**
+> (multiselección + edición en lote) y el bug de `Maximum update depth exceeded` al
+> mover Tablix anidados, que siguen abiertos.
+
 > **Sesión 2026-09-30 (2.ª parte) · editores de tamaño en Estructura + NumberInput estándar** —
 > tamaños de filas/columnas editables en el panel Estructura con **tres formas de cambio**
 > (teclear con Enter/Escape, **flechas ↑/↓** y **arrastre sobre el valor** con cursor de
@@ -28,7 +58,11 @@
 >   rompían la resolución estricta (padding y «Alto del encabezado/pie») y el padding
 >   espera `'2.00'` (el NumberInput muestra 2 decimales fijos).
 >
-> **Fallo E2E sin resolver (forense hecha, causa raíz pendiente)** —
+> **Fallo E2E sin resolver (forense hecha, causa raíz pendiente)** — ✅ **resuelto en la
+> 3.ª parte del 2026-09-30 (ver bloque superior)**: era la carrera de `resetDocument`; la
+> parada ahora es la huella del documento + ventana de calma, y el front ignora snapshots
+> viejos. Se conserva la forense como historial:
+>
 > «el panel Estructura edita el tamaño…», paso de **arrastre**, solo en pasada completa
 > (pasa solo, y con su test anterior, 3× de seguido). Señales del run fallido:
 >
@@ -57,9 +91,8 @@
 >
 > **Punto de retomada**:
 >
-> 1. **Resolver el fallo E2E del arrastre** (arriba): hook `resetDocument` más robusto +
->   investigar el undo «tardío»; repetir la suite completa 2-3 veces hasta verla verde
->   estable.
+> 1. ✅ **Resuelto (3.ª parte, 2026-09-30)**: fallo E2E del arrastre — `resetDocument`
+>   por huella + ventana de calma y guarda de versión en el front (ver bloque superior).
 > 2. **Probar en la app** los editores de tamaño de Estructura (tecleo/flechas/arrastre) y
 >   el arrastre en el resto de campos estandarizados; verificar que Ctrl+Z refresca el
 >   panel al instante.

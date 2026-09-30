@@ -118,11 +118,13 @@ export function useDocumentCore(): DocumentCore {
     if (!hasBackend) return;
 
     const offDocument = window.api.onDocumentChanged((event) => {
-      setDoc((current) =>
-        current && current.sessionId === event.sessionId
-          ? { ...current, projection: event.projection }
-          : current,
-      );
+      setDoc((current) => {
+        if (!current || current.sessionId !== event.sessionId) return current;
+        // Los snapshots solo avanzan: un evento viejo (duplicado o reordenado)
+        // no debe pisar una proyección más nueva.
+        if (event.projection.version < current.projection.version) return current;
+        return { ...current, projection: event.projection };
+      });
       // Solo las recargas externas cuentan (y avisan): los snapshots internos
       // (insert/undo/redo) son parte del trabajo normal.
       if (event.reason === 'external') {

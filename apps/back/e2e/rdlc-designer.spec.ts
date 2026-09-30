@@ -23,6 +23,8 @@ const fixture = join(here, '..', '..', '..', 'fixtures', 'corpus', 'SalesCreditM
 
 let app: ElectronApplication;
 let page: Page;
+/** Huella del informe recién abierto (la proyección sin su `version`). */
+let initialFingerprint = '';
 
 test.beforeAll(async () => {
   const workspace = join(tmpdir(), `rdlc-e2e-${Date.now()}`);
@@ -38,6 +40,7 @@ test.beforeAll(async () => {
   await page.waitForFunction(() =>
     Boolean((window as never as Record<string, unknown>)['__rdlcProjection']),
   );
+  initialFingerprint = await projectionFingerprint();
 });
 
 test.afterAll(async () => {
@@ -50,19 +53,85 @@ async function projectionVersion(): Promise<number> {
 }
 
 /**
+ * Huella del documento: la proyección **sin** `version` (que sube a cada
+ * mutación). Dos estados iguales comparten huella; al deshacer todo, la huella
+ * vuelve a ser la del informe recién abierto.
+ */
+async function projectionFingerprint(): Promise<string> {
+  return page.evaluate(() => {
+    const projection = (window as never as Record<string, unknown>)['__rdlcProjection'] as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    if (!projection) return '';
+    const copy = { ...projection };
+    delete copy.version;
+    return JSON.stringify(copy);
+  });
+}
+
+/**
  * Deja el documento como al abrir: cierra menús y deshace todo lo pendiente.
  * Así cada test parte del mismo estado y no depende del anterior.
+ *
+ * No basta con «Ctrl+Z hasta que la versión deje de cambiar tras 20 ms»: el
+ * undo es asíncrono (IPC + snapshot), el blur puede confirmar un borrador y hay
+ * **commits diferidos** (ráfagas de flechas/color, ~250–400 ms) que todavía no
+ * están en el journal. La parada es la **huella** de la proyección igual a la
+ * inicial **más una ventana de calma** sin cambios: si un comando tardío
+ * llegase después, la huella volvería a diferir y se desharía también, así
+ * ningún estado del test anterior puede colarse en el siguiente.
  */
 async function resetDocument(): Promise<void> {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Escape');
-  for (let index = 0; index < 80; index += 1) {
-    const before = await projectionVersion();
-    await page.keyboard.press('Control+z');
-    await page.waitForTimeout(20);
-    const after = await projectionVersion();
-    if (after === before) break;
+
+  for (let round = 0; round < 3; round += 1) {
+    // Deshace hasta converger; cada Ctrl+Z espera al cambio real de versión
+    // (no una ventana fija). Cuatro esperas seguidas sin cambio = nada que
+    // deshacer (o divergencia: la ventana de calma decide).
+    let stalls = 0;
+    for (let index = 0; index < 40 && stalls < 4; index += 1) {
+      if ((await projectionFingerprint()) === initialFingerprint) break;
+      const before = await projectionVersion();
+      await page.keyboard.press('Control+z');
+      const changed = await page
+        .waitForFunction(
+          (version) => {
+            const projection = (window as never as Record<string, unknown>)['__rdlcProjection'] as
+              | { version?: number }
+              | null;
+            return Boolean(projection) && projection?.version !== version;
+          },
+          before,
+          { timeout: 1000 },
+        )
+        .then(() => true)
+        .catch(() => false);
+      stalls = changed ? 0 : stalls + 1;
+    }
+
+    // Ventana de calma: cubre los commits diferidos que aún no han llegado.
+    const version = await projectionVersion();
+    await page.waitForTimeout(450);
+    if (
+      (await projectionVersion()) === version &&
+      (await projectionFingerprint()) === initialFingerprint
+    ) {
+      return;
+    }
   }
+
+  const status = await page
+    .locator('footer')
+    .first()
+    .textContent()
+    .catch(() => null);
+  throw new Error(
+    `resetDocument no convergió al estado inicial (v${await projectionVersion()}): ${
+      status ?? 'sin estado'
+    }`,
+  );
 }
 
 test.afterEach(async () => {
@@ -80,6 +149,7 @@ interface RegionLike {
 
 interface Projection {
   reportName: string;
+  version: number;
   page: {
     header: RegionLike;
     body: RegionLike;
@@ -1413,6 +1483,11 @@ test('el panel Estructura edita el tamaño con flechas, arrastre y tecleo', asyn
 
   // 3) Arrastre sobre el valor con cursor de redimensionado: 30 px ≈ 3 cm.
   const before1 = (await tablixColumns('LinesTable2'))[0]!;
+  // El scrub parte del valor que muestra el panel: espera a que la proyección
+  // lo haya refrescado y a que el input no tenga foco (con foco el gesto
+  // coloca el cursor en vez de arrastrar).
+  await expect(widthInput).toHaveValue(before1.toFixed(2));
+  await expect(widthInput).not.toBeFocused();
   const box = await widthInput.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
