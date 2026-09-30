@@ -1,6 +1,6 @@
 import type Konva from 'konva';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Group, Layer, Rect, Text as KonvaText } from 'react-konva';
+import { Group, Layer, Line, Rect, Text as KonvaText } from 'react-konva';
 import type { Length } from '@rdlc-designer/contracts';
 import {
   computeResize,
@@ -294,6 +294,59 @@ function TablixHeaders({
   const inColumns = (index: number): boolean => selectedColumns.has(index);
   const inRows = (index: number): boolean => selectedRows.has(index);
 
+  // Previsualización del redimensionado por los bordes de cabecera: una línea
+  // discontinua en la frontera destino + una etiqueta con el tamaño resultante.
+  // Se mueve por refs (nunca re-render durante el drag: mataría el arrastre).
+  const previewGroup = useRef<Konva.Group | null>(null);
+  const previewLine = useRef<Konva.Line | null>(null);
+  const previewBadge = useRef<Konva.Rect | null>(null);
+  const previewText = useRef<Konva.Text | null>(null);
+
+  const showEdgePreview = (vertical: boolean, edgePx: number, label: string): void => {
+    const group = previewGroup.current;
+    const line = previewLine.current;
+    const badge = previewBadge.current;
+    const text = previewText.current;
+    if (!group || !line || !badge || !text) return;
+    // Tamaños en px de pantalla (no escalan con el zoom).
+    const badgeWidth = 54 / zoom;
+    const badgeHeight = 16 / zoom;
+    const gap = 6 / zoom;
+    if (vertical) {
+      line.setAttrs({ x: edgePx, y: 0, points: [0, rect.y, 0, rect.y + (rowEdges[rowEdges.length - 1] ?? 0)] });
+      const fitsRight = edgePx + gap + badgeWidth <= rect.x + (columnEdges[columnEdges.length - 1] ?? 0);
+      const badgeX = fitsRight ? edgePx + gap : edgePx - gap - badgeWidth;
+      badge.setAttrs({ x: badgeX, y: rect.y + 2 / zoom, width: badgeWidth, height: badgeHeight });
+      text.setAttrs({ x: badgeX, y: rect.y + 2 / zoom, width: badgeWidth, height: badgeHeight, text: label });
+    } else {
+      line.setAttrs({ x: 0, y: edgePx, points: [rect.x, 0, rect.x + (columnEdges[columnEdges.length - 1] ?? 0), 0] });
+      const fitsBelow = edgePx + gap + badgeHeight <= rect.y + (rowEdges[rowEdges.length - 1] ?? 0);
+      const badgeY = fitsBelow ? edgePx + gap : edgePx - gap - badgeHeight;
+      badge.setAttrs({ x: rect.x + 2 / zoom, y: badgeY, width: badgeWidth, height: badgeHeight });
+      text.setAttrs({ x: rect.x + 2 / zoom, y: badgeY, width: badgeWidth, height: badgeHeight, text: label });
+    }
+    group.visible(true);
+    group.getLayer()?.batchDraw();
+  };
+
+  const hideEdgePreview = (): void => {
+    previewGroup.current?.visible(false);
+    previewGroup.current?.getLayer()?.batchDraw();
+  };
+
+  const showColumnPreview = (index: number, deltaCm: number): void => {
+    // Mismo cálculo que al soltar (resizeBoundary): la previsualización es exacta.
+    const width = resizeBoundary(columns[index]!, deltaCm, 0.1);
+    const left = index === 0 ? 0 : (columnEdges[index - 1] ?? 0);
+    showEdgePreview(true, rect.x + left + toPx(width), formatLength(width));
+  };
+
+  const showRowPreview = (index: number, deltaCm: number): void => {
+    const height = resizeBoundary(rows[index]!, deltaCm, 0.1);
+    const top = index === 0 ? 0 : (rowEdges[index - 1] ?? 0);
+    showEdgePreview(false, rect.y + top + toPx(height), formatLength(height));
+  };
+
   return (
     <>
       {/* Cabeceras de columna. */}
@@ -384,6 +437,30 @@ function TablixHeaders({
         listening={false}
       />
 
+      {/* Previsualización del borde arrastrado (oculta hasta el drag). */}
+      <Group ref={previewGroup} name="edge-preview" visible={false} listening={false}>
+        <Line
+          ref={previewLine}
+          points={[0, 0, 0, 0]}
+          stroke="#2563eb"
+          strokeWidth={1.5}
+          dash={[5, 4]}
+          strokeScaleEnabled={false}
+        />
+        <Rect ref={previewBadge} width={54} height={16} fill="#2563eb" cornerRadius={3} />
+        <KonvaText
+          ref={previewText}
+          name="edge-preview-label"
+          width={54}
+          height={16}
+          align="center"
+          verticalAlign="middle"
+          fontSize={10}
+          fontStyle="bold"
+          fill="#ffffff"
+        />
+      </Group>
+
       {/* Bordes de las cabeceras: se arrastran para redimensionar (como RB). */}
       {onResizeColumn
         ? columnEdges.map((edge, index) => (
@@ -397,6 +474,8 @@ function TablixHeaders({
               onDragged={(deltaCm) =>
                 onResizeColumn(index, resizeBoundary(columns[index]!, deltaCm, 0.1))
               }
+              onPreviewMove={(deltaCm) => showColumnPreview(index, deltaCm)}
+              onPreviewEnd={hideEdgePreview}
             />
           ))
         : null}
@@ -411,6 +490,8 @@ function TablixHeaders({
               onDragged={(deltaCm) =>
                 onResizeRow(index, resizeBoundary(rows[index]!, deltaCm, 0.1))
               }
+              onPreviewMove={(deltaCm) => showRowPreview(index, deltaCm)}
+              onPreviewEnd={hideEdgePreview}
             />
           ))
         : null}
@@ -426,6 +507,8 @@ function HeaderResizeZone({
   length,
   zoom,
   onDragged,
+  onPreviewMove,
+  onPreviewEnd,
 }: {
   vertical?: boolean;
   x: number;
@@ -433,6 +516,10 @@ function HeaderResizeZone({
   length: number;
   zoom: number;
   onDragged: (deltaCm: number) => void;
+  /** Por cada paso del drag, con el delta acumulado en cm. */
+  onPreviewMove?: (deltaCm: number) => void;
+  /** Al soltar, antes de aplicar el comando. */
+  onPreviewEnd?: () => void;
 }): ReactNode {
   const thickness = 8 / zoom;
   const startRef = useRef(0);
@@ -459,6 +546,13 @@ function HeaderResizeZone({
         event.cancelBubble = true;
         startRef.current = vertical ? event.target.x() : event.target.y();
       }}
+      onDragMove={(event) => {
+        event.cancelBubble = true;
+        const node = event.target;
+        const scale = node.getStage()?.scaleX() ?? 1;
+        const delta = ((vertical ? node.x() : node.y()) - startRef.current) / scale / PX_PER_CM;
+        onPreviewMove?.(delta);
+      }}
       onDragEnd={(event) => {
         event.cancelBubble = true;
         const node = event.target;
@@ -468,10 +562,16 @@ function HeaderResizeZone({
         if (vertical) node.x(x - thickness / 2);
         else node.y(y - thickness / 2);
         node.getLayer()?.batchDraw();
+        onPreviewEnd?.();
         onDragged(delta);
       }}
     />
   );
+}
+
+/** Etiqueta del tamaño resultante (p. ej. «2.4 cm»), en la unidad declarada. */
+function formatLength(length: Length): string {
+  return `${Number(length.value.toFixed(2))} ${length.unit}`;
 }
 
 /** Posición de cada tirador sobre el rect (px de papel). */

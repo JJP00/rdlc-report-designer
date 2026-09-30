@@ -1307,6 +1307,26 @@ test('arrastrar el borde de una cabecera redimensiona la columna', async () => {
   await page.mouse.move(edge!.x, edge!.y);
   await page.mouse.down();
   await page.mouse.move(edge!.x - 60, edge!.y, { steps: 10 });
+
+  // Durante el drag hay previsualización: línea en la frontera destino + etiqueta
+  // con el tamaño resultante (misma matemática que al soltar).
+  const preview = await page.evaluate(() => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+    };
+    const group = stage.findOne((node) => node.name() === 'edge-preview');
+    const label = stage.findOne((node) => node.name() === 'edge-preview-label');
+    return {
+      visible: (group?.getAttr('visible') as boolean | undefined) ?? false,
+      text:
+        (label as unknown as { text?: () => string } | undefined)?.text?.() ?? null,
+    };
+  });
+  expect(preview.visible, 'durante el drag debe verse la previsualización del borde').toBe(true);
+  const previewWidth = Number((preview.text ?? '').replace(' cm', ''));
+  expect(Number.isFinite(previewWidth), `etiqueta con el tamaño: ${preview.text}`).toBe(true);
+  expect(previewWidth, 'la previsualización muestra un tamaño menor al arrastrar a la izquierda').toBeLessThan(before);
+
   await page.mouse.up();
 
   await expect
