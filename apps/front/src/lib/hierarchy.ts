@@ -164,3 +164,18 @@ export function hierarchyTree(projection: ProjectionDto): HierarchyNode[] {
     children: regionItems(projection, region.key).map(itemNode),
   }));
 }
+
+/**
+ * Filtro del panel de Jerarquía: conserva los nodos que coinciden (con todo su
+ * subárbol, para poder ver las celdas de un Tablix encontrado) y los
+ * **ancestros** de los que contienen coincidencias. Sin consulta, el árbol tal cual.
+ */
+export function searchHierarchy(nodes: HierarchyNode[], query: string): HierarchyNode[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return nodes;
+  return nodes.flatMap((node) => {
+    if (node.label.toLowerCase().includes(needle)) return [node];
+    const children = searchHierarchy(node.children, query);
+    return children.length > 0 ? [{ ...node, children }] : [];
+  });
+}

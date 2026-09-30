@@ -1,6 +1,6 @@
 import type { ProjectionDto, RectangleDto, TablixDto, TextboxDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
-import { breadcrumbEntries, hierarchyTree } from './hierarchy';
+import { breadcrumbEntries, hierarchyTree, searchHierarchy } from './hierarchy';
 
 /** Jerarquía del informe: breadcrumb de la selección y árbol de items. */
 
@@ -135,5 +135,40 @@ describe('hierarchyTree', () => {
     expect(cellNode?.children[0]?.label).toBe('TextboxDentro');
 
     expect(footer?.children).toEqual([]);
+  });
+});
+
+describe('searchHierarchy', () => {
+  it('sin consulta devuelve el árbol tal cual', () => {
+    const tree = hierarchyTree(projection());
+    expect(searchHierarchy(tree, '  ')).toBe(tree);
+  });
+
+  it('conserva los ancestros de las coincidencias', () => {
+    const filtered = searchHierarchy(hierarchyTree(projection()), 'TextboxAnidado');
+    expect(filtered.map((node) => node.label)).toEqual(['Cuerpo']);
+    expect(filtered[0]?.children.map((node) => node.label)).toEqual(['Rectangle1']);
+    expect(filtered[0]?.children[0]?.children.map((node) => node.label)).toEqual(['TextboxAnidado']);
+  });
+
+  it('un nodo que coincide conserva su subárbol (celdas de un Tablix)', () => {
+    const filtered = searchHierarchy(hierarchyTree(projection()), 'Tablix1');
+    const tablixNode = filtered
+      .find((node) => node.label === 'Cuerpo')
+      ?.children.find((node) => node.label === 'Tablix1');
+    expect(tablixNode?.children[0]?.label).toBe('Celda 1,1');
+  });
+
+  it('las celdas también se pueden buscar', () => {
+    const filtered = searchHierarchy(hierarchyTree(projection()), 'celda 1,1');
+    const tablixNode = filtered
+      .find((node) => node.label === 'Cuerpo')
+      ?.children.find((node) => node.label === 'Tablix1');
+    expect(tablixNode?.children.map((node) => node.label)).toEqual(['Celda 1,1']);
+    expect(tablixNode?.children[0]?.children[0]?.label).toBe('TextboxDentro');
+  });
+
+  it('devuelve vacío cuando no hay coincidencias', () => {
+    expect(searchHierarchy(hierarchyTree(projection()), 'no-existe')).toEqual([]);
   });
 });

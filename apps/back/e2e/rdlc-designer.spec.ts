@@ -2759,10 +2759,12 @@ test('Jerarquía y breadcrumb navegan por los contenedores', async () => {
   await crumbs.getByRole('button', { name: 'Rectangle1' }).click();
   await expect.poll(selectedId).toBe('Rectangle1');
 
-  // Panel de Jerarquía: selecciona el textbox anidado desde el árbol.
+  // Panel de Jerarquía: el buscador filtra el árbol y selecciona el anidado.
   await page.getByRole('button', { name: 'Jerarquía' }).click();
   const tree = page.getByRole('tree', { name: 'Jerarquía del informe' });
   await expect(tree).toBeVisible();
+  await page.getByRole('textbox', { name: 'Buscar en la jerarquía' }).fill('Textbox4');
+  await expect(tree.getByText('Sin resultados.')).toHaveCount(0);
   await tree.locator('button', { hasText: 'Textbox4' }).first().click();
   await expect.poll(selectedId).toBe('Textbox4');
 });

@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { hierarchyTree, type HierarchyNode } from '@/lib/hierarchy';
+import { Input } from '@/components/ui/input';
+import { hierarchyTree, searchHierarchy, type HierarchyNode } from '@/lib/hierarchy';
 import { itemKindLabel } from '@/lib/palette';
 import type { SelectedCell } from '@/lib/tablix';
 
@@ -77,8 +78,12 @@ export function HierarchyPanel({
   onSelectCell,
 }: HierarchyPanelProps): ReactNode {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState('');
   const tree = useMemo(() => hierarchyTree(projection), [projection]);
-  const rows = flattenVisible(tree, collapsed);
+  const searching = query.trim().length > 0;
+  const filtered = useMemo(() => searchHierarchy(tree, query), [tree, query]);
+  // Al buscar los nodos con coincidencias se muestran siempre abiertos.
+  const rows = flattenVisible(filtered, searching ? new Set<string>() : collapsed);
 
   const collapsibleKeys = useMemo(() => {
     const keys: string[] = [];
@@ -88,9 +93,9 @@ export function HierarchyPanel({
         walk(node.children);
       }
     };
-    walk(tree);
+    walk(filtered);
     return keys;
-  }, [tree]);
+  }, [filtered]);
   const allCollapsed = collapsibleKeys.length > 0 && collapsibleKeys.every((key) => collapsed.has(key));
 
   const toggle = (key: string): void => {
@@ -104,23 +109,32 @@ export function HierarchyPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center justify-between border-b px-3 py-2">
-        <span className="text-xs font-medium text-muted-foreground">Jerarquía</span>
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] text-muted-foreground">{countNodes(tree)}</span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
-            title={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
-            onClick={() =>
-              setCollapsed(allCollapsed ? new Set() : new Set(collapsibleKeys))
-            }
-          >
-            {allCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
-          </Button>
+      <div className="flex flex-col gap-2 border-b p-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Jerarquía</span>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground">{countNodes(filtered)}</span>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
+              title={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
+              onClick={() =>
+                setCollapsed(allCollapsed ? new Set() : new Set(collapsibleKeys))
+              }
+            >
+              {allCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+            </Button>
+          </div>
         </div>
-      </header>
+        <Input
+          className="h-7 text-xs"
+          placeholder="Buscar elemento o celda…"
+          aria-label="Buscar en la jerarquía"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
       <ul role="tree" aria-label="Jerarquía del informe" className="min-h-0 flex-1 overflow-auto p-1">
         {rows.map(({ node, depth }) => {
           const isCellSelected =
@@ -194,6 +208,9 @@ export function HierarchyPanel({
             </li>
           );
         })}
+        {rows.length === 0 ? (
+          <li className="p-2 text-xs text-muted-foreground">Sin resultados.</li>
+        ) : null}
       </ul>
     </div>
   );
