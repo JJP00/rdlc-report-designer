@@ -12,6 +12,9 @@ release/
 .vite/
 coverage/
 
+# índice local de CodeGraph
+.codegraph/
+
 # local env
 .env
 .env.local
