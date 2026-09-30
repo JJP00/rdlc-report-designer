@@ -32,7 +32,9 @@ test.beforeAll(async () => {
   const file = join(workspace, 'SalesCreditMemoESP.rdlc');
   copyFileSync(fixture, file);
 
-  app = await electron.launch({ args: [mainEntry, file] });
+  app = await electron.launch({
+    args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
+  });
   page = await app.firstWindow();
   await page.waitForFunction(() =>
     Boolean((window as never as Record<string, unknown>)['__rdlcStage']),
@@ -60,9 +62,7 @@ async function projectionVersion(): Promise<number> {
 async function projectionFingerprint(): Promise<string> {
   return page.evaluate(() => {
     const projection = (window as never as Record<string, unknown>)['__rdlcProjection'] as
-      | Record<string, unknown>
-      | null
-      | undefined;
+      Record<string, unknown> | null | undefined;
     if (!projection) return '';
     const copy = { ...projection };
     delete copy.version;
@@ -98,9 +98,9 @@ async function resetDocument(): Promise<void> {
       const changed = await page
         .waitForFunction(
           (version) => {
-            const projection = (window as never as Record<string, unknown>)['__rdlcProjection'] as
-              | { version?: number }
-              | null;
+            const projection = (window as never as Record<string, unknown>)['__rdlcProjection'] as {
+              version?: number;
+            } | null;
             return Boolean(projection) && projection?.version !== version;
           },
           before,
@@ -998,10 +998,16 @@ test('al añadir una fila, las celdas nuevas nacen con un textbox seleccionable'
   expect(ids).toHaveLength(1);
   expect(ids[0]).toMatch(/^Textbox\d+$/);
 
-  // El lienzo lo pinta y se selecciona como cualquier item.
-  const center = await nodeCenter(ids[0]!);
-  expect(center).not.toBeNull();
-  await page.mouse.click(center!.x, center!.y);
+  // El lienzo lo pinta y se selecciona como cualquier item. Se remide el
+  // centro en cada intento: si el lienzo se asienta (scroll/repintado), el
+  // punto medido antes puede caer fuera.
+  await waitCanvasScrollSettled();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const center = await nodeCenter(ids[0]!);
+    if (center) await page.mouse.click(center.x, center.y);
+    if ((await selectedId()) === ids[0]) break;
+    await page.waitForTimeout(150);
+  }
   await expect.poll(selectedId).toBe(ids[0]);
 
   await page.keyboard.press('Control+z');
@@ -1390,14 +1396,16 @@ test('arrastrar el borde de una cabecera redimensiona la columna', async () => {
     const label = stage.findOne((node) => node.name() === 'edge-preview-label');
     return {
       visible: (group?.getAttr('visible') as boolean | undefined) ?? false,
-      text:
-        (label as unknown as { text?: () => string } | undefined)?.text?.() ?? null,
+      text: (label as unknown as { text?: () => string } | undefined)?.text?.() ?? null,
     };
   });
   expect(preview.visible, 'durante el drag debe verse la previsualización del borde').toBe(true);
   const previewWidth = Number((preview.text ?? '').replace(' cm', ''));
   expect(Number.isFinite(previewWidth), `etiqueta con el tamaño: ${preview.text}`).toBe(true);
-  expect(previewWidth, 'la previsualización muestra un tamaño menor al arrastrar a la izquierda').toBeLessThan(before);
+  expect(
+    previewWidth,
+    'la previsualización muestra un tamaño menor al arrastrar a la izquierda',
+  ).toBeLessThan(before);
 
   await page.mouse.up();
 
@@ -2592,4 +2600,143 @@ test('un grupo hoja (Tablix7) gana una fila dentro y se anida en la estructura',
   await page.keyboard.press('Control+z');
   await expect.poll(() => tablixRowCount('Tablix7')).toBe(1);
   await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
+});
+
+/* ----------------------- U6 · zoom: presets y atajos ---------------------- */
+
+/** Ancho del escenario Konva en px de pantalla (A4 a zoom 1 ≈ 793,7). */
+async function stageWidth(): Promise<number> {
+  return page.evaluate(() =>
+    ((window as never as Record<string, unknown>)['__rdlcStage'] as { width(): number }).width(),
+  );
+}
+
+/** Ancho útil del hueco del lienzo (sin paddings ni regla). */
+async function canvasAvailableWidth(): Promise<number> {
+  return page.evaluate(() => {
+    const scroller = document.querySelector('canvas')?.closest('.overflow-auto');
+    return scroller instanceof HTMLElement ? scroller.clientWidth - 24 * 2 - 20 : 0;
+  });
+}
+
+test('el zoom tiene presets, «ajustar al ancho» y atajos', async () => {
+  const a4Px = (21 * 96) / 2.54; // 21 cm de papel
+
+  // 100 % (tamaño real) desde el menú del porcentaje.
+  await page.getByRole('button', { name: /^Zoom:/ }).click();
+  await page.getByRole('menuitem', { name: 'Tamaño real (100 %)' }).click();
+  await expect.poll(stageWidth).toBeCloseTo(a4Px, 0);
+
+  // Ctrl+1: ajusta el papel al hueco visible (la regla y los paddings no cuentan).
+  await page.keyboard.press('Control+1');
+  const available = await canvasAvailableWidth();
+  expect(available).toBeGreaterThan(200);
+  expect(await stageWidth()).toBeGreaterThan(available - 2);
+  expect(await stageWidth()).toBeLessThan(available + 2);
+
+  // Ctrl+0 vuelve al 100 %.
+  await page.keyboard.press('Control+0');
+  await expect.poll(stageWidth).toBeCloseTo(a4Px, 0);
+
+  // Un preset del menú (50 %). `exact` evita que «150 %» también encaje.
+  await page.getByRole('button', { name: /^Zoom:/ }).click();
+  await page.getByRole('menuitem', { name: '50 %', exact: true }).click();
+  await expect.poll(stageWidth).toBeCloseTo(a4Px * 0.5, 0);
+
+  // Vuelve al 60 % inicial (100 % y cuatro pasos de −) para no condicionar a
+  // los tests siguientes.
+  await page.keyboard.press('Control+0');
+  for (let step = 0; step < 4; step += 1) {
+    await page.getByRole('button', { name: 'Reducir zoom' }).click();
+  }
+  await expect.poll(stageWidth).toBeCloseTo(a4Px * 0.6, 0);
+});
+
+/* ------------------ U7 · paleta: acciones nuevas del editor ---------------- */
+
+test('la paleta ofrece las acciones nuevas (filtros, texto y zoom)', async () => {
+  // Con un Tablix seleccionado, «Filtros del Tablix…» está habilitada.
+  await selectItemViaPalette('Tablix7');
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill('Filtros del Tablix');
+  await page.getByRole('option', { name: /Filtros del Tablix/ }).click();
+  const filters = page.getByRole('dialog', { name: 'Filtros del Tablix' });
+  await expect(filters.getByRole('heading', { name: 'Filtros del Tablix' })).toBeVisible();
+  await filters.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(filters).toBeHidden();
+
+  // Con un textbox seleccionado, «Editar el texto…» abre su editor.
+  await selectItemViaPalette('Textbox128');
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill('Editar el texto');
+  await page.getByRole('option', { name: /Editar el texto/ }).click();
+  const text = page.getByRole('dialog', { name: 'Texto de Textbox128' });
+  await expect(text.getByRole('heading', { name: 'Texto de Textbox128' })).toBeVisible();
+  await text.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(text).toBeHidden();
+
+  // «Ajustar al ancho» también vive en la paleta.
+  await page.keyboard.press('Control+0');
+  const a4Px = (21 * 96) / 2.54;
+  await expect.poll(stageWidth).toBeCloseTo(a4Px, 0);
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill('Ajustar al ancho');
+  await page.getByRole('option', { name: /Ajustar al ancho/ }).click();
+  const available = await canvasAvailableWidth();
+  expect(await stageWidth()).toBeGreaterThan(available - 2);
+  expect(await stageWidth()).toBeLessThan(available + 2);
+});
+
+/* --------- U8 · agrupar la fila en el menú contextual (+ Ctrl+Intro) ------- */
+
+test('el menú contextual agrupa una fila estática (Ctrl+Intro aplica)', async () => {
+  await selectItemViaPalette('Tablix3');
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, 'Tablix3') as
+    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
+  const content = tablix?.body.rows[0]?.cells[0]?.content;
+  expect(content).toBeTruthy();
+  const point = await nodeCenter(content!.id);
+  expect(point).not.toBeNull();
+
+  await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Agrupar la fila 1…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Agrupar la fila 1' });
+  await expect(dialog.getByRole('heading', { name: 'Agrupar la fila 1' })).toBeVisible();
+  // U9: el botón de cerrar del diálogo tiene nombre accesible en español.
+  await expect(dialog.getByRole('button', { name: 'Cerrar' })).toBeVisible();
+
+  const editor = dialog.locator('.monaco-editor');
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.type('=Fields!BTCNo_BTCHeader.Value');
+  // Ctrl+Intro aplica el diálogo sin usar el botón.
+  await page.keyboard.press('Control+Enter');
+  await expect(dialog).toBeHidden();
+  await expect
+    .poll(() => memberExpression('Tablix3', 'row', [0]))
+    .toBe('=Fields!BTCNo_BTCHeader.Value');
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberExpression('Tablix3', 'row', [0])).toBeUndefined();
+});
+
+/* --------------------- U9 · atajos y foco de los diálogos ------------------ */
+
+test('Ctrl+S guarda y Ctrl+K no se cuela dentro de un diálogo', async () => {
+  // Ctrl+S: la promesa de la paleta, sin botón de por medio.
+  await page.keyboard.press('Control+s');
+  await expect(page.getByText(/Guardado/)).toBeVisible();
+
+  // Con un diálogo abierto, Ctrl+K no abre la paleta por encima (el foco y la
+  // trampa de Radix mandan).
+  await page.getByRole('button', { name: 'Informe…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
+  await expect(dialog.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
+  await page.keyboard.press('Control+k');
+  await expect(page.getByPlaceholder('Buscar elemento, variable o acción…')).toBeHidden();
+  // Escape cierra el diálogo y devuelve el foco sin tocar la selección.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
 });

@@ -286,6 +286,24 @@ export class SessionService implements ISessionService {
     return this.sessions.get(sessionId)?.version ?? 0;
   }
 
+  /**
+   * Recalcula `dirty` contra los bytes de referencia: si deshacer/rehacer dejó
+   * el documento exactamente como estaba en disco, la sesión vuelve a estar
+   * limpia (no tiene sentido pedir «guardar» por cambios que ya no existen).
+   */
+  refreshDirty(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session || !session.dirty) return;
+    try {
+      const bytes = Buffer.from(this.serializer.serialize(session.document), 'utf8');
+      if (!bytes.equals(session.originalBytes)) return;
+    } catch {
+      return;
+    }
+    session.dirty = false;
+    this.events.send(IPC_EVENTS.dirtyChanged, { sessionId, dirty: false });
+  }
+
   /* --------------------------- interno -------------------------------- */
 
   private async onExternalChange(sessionId: string): Promise<void> {

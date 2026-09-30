@@ -66,5 +66,11 @@ export interface ISessionService {
   rebuildIndex(sessionId: string): void;
   /** Mutación aplicada: sube la versión, marca dirty y emite eventos. */
   touch(sessionId: string, options?: TouchOptions): number;
+  /**
+   * Recalcula `dirty` comparando los bytes serializados con la referencia del
+   * disco. Se llama tras **deshacer/rehacer**: volver al estado original deja
+   * la sesión limpia (y el cierre de ventana ya no pide guardar).
+   */
+  refreshDirty(sessionId: string): void;
   versionOf(sessionId: string): number;
 }

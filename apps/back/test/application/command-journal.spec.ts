@@ -86,6 +86,23 @@ describe('F1 · journal de comandos', () => {
     if (after.isRight()) expect(after.value.index.get('TextboxNuevo')).toBeDefined();
   });
 
+  it('deshacer hasta el estado original deja la sesión limpia (dirty false)', async () => {
+    const { commands, events, sessionId } = await openFixture();
+    const dirtyEvents = (): { dirty: boolean }[] =>
+      events.payloads<{ dirty: boolean }>(IPC_EVENTS.dirtyChanged);
+
+    expect(commands.execute(sessionId, INSERT).isRight()).toBe(true);
+    expect(dirtyEvents().at(-1)).toEqual({ sessionId, dirty: true });
+
+    // Deshacer deja el XML byte a byte como estaba: no hay nada que guardar.
+    expect(commands.undo(sessionId).isRight()).toBe(true);
+    expect(dirtyEvents().at(-1)).toEqual({ sessionId, dirty: false });
+
+    // Rehacer vuelve a ensuciar.
+    expect(commands.redo(sessionId).isRight()).toBe(true);
+    expect(dirtyEvents().at(-1)).toEqual({ sessionId, dirty: true });
+  });
+
   it('el journal sigue vivo tras guardar (no cambia el documento)', async () => {
     const { commands, service, sessionId } = await openFixture();
 

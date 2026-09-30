@@ -146,6 +146,8 @@ export class CommandService implements ICommandService {
     journal.redoStack.push({ command: entry.command, inverse: [...entry.inverse] });
     if (isStructural(entry.command)) this.sessions.rebuildIndex(sessionId);
     const version = this.sessions.touch(sessionId, { snapshotOut: true });
+    // Deshacer puede devolver el documento a su estado en disco: recalcula dirty.
+    this.sessions.refreshDirty(sessionId);
     return right({ ok: true, version });
   }
 
@@ -169,6 +171,8 @@ export class CommandService implements ICommandService {
     journal.undoStack.push({ command: entry.command, inverse: inverseCommands(applied.value) });
     if (isStructural(entry.command)) this.sessions.rebuildIndex(sessionId);
     const version = this.sessions.touch(sessionId, { snapshotOut: true });
+    // Rehacer también puede devolver el documento a su estado en disco.
+    this.sessions.refreshDirty(sessionId);
     return right({ ok: true, version });
   }
 
