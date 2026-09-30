@@ -30,6 +30,33 @@
 >
 > **Punto de retomada**: completar U3 (marco de selección + duplicar/copiar/cortar en lote)
 > y los P2/P3 de 0002 (estados mixtos, etiquetas de alinear, hoja de atajos, toolbar/estado).
+>
+> **Cierre de U3 (misma sesión, tras la re-evaluación) — ✅ hecho**:
+>
+> - **Marco de selección**: arrastrar en vacío pinta el marco (coordenadas del papel con
+>   `getRelativePointerPosition`) y adopta como multiselección los items que intersecta;
+>   el click sintético posterior no limpia la selección. Hook `useMarqueeSelection`.
+> - **Duplicar en lote**: `Ctrl+D` con 2+ seleccionados → `batch` de `duplicateItem`, **un
+>   undo**, y el resultado devuelve `ids` (`applyBatch` acumula `createdIds`) para
+>   seleccionar los clones.
+> - **Portapapeles múltiple**: `copy`/`cut` aceptan `ids`, el portapapeles guarda varios
+>   subárboles y `paste` inserta `insertClones` (nombres únicos compartidos, un solo undo,
+>   índice reconstruido). Cortar varios = copiar + `batch` de borrados (un undo).
+> - **Lote por celdas**: con un rango de celdas seleccionado, el panel de lote edita los
+>   **contenidos** de esas celdas (cabecera «N celdas», sin alinear/distribuir porque están
+>   ancladas); hook `useBatchSelection`.
+> - **Feedback de uso aplicado**: toolbar responsive (scroll + etiquetas plegables),
+>   panel de lote con **selector de fuente**, tamaño legible, **bordes/padding/visibilidad**
+>   y **estilos efectivos** (Arial/10pt/Visible por defecto; editar un lado mezclado se
+>   permite, marcado «—»), **Jerarquía colapsable + buscador**, panel de **Variables**
+>   unificado al look de Jerarquía, y submenús del menú contextual sin recortes.
+>
+> Estado: **285 back + 168 front**, `typecheck` limpio, **67 E2E** verdes y React Doctor
+> **100/100**.
+>
+> **Punto de retomada actualizado**: quedan los P2/P3 de 0002 (etiquetas visibles de
+> alinear/distribuir, hoja de atajos, error persistente, barra de estado) y, del plan,
+> el bug de `Maximum update depth exceeded`, la fase F2.c → F3 y los técnicos T1–T5.
 
 > **Sesión 2026-09-30 (4.ª parte) · pase UX U6–U9 (zoom, paleta, agrupar la fila, teclado/ARIA)** —
 > segunda sesión trabajando **en paralelo** sobre el mismo árbol (la otra cubre U1–U5:

@@ -175,3 +175,18 @@ escribir).
 
 **Siguiente verificación**: re-evaluar cuando `/journey` cierre el lote completo
 (duplicar/copiar/marco) — es el criterio de salida de este bucle.
+
+---
+
+## Actualización (2026-09-30, misma sesión)
+
+- ✅ **U3 cerrado**: **marco de selección** (arrastrar en vacío), **duplicar en lote**
+  (`batch` de `duplicateItem` con `ids` de los clones) y **portapapeles múltiple**
+  (`copy`/`cut` por ids + `insertClones` en un solo undo). Además, con un rango de
+  **celdas** seleccionado el panel de lote edita los **contenidos** de esas celdas.
+  El walkthrough «duplicar/copiar varios elementos» deja de fallar (E2E de regresión).
+- ✅ P2 #3 y #4 mejorados: el panel de lote muestra **estilos efectivos con su defecto**
+  (Arial/10pt/Visible), marca los estados mixtos («—») y **permite editar bordes
+  mezclados** (estilo, color y grosor).
+- Quedan P2 #4 (etiquetas visibles de alinear/distribuir), P2 #5 (hoja de atajos) y los
+  P3 (toolbar/estado/insertar/error persistente).
