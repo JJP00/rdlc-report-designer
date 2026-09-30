@@ -1,5 +1,23 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-30 · verificación en la app + previsualización del redimensionado** —
+> se probó en la app lo pendiente de la sesión anterior (log de comandos sobre
+> `SalesCreditMemoESP`): **Tablix 2×3** (7,5 × 1,2 cm, las 6 celdas), **drag de
+> contenedores** y **redimensionado** de tabla/filas/columnas, todo `ok=true` y sin
+> rastro del bug de `Maximum update depth exceeded` en esa sesión. Feedback del uso:
+>
+> - **Previsualización al arrastrar bordes de cabecera**: arrastrar el borde de una
+>   fila/columna no mostraba nada hasta soltar. Ahora hay una **línea discontinua en
+>   la frontera destino + etiqueta con el ancho/alto resultante**, calculada con la
+>   **misma matemática que al soltar** (`resizeBoundary`, imán y mínimo incluidos):
+>   lo que se ve es exactamente lo que se aplica. Pintada por refs en la capa de
+>   selección (sin re-render durante el drag, como la previsualización de los
+>   tiradores) y cubierta por E2E a mitad de arrastre.
+> - Queda por probar a mano **borrar un Tablix** y **«Orden» en celdas** (los cubren
+>   los E2E como regresión: 33 · mover rectángulo, 34 · borrar Tablix, 28 · ZIndex).
+>
+> Estado: **400 unit tests** (266 back + 134 front), `typecheck` limpio y **50 E2E** verdes.
+
 > **Sesión 2026-09-29 (2.ª parte) · pruebas manuales en la app: fixes y ajustes** —
 > feedback del uso real sobre el bloque de gaps G1–G13:
 >
