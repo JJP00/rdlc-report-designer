@@ -70,13 +70,25 @@ export interface InsertCloneCommand {
   readonly source: RdlcNode;
 }
 
+/**
+ * Pega **varios** clones consecutivos del portapapeles (multiselección): cada
+ * origen se clona y renombra; todo es **un solo paso de undo**.
+ */
+export interface InsertClonesCommand {
+  readonly cmd: 'insertClones';
+  readonly scope: ScopeRef;
+  readonly index: number;
+  readonly sources: RdlcNode[];
+}
+
 export type InternalCommand =
   | RemoveNodeCommand
   | RestoreNodeCommand
   | SetNodeTextCommand
   | SetAttributeCommand
   | MoveNodeCommand
-  | InsertCloneCommand;
+  | InsertCloneCommand
+  | InsertClonesCommand;
 
 export function isInternalCommand(command: { cmd: string }): command is InternalCommand {
   return (
@@ -85,7 +97,8 @@ export function isInternalCommand(command: { cmd: string }): command is Internal
     command.cmd === 'setNodeText' ||
     command.cmd === 'setAttribute' ||
     command.cmd === 'moveNode' ||
-    command.cmd === 'insertClone'
+    command.cmd === 'insertClone' ||
+    command.cmd === 'insertClones'
   );
 }
 

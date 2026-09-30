@@ -3,6 +3,8 @@ import { left, right } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import type { Either } from '../../../shared/either.js';
 import type { CommandContext, CommandOutcome, DomainCommand } from './CommandContext.js';
+import { inverseCommands } from './CommandContext.js';
+import type { AppliedEntry } from './CommandContext.js';
 import { applyDeleteItem } from './deleteItem.js';
 import { applyDuplicateItem } from './duplicateItem.js';
 import { applyInsertItem } from './insertItem.js';
@@ -180,6 +182,41 @@ export function applyCommand(
     }
     case 'insertClone':
       return applyInsertClone(ctx, command);
+    case 'insertClones': {
+      // Varios clones consecutivos (multiselección): un solo paso de undo.
+      const inverse: DomainCommand[] = [];
+      const applied: AppliedEntry[] = [];
+      const createdIds: string[] = [];
+      // Registro compartido: sin él, dos clones del mismo lote elegirían el
+      // mismo nombre libre (el índice no ve lo insertado hasta terminar).
+      const taken = new Set<string>();
+      for (let offset = 0; offset < command.sources.length; offset += 1) {
+        const result = applyInsertClone(
+          ctx,
+          {
+            cmd: 'insertClone',
+            scope: command.scope,
+            index: command.index + offset,
+            source: command.sources[offset]!,
+          },
+          taken,
+        );
+        if (result.isLeft()) {
+          // Atómico: si un clon no entra, se revierten los anteriores.
+          for (const undo of [...inverse].reverse()) applyCommand(ctx, undo);
+          return left(result.value);
+        }
+        inverse.push(...inverseCommands(result.value));
+        if (result.value.applied) applied.push(...result.value.applied);
+        if (result.value.createdId) createdIds.push(result.value.createdId);
+      }
+      return right({
+        inverse,
+        ...(applied.length > 0 ? { applied } : {}),
+        ...(createdIds.length > 0 ? { createdIds } : {}),
+        snapshotOut: true,
+      });
+    }
 
     default:
       return left(

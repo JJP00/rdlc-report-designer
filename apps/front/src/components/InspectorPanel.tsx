@@ -20,10 +20,12 @@ export interface InspectorPanelProps {
   tablix: TablixDto | undefined;
   selectedCell: SelectedCell | null;
   item: ItemDto | undefined;
-  /** Items de la multiselección (U3); con 2+ manda el panel de lote. */
+  /** Items de la multiselección (U3) o contenidos de las celdas seleccionadas. */
   selectedItems: ItemDto[];
   /** De los seleccionados, los movibles (no contenido de celda). */
   movableIds: string[];
+  /** El lote viene de una selección de celdas (cabecera «N celdas»). */
+  cellBatch: boolean;
   /** Edición en lote: un solo paso de undo. */
   onBatchEdit: (commands: BatchableCommand[]) => void;
   /** El item es contenido directo de una celda (lo fija la celda). */
@@ -86,6 +88,7 @@ export function InspectorPanel({
   item,
   selectedItems,
   movableIds,
+  cellBatch,
   onBatchEdit,
   cellContent,
   onSelectCell,
@@ -121,9 +124,10 @@ export function InspectorPanel({
           items={selectedItems}
           movableIds={movableIds}
           onBatchEdit={onBatchEdit}
+          label={cellBatch ? 'celdas' : 'elementos'}
         />
       ) : null}
-      {selectedItems.length > 1 ? null : tablix ? (
+      {selectedItems.length > 1 && !cellBatch ? null : tablix ? (
         <TablixStructurePanel
           tablix={tablix}
           selectedCell={selectedCell}

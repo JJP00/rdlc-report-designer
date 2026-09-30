@@ -59,9 +59,9 @@ export interface ISessionService {
   getEditTarget(sessionId: string): Either<DomainError, EditTarget>;
 
   /** Guarda un clon desprendido del item en el portapapeles de la sesión. */
-  copyToClipboard(sessionId: string, id: string): Either<DomainError, void>;
-  /** Subárbol del portapapeles (desprendido), si lo hay. */
-  clipboardOf(sessionId: string): RdlcNode | undefined;
+  copyToClipboard(sessionId: string, ids: string[]): Either<DomainError, void>;
+  /** Subárboles del portapapeles (desprendidos), si los hay. */
+  clipboardOf(sessionId: string): RdlcNode[] | undefined;
   /** Reconstruye el índice tras comandos que cambian estructura o límites. */
   rebuildIndex(sessionId: string): void;
   /** Mutación aplicada: sube la versión, marca dirty y emite eventos. */

@@ -52,8 +52,8 @@ interface Session {
   lastWriteMs: number;
   /** true mientras escribimos: el watcher ignora esos eventos. */
   writing: boolean;
-  /** Subárbol desprendido copiado/cortado (portapapeles de la sesión). */
-  clipboard?: RdlcNode;
+  /** Subárboles desprendidos copiados/cortados (portapapeles de la sesión). */
+  clipboard?: RdlcNode[];
   unwatch?: Unwatch;
 }
 
@@ -236,22 +236,26 @@ export class SessionService implements ISessionService {
   }
 
   /**
-   * Guarda un subárbol **desprendido** en el portapapeles de la sesión: al
-   * clonar se pierde el vínculo con el documento, así que pegarlo más tarde (o
-   * tras deshacer el borrado) no depende de que el original siga existiendo.
+   * Guarda subárboles **desprendidos** en el portapapeles de la sesión: al
+   * clonar se pierde el vínculo con el documento, así que pegarlos más tarde (o
+   * tras deshacer el borrado) no depende de que los originales sigan existiendo.
+   * Acepta varios ids (multiselección) y conserva su orden.
    */
-  copyToClipboard(sessionId: string, id: string): Either<DomainError, void> {
+  copyToClipboard(sessionId: string, ids: string[]): Either<DomainError, void> {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
 
-    const node = session.index.get(id);
-    if (!node) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
-
-    session.clipboard = node.clone();
+    const nodes: RdlcNode[] = [];
+    for (const id of ids) {
+      const node = session.index.get(id);
+      if (!node) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+      nodes.push(node.clone());
+    }
+    session.clipboard = nodes;
     return right(undefined);
   }
 
-  clipboardOf(sessionId: string): RdlcNode | undefined {
+  clipboardOf(sessionId: string): RdlcNode[] | undefined {
     return this.sessions.get(sessionId)?.clipboard;
   }
 

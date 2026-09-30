@@ -26,6 +26,7 @@ import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
 import { Paper } from './Paper';
 import { Ruler } from './Ruler';
 import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
+import { useMarqueeSelection } from './useMarqueeSelection';
 import { bandAt, paperLayout, type PaperLayout } from './bands';
 import { clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
 
@@ -46,6 +47,11 @@ export interface CanvasPreviewProps {
   /** Items adicionales de la multiselección (U3): se dibujan con marco discontinuo. */
   extraSelectedIds?: string[];
   onSelect?: (id: string | null, additive?: boolean) => void;
+  /**
+   * Marco de selección (arrastrar en vacío): ids de los items que intersectan
+   * la caja. El padre los adopta como multiselección.
+   */
+  onSelectMany?: (ids: string[]) => void;
   /** Se llama al soltar un drag con la posición ya normalizada (cm). */
   onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   /** El drag terminó sobre otro contenedor: reparentar (`moveItem`). */
@@ -94,6 +100,7 @@ export function CanvasPreview({
   selectedId,
   extraSelectedIds = [],
   onSelect,
+  onSelectMany,
   onMoveTo,
   onMoveItemToScope,
   onResizeItem,
@@ -109,6 +116,14 @@ export function CanvasPreview({
 }: CanvasPreviewProps): ReactNode {
   const stageRef = useRef<Konva.Stage | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  /* ----------------------- marco de selección (U3) ------------------------ */
+  const {
+    marqueeRef,
+    handlers: marqueeHandlers,
+    suppressClickRef,
+  } = useMarqueeSelection({ stageRef, projection, onSelectMany });
+
   const [selectionRect, setSelectionRect] = useState<{
     x: number;
     y: number;
@@ -309,7 +324,15 @@ export function CanvasPreview({
             scaleX={zoom}
             scaleY={zoom}
             style={{ background: '#e5e7eb' }}
+            onMouseDown={marqueeHandlers.onMouseDown}
+            onMouseMove={marqueeHandlers.onMouseMove}
+            onMouseUp={marqueeHandlers.onMouseUp}
             onClick={(event) => {
+              // Tras un marco, el click sintético no debe limpiar la selección.
+              if (suppressClickRef.current) {
+                suppressClickRef.current = false;
+                return;
+              }
               // Click en vacío = deseleccionar (los items cortan la propagación).
               if (event.target === event.target.getStage()) onSelect?.(null);
             }}
@@ -329,6 +352,19 @@ export function CanvasPreview({
 
             <SelectionFrame {...frameProps} />
             <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
+            {/* Marco de selección (arrastrar en vacío). */}
+            <Layer listening={false}>
+              <Rect
+                ref={marqueeRef}
+                name="marquee-rect"
+                visible={false}
+                stroke="#2563eb"
+                fill="rgba(37,99,235,0.08)"
+                strokeWidth={1}
+                dash={[4, 3]}
+                strokeScaleEnabled={false}
+              />
+            </Layer>
           </Stage>
         </div>
       </div>

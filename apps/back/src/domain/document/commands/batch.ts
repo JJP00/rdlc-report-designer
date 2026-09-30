@@ -21,6 +21,7 @@ export function applyBatch(
 ): Either<DomainError, CommandOutcome> {
   const inverse: DomainCommand[] = [];
   const applied: NonNullable<CommandOutcome['applied']> = [];
+  const createdIds: string[] = [];
 
   for (const inner of command.commands) {
     const result = applyCommand(ctx, inner);
@@ -30,11 +31,13 @@ export function applyBatch(
     }
     inverse.push(...inverseCommands(result.value));
     if (result.value.applied) applied.push(...result.value.applied);
+    if (result.value.createdId) createdIds.push(result.value.createdId);
   }
 
   return right({
     inverse,
     ...(applied.length > 0 ? { applied } : {}),
+    ...(createdIds.length > 0 ? { createdIds } : {}),
     // El lote puede tocar partes que `applied` no expresa (varios items): el
     // front refresca con la proyección completa.
     snapshotOut: true,

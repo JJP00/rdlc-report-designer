@@ -48,12 +48,13 @@ export interface RdlcApi {
   redo(sessionId: string): Promise<CommandResult>;
 
   /**
-   * Portapapeles de items (vive en el backend: guarda el subárbol XML exacto).
-   * `cut` = copiar + `deleteItem` (un solo paso de undo).
+   * Portapapeles de items (vive en el backend: guarda los subárboles XML
+   * exactos). `cut` = copiar + `deleteItem` en lote (un solo paso de undo).
+   * Acepta varios ids (multiselección).
    */
-  copy(sessionId: string, id: string): Promise<CommandResult>;
-  cut(sessionId: string, id: string): Promise<CommandResult>;
-  /** Pega un clon con nombres nuevos en `scope[index]`; devuelve `id` nuevo. */
+  copy(sessionId: string, ids: string[]): Promise<CommandResult>;
+  cut(sessionId: string, ids: string[]): Promise<CommandResult>;
+  /** Pega clones con nombres nuevos en `scope[index]`; devuelve `ids` nuevos. */
   paste(sessionId: string, scope: ScopeRef, index: number): Promise<CommandResult>;
 
   /** Ruta real de un fichero soltado sobre la ventana (drag&drop de `.rdlc`). */

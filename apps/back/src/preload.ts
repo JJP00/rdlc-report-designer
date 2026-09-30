@@ -77,11 +77,11 @@ const api: RdlcApi = {
   redo: (sessionId: string): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.redo, { sessionId }),
 
-  copy: (sessionId: string, id: string): Promise<CommandResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.copy, { sessionId, id }),
+  copy: (sessionId: string, ids: string[]): Promise<CommandResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.copy, { sessionId, ids }),
 
-  cut: (sessionId: string, id: string): Promise<CommandResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.cut, { sessionId, id }),
+  cut: (sessionId: string, ids: string[]): Promise<CommandResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.cut, { sessionId, ids }),
 
   paste: (sessionId: string, scope: ScopeRef, index: number): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.paste, { sessionId, scope, index }),

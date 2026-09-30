@@ -96,9 +96,9 @@ export const executeCommandRequestSchema = z
   .strict();
 export type ExecuteCommandRequest = z.infer<typeof executeCommandRequestSchema>;
 
-/** Copiar/cortar: identifican el item origen. */
+/** Copiar/cortar: identifican los items origen (multiselección en orden). */
 export const clipboardSourceRequestSchema = z
-  .object({ sessionId: z.string().min(1), id: z.string().min(1) })
+  .object({ sessionId: z.string().min(1), ids: z.array(z.string().min(1)).min(1) })
   .strict();
 export type ClipboardSourceRequest = z.infer<typeof clipboardSourceRequestSchema>;
 
@@ -127,6 +127,8 @@ export const commandOkSchema = z.object({
   ok: z.literal(true),
   /** Id nuevo al insertar. */
   id: z.string().optional(),
+  /** Ids creados por un `batch` (duplicar/pegar varios): selección múltiple. */
+  ids: z.array(z.string()).optional(),
   /** Valores normalizados por el dominio (uno o varios elementos). */
   applied: z
     .array(z.object({ id: z.string(), values: z.record(z.string(), z.unknown()) }))

@@ -1345,6 +1345,142 @@ test('Shift+click extiende el rango y el menú combina/separa celdas', async () 
   await expect.poll(() => cellSpans('LinesTable2', 0, 0)).toEqual({ colSpan: 1, rowSpan: 1 });
 });
 
+test('un rango de celdas edita el contenido en lote (un solo undo)', async () => {
+  const c00 = await cellContentAt('LinesTable2', 0, 0);
+  const c01 = await cellContentAt('LinesTable2', 0, 1);
+  expect(c00).toBeTruthy();
+  expect(c01).toBeTruthy();
+
+  const border = await tablixBorderPoint('LinesTable2');
+  await page.mouse.click(border!.x, border!.y);
+  await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
+  await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 0, col: 0 });
+
+  // Shift+click en la celda contigua de la misma fila: rango de 2 celdas.
+  const p01 = await nodeCenter(c01!.id);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(p01!.x, p01!.y);
+  await page.keyboard.up('Shift');
+  await expect
+    .poll(selectedCell)
+    .toEqual({ id: 'LinesTable2', row: 0, col: 0, endRow: 0, endCol: 1 });
+
+  // El panel de lote edita el contenido de las dos celdas a la vez.
+  const panel = page.getByTestId('multi-selection-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('2 celdas');
+
+  await panel.getByLabel('Borde superior: estilo').selectOption('Dashed');
+  await expect.poll(async () => (await itemBorderSide(c00!.id, 'top'))?.style).toBe('Dashed');
+  await expect.poll(async () => (await itemBorderSide(c01!.id, 'top'))?.style).toBe('Dashed');
+
+  // Un solo undo revierte el lote de las dos celdas.
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await itemBorderSide(c00!.id, 'top'))?.style).not.toBe('Dashed');
+  await expect.poll(async () => (await itemBorderSide(c01!.id, 'top'))?.style).not.toBe('Dashed');
+});
+
+test('el marco de selección selecciona los items que intersecta', async () => {
+  // Caja que cubre Textbox4 y Textbox17 (ambos en el encabezado), empezando en
+  // el margen izquierdo del papel (zona vacía del lienzo).
+  const box = await page.evaluate(() => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      container(): HTMLElement;
+      scaleX(): number;
+      findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+    };
+    const node = (id: string): KonvaLike | undefined =>
+      stage.findOne((candidate) => candidate.id() === id);
+    const rectOf = (id: string): { x: number; y: number; width: number; height: number } => {
+      const measured = node(id)?.getClientRect({ relativeTo: stage as unknown as never });
+      if (!measured) throw new Error(`sin nodo ${id}`);
+      return measured;
+    };
+    const container = stage.container().getBoundingClientRect();
+    const zoom = stage.scaleX();
+    const a = rectOf('Textbox4');
+    const b = rectOf('Textbox17');
+    const maxX = Math.max(a.x + a.width, b.x + b.width);
+    const minY = Math.min(a.y, b.y);
+    const maxY = Math.max(a.y + a.height, b.y + b.height);
+    return {
+      // Desde la columna del margen izquierdo (zona vacía a cualquier altura).
+      start: { x: container.left + 6, y: container.top + (minY - 5) * zoom },
+      end: { x: container.left + (maxX + 16) * zoom, y: container.top + (maxY + 16) * zoom },
+    };
+  });
+
+  await page.mouse.move(box.start.x, box.start.y);
+  await page.mouse.down();
+  await page.mouse.move(box.end.x, box.end.y, { steps: 10 });
+  await page.mouse.up();
+
+  const ids = await page.evaluate(
+    () => (window as never as Record<string, unknown>)['__rdlcSelectionIds'] as string[],
+  );
+  expect(ids).toContain('Textbox4');
+  expect(ids).toContain('Textbox17');
+  expect(ids.length).toBeGreaterThan(1);
+  await expect(page.getByTestId('multi-selection-panel')).toBeVisible();
+});
+
+test('duplicar y portapapeles en lote (un undo por operación)', async () => {
+  const total = async (): Promise<number> =>
+    page.evaluate(() => {
+      const projection = (window as never as Record<string, unknown>)['__rdlcProjection'] as {
+        page: { header: { items: unknown[] }; body: { items: unknown[] }; footer: { items: unknown[] } };
+      };
+      const count = (items: unknown[]): number =>
+        items.reduce<number>((sum, raw) => {
+          const item = raw as {
+            children?: unknown[];
+            body?: { rows?: { cells?: ({ content?: unknown } | null)[] }[] };
+          };
+          const children = item.children ?? [];
+          const cells = (item.body?.rows ?? []).flatMap((row) => row.cells ?? []);
+          const contents = cells.flatMap((cell) => (cell?.content ? [cell.content] : []));
+          return sum + 1 + count(children) + count(contents);
+        }, 0);
+      return (
+        count(projection.page.header.items) +
+        count(projection.page.body.items) +
+        count(projection.page.footer.items)
+      );
+    });
+
+  await selectItemViaPalette('Textbox4');
+  const center = await nodeCenter('Textbox17');
+  await page.keyboard.down('Control');
+  await page.mouse.click(center!.x, center!.y);
+  await page.keyboard.up('Control');
+  await expect(page.getByTestId('multi-selection-panel')).toContainText('2 elementos');
+
+  // Duplicar los dos: 2 clones nuevos y seleccionados, un solo undo.
+  const before = await total();
+  await page.keyboard.press('Control+d');
+  await expect.poll(total).toBe(before + 2);
+  const clones = await page.evaluate(
+    () => (window as never as Record<string, unknown>)['__rdlcSelectionIds'] as string[],
+  );
+  expect(clones).toHaveLength(2);
+  await page.keyboard.press('Control+z');
+  await expect.poll(total).toBe(before);
+
+  // Re-selecciona los originales (el undo los dejó sin selección) y copia/pega
+  // los dos: 2 clones, un solo undo.
+  await selectItemViaPalette('Textbox4');
+  const again = await nodeCenter('Textbox17');
+  await page.keyboard.down('Control');
+  await page.mouse.click(again!.x, again!.y);
+  await page.keyboard.up('Control');
+  await expect(page.getByTestId('multi-selection-panel')).toContainText('2 elementos');
+  await page.keyboard.press('Control+c');
+  await page.keyboard.press('Control+v');
+  await expect.poll(total).toBe(before + 2);
+  await page.keyboard.press('Control+z');
+  await expect.poll(total).toBe(before);
+});
+
 test('un rango de varias filas no ofrece combinar celdas', async () => {
   const c00 = await cellContentAt('LinesTable2', 0, 0);
   const c11 = await cellContentAt('LinesTable2', 1, 1);

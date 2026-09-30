@@ -55,6 +55,8 @@ export interface CanvasAreaProps {
   hasClipboard: boolean;
   reveal: { id: string; nonce: number } | null;
   onSelect: (id: string | null, additive?: boolean) => void;
+  /** Marco de selección: ids que intersectan la caja. */
+  onSelectMany: (ids: string[]) => void;
   onSelectCell: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   onContextMenuHit: (hit: CanvasHit) => void;
   onZoomChange: (zoom: number) => void;
@@ -121,6 +123,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     hasClipboard,
     reveal,
     onSelect,
+    onSelectMany,
     onSelectCell,
     onContextMenuHit,
     onZoomChange,
@@ -188,6 +191,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
                 extraSelectedIds={extraSelectedIds}
                 selectedCell={selectedCell}
                 onSelect={onSelect}
+                onSelectMany={onSelectMany}
                 onSelectCell={onSelectCell}
                 onMoveTo={onMoveTo}
                 onMoveItemToScope={onMoveItemToScope}

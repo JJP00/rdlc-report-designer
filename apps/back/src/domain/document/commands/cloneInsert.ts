@@ -14,8 +14,10 @@ export function insertCloneAt(
   source: RdlcNode,
   index: number,
   preferredName?: string,
+  /** Registro compartido por un pegado múltiple (nombres únicos entre clones). */
+  sharedTaken?: Set<string>,
 ): { name: string; clone: RdlcNode } {
-  const taken = new Set<string>();
+  const taken = sharedTaken ?? new Set<string>();
   const name = preferredName ?? nextItemName(ctx, source.tagName.toLowerCase(), taken);
   const clone = source.clone();
 

@@ -8,7 +8,11 @@ import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
  * proyección viva y el último hit del click derecho. El `SelectionFrame` y el
  * lienzo publican el resto (`__rdlcSelection`, `__rdlcCell`, `__rdlcStage`…).
  */
-export function useQaHooks(projection: ProjectionDto | null, menuHit: CanvasHit | null): void {
+export function useQaHooks(
+  projection: ProjectionDto | null,
+  menuHit: CanvasHit | null,
+  selectedIds: string[],
+): void {
   useEffect(() => {
     if (!TEST_HOOKS_ENABLED) return;
     (window as Window & { __rdlcProjection?: ProjectionDto | null }).__rdlcProjection = projection;
@@ -18,4 +22,10 @@ export function useQaHooks(projection: ProjectionDto | null, menuHit: CanvasHit 
     if (!TEST_HOOKS_ENABLED) return;
     (window as Window & { __rdlcMenuHit?: CanvasHit | null }).__rdlcMenuHit = menuHit;
   }, [menuHit]);
+
+  // Multiselección actual (el marco y Ctrl+click): la suite comprueba sus ids.
+  useEffect(() => {
+    if (!TEST_HOOKS_ENABLED) return;
+    (window as Window & { __rdlcSelectionIds?: string[] }).__rdlcSelectionIds = selectedIds;
+  }, [selectedIds]);
 }

@@ -13,8 +13,8 @@ export interface ICommandService {
   undo(sessionId: string): Either<DomainError, CommandResult>;
   redo(sessionId: string): Either<DomainError, CommandResult>;
   /** Portapapeles de items: copiar no toca el documento ni el journal. */
-  copy(sessionId: string, id: string): Either<DomainError, CommandResult>;
-  cut(sessionId: string, id: string): Either<DomainError, CommandResult>;
+  copy(sessionId: string, ids: string[]): Either<DomainError, CommandResult>;
+  cut(sessionId: string, ids: string[]): Either<DomainError, CommandResult>;
   paste(sessionId: string, scope: ScopeRef, index: number): Either<DomainError, CommandResult>;
   /** Descarta el journal de una sesión (al cerrarla). */
   drop(sessionId: string): void;

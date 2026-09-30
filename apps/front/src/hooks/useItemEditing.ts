@@ -830,11 +830,23 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   );
 
   const duplicateSelected = useCallback((): void => {
+    // Con multiselección: todos los duplicados en un solo paso de undo y se
+    // seleccionan los clones (el batch devuelve sus ids).
+    if (selectedIds.length > 1) {
+      flushNudge();
+      void sendCommand({
+        cmd: 'batch',
+        commands: selectedIds.map((id) => ({ cmd: 'duplicateItem' as const, id })),
+      }).then((result) => {
+        if (result?.ok && result.ids && result.ids.length > 0) setSelectedIds(result.ids);
+      });
+      return;
+    }
     if (!selectedItem) return;
     void sendCommand({ cmd: 'duplicateItem', id: selectedItem.id }).then((result) => {
       if (result?.ok && result.id) setSelectedId(result.id);
     });
-  }, [selectedItem, sendCommand]);
+  }, [flushNudge, selectedIds, selectedItem, sendCommand, setSelectedId, setSelectedIds]);
 
   const deleteSelected = useCallback((): void => {
     if (!selectedItem) return;
@@ -845,32 +857,32 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   /* ------------------------------ portapapeles ---------------------------- */
 
   const copySelected = useCallback((): void => {
-    if (!doc || !selectedItem) return;
-    const id = selectedItem.id;
-    void window.api.copy(doc.sessionId, id).then((result) => {
+    const ids = selectedIds.length > 0 ? selectedIds : selectedItem ? [selectedItem.id] : [];
+    if (!doc || ids.length === 0) return;
+    void window.api.copy(doc.sessionId, ids).then((result) => {
       if (!result.ok) {
         setError(apiErrorMessage(result, 'no se pudo copiar'));
         return;
       }
       setHasClipboard(true);
-      setStatus(`Copiado: ${id}`);
+      setStatus(ids.length === 1 ? `Copiado: ${ids[0]}` : `Copiados ${ids.length} elementos`);
     });
-  }, [doc, selectedItem, setError, setStatus]);
+  }, [doc, selectedIds, selectedItem, setError, setStatus]);
 
   const cutSelected = useCallback((): void => {
-    if (!doc || !selectedItem) return;
-    const id = selectedItem.id;
+    const ids = selectedIds.length > 0 ? selectedIds : selectedItem ? [selectedItem.id] : [];
+    if (!doc || ids.length === 0) return;
     flushNudge();
-    void window.api.cut(doc.sessionId, id).then((result) => {
+    void window.api.cut(doc.sessionId, ids).then((result) => {
       if (!result.ok) {
         setError(apiErrorMessage(result, 'no se pudo cortar'));
         return;
       }
       setHasClipboard(true);
-      setSelectedId(null);
-      setStatus(`Cortado: ${id}`);
+      setSelectedIds([]);
+      setStatus(ids.length === 1 ? `Cortado: ${ids[0]}` : `Cortados ${ids.length} elementos`);
     });
-  }, [doc, flushNudge, selectedItem, setError, setStatus]);
+  }, [doc, flushNudge, selectedIds, selectedItem, setError, setSelectedIds, setStatus]);
 
   const pasteAt = useCallback(
     (scope: ScopeRef, index: number): void => {
@@ -880,11 +892,16 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
           setError(apiErrorMessage(result, 'no se pudo pegar'));
           return;
         }
-        if (result.id) setSelectedId(result.id);
-        setStatus(`Pegado: ${result.id ?? ''}`);
+        if (result.ids && result.ids.length > 0) setSelectedIds(result.ids);
+        else if (result.id) setSelectedId(result.id);
+        setStatus(
+          result.ids && result.ids.length > 1
+            ? `Pegados ${result.ids.length} elementos`
+            : `Pegado: ${result.id ?? ''}`,
+        );
       });
     },
-    [doc, setError, setStatus],
+    [doc, setError, setSelectedId, setSelectedIds, setStatus],
   );
 
   /* --------------------------- página y código ---------------------------- */

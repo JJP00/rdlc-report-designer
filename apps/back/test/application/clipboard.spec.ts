@@ -63,7 +63,7 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
   it('copiar + pegar crea un clon con nombre nuevo y el undo lo quita', async () => {
     const { commands, service, sessionId, index } = await openFixture();
 
-    const copied = commands.copy(sessionId, 'Textbox23');
+    const copied = commands.copy(sessionId, ['Textbox23']);
     expect(copied.isRight()).toBe(true);
 
     const pasted = commands.paste(sessionId, { kind: 'body' }, 0);
@@ -87,7 +87,7 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
   it('pegar varias veces da nombres distintos', async () => {
     const { commands, sessionId, index } = await openFixture();
 
-    expect(commands.copy(sessionId, 'Textbox23').isRight()).toBe(true);
+    expect(commands.copy(sessionId, ['Textbox23']).isRight()).toBe(true);
 
     const first = commands.paste(sessionId, { kind: 'body' }, 0);
     const second = commands.paste(sessionId, { kind: 'body' }, 0);
@@ -107,7 +107,7 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
   it('pegar dentro de un rectángulo deja el item como hijo suyo', async () => {
     const { commands, service, sessionId, index } = await openFixture();
 
-    expect(commands.copy(sessionId, 'Textbox23').isRight()).toBe(true);
+    expect(commands.copy(sessionId, ['Textbox23']).isRight()).toBe(true);
 
     const pasted = commands.paste(sessionId, { kind: 'rectangle', id: 'Rectangle1' }, 0);
     expect(pasted.isRight()).toBe(true);
@@ -126,7 +126,7 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
   it('cortar copia y elimina; el undo devuelve el original a su sitio', async () => {
     const { commands, sessionId, index } = await openFixture();
 
-    const cut = commands.cut(sessionId, 'Textbox23');
+    const cut = commands.cut(sessionId, ['Textbox23']);
     expect(cut.isRight()).toBe(true);
     expect(index().get('Textbox23')).toBeUndefined();
 
@@ -138,6 +138,39 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
     expect(commands.undo(sessionId).isRight()).toBe(true);
     expect(commands.undo(sessionId).isRight()).toBe(true);
     expect(index().get('Textbox23')).toBeDefined();
+  });
+
+  it('multiselección: copiar y pegar varios crea los clones en un solo undo', async () => {
+    const { commands, sessionId, index } = await openFixture();
+
+    expect(commands.copy(sessionId, ['Textbox23', 'Textbox120']).isRight()).toBe(true);
+
+    const pasted = commands.paste(sessionId, { kind: 'body' }, 0);
+    expect(pasted.isRight()).toBe(true);
+    if (!pasted.isRight() || !pasted.value.ok) return;
+    const ids = pasted.value.ids ?? [];
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    for (const id of ids) expect(index().get(id)).toBeDefined();
+
+    // Un solo undo quita los dos clones; los originales siguen intactos.
+    expect(commands.undo(sessionId).isRight()).toBe(true);
+    for (const id of ids) expect(index().get(id)).toBeUndefined();
+    expect(index().get('Textbox23')).toBeDefined();
+    expect(index().get('Textbox120')).toBeDefined();
+  });
+
+  it('cortar varios es un solo paso: un undo devuelve los dos a su sitio', async () => {
+    const { commands, sessionId, index } = await openFixture();
+
+    const cut = commands.cut(sessionId, ['Textbox23', 'Textbox120']);
+    expect(cut.isRight()).toBe(true);
+    expect(index().get('Textbox23')).toBeUndefined();
+    expect(index().get('Textbox120')).toBeUndefined();
+
+    expect(commands.undo(sessionId).isRight()).toBe(true);
+    expect(index().get('Textbox23')).toBeDefined();
+    expect(index().get('Textbox120')).toBeDefined();
   });
 
   it('pegar sin haber copiado se rechaza con un mensaje claro', async () => {
@@ -154,7 +187,7 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
   it('la recarga externa descarta el portapapeles (nodos del documento viejo)', async () => {
     const { commands, watcher, events, sessionId, path } = await openFixture();
 
-    expect(commands.copy(sessionId, 'Textbox23').isRight()).toBe(true);
+    expect(commands.copy(sessionId, ['Textbox23']).isRight()).toBe(true);
 
     const external = (await readFile(path, 'utf8')).replace(
       '<Value>(</Value>',

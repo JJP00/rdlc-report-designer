@@ -226,7 +226,7 @@ export class IpcController {
       this.handle(
         clipboardSourceRequestSchema,
         payload,
-        (req) => Promise.resolve(this.commands.copy(req.sessionId, req.id)),
+        (req) => Promise.resolve(this.commands.copy(req.sessionId, req.ids)),
         (value: CommandResult): CommandResult => value,
       ),
     );
@@ -235,7 +235,7 @@ export class IpcController {
       this.handle(
         clipboardSourceRequestSchema,
         payload,
-        (req) => Promise.resolve(this.commands.cut(req.sessionId, req.id)),
+        (req) => Promise.resolve(this.commands.cut(req.sessionId, req.ids)),
         (value: CommandResult): CommandResult => value,
       ),
     );

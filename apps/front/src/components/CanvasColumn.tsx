@@ -68,6 +68,7 @@ export function CanvasColumn({
           else if (additive) editing.toggleItemSelection(id);
           else editing.setSelectedId(id);
         }}
+        onSelectMany={editing.setSelectedIds}
         onSelectCell={editing.selectCell}
         onContextMenuHit={editing.showContextMenu}
         onZoomChange={onZoomChange}

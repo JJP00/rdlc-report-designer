@@ -37,6 +37,9 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'setGroupName',
   // Interno del pegado: inserta subárbol (mismos efectos que insertItem).
   'insertClone',
+  // Pegado múltiple (multiselección): mismo efecto y, además, el índice debe
+  // ver los clones para que el siguiente pegado elija nombres libres.
+  'insertClones',
   // Fusionar descarta celdas con contenido; separar crea celdas con textbox.
   'mergeCells',
   'unmergeCells',
@@ -79,8 +82,10 @@ export class CommandService implements ICommandService {
       ok: true,
       version,
       // `insertItem`/`duplicateItem` devuelven el nombre del item nuevo: el
-      // front lo selecciona sin tener que adivinarlo.
+      // front lo selecciona sin tener que adivinarlo. Un `batch` de varios
+      // devuelve `ids`.
       ...(outcome.createdId ? { id: outcome.createdId } : {}),
+      ...(outcome.createdIds ? { ids: outcome.createdIds } : {}),
       ...(outcome.applied ? { applied: outcome.applied } : {}),
     });
   }
@@ -89,39 +94,44 @@ export class CommandService implements ICommandService {
    * Copiar no toca el documento: no entra en el journal (no hay nada que
    * deshacer, y marcar dirty por copiar sería mentira).
    */
-  copy(sessionId: string, id: string): Either<DomainError, CommandResult> {
-    const copied = this.sessions.copyToClipboard(sessionId, id);
+  copy(sessionId: string, ids: string[]): Either<DomainError, CommandResult> {
+    const copied = this.sessions.copyToClipboard(sessionId, ids);
     if (copied.isLeft()) return left(copied.value);
     return right({ ok: true, version: this.sessions.versionOf(sessionId) });
   }
 
   /**
-   * Cortar = copiar al portapapeles + eliminar. El borrado es un comando normal,
-   * así que un solo Ctrl+Z devuelve el item a su sitio.
+   * Cortar = copiar al portapapeles + eliminar. Los borrados van en un `batch`
+   * (un solo Ctrl+Z devuelve todos a su sitio, también con multiselección).
    */
-  cut(sessionId: string, id: string): Either<DomainError, CommandResult> {
-    const copied = this.sessions.copyToClipboard(sessionId, id);
+  cut(sessionId: string, ids: string[]): Either<DomainError, CommandResult> {
+    const copied = this.sessions.copyToClipboard(sessionId, ids);
     if (copied.isLeft()) return left(copied.value);
-    return this.execute(sessionId, { cmd: 'deleteItem', id });
+    return this.execute(sessionId, {
+      cmd: 'batch',
+      commands: ids.map((id) => ({ cmd: 'deleteItem' as const, id })),
+    });
   }
 
   /**
-   * Pegar: inserta un clon del portapapeles (con nombres nuevos) en
-   * `scope[index]`. El clon se crea en cada pegado, así que se puede pegar
-   * varias veces y deshacer cada paso.
+   * Pegar: inserta clones del portapapeles (con nombres nuevos) en
+   * `scope[index]`; con varios elementos, todos en un solo paso de undo.
    */
   paste(sessionId: string, scope: ScopeRef, index: number): Either<DomainError, CommandResult> {
-    const source = this.sessions.clipboardOf(sessionId);
-    if (!source) return left(CommandRejectedError.create('El portapapeles está vacío'));
+    const sources = this.sessions.clipboardOf(sessionId);
+    if (!sources || sources.length === 0) {
+      return left(CommandRejectedError.create('El portapapeles está vacío'));
+    }
 
-    const applied = this.applyAndJournal(sessionId, { cmd: 'insertClone', scope, index, source });
+    const applied = this.applyAndJournal(sessionId, { cmd: 'insertClones', scope, index, sources });
     if (applied.isLeft()) return left(applied.value);
 
     const { outcome, version } = applied.value;
     return right({
       ok: true,
       version,
-      ...(outcome.createdId ? { id: outcome.createdId } : {}),
+      ...(outcome.createdIds?.[0] ? { id: outcome.createdIds[0] } : {}),
+      ...(outcome.createdIds ? { ids: outcome.createdIds } : {}),
       ...(outcome.applied ? { applied: outcome.applied } : {}),
     });
   }

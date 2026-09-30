@@ -551,6 +551,7 @@ const batchableCommandSchema = z.discriminatedUnion('cmd', [
   setStyle,
   setParagraphs,
   deleteItem,
+  duplicateItem,
 ]);
 export type BatchableCommand = z.infer<typeof batchableCommandSchema>;
 

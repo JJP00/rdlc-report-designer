@@ -12,6 +12,7 @@ import { CommandPalette } from '@/components/panels/CommandPalette';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useDocumentCore } from '@/hooks/useDocumentCore';
+import { useBatchSelection } from '@/hooks/useBatchSelection';
 import { useEditorKeys } from '@/hooks/useEditorKeys';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { useItemEditing } from '@/hooks/useItemEditing';
@@ -101,6 +102,18 @@ export function App(): ReactNode {
     return item?.kind === 'tablix' ? item : null;
   }, [doc, filtersTablixId]);
 
+  /**
+   * Qué edita el panel de lote: multiselección de items o contenidos de las
+   * celdas seleccionadas (rango/extras).
+   */
+  const batchSelection = useBatchSelection({
+    projection: doc?.projection ?? null,
+    selectedIds,
+    selectedItems,
+    movableIds,
+    selectedCell,
+  });
+
   /** Textbox en edición (el editor se monta al abrirlo y no se resincroniza). */
   const editingText = useMemo(() => {
     if (!doc || editingTextId === null) return undefined;
@@ -109,7 +122,7 @@ export function App(): ReactNode {
   }, [doc, editingTextId]);
 
   // QA/diagnóstico: proyección viva y último hit del click derecho (E2E).
-  useQaHooks(doc?.projection ?? null, items.menuHit);
+  useQaHooks(doc?.projection ?? null, items.menuHit, selectedIds);
 
   const pickExpression = useCallback(
     (expression: string, name: string): void => {
@@ -237,8 +250,9 @@ export function App(): ReactNode {
             tablix={structureTablix}
             selectedCell={selectedCell}
             item={selectedItem}
-            selectedItems={selectedItems}
-            movableIds={movableIds}
+            selectedItems={batchSelection.items}
+            movableIds={batchSelection.movableIds}
+            cellBatch={batchSelection.fromCells}
             onBatchEdit={items.batchEdit}
             cellContent={items.selectedIsCellContent}
             onSelectCell={items.setSelectedCell}

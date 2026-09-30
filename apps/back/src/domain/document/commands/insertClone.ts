@@ -14,6 +14,8 @@ import { resolveScope } from './scope.js';
 export function applyInsertClone(
   ctx: CommandContext,
   command: InsertCloneCommand,
+  /** Registro de nombres compartido por `insertClones` (pegado múltiple). */
+  sharedTaken?: Set<string>,
 ): Either<DomainError, CommandOutcome> {
   const container = resolveScope(ctx, command.scope);
   if (!container) {
@@ -23,7 +25,14 @@ export function applyInsertClone(
   const occupied = occupiedCell(container, command.scope);
   if (occupied) return left(CommandRejectedError.create(occupied));
 
-  const { name, clone } = insertCloneAt(ctx, container, command.source, command.index);
+  const { name, clone } = insertCloneAt(
+    ctx,
+    container,
+    command.source,
+    command.index,
+    undefined,
+    sharedTaken,
+  );
 
   return right({
     inverse: [{ cmd: 'removeNode', node: clone }],

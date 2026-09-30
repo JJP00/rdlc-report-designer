@@ -39,6 +39,8 @@ export interface MultiSelectionPanelProps {
   onBatchEdit: (commands: BatchableCommand[]) => void;
   /** true si el id es contenido directo de una celda (para bordes/padding). */
   isCellContentId?: (id: string) => boolean;
+  /** Qué se está editando (solo cambia la cabecera): elementos o celdas. */
+  label?: 'elementos' | 'celdas';
 }
 
 /**
@@ -79,6 +81,7 @@ export function MultiSelectionPanel({
   movableIds,
   onBatchEdit,
   isCellContentId,
+  label = 'elementos',
 }: MultiSelectionPanelProps): ReactNode {
   const movable = alignBoxes(items, movableIds);
   const count = items.length;
@@ -100,7 +103,7 @@ export function MultiSelectionPanel({
       <header className="text-sm font-medium">
         Selección múltiple
         <span className="ml-1 text-xs font-normal text-muted-foreground">
-          ({count} elementos)
+          ({count} {label})
         </span>
         <p className="mt-0.5 text-xs font-normal text-muted-foreground">
           Los cambios se aplican a todos en un solo paso de undo. «—» = valores distintos.
@@ -119,7 +122,9 @@ export function MultiSelectionPanel({
         onClick={() => onBatchEdit(items.map((item) => ({ cmd: 'deleteItem', id: item.id })))}
       >
         <Trash2 data-icon="inline-start" />
-        Eliminar los {count} elementos
+        {label === 'celdas'
+          ? `Eliminar el contenido de ${count} celdas`
+          : `Eliminar los ${count} elementos`}
       </Button>
     </div>
   );
