@@ -121,7 +121,17 @@ export function MultiSelectionPanel({
 
 /* ------------------------------- secciones ------------------------------- */
 
-/** Fuente, tamaño y formato común del texto. */
+/** Fuente/tamaño por defecto del editor cuando ningún nivel declara valor. */
+const DEFAULT_FONT_FAMILY = 'Arial';
+const DEFAULT_FONT_SIZE_PT = 10;
+const DEFAULT_TEXT_COLOR = '#111827';
+const DEFAULT_BACKGROUND = '#ffffff';
+
+/**
+ * Fuente, tamaño y formato común del texto, sobre el **valor efectivo con su
+ * defecto**: dos textboxes sin `<FontFamily>` declarado se ven igual (Arial) y
+ * deben compararse igual, no como «—».
+ */
 function TextSection({
   items,
   onStyle,
@@ -132,7 +142,7 @@ function TextSection({
   const fonts = useSystemFonts();
   const disabled = items.length === 0;
   const familyOptions = useMemo(() => {
-    const all = new Set(fonts);
+    const all = new Set([DEFAULT_FONT_FAMILY, ...fonts]);
     for (const item of items) {
       const family = textStyleOf(item)?.fontFamily;
       if (family) all.add(family);
@@ -140,22 +150,23 @@ function TextSection({
     return [...all].sort((a, b) => a.localeCompare(b, 'es'));
   }, [fonts, items]);
 
-  const family = common(items, (item) => textStyleOf(item)?.fontFamily);
+  const family = common(items, (item) => textStyleOf(item)?.fontFamily ?? DEFAULT_FONT_FAMILY);
   /** Tamaño común en pt (se compara en pt: los items pueden declararlo en mm, cm…). */
   const sizePt = useMemo(() => {
     if (items.length === 0) return null;
-    const sizes = items.map((item) => textStyleOf(item)?.fontSize);
-    if (sizes.some((size) => !size)) return null;
+    const sizes = items.map(
+      (item) => textStyleOf(item)?.fontSize ?? { value: DEFAULT_FONT_SIZE_PT, unit: 'pt' as const },
+    );
     const pt = Math.round(toPt(sizes[0]!) * 100) / 100;
-    return sizes.every((size) => Math.abs(toPt(size!) - pt) < 0.01) ? pt : null;
+    return sizes.every((size) => Math.abs(toPt(size) - pt) < 0.01) ? pt : null;
   }, [items]);
 
   const bold = !disabled && items.every((item) => textStyleOf(item)?.fontWeight === 'Bold');
   const italic = !disabled && items.every((item) => textStyleOf(item)?.fontStyle === 'Italic');
   const underlined =
     !disabled && items.every((item) => textStyleOf(item)?.textDecoration === 'Underline');
-  const color = common(items, (item) => textStyleOf(item)?.color);
-  const background = common(items, (item) => textStyleOf(item)?.backgroundColor);
+  const color = common(items, (item) => textStyleOf(item)?.color ?? DEFAULT_TEXT_COLOR);
+  const background = common(items, (item) => textStyleOf(item)?.backgroundColor ?? DEFAULT_BACKGROUND);
 
   return (
     <section className="flex flex-col gap-2">
@@ -221,22 +232,22 @@ function TextSection({
           <Underline />
         </Button>
         <label className="ml-1 flex items-center gap-1 text-xs text-muted-foreground">
-          Color
+          Color{color === undefined ? ' —' : ''}
           <input
             type="color"
             aria-label="Color de texto de la selección"
-            value={/^#[0-9a-fA-F]{6}$/.test(color ?? '') ? color! : '#111827'}
+            value={/^#[0-9a-fA-F]{6}$/.test(color ?? '') ? color! : DEFAULT_TEXT_COLOR}
             disabled={disabled}
             onChange={(event) => onStyle({ color: event.target.value })}
             className="h-7 w-9 cursor-pointer rounded border"
           />
         </label>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
-          Fondo
+          Fondo{background === undefined ? ' —' : ''}
           <input
             type="color"
             aria-label="Color de fondo de la selección"
-            value={/^#[0-9a-fA-F]{6}$/.test(background ?? '') ? background! : '#ffffff'}
+            value={/^#[0-9a-fA-F]{6}$/.test(background ?? '') ? background! : DEFAULT_BACKGROUND}
             disabled={disabled}
             onChange={(event) => onStyle({ backgroundColor: event.target.value })}
             className="h-7 w-9 cursor-pointer rounded border"
@@ -263,7 +274,11 @@ function BoxSection({
   );
 }
 
-/** Visibilidad literal en lote (las expresiones se editan de una en una). */
+/**
+ * Visibilidad efectiva en lote: `Hidden` sin declarar = **Visible** (defecto
+ * RDL), así que dos items sin declaración comparan igual (Visible), no «—».
+ * Las expresiones no se pueden editar en lote (se muestran como mezcla).
+ */
 function VisibilitySection({
   items,
   onBatchEdit,
@@ -271,7 +286,13 @@ function VisibilitySection({
   items: ItemDto[];
   onBatchEdit: (commands: BatchableCommand[]) => void;
 }): ReactNode {
-  const hidden = common(items, (item) => item.hidden);
+  const effectiveHidden = (item: ItemDto): boolean | string =>
+    item.hidden === true
+      ? true
+      : item.hidden === false || item.hidden === undefined
+        ? false
+        : item.hidden;
+  const hidden = common(items, effectiveHidden);
   return (
     <div className="flex items-center gap-1.5">
       <span className="w-16 shrink-0 text-xs text-muted-foreground">Visibilidad</span>
@@ -281,7 +302,9 @@ function VisibilitySection({
         value={hidden === true ? 'hidden' : hidden === false ? 'visible' : ''}
         onChange={(event) => {
           if (!event.target.value) return;
-          const next = event.target.value === 'hidden';
+          // «Visible» quita la declaración (vuelve a la predeterminada), como el
+          // panel de un solo item.
+          const next = event.target.value === 'hidden' ? true : null;
           onBatchEdit(items.map((item) => ({ cmd: 'setVisibility', id: item.id, hidden: next })));
         }}
       >
