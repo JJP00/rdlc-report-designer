@@ -15,6 +15,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { NumberInput } from '@/components/ui/number-input';
+import { ensureExpression } from '@/lib/groupProperties';
 import { toCm } from '@/lib/projection';
 import { MIN_SIZE_CM, resizeBoundaryTo } from '@/lib/resize';
 import {
@@ -274,13 +275,6 @@ function StructureSection({
 function memberLabel(entry: TablixTreeEntry, axis: 'row' | 'column'): string {
   if (entry.index !== undefined) return `${axis === 'row' ? 'fila' : 'columna'} ${entry.index + 1}`;
   return `grupo ${entry.expression ?? ''}`.trim();
-}
-
-/** Expresión lista para RDL (`=…`); `null` si está vacía. */
-function ensureExpression(value: string): string | null {
-  const trimmed = value.trim();
-  if (trimmed === '' || trimmed === '=') return null;
-  return trimmed.startsWith('=') ? trimmed : `=${trimmed}`;
 }
 
 interface StructureRowProps {

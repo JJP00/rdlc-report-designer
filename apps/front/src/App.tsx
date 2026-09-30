@@ -1,22 +1,24 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { CanvasArea } from '@/components/CanvasArea';
-import { DocumentDialogs, type GroupPropertiesRequest } from '@/components/DocumentDialogs';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { CanvasColumn } from '@/components/CanvasColumn';
+import { type GroupPropertiesRequest } from '@/components/DocumentDialogs';
 import { EditorBanners } from '@/components/EditorBanners';
 import { EditorToolbar } from '@/components/EditorToolbar';
 import { InspectorPanel } from '@/components/InspectorPanel';
+import { LeftPanels } from '@/components/LeftPanels';
 import { StatusBar } from '@/components/StatusBar';
+import { WorkspaceDialogs } from '@/components/WorkspaceDialogs';
 import { CommandPalette } from '@/components/panels/CommandPalette';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
-import { VariablesPanel } from '@/components/panels/VariablesPanel';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useDocumentCore } from '@/hooks/useDocumentCore';
-import { useGlobalKeys } from '@/hooks/useGlobalKeys';
+import { useEditorKeys } from '@/hooks/useEditorKeys';
+import { useFileDrop } from '@/hooks/useFileDrop';
 import { useItemEditing } from '@/hooks/useItemEditing';
+import { usePaletteActions } from '@/hooks/usePaletteActions';
 import { useQaHooks } from '@/hooks/useQaHooks';
 import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
-import { paletteRunner, type PaletteActionId } from '@/lib/palette';
-import { countItems, findItem, formatKinds, isCellContent } from '@/lib/projection';
+import { countItems, findItem, formatKinds } from '@/lib/projection';
 import { findOwnerTablix } from '@/lib/tablix';
 import { effectiveTextStyle } from '@/lib/style';
 
@@ -31,8 +33,12 @@ export function App(): ReactNode {
 
   // Estado de UI (no del documento).
   const [zoom, setZoom] = useState(0.6);
+  /** Zoom «ajustar al ancho» que publica el lienzo al medir (Ctrl+1 lo aplica). */
+  const [fitZoom, setFitZoom] = useState<number | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
+  /** Panel de Jerarquía (árbol de items) visible. */
+  const [showHierarchy, setShowHierarchy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** Textbox cuyo editor de texto está abierto (párrafos → runs). */
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -41,9 +47,40 @@ export function App(): ReactNode {
   /** Tablix cuyos «Filtros…» están abiertos (null = cerrado). */
   const [filtersTablixId, setFiltersTablixId] = useState<string | null>(null);
 
-  const { doc, status, error, dirty, conflict, reloads, hasBackend } = core;
-  const { selectedId, selectedItem, selectedCell } = items;
+  const {
+    doc,
+    status,
+    error,
+    dirty,
+    conflict,
+    reloads,
+    hasBackend,
+    recents,
+    open,
+    save,
+    saveAs,
+    createNew,
+    openPath,
+    close,
+    undo,
+    redo,
+    setError,
+  } = core;
+  const { selectedId, selectedIds, selectedItems, movableIds, selectedItem, selectedCell } = items;
   const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
+
+  /** Conflicto: el diálogo se reabre al detectarse (y con el botón del aviso). */
+  const [conflictOpen, setConflictOpen] = useState(false);
+  useEffect(() => {
+    setConflictOpen(conflict !== null);
+  }, [conflict]);
+
+  /** Drag&drop de `.rdlc` sobre la ventana (overlay + apertura con guardas). */
+  const { dropActive, dropHandlers } = useFileDrop({
+    enabled: hasBackend,
+    onOpenPath: core.openPath,
+    onInvalid: core.setError,
+  });
 
   /**
    * Tablix del que muestra la estructura el panel derecho: el seleccionado, o
@@ -56,12 +93,6 @@ export function App(): ReactNode {
     if (selectedItem) return findOwnerTablix(doc.projection, selectedItem.id);
     return undefined;
   }, [doc, selectedItem, selectedCell]);
-
-  /** El item seleccionado es contenido directo de una celda (lo fija la celda). */
-  const selectedIsCellContent = useMemo(
-    () => (doc && selectedItem ? isCellContent(doc.projection, selectedItem.id) : false),
-    [doc, selectedItem],
-  );
 
   /** Tablix de los «Filtros…» abiertos (se deriva: si desaparece, se cierra). */
   const filtersTablix = useMemo(() => {
@@ -80,139 +111,87 @@ export function App(): ReactNode {
   // QA/diagnóstico: proyección viva y último hit del click derecho (E2E).
   useQaHooks(doc?.projection ?? null, items.menuHit);
 
-  const setStatus = core.setStatus;
   const pickExpression = useCallback(
     (expression: string, name: string): void => {
       if (insertIntoExpressionEditor(expression)) {
-        setStatus(`${name} insertada en el editor`);
+        core.setStatus(`${name} insertada en el editor`);
         return;
       }
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         void navigator.clipboard.writeText(expression);
       }
-      setStatus(`${name} copiada al portapapeles: ${expression}`);
+      core.setStatus(`${name} copiada al portapapeles: ${expression}`);
     },
-    [setStatus],
+    [core],
   );
 
-  useGlobalKeys({
-    hasDocument: doc !== null,
-    // Una celda de Tablix también es selección (Esc sube a su tabla).
-    hasSelection: selectedItem !== undefined || selectedCell !== null,
-    bodyIndex: doc?.projection.page.body.items.length ?? 0,
+  /** Zoom presets (menú de la toolbar, paleta y atajos Ctrl+1/Ctrl+0). */
+  const zoomFitWidth = useCallback((): void => {
+    if (fitZoom !== null) setZoom(fitZoom);
+  }, [fitZoom]);
+  const zoomReset = useCallback((): void => setZoom(1), []);
+
+  useEditorKeys({
+    core,
+    items,
+    selectedIds,
+    zoomFitWidth,
+    zoomReset,
     onTogglePalette: () => setPaletteOpen((value) => !value),
-    onUndo: () => void core.undo(),
-    onRedo: () => void core.redo(),
-    onNudge: items.nudge,
-    onFlushNudge: items.flushNudge,
-    onDelete: items.deleteSelected,
-    onDuplicate: items.duplicateSelected,
-    onCopy: items.copySelected,
-    onCut: items.cutSelected,
-    onPasteAtBody: (index) => items.pasteAt({ kind: 'body' }, index),
-    onSelectParent: items.selectParent,
   });
 
   /** Acciones que ofrece la paleta (Ctrl+K). */
-  const runPaletteAction = paletteRunner({
-    open: () => void core.open(),
-    save: () => void core.save(),
-    undo: () => void core.undo(),
-    redo: () => void core.redo(),
-    toggleVariables: () => setShowVariables((value) => !value),
-    reportProperties: () => setPropertiesOpen(true),
-    insertTextbox: () => items.insertItem('textbox'),
-    insertRectangle: () => items.insertItem('rectangle'),
-    insertLine: () => items.insertItem('line'),
-    insertImage: () => items.insertItem('image'),
-    insertTablix: () => items.insertItem('tablix'),
+  const runPaletteAction = usePaletteActions({
+    core,
+    items,
+    selectedItem,
+    structureTablix,
+    zoomFitWidth,
+    zoomReset,
+    setShowVariables,
+    setPropertiesOpen,
+    setEditingTextId,
+    setFiltersTablixId,
   });
-
-  /* Acciones del JSX (los hooks ya resuelven la lógica). */
-  const { open, save, close, undo, redo, setError } = core;
-  const {
-    setSelectedId,
-    setSelectedCell,
-    selectCell,
-    insertItem,
-    insertAt,
-    duplicateSelected,
-    deleteSelected,
-    copySelected,
-    cutSelected,
-    pasteAt,
-    moveTo,
-    moveItemToScope,
-    setItemLocation,
-    setItemSize,
-    resizeItem,
-    resizeColumn,
-    resizeRow,
-    addRow,
-    deleteRow,
-    addColumn,
-    deleteColumn,
-    deleteRows,
-    deleteColumns,
-    mergeCells,
-    unmergeCells,
-    setItemStyle,
-    zOrder,
-    setItemOptions,
-    setItemPageBreak,
-    setItemName,
-    setVisibility,
-    setMemberVisibility,
-    applyGroupProperties,
-    addRowToGroup,
-    addRowOutsideGroup,
-    addRowInsideGroup,
-    addRowGroup,
-    deleteRowGroup,
-    setTablixFilters,
-    setImageOptions,
-    setRunText,
-    setRunLabel,
-    setParagraphs,
-    setPageSize,
-    setPageMargins,
-    setRegionHeight,
-    setHeaderFooterOptions,
-    setReportCode,
-    hasClipboard,
-    reveal,
-    selectAndReveal,
-    selectParent,
-    menuHit,
-    showContextMenu,
-  } = items;
 
   return (
     <TooltipProvider>
-      <div className="flex h-full flex-col bg-background">
+      <div className="relative flex h-full flex-col bg-background" {...dropHandlers}>
+        {dropActive ? (
+          <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-sm font-medium text-primary">
+            Suelta el fichero .rdlc para abrirlo
+          </div>
+        ) : null}
         <EditorToolbar
           hasDocument={doc !== null}
           hasSelection={selectedItem !== undefined}
           selectedId={selectedId}
           zoom={zoom}
           showVariables={showVariables}
-          onOpen={() => void open()}
+          showHierarchy={showHierarchy}
+          recents={recents}
+          onNew={createNew}
+          onOpen={open}
+          onOpenRecent={openPath}
           onSave={() => void save()}
-          onClose={() => void close()}
+          onSaveAs={() => void saveAs()}
+          onClose={close}
           onOpenProperties={() => setPropertiesOpen(true)}
           onToggleVariables={() => setShowVariables((value) => !value)}
-          onInsert={insertItem}
-          onDuplicate={duplicateSelected}
-          onDelete={deleteSelected}
+          onToggleHierarchy={() => setShowHierarchy((value) => !value)}
+          onInsert={items.insertItem}
+          onDuplicate={items.duplicateSelected}
+          onDelete={items.deleteSelected}
           onUndo={() => void undo()}
           onRedo={() => void redo()}
           onZoomChange={setZoom}
+          onZoomFitWidth={zoomFitWidth}
         />
 
         {/* Barra de formato de texto (ribbon), bajo la toolbar principal. */}
         <FormatToolbar
           style={selectedItem?.kind === 'textbox' ? effectiveTextStyle(selectedItem) : undefined}
-          onSetStyle={setItemStyle}
+          onSetStyle={items.setItemStyle}
           disabled={selectedItem?.kind !== 'textbox'}
         />
 
@@ -221,87 +200,72 @@ export function App(): ReactNode {
           conflict={conflict}
           hasBackend={hasBackend}
           onDismissError={() => setError(null)}
+          onResolveConflict={() => setConflictOpen(true)}
         />
 
         <main className="flex min-h-0 flex-1">
-          {showVariables && doc ? (
-            <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-r bg-background">
-              <VariablesPanel meta={doc.projection.meta} onPick={pickExpression} />
-            </aside>
-          ) : null}
+          <LeftPanels
+            projection={doc?.projection ?? null}
+            showHierarchy={showHierarchy}
+            showVariables={showVariables}
+            selectedId={selectedId}
+            selectedCell={selectedCell}
+            onSelectItem={items.selectAndReveal}
+            onSelectCell={items.selectCell}
+            onPickExpression={pickExpression}
+          />
 
-          <CanvasArea
+          <CanvasColumn
             projection={doc?.projection ?? null}
             zoom={zoom}
             selectedId={selectedId}
+            selectedIds={selectedIds}
             selectedCell={selectedCell}
-            menuHit={menuHit}
-            hasClipboard={hasClipboard}
-            reveal={reveal}
-            onSelect={setSelectedId}
-            onSelectCell={selectCell}
-            onContextMenuHit={showContextMenu}
+            menuHit={items.menuHit}
+            hasClipboard={items.hasClipboard}
+            reveal={items.reveal}
+            editing={items}
             onZoomChange={setZoom}
-            onMoveTo={moveTo}
-            onMoveItemToScope={moveItemToScope}
-            onResizeItem={resizeItem}
-            onResizeColumn={resizeColumn}
-            onResizeRow={resizeRow}
-            onInsertAt={insertAt}
-            onAddRow={addRow}
-            onAddRowOutside={addRowOutsideGroup}
-            onAddRowInside={addRowInsideGroup}
+            onFitZoomChange={setFitZoom}
             onOpenGroupProperties={(tablixId, axis, member) =>
               setGroupProperties({ tablixId, axis, member })
             }
-            onDeleteRow={deleteRow}
-            onAddColumn={addColumn}
-            onDeleteColumn={deleteColumn}
-            onDeleteRows={deleteRows}
-            onDeleteColumns={deleteColumns}
-            onMergeCells={mergeCells}
-            onUnmergeCells={unmergeCells}
-            onDuplicate={duplicateSelected}
-            onCopy={copySelected}
-            onCut={cutSelected}
-            onPasteAt={pasteAt}
-            onDelete={deleteSelected}
             onEditText={setEditingTextId}
-            onSelectParent={selectParent}
-            onBringToFront={() => zOrder('front')}
-            onSendToBack={() => zOrder('back')}
           />
 
           <InspectorPanel
             tablix={structureTablix}
             selectedCell={selectedCell}
             item={selectedItem}
-            cellContent={selectedIsCellContent}
-            onSelectCell={setSelectedCell}
-            onAddRow={addRow}
-            onDeleteRow={deleteRow}
-            onAddColumn={addColumn}
-            onDeleteColumn={deleteColumn}
-            onSetLocation={setItemLocation}
-            onSetSize={setItemSize}
-            onSetStyle={setItemStyle}
-            onSetName={setItemName}
-            onSetVisibility={setVisibility}
-            onSetItemOptions={setItemOptions}
-            onSetPageBreak={setItemPageBreak}
-            onSetMemberVisibility={setMemberVisibility}
+            selectedItems={selectedItems}
+            movableIds={movableIds}
+            onBatchEdit={items.batchEdit}
+            cellContent={items.selectedIsCellContent}
+            onSelectCell={items.setSelectedCell}
+            onAddRow={items.addRow}
+            onDeleteRow={items.deleteRow}
+            onAddColumn={items.addColumn}
+            onDeleteColumn={items.deleteColumn}
+            onSetLocation={items.setItemLocation}
+            onSetSize={items.setItemSize}
+            onSetStyle={items.setItemStyle}
+            onSetName={items.setItemName}
+            onSetVisibility={items.setVisibility}
+            onSetItemOptions={items.setItemOptions}
+            onSetPageBreak={items.setItemPageBreak}
+            onSetMemberVisibility={items.setMemberVisibility}
             onOpenGroupProperties={(tablixId, axis, member) =>
               setGroupProperties({ tablixId, axis, member })
             }
-            onAddRowToGroup={addRowToGroup}
-            onAddRowGroup={addRowGroup}
-            onDeleteRowGroup={deleteRowGroup}
-            onResizeRow={resizeRow}
-            onResizeColumn={resizeColumn}
+            onAddRowToGroup={items.addRowToGroup}
+            onAddRowGroup={items.addRowGroup}
+            onDeleteRowGroup={items.deleteRowGroup}
+            onResizeRow={items.resizeRow}
+            onResizeColumn={items.resizeColumn}
             onOpenTablixFilters={setFiltersTablixId}
-            onSetText={setRunText}
-            onSetLabel={setRunLabel}
-            onSetImageOptions={setImageOptions}
+            onSetText={items.setRunText}
+            onSetLabel={items.setRunLabel}
+            onSetImageOptions={items.setImageOptions}
             embeddedImages={doc?.projection.meta.embeddedImages ?? []}
             onEditText={setEditingTextId}
           />
@@ -316,36 +280,33 @@ export function App(): ReactNode {
         />
       </div>
 
-      <DocumentDialogs
-        projection={doc?.projection ?? null}
+      <WorkspaceDialogs
+        core={core}
+        items={items}
         propertiesOpen={propertiesOpen}
         onPropertiesOpenChange={setPropertiesOpen}
-        onSetPageSize={setPageSize}
-        onSetPageMargins={setPageMargins}
-        onSetRegionHeight={setRegionHeight}
-        onSetHeaderFooterOptions={setHeaderFooterOptions}
-        onSetReportCode={setReportCode}
         editingText={editingText}
         onEditingTextOpenChange={(open) => {
           if (!open) setEditingTextId(null);
         }}
-        onApplyParagraphs={setParagraphs}
         groupProperties={groupProperties}
         onCloseGroupProperties={() => setGroupProperties(null)}
-        onApplyGroupProperties={applyGroupProperties}
         filtersTablix={filtersTablix}
         onCloseTablixFilters={() => setFiltersTablixId(null)}
-        onApplyTablixFilters={(filters) => {
-          if (filtersTablixId) setTablixFilters(filtersTablixId, filters);
-        }}
+        conflictOpen={conflictOpen}
+        onConflictOpenChange={setConflictOpen}
       />
 
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         projection={doc?.projection ?? null}
-        hasDocument={doc !== null}
-        onSelectItem={selectAndReveal}
+        capabilities={{
+          hasDocument: doc !== null,
+          hasTextbox: selectedItem?.kind === 'textbox',
+          hasTablix: structureTablix !== undefined,
+        }}
+        onSelectItem={items.selectAndReveal}
         onPickExpression={pickExpression}
         onAction={runPaletteAction}
       />

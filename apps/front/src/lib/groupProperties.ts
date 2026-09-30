@@ -38,6 +38,13 @@ export interface GroupPropertiesDraft {
   toggleItem: string | null;
 }
 
+/** Expresión lista para RDL (`=…`); `null` si está vacía. */
+export function ensureExpression(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed === '' || trimmed === '=') return null;
+  return trimmed.startsWith('=') ? trimmed : `=${trimmed}`;
+}
+
 /** Fila nueva de expresión para el borrador (Group on / And on). */
 export function newExpressionDraft(expression: string): GroupExpressionDraft {
   return { id: crypto.randomUUID(), expression };

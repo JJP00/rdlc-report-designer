@@ -53,6 +53,7 @@ export function ExpressionDialog({
           value={value}
           mode="code"
           ariaLabel={`Editor de ${title}`}
+          onSubmit={(value) => onApply(value)}
           onCommit={(next) => {
             draftRef.current = next;
           }}

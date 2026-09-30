@@ -73,7 +73,16 @@ export function GroupPropertiesDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 sm:max-w-3xl">
+      <DialogContent
+        className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 sm:max-w-3xl"
+        onKeyDown={(event) => {
+          // Ctrl+Intro = Aplicar (teclado completo en el diálogo).
+          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && valid) {
+            event.preventDefault();
+            apply();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Propiedades del grupo{member.name ? ` · ${member.name}` : ''}</DialogTitle>
           <DialogDescription>
@@ -109,7 +118,7 @@ export function GroupPropertiesDialog({
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={apply} disabled={!valid}>
+          <Button title="Aplicar (Ctrl+Intro)" onClick={apply} disabled={!valid}>
             Aplicar
           </Button>
         </DialogFooter>

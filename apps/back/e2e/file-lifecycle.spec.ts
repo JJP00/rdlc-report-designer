@@ -47,7 +47,15 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  if (!app) return;
+  // El cierre pide confirmación si el test dejó cambios: se descartan.
+  const closing = app.close().catch(() => undefined);
+  await page
+    .getByTestId('unsaved-changes-dialog')
+    .getByRole('button', { name: 'Salir sin guardar' })
+    .click({ timeout: 5000 })
+    .catch(() => undefined);
+  await closing;
 });
 
 async function projectionVersion(): Promise<number> {

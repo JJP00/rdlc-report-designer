@@ -1,10 +1,14 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
 import {
   Braces,
+  Filter,
   FolderOpen,
   Frame,
   Image,
   Minus,
+  MoveHorizontal,
+  PencilLine,
+  Percent,
   Redo2,
   Save,
   Settings2,
@@ -13,6 +17,7 @@ import {
   Type,
   Undo2,
   Variable,
+  X,
 } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import {
@@ -26,7 +31,13 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@/components/ui/command';
-import { PALETTE_ACTIONS, paletteElements, type PaletteActionId } from '@/lib/palette';
+import {
+  PALETTE_ACTIONS,
+  paletteDisabledActions,
+  paletteElements,
+  type PaletteActionId,
+  type PaletteCapabilities,
+} from '@/lib/palette';
 import { itemKindLabel } from '@/lib/palette';
 import { variableEntries } from '@/lib/variables';
 
@@ -39,15 +50,20 @@ export interface CommandPaletteProps {
   /** Insertar una variable/expresión (en el editor activo o al portapapeles). */
   onPickExpression: (expression: string, name: string) => void;
   onAction: (action: PaletteActionId) => void;
-  /** Deshabilita las acciones que necesitan documento abierto. */
-  hasDocument: boolean;
+  /** Estado del editor: qué acciones están habilitadas. */
+  capabilities: PaletteCapabilities;
 }
 
 const ACTION_ICONS: Record<PaletteActionId, ReactNode> = {
   open: <FolderOpen />,
   save: <Save />,
+  close: <X />,
   undo: <Undo2 />,
   redo: <Redo2 />,
+  'zoom:fit-width': <MoveHorizontal />,
+  'zoom:100': <Percent />,
+  'edit-text': <PencilLine />,
+  'tablix-filters': <Filter />,
   'insert:textbox': <Type />,
   'insert:rectangle': <Square />,
   'insert:line': <Minus />,
@@ -56,20 +72,6 @@ const ACTION_ICONS: Record<PaletteActionId, ReactNode> = {
   'toggle-variables': <Variable />,
   'report-properties': <Settings2 />,
 };
-
-/** Acciones que no tienen sentido sin un informe abierto. */
-const NEEDS_DOCUMENT = new Set<PaletteActionId>([
-  'save',
-  'undo',
-  'redo',
-  'insert:textbox',
-  'insert:rectangle',
-  'insert:line',
-  'insert:image',
-  'insert:tablix',
-  'report-properties',
-  'toggle-variables',
-]);
 
 /**
  * Paleta de comandos (Ctrl+K): busca **elementos** del informe (por nombre y
@@ -83,13 +85,14 @@ export function CommandPalette({
   onSelectItem,
   onPickExpression,
   onAction,
-  hasDocument,
+  capabilities,
 }: CommandPaletteProps): ReactNode {
   const elements = useMemo(() => (projection ? paletteElements(projection) : []), [projection]);
   const variables = useMemo(
     () => (projection ? variableEntries(projection.meta) : []),
     [projection],
   );
+  const disabledActions = useMemo(() => paletteDisabledActions(capabilities), [capabilities]);
 
   const run = (callback: () => void): void => {
     onOpenChange(false);
@@ -152,7 +155,7 @@ export function CommandPalette({
           <CommandSeparator />
           <CommandGroup heading="Acciones">
             {PALETTE_ACTIONS.map((action) => {
-              const disabled = NEEDS_DOCUMENT.has(action.id) && !hasDocument;
+              const disabled = disabledActions.has(action.id);
               return (
                 <CommandItem
                   key={action.id}

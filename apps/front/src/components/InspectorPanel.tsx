@@ -1,4 +1,5 @@
 import type {
+  BatchableCommand,
   EmbeddedImageDto,
   ItemDto,
   Length,
@@ -10,6 +11,7 @@ import type { ReactNode } from 'react';
 import type { ImageOptionsPatch } from '@/components/panels/ImagePanel';
 import type { ItemOptionsPatch } from '@/components/panels/PropertiesPanel';
 import { ItemPanels } from '@/components/panels/ItemPanels';
+import { MultiSelectionPanel } from '@/components/panels/MultiSelectionPanel';
 import { TablixStructurePanel } from '@/components/panels/TablixStructurePanel';
 import type { SelectedCell } from '@/lib/tablix';
 
@@ -18,6 +20,12 @@ export interface InspectorPanelProps {
   tablix: TablixDto | undefined;
   selectedCell: SelectedCell | null;
   item: ItemDto | undefined;
+  /** Items de la multiselección (U3); con 2+ manda el panel de lote. */
+  selectedItems: ItemDto[];
+  /** De los seleccionados, los movibles (no contenido de celda). */
+  movableIds: string[];
+  /** Edición en lote: un solo paso de undo. */
+  onBatchEdit: (commands: BatchableCommand[]) => void;
   /** El item es contenido directo de una celda (lo fija la celda). */
   cellContent: boolean;
   onSelectCell: (cell: SelectedCell | null) => void;
@@ -76,6 +84,9 @@ export function InspectorPanel({
   tablix,
   selectedCell,
   item,
+  selectedItems,
+  movableIds,
+  onBatchEdit,
   cellContent,
   onSelectCell,
   onAddRow,
@@ -105,7 +116,14 @@ export function InspectorPanel({
 }: InspectorPanelProps): ReactNode {
   return (
     <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
-      {tablix ? (
+      {selectedItems.length > 1 ? (
+        <MultiSelectionPanel
+          items={selectedItems}
+          movableIds={movableIds}
+          onBatchEdit={onBatchEdit}
+        />
+      ) : null}
+      {selectedItems.length > 1 ? null : tablix ? (
         <TablixStructurePanel
           tablix={tablix}
           selectedCell={selectedCell}
@@ -126,22 +144,24 @@ export function InspectorPanel({
           onOpenFilters={() => onOpenTablixFilters(tablix.id)}
         />
       ) : null}
-      <ItemPanels
-        item={item}
-        cellContent={cellContent}
-        onSetLocation={onSetLocation}
-        onSetSize={onSetSize}
-        onSetStyle={onSetStyle}
-        onSetName={onSetName}
-        onSetVisibility={onSetVisibility}
-        onSetItemOptions={onSetItemOptions}
-        onSetPageBreak={onSetPageBreak}
-        onSetText={onSetText}
-        onSetLabel={onSetLabel}
-        onSetImageOptions={onSetImageOptions}
-        embeddedImages={embeddedImages}
-        onEditText={onEditText}
-      />
+      {selectedItems.length > 1 ? null : (
+        <ItemPanels
+          item={item}
+          cellContent={cellContent}
+          onSetLocation={onSetLocation}
+          onSetSize={onSetSize}
+          onSetStyle={onSetStyle}
+          onSetName={onSetName}
+          onSetVisibility={onSetVisibility}
+          onSetItemOptions={onSetItemOptions}
+          onSetPageBreak={onSetPageBreak}
+          onSetText={onSetText}
+          onSetLabel={onSetLabel}
+          onSetImageOptions={onSetImageOptions}
+          embeddedImages={embeddedImages}
+          onEditText={onEditText}
+        />
+      )}
     </aside>
   );
 }

@@ -11,6 +11,12 @@ export interface ExpressionEditorProps {
   mode: 'expression' | 'code';
   /** Se llama al perder el foco, con Enter (expresión) o Ctrl+Enter (código). */
   onCommit: (value: string) => void;
+  /**
+   * Sustituye a `onCommit` en Enter/Ctrl+Enter y recibe el valor vivo del
+   * editor: es el «confirmar el diálogo» (Enter aplica y cierra), sin depender
+   * de estados de React que aún no se han re-renderizado.
+   */
+  onSubmit?: (value: string) => void;
   /** Etiqueta accesible del editor. */
   ariaLabel: string;
   /** Alto en px (por defecto: 2 líneas en expresión, 380 en código). */
@@ -29,15 +35,18 @@ export function ExpressionEditor({
   value,
   mode,
   onCommit,
+  onSubmit,
   ariaLabel,
   height,
 }: ExpressionEditorProps): ReactNode {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<ExpressionEditorHandles | null>(null);
   const commitRef = useRef(onCommit);
+  const submitRef = useRef(onSubmit);
 
   useEffect(() => {
     commitRef.current = onCommit;
+    submitRef.current = onSubmit;
   });
 
   useEffect(() => {
@@ -57,6 +66,14 @@ export function ExpressionEditor({
           onCommit: () => {
             const current = handles?.getValue();
             if (current !== undefined) commitRef.current(current);
+          },
+          onSubmit: () => {
+            // Primero el commit (los borradores quedan al día) y después el
+            // envío, con el valor recién leído del editor.
+            const current = handles?.getValue();
+            if (current === undefined) return;
+            commitRef.current(current);
+            submitRef.current?.(current);
           },
           onFocus: () => {
             setExpressionInserter((expression) => handles?.insertAtCursor(expression));

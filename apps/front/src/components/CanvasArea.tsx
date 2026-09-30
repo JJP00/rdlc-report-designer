@@ -6,8 +6,9 @@ import type {
   ScopeRef,
   TablixMemberDto,
 } from '@rdlc-designer/contracts';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
+import { ExpressionDialog } from '@/components/panels/ExpressionDialog';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -20,6 +21,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { ensureExpression } from '@/lib/groupProperties';
 import type { CanvasHit } from '@/lib/hit';
 import { itemKindLabel } from '@/lib/palette';
 import { findItem, findSiblings } from '@/lib/projection';
@@ -44,16 +46,20 @@ export interface CanvasAreaProps {
   projection: ProjectionDto | null;
   zoom: number;
   selectedId: string | null;
+  /** Items adicionales de la multiselección (U3). */
+  extraSelectedIds: string[];
   /** Celda de Tablix seleccionada (F2 parte 3). */
   selectedCell: SelectedCell | null;
   /** Último hit del click derecho (destino de Insertar/Pegar). */
   menuHit: CanvasHit | null;
   hasClipboard: boolean;
   reveal: { id: string; nonce: number } | null;
-  onSelect: (id: string | null) => void;
+  onSelect: (id: string | null, additive?: boolean) => void;
   onSelectCell: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   onContextMenuHit: (hit: CanvasHit) => void;
   onZoomChange: (zoom: number) => void;
+  /** Publica el zoom de «ajustar al ancho» medido del hueco del lienzo. */
+  onFitZoomChange: (zoom: number) => void;
   onMoveTo: (id: string, top: Length, left: Length) => void;
   /** El drag soltó sobre otro contenedor: reparentar (`moveItem`). */
   onMoveItemToScope: (
@@ -80,6 +86,8 @@ export interface CanvasAreaProps {
   onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
   /** Abre «Propiedades del grupo» del grupo que posee la fila. */
   onOpenGroupProperties: (id: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
+  /** Envuelve una fila estática en un grupo nuevo (menú contextual). */
+  onAddRowGroup: (id: string, row: number, expression: string) => void;
   onDeleteRow: (id: string, row: number) => void;
   onAddColumn: (id: string, column: number) => void;
   onDeleteColumn: (id: string, column: number) => void;
@@ -107,6 +115,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     projection,
     zoom,
     selectedId,
+    extraSelectedIds,
     selectedCell,
     menuHit,
     hasClipboard,
@@ -115,6 +124,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onSelectCell,
     onContextMenuHit,
     onZoomChange,
+    onFitZoomChange,
     onMoveTo,
     onMoveItemToScope,
     onResizeItem,
@@ -125,6 +135,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onAddRowOutside,
     onAddRowInside,
     onOpenGroupProperties,
+    onAddRowGroup,
     onDeleteRow,
     onAddColumn,
     onDeleteColumn,
@@ -142,6 +153,9 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onBringToFront,
     onSendToBack,
   } = props;
+
+  /** Fila a agrupar desde el menú contextual (abre el diálogo de expresión). */
+  const [groupRow, setGroupRow] = useState<{ id: string; row: number } | null>(null);
 
   const cellScope = cellScopeForMenu(menuHit, selectedCell);
   // El item del menú: lo que hay bajo el cursor o, si el click cayó en vacío,
@@ -162,95 +176,219 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
   const tablix = menuTablix?.kind === 'tablix' ? menuTablix : undefined;
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div className="flex min-h-0 flex-1 flex-col">
-          {projection ? (
-            <CanvasPreview
-              projection={projection}
-              zoom={zoom}
-              selectedId={selectedId}
-              selectedCell={selectedCell}
-              onSelect={onSelect}
-              onSelectCell={onSelectCell}
-              onMoveTo={onMoveTo}
-              onMoveItemToScope={onMoveItemToScope}
-              onZoomChange={onZoomChange}
-              onContextMenuHit={onContextMenuHit}
-              onDropItem={onInsertAt}
-              onResizeItem={onResizeItem}
-              onResizeColumn={onResizeColumn}
-              onResizeRow={onResizeRow}
-              reveal={reveal}
-            />
-          ) : (
-            <EmptyCanvas />
-          )}
-        </div>
-      </ContextMenuTrigger>
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {projection ? (
+              <CanvasPreview
+                projection={projection}
+                zoom={zoom}
+                selectedId={selectedId}
+                extraSelectedIds={extraSelectedIds}
+                selectedCell={selectedCell}
+                onSelect={onSelect}
+                onSelectCell={onSelectCell}
+                onMoveTo={onMoveTo}
+                onMoveItemToScope={onMoveItemToScope}
+                onZoomChange={onZoomChange}
+                onFitZoomChange={onFitZoomChange}
+                onContextMenuHit={onContextMenuHit}
+                onDropItem={onInsertAt}
+                onResizeItem={onResizeItem}
+                onResizeColumn={onResizeColumn}
+                onResizeRow={onResizeRow}
+                reveal={reveal}
+              />
+            ) : (
+              <EmptyCanvas />
+            )}
+          </div>
+        </ContextMenuTrigger>
 
-      <ContextMenuContent className="w-60">
-        <ContextMenuLabel>{menuLabel(menuHit, menuItem, cellScope)}</ContextMenuLabel>
-        <ContextMenuSeparator />
-
-        {cellScope ? (
-          <TablixMenuItems
-            cellScope={cellScope}
-            selection={selection}
-            tablix={tablix}
-            onAddRow={onAddRow}
-            onAddRowOutside={onAddRowOutside}
-            onAddRowInside={onAddRowInside}
-            onOpenGroupProperties={onOpenGroupProperties}
-            onDeleteRow={onDeleteRow}
-            onAddColumn={onAddColumn}
-            onDeleteColumn={onDeleteColumn}
-            onDeleteRows={onDeleteRows}
-            onDeleteColumns={onDeleteColumns}
-            onMergeCells={onMergeCells}
-            onUnmergeCells={onUnmergeCells}
-          />
-        ) : null}
-
-        <ItemActionsMenu
-          item={menuItem}
-          hasClipboard={hasClipboard && !headerOccupied}
+        <CanvasMenuContent
+          menuHit={menuHit}
+          menuItem={menuItem}
+          cellScope={cellScope}
+          selection={selection}
+          tablix={tablix}
+          headerOccupied={headerOccupied}
+          hasClipboard={hasClipboard}
+          canReorder={canReorder}
+          onAddRow={onAddRow}
+          onAddRowOutside={onAddRowOutside}
+          onAddRowInside={onAddRowInside}
+          onOpenGroupProperties={onOpenGroupProperties}
+          onGroupRow={(id, row) => setGroupRow({ id, row })}
+          onDeleteRow={onDeleteRow}
+          onAddColumn={onAddColumn}
+          onDeleteColumn={onDeleteColumn}
+          onDeleteRows={onDeleteRows}
+          onDeleteColumns={onDeleteColumns}
+          onMergeCells={onMergeCells}
+          onUnmergeCells={onUnmergeCells}
           onCut={onCut}
           onCopy={onCopy}
-          onPaste={() => {
-            if (menuHit) onPasteAt(menuHit.scope, menuHit.index);
-          }}
+          onPasteAt={onPasteAt}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onEditText={onEditText}
           onSelectParent={onSelectParent}
-          canReorder={canReorder}
           onBringToFront={onBringToFront}
           onSendToBack={onSendToBack}
+          onInsertAt={onInsertAt}
         />
+      </ContextMenu>
 
-        {!headerOccupied ? (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
-              <ContextMenuSubContent>
-                {INSERT_KINDS.map((kind) => (
-                  <ContextMenuItem
-                    key={kind}
-                    onSelect={() => {
-                      if (menuHit) onInsertAt(kind, menuHit);
-                    }}
-                  >
-                    {itemKindLabel(kind)}
-                  </ContextMenuItem>
-                ))}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-          </>
-        ) : null}
-      </ContextMenuContent>
-    </ContextMenu>
+      {/* «Agrupar la fila…»: el mismo diálogo de expresión que el árbol de Estructura. */}
+      {groupRow ? (
+        <ExpressionDialog
+          title={`Agrupar la fila ${groupRow.row + 1}`}
+          value=""
+          onClose={() => setGroupRow(null)}
+          onApply={(value) => {
+            const expression = ensureExpression(value);
+            const request = groupRow;
+            setGroupRow(null);
+            if (expression !== null) onAddRowGroup(request.id, request.row, expression);
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+type CanvasMenuProps = Pick<
+  CanvasAreaProps,
+  | 'menuHit'
+  | 'hasClipboard'
+  | 'onAddRow'
+  | 'onAddRowOutside'
+  | 'onAddRowInside'
+  | 'onOpenGroupProperties'
+  | 'onDeleteRow'
+  | 'onAddColumn'
+  | 'onDeleteColumn'
+  | 'onDeleteRows'
+  | 'onDeleteColumns'
+  | 'onMergeCells'
+  | 'onUnmergeCells'
+  | 'onPasteAt'
+  | 'onCut'
+  | 'onCopy'
+  | 'onDuplicate'
+  | 'onDelete'
+  | 'onEditText'
+  | 'onSelectParent'
+  | 'onBringToFront'
+  | 'onSendToBack'
+  | 'onInsertAt'
+> & {
+  menuItem: ItemDto | undefined;
+  cellScope: Extract<ScopeRef, { kind: 'tablixCell' }> | null;
+  selection: SelectedCell | null;
+  tablix: Extract<ItemDto, { kind: 'tablix' }> | undefined;
+  headerOccupied: boolean;
+  canReorder: boolean;
+  onGroupRow: (id: string, row: number) => void;
+};
+
+/** Contenido del menú contextual del lienzo (extraído para legibilidad). */
+function CanvasMenuContent({
+  menuHit,
+  menuItem,
+  cellScope,
+  selection,
+  tablix,
+  headerOccupied,
+  hasClipboard,
+  canReorder,
+  onAddRow,
+  onAddRowOutside,
+  onAddRowInside,
+  onOpenGroupProperties,
+  onGroupRow,
+  onDeleteRow,
+  onAddColumn,
+  onDeleteColumn,
+  onDeleteRows,
+  onDeleteColumns,
+  onMergeCells,
+  onUnmergeCells,
+  onCut,
+  onCopy,
+  onPasteAt,
+  onDuplicate,
+  onDelete,
+  onEditText,
+  onSelectParent,
+  onBringToFront,
+  onSendToBack,
+  onInsertAt,
+}: CanvasMenuProps): ReactNode {
+  return (
+    <ContextMenuContent className="w-60">
+      <ContextMenuLabel>{menuLabel(menuHit, menuItem, cellScope)}</ContextMenuLabel>
+      <ContextMenuSeparator />
+
+      {cellScope ? (
+        <TablixMenuItems
+          cellScope={cellScope}
+          selection={selection}
+          tablix={tablix}
+          onAddRow={onAddRow}
+          onAddRowOutside={onAddRowOutside}
+          onAddRowInside={onAddRowInside}
+          onOpenGroupProperties={onOpenGroupProperties}
+          onGroupRow={onGroupRow}
+          onDeleteRow={onDeleteRow}
+          onAddColumn={onAddColumn}
+          onDeleteColumn={onDeleteColumn}
+          onDeleteRows={onDeleteRows}
+          onDeleteColumns={onDeleteColumns}
+          onMergeCells={onMergeCells}
+          onUnmergeCells={onUnmergeCells}
+        />
+      ) : null}
+
+      <ItemActionsMenu
+        item={menuItem}
+        hasClipboard={hasClipboard && !headerOccupied}
+        onCut={onCut}
+        onCopy={onCopy}
+        onPaste={() => {
+          if (menuHit) onPasteAt(menuHit.scope, menuHit.index);
+        }}
+        onDuplicate={onDuplicate}
+        onDelete={onDelete}
+        onEditText={onEditText}
+        onSelectParent={onSelectParent}
+        canReorder={canReorder}
+        onBringToFront={onBringToFront}
+        onSendToBack={onSendToBack}
+      />
+
+      {!headerOccupied ? (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {INSERT_KINDS.map((kind) => (
+                <ContextMenuItem
+                  key={kind}
+                  onSelect={() => {
+                    if (menuHit) onInsertAt(kind, menuHit);
+                  }}
+                >
+                  {itemKindLabel(kind)}
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        </>
+      ) : null}
+    </ContextMenuContent>
   );
 }
 
@@ -386,6 +524,7 @@ function TablixMenuItems({
   onAddRowOutside,
   onAddRowInside,
   onOpenGroupProperties,
+  onGroupRow,
   onDeleteRow,
   onAddColumn,
   onDeleteColumn,
@@ -401,6 +540,8 @@ function TablixMenuItems({
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
   onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
   onOpenGroupProperties: (id: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
+  /** Fila estática: abrir «Agrupar la fila…» (grupo nuevo). */
+  onGroupRow: (id: string, row: number) => void;
   onDeleteRow: (id: string, row: number) => void;
   onAddColumn: (id: string, column: number) => void;
   onDeleteColumn: (id: string, column: number) => void;
@@ -448,7 +589,11 @@ function TablixMenuItems({
         <ContextMenuItem onSelect={() => onOpenGroupProperties(cellScope.id, 'row', group)}>
           Propiedades del grupo…
         </ContextMenuItem>
-      ) : null}
+      ) : (
+        <ContextMenuItem onSelect={() => onGroupRow(cellScope.id, cellScope.row)}>
+          Agrupar la fila {cellScope.row + 1}…
+        </ContextMenuItem>
+      )}
 
       {/* Borrado: con varias celdas se borran sus filas/columnas en lote. */}
       <DeleteRowsColumnsMenu
@@ -633,8 +778,14 @@ function ItemActionsMenu({
         <ContextMenuSub>
           <ContextMenuSubTrigger>Orden</ContextMenuSubTrigger>
           <ContextMenuSubContent>
-            <ContextMenuItem onSelect={onBringToFront}>Traer al frente</ContextMenuItem>
-            <ContextMenuItem onSelect={onSendToBack}>Enviar atrás</ContextMenuItem>
+            <ContextMenuItem onSelect={onBringToFront}>
+              Traer al frente
+              <ContextMenuShortcut>Ctrl+Shift+]</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={onSendToBack}>
+              Enviar atrás
+              <ContextMenuShortcut>Ctrl+Shift+[</ContextMenuShortcut>
+            </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
       ) : null}

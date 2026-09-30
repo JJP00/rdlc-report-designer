@@ -196,11 +196,13 @@ export interface ExpressionEditorHandles {
 /**
  * Crea el editor sobre `container`. Los commits (blur, Enter en expresión y
  * Ctrl+Enter en código) se avisan por `onCommit`; el foco por `onFocus`.
+ * `onSubmit` (opcional) sustituye a `onCommit` en esos atajos: es el «confirmar
+ * el diálogo» de los diálogos de expresión (Enter/Ctrl+Intro = Aplicar).
  */
 export function createExpressionEditor(
   container: HTMLElement,
   options: ExpressionEditorOptions,
-  callbacks: { onCommit(): void; onFocus(): void },
+  callbacks: { onCommit(): void; onFocus(): void; onSubmit?(): void },
 ): ExpressionEditorHandles {
   registerRdlcLanguage();
 
@@ -238,9 +240,10 @@ export function createExpressionEditor(
     ariaLabel: options.ariaLabel,
   });
 
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => callbacks.onCommit());
+  const submit = callbacks.onSubmit ?? callbacks.onCommit;
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, submit);
   if (mode === 'expression') {
-    editor.addCommand(monaco.KeyCode.Enter, () => callbacks.onCommit());
+    editor.addCommand(monaco.KeyCode.Enter, submit);
   }
 
   const blurSubscription = editor.onDidBlurEditorText(() => callbacks.onCommit());

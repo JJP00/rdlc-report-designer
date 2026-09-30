@@ -177,7 +177,19 @@ function TextEditorBody({
         ))}
       </datalist>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+        onKeyDown={(event) => {
+          // Ctrl+Intro = Aplicar, como en el diálogo de expresiones (el textarea
+          // necesita Enter para párrafos). Dentro de un editor Monaco manda su
+          // commit: aplicar aquí usaría un borrador de párrafos aún sin él.
+          if (!(event.ctrlKey || event.metaKey) || event.key !== 'Enter') return;
+          const target = event.target;
+          if (target instanceof Element && target.closest('.monaco-editor')) return;
+          event.preventDefault();
+          onApply(paragraphs);
+        }}
+      >
         {/* Formato del párrafo activo + insertar expresión en el cursor. */}
         <div className="flex flex-wrap items-center gap-1 rounded-md border bg-muted/20 px-2 py-1.5">
           <span className="mr-1 text-xs font-semibold">Párrafo {active + 1}</span>
@@ -328,7 +340,9 @@ function TextEditorBody({
         <Button variant="ghost" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button onClick={() => onApply(paragraphs)}>Aplicar</Button>
+        <Button title="Aplicar (Ctrl+Intro)" onClick={() => onApply(paragraphs)}>
+          Aplicar
+        </Button>
       </DialogFooter>
     </>
   );

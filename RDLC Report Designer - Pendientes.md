@@ -1,5 +1,42 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-30 (4.ª parte) · pase UX U6–U9 (zoom, paleta, agrupar la fila, teclado/ARIA)** —
+> segunda sesión trabajando **en paralelo** sobre el mismo árbol (la otra cubre U1–U5:
+> guardar como/nuevo/recientes, conflicto, multiselección, jerarquía y z-order; documentará
+> su parte). Aquí queda **U6–U9**:
+>
+> - **U6 · zoom «ajustar al ancho»/100 %**: `lib/zoom.ts` (límites 20–200 % y la
+>   matemática de ajuste, con tests); el **porcentaje de la toolbar abre un menú** con
+>   «Ajustar al ancho», «Tamaño real (100 %)» y presets (50/75/125/150/200 %); el lienzo
+>   **mide su hueco real** (ResizeObserver, sin paddings ni reglas) y publica el zoom de
+>   ajuste. Atajos nuevos **Ctrl+1** (ajustar) y **Ctrl+0** (100 %), válidos también con
+>   el foco en un campo.
+> - **U7 · paleta Ctrl+K**: las acciones declaran su contexto (`needs:
+document/textbox/tablix`) y la paleta las habilita/deshabilita sola
+>   (`paletteDisabledActions`, con tests); se añaden **Cerrar informe**, **Ajustar al
+>   ancho**, **Zoom 100 %**, **Editar el texto del textbox…** (abre el editor de runs) y
+>   **Filtros del Tablix…**. «Guardar como»/«Nuevo»/recientes entran con U1 (otra sesión).
+> - **U8 · «Agrupar la fila…» en el menú contextual**: con una fila **estática** (sin
+>   grupo) el click derecho la agrupa con el mismo diálogo de expresión que el ⊕ del
+>   árbol (`addRowGroup`); si la fila ya está en un grupo se mantiene «Propiedades del
+>   grupo…» (espejo exacto del árbol de Estructura).
+> - **U9 · teclado y ARIA de los diálogos nuevos**: **Ctrl+S / Ctrl+Shift+S / Ctrl+O /
+>   Ctrl+N** (guardar/guardar como/abrir/nuevo) y **Ctrl+K ya no se abre encima de un
+>   diálogo**; **Ctrl+Intro aplica** los diálogos de expresión, grupo, filtros del
+>   Tablix, texto y propiedades del informe (el de expresión recibe el **valor vivo**
+>   del editor, sin borradores de un render anterior); el botón de cerrar de los
+>   diálogos se anuncia en español («Cerrar»); la barra de estado vive en un
+>   `role="status"`.
+>
+> Verificación: **148 unit front** (137 → 148), `typecheck` de front y contratos limpio,
+> y **55 E2E** del diseñador (51 → 55) verdes en pasada completa sobre el build final.
+> Los 4 E2E nuevos cubren: presets/atajos de zoom, acciones nuevas de la paleta,
+> agrupar la fila por menú contextual (con Ctrl+Intro) y Ctrl+S / Ctrl+K con diálogo.
+>
+> **Punto de retomada**: U1–U5 los cierra la sesión paralela; después sigue ③ la fase
+> (**F2.c** totales → **F3** Matrix) y quedan abiertos el bug de `Maximum update depth
+exceeded` al mover Tablix anidados y el resto de T1–T5.
+
 > **Sesión 2026-09-30 (3.ª parte) · resuelto el E2E flaky del arrastre (aislamiento entre tests)** —
 > la carrera que quedó en la retomada anterior era del **harness**: `resetDocument`
 > comparaba la versión 20 ms después del `Ctrl+Z` y podía cortar con el undo aún en
@@ -92,18 +129,18 @@
 > **Punto de retomada**:
 >
 > 1. ✅ **Resuelto (3.ª parte, 2026-09-30)**: fallo E2E del arrastre — `resetDocument`
->   por huella + ventana de calma y guarda de versión en el front (ver bloque superior).
+>    por huella + ventana de calma y guarda de versión en el front (ver bloque superior).
 > 2. **Probar en la app** los editores de tamaño de Estructura (tecleo/flechas/arrastre) y
->   el arrastre en el resto de campos estandarizados; verificar que Ctrl+Z refresca el
->   panel al instante.
+>    el arrastre en el resto de campos estandarizados; verificar que Ctrl+Z refresca el
+>    panel al instante.
 > 3. **U3 — multiselección de items + edición en lote** (diseño acordado): modos
->   excluyentes item ↔ celda, `Ctrl/Shift+click` y **marco** de selección, panel con
->   propiedades comunes (fuente, tamaño, N/I/S, color, fondo, bordes, padding,
->   visibilidad y `CanGrow`/`KeepTogether`) aplicadas en **un solo paso de undo** con un
->   comando **`batch`** nuevo (el journal ya soporta varios inversos por comando) y
->   botones de **alinear/distribuir**.
+>    excluyentes item ↔ celda, `Ctrl/Shift+click` y **marco** de selección, panel con
+>    propiedades comunes (fuente, tamaño, N/I/S, color, fondo, bordes, padding,
+>    visibilidad y `CanGrow`/`KeepTogether`) aplicadas en **un solo paso de undo** con un
+>    comando **`batch`** nuevo (el journal ya soporta varios inversos por comando) y
+>    botones de **alinear/distribuir**.
 > 4. Sigue pendiente el **bug de `Maximum update depth exceeded`** al mover Tablix
->   anidados (ver su sección) y el resto del pase de UX `intent` (U1/U2/U4–U9).
+>    anidados (ver su sección) y el resto del pase de UX `intent` (U1/U2/U4–U9).
 
 > **Sesión 2026-09-30 · verificación en la app + previsualización del redimensionado** —
 > se probó en la app lo pendiente de la sesión anterior (log de comandos sobre
@@ -810,17 +847,17 @@ Trade-offs documentados:
 
 ### 🎛️ P2 · UX/editor (pase con el skill `intent`)
 
-| #   | Gap                                                           | Estado hoy                                                                                                                                       | Qué falta                                                                                                                                                                                                       | Tam. |
-| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| U1  | **Guardar como / Nuevo / recientes / abrir soltando fichero** | `IPC_CHANNELS.createNew` y `saveAs` + sus schemas **existen en el contrato pero no están implementados** (ni en preload ni en `RdlcApi`); sin UI | Implementar canales, «Guardar como…»/«Nuevo…», lista de recientes y drag&drop de `.rdlc` sobre la ventana                                                                                                       | M    |
-| U2  | **Conflicto de fichero completo**                             | Hoy: banner + «guardar = sobrescribir / cerrar = descartar» (H2)                                                                                 | Diálogo Recargar / Sobrescribir / Guardar como                                                                                                                                                                  | M    |
-| U3  | **Multiselección de items** + alinear/distribuir              | Solo selección única de item o de celdas                                                                                                         | Selección múltiple (Shift/Ctrl en lienzo), caja de selección, alinear/distribuir y guías. **Diseño acordado (2026-09-29)**: modos item ↔ celda excluyentes y edición en lote con comando `batch` (un solo undo) | L    |
-| U4  | **Jerarquía del informe / breadcrumb**                        | El árbol del Tablix existe; no hay árbol de items ni breadcrumb de contenedor (gap #12)                                                          | Panel de jerarquía + breadcrumb (Rectángulo/Celda)                                                                                                                                                              | M    |
-| U5  | Z-order                                                       | = G5                                                                                                                                             | Botones/atajos en el menú                                                                                                                                                                                       | S    |
-| U6  | Zoom «ajustar al ancho»/100 %                                 | Solo +/− del 20 % al 200 %                                                                                                                       | Presets y atajo                                                                                                                                                                                                 | S    |
-| U7  | Paleta Ctrl+K                                                 | Acciones actuales fijas (abrir/guardar/undo/redo/inserts)                                                                                        | Añadir las acciones nuevas (Tablix, guardar como, bordes…)                                                                                                                                                      | S    |
-| U8  | «Agrupar la fila…» en el menú contextual                      | Solo el ⊕ del árbol («Propiedades del grupo…» ya está en el menú)                                                                                | Acción en el submenú tipo Row Group                                                                                                                                                                             | S    |
-| U9  | Atajos y ARIA de los diálogos nuevos                          | Ctrl+C/X/V/D/Z/Y/K, flechas, Supr, Esc; diálogos con foco Radix                                                                                  | Repaso de teclado/accesibilidad de los diálogos nuevos (pase `intent`/`include`)                                                                                                                                | S    |
+| #     | Gap                                                           | Estado hoy                                                                                                                                       | Qué falta                                                                                                                                                                                                       | Tam. |
+| ----- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| U1    | **Guardar como / Nuevo / recientes / abrir soltando fichero** | `IPC_CHANNELS.createNew` y `saveAs` + sus schemas **existen en el contrato pero no están implementados** (ni en preload ni en `RdlcApi`); sin UI | Implementar canales, «Guardar como…»/«Nuevo…», lista de recientes y drag&drop de `.rdlc` sobre la ventana                                                                                                       | M    |
+| U2    | **Conflicto de fichero completo**                             | Hoy: banner + «guardar = sobrescribir / cerrar = descartar» (H2)                                                                                 | Diálogo Recargar / Sobrescribir / Guardar como                                                                                                                                                                  | M    |
+| U3    | **Multiselección de items** + alinear/distribuir              | Solo selección única de item o de celdas                                                                                                         | Selección múltiple (Shift/Ctrl en lienzo), caja de selección, alinear/distribuir y guías. **Diseño acordado (2026-09-29)**: modos item ↔ celda excluyentes y edición en lote con comando `batch` (un solo undo) | L    |
+| U4    | **Jerarquía del informe / breadcrumb**                        | El árbol del Tablix existe; no hay árbol de items ni breadcrumb de contenedor (gap #12)                                                          | Panel de jerarquía + breadcrumb (Rectángulo/Celda)                                                                                                                                                              | M    |
+| U5    | Z-order                                                       | = G5                                                                                                                                             | Botones/atajos en el menú                                                                                                                                                                                       | S    |
+| U6 ✅ | Zoom «ajustar al ancho»/100 %                                 | Solo +/− del 20 % al 200 %                                                                                                                       | Presets y atajo                                                                                                                                                                                                 | S    |
+| U7 ✅ | Paleta Ctrl+K                                                 | Acciones actuales fijas (abrir/guardar/undo/redo/inserts)                                                                                        | Añadir las acciones nuevas (Tablix, guardar como, bordes…)                                                                                                                                                      | S    |
+| U8 ✅ | «Agrupar la fila…» en el menú contextual                      | Solo el ⊕ del árbol («Propiedades del grupo…» ya está en el menú)                                                                                | Acción en el submenú tipo Row Group                                                                                                                                                                             | S    |
+| U9 ✅ | Atajos y ARIA de los diálogos nuevos                          | Ctrl+C/X/V/D/Z/Y/K, flechas, Supr, Esc; diálogos con foco Radix                                                                                  | Repaso de teclado/accesibilidad de los diálogos nuevos (pase `intent`/`include`)                                                                                                                                | S    |
 
 ### 🛠️ P3 · Técnicos/proceso
 

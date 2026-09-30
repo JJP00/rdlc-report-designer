@@ -39,6 +39,7 @@ import { applySetText } from './setText.js';
 import { applySetVisibility } from './setVisibility.js';
 import { applySetZIndex } from './setZIndex.js';
 import { applySetMemberToggleItem, applySetMemberVisibility } from './memberVisibility.js';
+import { applyBatch } from './batch.js';
 import {
   applyAddRowGroup,
   applyAddRowToGroup,
@@ -150,6 +151,8 @@ export function applyCommand(
       return applyDeleteItem(ctx, command);
     case 'moveItem':
       return applyMoveItem(ctx, command);
+    case 'batch':
+      return applyBatch(ctx, command);
 
     /* ------------------- internos del journal (undo) ------------------- */
 

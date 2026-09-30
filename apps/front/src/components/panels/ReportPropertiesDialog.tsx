@@ -144,7 +144,17 @@ function ReportPropertiesForm({
         <TabsTrigger value="code">Código</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="page" className="flex flex-col gap-4 pt-2">
+      <TabsContent
+        value="page"
+        className="flex flex-col gap-4 pt-2"
+        onKeyDown={(event) => {
+          // Ctrl+Intro = Aplicar la página (teclado completo en el diálogo).
+          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+            event.preventDefault();
+            applyPage();
+          }
+        }}
+      >
         <div className="flex flex-col gap-2">
           <Label className="text-xs text-muted-foreground">Papel</Label>
           <div className="flex gap-2">
@@ -244,9 +254,15 @@ function ReportPropertiesForm({
           mode="code"
           ariaLabel="Código VB del informe"
           onCommit={setCode}
+          onSubmit={(value) => {
+            // Ctrl+Intro: commit + aplicar el código recién leído del editor.
+            setCode(value);
+            onSetReportCode(value);
+          }}
         />
         <DialogFooter>
           <Button
+            title="Aplicar (Ctrl+Intro)"
             onClick={() => {
               onSetReportCode(code);
             }}

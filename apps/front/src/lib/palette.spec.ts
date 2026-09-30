@@ -1,6 +1,11 @@
 import type { ProjectionDto, TablixDto, TextboxDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
-import { paletteElements } from './palette';
+import {
+  PALETTE_ACTIONS,
+  paletteDisabledActions,
+  paletteElements,
+  type PaletteCapabilities,
+} from './palette';
 
 /** Elementos de la paleta (Ctrl+K): nombre + contenido buscable. */
 
@@ -97,5 +102,60 @@ describe('paletteElements', () => {
     expect(element?.haystack).toContain('=Fields!BTCDescriptionLbl.Value');
     expect(element?.haystack).toContain('[BTCDescriptionLbl]');
     expect(element?.haystack).toContain('Textbox');
+  });
+});
+
+describe('paletteDisabledActions', () => {
+  const none: PaletteCapabilities = {
+    hasDocument: false,
+    hasTextbox: false,
+    hasTablix: false,
+  };
+  const everything: PaletteCapabilities = {
+    hasDocument: true,
+    hasTextbox: true,
+    hasTablix: true,
+  };
+
+  it('sin documento solo queda «Abrir»', () => {
+    const disabled = paletteDisabledActions(none);
+    expect(disabled).toContain('save');
+    expect(disabled).toContain('insert:tablix');
+    expect(disabled).toContain('zoom:fit-width');
+    expect(disabled).toContain('undo');
+    expect(disabled).not.toContain('open');
+  });
+
+  it('con documento pero sin selección, editar texto y filtros siguen fuera', () => {
+    const disabled = paletteDisabledActions({
+      hasDocument: true,
+      hasTextbox: false,
+      hasTablix: false,
+    });
+    expect(disabled).not.toContain('save');
+    expect(disabled).not.toContain('insert:tablix');
+    expect(disabled).toContain('edit-text');
+    expect(disabled).toContain('tablix-filters');
+  });
+
+  it('con un textbox seleccionado se habilita «Editar el texto»', () => {
+    const disabled = paletteDisabledActions({
+      hasDocument: true,
+      hasTextbox: true,
+      hasTablix: false,
+    });
+    expect(disabled).not.toContain('edit-text');
+    expect(disabled).toContain('tablix-filters');
+  });
+
+  it('con un Tablix en contexto se habilitan sus filtros', () => {
+    const disabled = paletteDisabledActions(everything);
+    expect(disabled.size).toBe(0);
+  });
+
+  it('todas las acciones declaran un contexto conocido', () => {
+    expect(PALETTE_ACTIONS.map((action) => action.id)).toContain('close');
+    expect(PALETTE_ACTIONS.map((action) => action.id)).toContain('zoom:fit-width');
+    expect(PALETTE_ACTIONS.map((action) => action.id)).toContain('tablix-filters');
   });
 });

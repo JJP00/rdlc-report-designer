@@ -96,7 +96,16 @@ export function TablixFiltersDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-3 sm:max-w-2xl">
+      <DialogContent
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-3 sm:max-w-2xl"
+        onKeyDown={(event) => {
+          // Ctrl+Intro = Aplicar (teclado completo en el diálogo).
+          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && valid) {
+            event.preventDefault();
+            apply();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Filtros del Tablix</DialogTitle>
           <DialogDescription>
@@ -180,7 +189,7 @@ export function TablixFiltersDialog({
             <Button variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button onClick={apply} disabled={!valid}>
+            <Button title="Aplicar (Ctrl+Intro)" onClick={apply} disabled={!valid}>
               Aplicar
             </Button>
           </div>

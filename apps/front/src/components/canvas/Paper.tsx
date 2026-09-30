@@ -11,7 +11,7 @@ import { toPx } from './geometry';
 export interface PaperProps {
   layout: PaperLayout;
   selectedId?: string | null;
-  onSelect?: (id: string | null) => void;
+  onSelect?: (id: string | null, additive?: boolean) => void;
   onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   /** Redimensionar una columna/fila de la rejilla de un Tablix. */
   onResizeColumn?: (id: string, column: number, width: Length) => void;

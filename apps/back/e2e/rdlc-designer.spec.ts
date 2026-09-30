@@ -46,7 +46,15 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  if (!app) return;
+  // El cierre pide confirmación si el test dejó cambios: se descartan.
+  const closing = app.close().catch(() => undefined);
+  await page
+    .getByTestId('unsaved-changes-dialog')
+    .getByRole('button', { name: 'Salir sin guardar' })
+    .click({ timeout: 5000 })
+    .catch(() => undefined);
+  await closing;
 });
 
 async function projectionVersion(): Promise<number> {
@@ -2112,7 +2120,7 @@ test('un Tablix seleccionado se elimina desde el menú contextual', async () => 
 
   // Click derecho en vacío (regla): el menú muestra las acciones de la selección.
   const stageBox = await page.locator('canvas').first().boundingBox();
-  await page.mouse.click(stageBox!.x - 8, stageBox!.y - 8, { button: 'right' });
+  await page.mouse.click(stageBox!.x - 8, stageBox!.y + 20, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Eliminar' }).click();
 
   await expect
@@ -2739,4 +2747,64 @@ test('Ctrl+S guarda y Ctrl+K no se cuela dentro de un diálogo', async () => {
   // Escape cierra el diálogo y devuelve el foco sin tocar la selección.
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
+});
+
+test('Jerarquía y breadcrumb navegan por los contenedores', async () => {
+  await selectItemViaPalette('Textbox4'); // encabezado, dentro de Rectangle1
+
+  // Breadcrumb: la ruta y el salto al contenedor.
+  const crumbs = page.getByRole('navigation', { name: 'Ruta del elemento seleccionado' });
+  await expect(crumbs).toContainText('Encabezado');
+  await expect(crumbs).toContainText('Rectangle1');
+  await crumbs.getByRole('button', { name: 'Rectangle1' }).click();
+  await expect.poll(selectedId).toBe('Rectangle1');
+
+  // Panel de Jerarquía: selecciona el textbox anidado desde el árbol.
+  await page.getByRole('button', { name: 'Jerarquía' }).click();
+  const tree = page.getByRole('tree', { name: 'Jerarquía del informe' });
+  await expect(tree).toBeVisible();
+  await tree.locator('button', { hasText: 'Textbox4' }).first().click();
+  await expect.poll(selectedId).toBe('Textbox4');
+});
+
+test('el z-order tiene atajos (Ctrl+Shift+] / Ctrl+Shift+[)', async () => {
+  await selectItemViaPalette('Textbox4');
+  expect(await itemZIndex('Textbox4')).toBeUndefined();
+
+  await page.keyboard.press('Control+Shift+]');
+  await expect.poll(() => itemZIndex('Textbox4')).toBeGreaterThan(0);
+
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => itemZIndex('Textbox4')).toBeUndefined();
+});
+
+test('multiselección: Ctrl+click, alinear en lote y un solo undo', async () => {
+  // Textbox4 y Textbox17 viven en Rectangle1 (encabezado), con lefts distintos.
+  await selectItemViaPalette('Textbox4');
+  const center = await nodeCenter('Textbox17');
+  expect(center).not.toBeNull();
+  await page.keyboard.down('Control');
+  await page.mouse.click(center!.x, center!.y);
+  await page.keyboard.up('Control');
+
+  const panel = page.getByTestId('multi-selection-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('2 elementos');
+
+  const before4 = await itemLocation('Textbox4');
+  const before17 = await itemLocation('Textbox17');
+  expect(before4).toBeDefined();
+  expect(before17).toBeDefined();
+  const minLeft = Math.min(before4!.left, before17!.left);
+
+  await panel.getByRole('button', { name: 'Alinear a la izquierda' }).click();
+  await expect.poll(async () => (await itemLocation('Textbox4'))?.left).toBeCloseTo(minLeft, 3);
+  await expect.poll(async () => (await itemLocation('Textbox17'))?.left).toBeCloseTo(minLeft, 3);
+
+  // Un único Ctrl+Z revierte los dos (el lote es atómico).
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await itemLocation('Textbox4'))?.left).toBeCloseTo(before4!.left, 3);
+  await expect
+    .poll(async () => (await itemLocation('Textbox17'))?.left)
+    .toBeCloseTo(before17!.left, 3);
 });

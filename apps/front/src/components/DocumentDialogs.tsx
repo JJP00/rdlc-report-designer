@@ -9,10 +9,13 @@ import type {
   TextboxDto,
 } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
+import { ConflictDialog } from '@/components/ConflictDialog';
 import { GroupPropertiesDialog } from '@/components/panels/GroupPropertiesDialog';
 import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
 import { TablixFiltersDialog } from '@/components/panels/TablixFiltersDialog';
 import { TextEditorDialog } from '@/components/panels/TextEditorDialog';
+import { UnsavedChangesDialog } from '@/components/UnsavedChangesDialog';
+import type { PendingIntent, PendingResolution } from '@/hooks/useDocumentCore';
 import { flattenItems } from '@/lib/projection';
 
 /** Grupo cuyas «Propiedades» están abiertas (estado de UI, no del documento). */
@@ -46,6 +49,16 @@ export interface DocumentDialogsProps {
   filtersTablix: TablixDto | null;
   onCloseTablixFilters: () => void;
   onApplyTablixFilters: (filters: TablixFilterDto[]) => void;
+  /** Guarda de cambios sin guardar (abrir/crear/cerrar/salir). */
+  pendingIntent: PendingIntent | null;
+  onResolvePending: (resolution: PendingResolution) => void;
+  /** Conflicto de fichero (recargar / sobrescribir / guardar como). */
+  conflict: string | null;
+  conflictOpen: boolean;
+  onConflictOpenChange: (open: boolean) => void;
+  onReloadFromDisk: () => void;
+  onOverwriteConflict: () => void;
+  onSaveAsConflict: () => void;
 }
 
 /** Diálogos del documento: propiedades del informe, propiedades del grupo y texto. */
@@ -67,6 +80,14 @@ export function DocumentDialogs({
   filtersTablix,
   onCloseTablixFilters,
   onApplyTablixFilters,
+  pendingIntent,
+  onResolvePending,
+  conflict,
+  conflictOpen,
+  onConflictOpenChange,
+  onReloadFromDisk,
+  onOverwriteConflict,
+  onSaveAsConflict,
 }: DocumentDialogsProps): ReactNode {
   return (
     <>
@@ -107,6 +128,16 @@ export function DocumentDialogs({
         item={editingText}
         onOpenChange={onEditingTextOpenChange}
         onApply={onApplyParagraphs}
+      />
+
+      <UnsavedChangesDialog intent={pendingIntent} onResolve={onResolvePending} />
+      <ConflictDialog
+        path={conflict}
+        open={conflictOpen}
+        onOpenChange={onConflictOpenChange}
+        onReload={onReloadFromDisk}
+        onOverwrite={onOverwriteConflict}
+        onSaveAs={onSaveAsConflict}
       />
     </>
   );

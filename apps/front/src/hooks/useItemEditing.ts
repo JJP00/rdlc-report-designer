@@ -1,4 +1,5 @@
 import type {
+  BatchableCommand,
   ItemDto,
   Length,
   NewItemSpec,
@@ -50,8 +51,20 @@ export interface ImageOptionsPatch {
 
 export interface ItemEditing {
   selectedId: string | null;
+  /** Multiselección de items (el ancla es el último id). */
+  selectedIds: string[];
+  /** Items completos de la multiselección (U3). */
+  selectedItems: ItemDto[];
+  /** De los seleccionados, los movibles (no contenido de celda). */
+  movableIds: string[];
+  /** El item seleccionado es contenido directo de una celda (lo fija la celda). */
+  selectedIsCellContent: boolean;
   selectedItem: ItemDto | undefined;
   setSelectedId: (id: string | null) => void;
+  /** Fija la multiselección completa (marco de selección). */
+  setSelectedIds: (ids: string[]) => void;
+  /** Ctrl/Shift+click: añade o quita un item de la multiselección. */
+  toggleItemSelection: (id: string) => void;
   /** Celda de Tablix seleccionada (independiente del item seleccionado). */
   selectedCell: SelectedCell | null;
   setSelectedCell: (cell: SelectedCell | null) => void;
@@ -97,6 +110,8 @@ export interface ItemEditing {
   mergeCells: (id: string, row: number, col: number, rowSpan: number, colSpan: number) => void;
   unmergeCells: (id: string, row: number, col: number) => void;
   setItemStyle: (patch: StylePatch) => void;
+  /** Edición en lote (multiselección): varios comandos, un solo paso de undo. */
+  batchEdit: (commands: BatchableCommand[]) => void;
   /** Orden de apilado entre los hermanos del mismo contenedor. */
   zOrder: (direction: 'front' | 'back') => void;
   /** `CanGrow`/`KeepTogether` de un Textbox (apagarlas quita la etiqueta). */
@@ -172,7 +187,8 @@ function withLabel(run: TextRunDto, label: string | null): TextRunDto {
 export function useItemEditing(core: DocumentCore): ItemEditing {
   const { doc, sendCommand, reconcile, updateProjection, setStatus, setError } = core;
 
-  const [selectedIdState, setSelectedIdState] = useState<string | null>(null);
+  /** Multiselección de items: el **último** id hace de ancla (paneles/tiradores). */
+  const [selectedIdsState, setSelectedIdsState] = useState<string[]>([]);
   const [selectedCellState, setSelectedCellState] = useState<SelectedCell | null>(null);
   const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
   const [hasClipboard, setHasClipboard] = useState(false);
@@ -180,17 +196,31 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   /** Item y celda son excluyentes: seleccionar uno limpia el otro. */
   const setSelectedId = useCallback((id: string | null): void => {
     setSelectedCellState(null);
-    setSelectedIdState(id);
+    setSelectedIdsState(id ? [id] : []);
+  }, []);
+
+  /** Fija la multiselección completa (marco, «seleccionar todo», etc.). */
+  const setSelectedIds = useCallback((ids: string[]): void => {
+    setSelectedCellState(null);
+    setSelectedIdsState(ids);
+  }, []);
+
+  /** Ctrl/Shift+click: añade o quita el item de la multiselección. */
+  const toggleItemSelection = useCallback((id: string): void => {
+    setSelectedCellState(null);
+    setSelectedIdsState((ids) =>
+      ids.includes(id) ? ids.filter((candidate) => candidate !== id) : [...ids, id],
+    );
   }, []);
 
   const setSelectedCell = useCallback((cell: SelectedCell | null): void => {
-    setSelectedIdState(null);
+    setSelectedIdsState([]);
     setSelectedCellState(cell);
   }, []);
 
   /** Shift amplía el rango desde el ancla; Ctrl añade/quita celdas sueltas. */
   const selectCell = useCallback((cell: SelectedCell, extend = false, toggle = false): void => {
-    setSelectedIdState(null);
+    setSelectedIdsState([]);
     setSelectedCellState((current) => {
       if (!current || current.id !== cell.id) {
         return {
@@ -233,7 +263,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
 
   /** Click derecho: si la celda ya forma parte de la selección, no la pierde. */
   const selectCellForContext = useCallback((cell: SelectedCell): void => {
-    setSelectedIdState(null);
+    setSelectedIdsState([]);
     setSelectedCellState((current) =>
       current && current.id === cell.id && isCellSelected(cell, current)
         ? current
@@ -241,15 +271,36 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     );
   }, []);
 
-  const selectedItemRaw = useMemo(
-    () => (doc && selectedIdState ? findItem(doc.projection, selectedIdState) : undefined),
-    [doc, selectedIdState],
+  // La selección solo vale si los items siguen existiendo (undo/redo, recarga,
+  // borrado): se **deriva** en vez de sincronizarse con un efecto.
+  const selectedIds = useMemo(
+    () =>
+      doc ? selectedIdsState.filter((id) => findItem(doc.projection, id) !== undefined) : [],
+    [doc, selectedIdsState],
+  );
+  const selectedId = selectedIds.length > 0 ? (selectedIds[selectedIds.length - 1] ?? null) : null;
+  const selectedItem = useMemo(
+    () => (doc && selectedId ? findItem(doc.projection, selectedId) : undefined),
+    [doc, selectedId],
+  );
+  /** El item seleccionado es contenido directo de una celda (lo fija la celda). */
+  const selectedIsCellContent = useMemo(
+    () => (doc && selectedItem ? isCellContent(doc.projection, selectedItem.id) : false),
+    [doc, selectedItem],
   );
 
-  // La selección solo vale si el item sigue existiendo (undo/redo, recarga,
-  // borrado): se **deriva** en vez de sincronizarse con un efecto.
-  const selectedId = selectedItemRaw ? selectedIdState : null;
-  const selectedItem = selectedItemRaw;
+  /** Items completos de la multiselección (U3) y cuáles pueden moverse. */
+  const selectedItems = useMemo(() => {
+    if (!doc) return [];
+    return selectedIds.flatMap((id) => {
+      const item = findItem(doc.projection, id);
+      return item ? [item] : [];
+    });
+  }, [doc, selectedIds]);
+  const movableIds = useMemo(
+    () => (doc ? selectedIds.filter((id) => !isCellContent(doc.projection, id)) : []),
+    [doc, selectedIds],
+  );
 
   // La celda seleccionada tampoco sobrevive si su Tablix desaparece.
   const selectedCell = useMemo(
@@ -486,6 +537,20 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       );
     },
     [reconcile, selectedItem, sendCommand, updateProjection],
+  );
+
+  /**
+   * Edición en lote de la multiselección: los comandos van juntos en `batch` y
+   * el backend los aplica como **un solo paso de undo**.
+   */
+  const batchEdit = useCallback(
+    (commands: BatchableCommand[]): void => {
+      if (commands.length === 0) return;
+      void sendCommand({ cmd: 'batch', commands }).then((result) =>
+        reconcile(result?.ok ? result.applied : undefined),
+      );
+    },
+    [reconcile, sendCommand],
   );
 
   /**
@@ -979,8 +1044,14 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
 
   return {
     selectedId,
+    selectedIds,
+    selectedItems,
+    movableIds,
+    selectedIsCellContent,
     selectedItem,
     setSelectedId,
+    setSelectedIds,
+    toggleItemSelection,
     selectedCell,
     setSelectedCell,
     selectCell,
@@ -1038,5 +1109,6 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setRegionHeight,
     setHeaderFooterOptions,
     setReportCode,
+    batchEdit,
   };
 }

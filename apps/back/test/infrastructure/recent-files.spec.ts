@@ -34,7 +34,7 @@ describe('recientes persistidos en JSON', () => {
     expect(list[1]).toBe(paths[8]);
 
     // Re-añadir mueve al frente sin duplicar.
-    const again = await adapter.add(paths[5]);
+    const again = await adapter.add(paths[5]!);
     expect(again[0]).toBe(paths[5]);
     expect(again.filter((path) => path === paths[5])).toHaveLength(1);
   });

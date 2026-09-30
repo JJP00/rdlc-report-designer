@@ -38,7 +38,7 @@ interface NodeGroupProps {
   /** Opacidad de pintado (los items con `Hidden = true` se atenúan). */
   opacity?: number;
   draggable?: boolean;
-  onSelect?: (id: string | null) => void;
+  onSelect?: (id: string | null, additive?: boolean) => void;
   onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   /** Límites del contenedor (px) y tamaño del item para no salir de él. */
   bounds?: { width: number; height: number };
@@ -120,7 +120,8 @@ function NodeGroup({
           return;
         }
         event.cancelBubble = true;
-        onSelect?.(itemId);
+        // Ctrl/Shift+click añade el item a la multiselección (U3).
+        onSelect?.(itemId, evt.shiftKey || evt.ctrlKey || evt.metaKey);
       }}
       onTap={(event) => {
         event.cancelBubble = true;
@@ -203,7 +204,7 @@ interface ItemViewProps {
   item: ItemDto;
   selected?: boolean;
   draggable?: boolean;
-  onSelect?: (id: string | null) => void;
+  onSelect?: (id: string | null, additive?: boolean) => void;
   onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   /** Redimensionar una columna/fila de la rejilla de un Tablix. */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
@@ -409,7 +410,7 @@ function RectangleContent({
   item: RectangleDto;
   width: number;
   height: number;
-  onSelect?: (id: string | null) => void;
+  onSelect?: (id: string | null, additive?: boolean) => void;
   onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
@@ -490,10 +491,10 @@ function ItemBorder({
     // `Double`: dos líneas con hueco entre ellas.
     const insets = value.style === 'Double' ? [thickness, thickness * 3] : [thickness / 2];
 
-    insets.forEach((inset, index) => {
+    insets.forEach((inset) => {
       lines.push(
         <Line
-          key={`${side}-${index}`}
+          key={`${side}-${inset}`}
           name="item-border"
           listening={false}
           points={sidePoints(side, inset, width, height)}
@@ -625,7 +626,7 @@ function TablixContent({
 }: {
   item: TablixDto;
   selected?: boolean;
-  onSelect?: (id: string | null) => void;
+  onSelect?: (id: string | null, additive?: boolean) => void;
   onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;

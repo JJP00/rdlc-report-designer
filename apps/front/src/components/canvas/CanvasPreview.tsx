@@ -6,8 +6,8 @@ import type {
   ScopeRef,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Stage } from 'react-konva';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Stage, Layer, Rect } from 'react-konva';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
@@ -22,11 +22,15 @@ import {
 import type { BoxCm } from '@/lib/resize';
 import type { SelectedCell } from '@/lib/tablix';
 import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
+import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
 import { Paper } from './Paper';
 import { Ruler } from './Ruler';
 import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
 import { bandAt, paperLayout, type PaperLayout } from './bands';
 import { clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
+
+/** Padding del contenedor con scroll (`p-6`): 1,5 rem. */
+const CANVAS_PADDING_PX = 24;
 
 /** Scope del contrato para cada banda del papel. */
 function scopeOfBand(key: string): ScopeRef {
@@ -39,7 +43,9 @@ export interface CanvasPreviewProps {
   projection: ProjectionDto;
   zoom: number;
   selectedId?: string | null;
-  onSelect?: (id: string | null) => void;
+  /** Items adicionales de la multiselección (U3): se dibujan con marco discontinuo. */
+  extraSelectedIds?: string[];
+  onSelect?: (id: string | null, additive?: boolean) => void;
   /** Se llama al soltar un drag con la posición ya normalizada (cm). */
   onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
   /** El drag terminó sobre otro contenedor: reparentar (`moveItem`). */
@@ -63,6 +69,11 @@ export interface CanvasPreviewProps {
   onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   /** Zoom con Ctrl/Cmd + rueda. */
   onZoomChange?: (zoom: number) => void;
+  /**
+   * Publica el zoom de «ajustar al ancho» calculado del hueco real del lienzo.
+   * El padre lo guarda en un ref: no re-renderiza en cada resize.
+   */
+  onFitZoomChange?: (zoom: number) => void;
   /** Click derecho sobre el lienzo: el item/contenedor bajo el cursor. */
   onContextMenuHit?: (hit: CanvasHit) => void;
   /** Un item de la toolbox soltado en el lienzo. */
@@ -81,6 +92,7 @@ export function CanvasPreview({
   projection,
   zoom,
   selectedId,
+  extraSelectedIds = [],
   onSelect,
   onMoveTo,
   onMoveItemToScope,
@@ -90,6 +102,7 @@ export function CanvasPreview({
   selectedCell,
   onSelectCell,
   onZoomChange,
+  onFitZoomChange,
   onContextMenuHit,
   onDropItem,
   reveal,
@@ -140,6 +153,25 @@ export function CanvasPreview({
   const layout = paperLayout(projection);
   const visibleBands = layout.bands.filter((band) => band.visible);
 
+  /**
+   * «Ajustar al ancho»: mide el hueco real del lienzo (menos paddings y reglas)
+   * y publica el zoom que deja el papel entero a la vista. El padre lo guarda y
+   * lo aplica cuando el usuario lo pide (menú o Ctrl+1), no en cada resize.
+   */
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !onFitZoomChange) return;
+    const update = (): void => {
+      const available = container.clientWidth - CANVAS_PADDING_PX * 2 - RULER_PX;
+      const fit = fitWidthZoom(available, layout.sheetWidth);
+      if (fit !== null) onFitZoomChange(fit);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [layout.sheetWidth, onFitZoomChange]);
+
   /** Qué elemento mide el marco: el item seleccionado o el Tablix de la celda. */
   const frameId = selectedId ?? selectedCell?.id ?? null;
 
@@ -166,6 +198,13 @@ export function CanvasPreview({
 
   const stageWidth = layout.sheetWidth * zoom;
   const stageHeight = layout.sheetHeight * zoom;
+
+  /**
+   * Marcos discontinuos de los **demás** items de la multiselección: se miden
+   * del nodo Konva real (como el marco principal) para que acompañen al zoom y
+   * al scroll sin recalcular la geometría de contenedores anidados.
+   */
+  const extraKey = extraSelectedIds.join('|');
 
   /**
    * Fin de un drag: si el puntero soltó sobre **otro contenedor**, el item se
@@ -289,6 +328,7 @@ export function CanvasPreview({
             />
 
             <SelectionFrame {...frameProps} />
+            <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
           </Stage>
         </div>
       </div>
@@ -297,6 +337,61 @@ export function CanvasPreview({
 }
 
 /* ------------------------------- helpers -------------------------------- */
+
+/**
+ * Marcos discontinuos de la **multiselección** (U3): se miden del nodo Konva
+ * real y se pintan por refs (sin estado de React) para no re-renderizar el
+ * stage ni caer en bucles de efecto.
+ */
+function ExtraSelectionFrames({
+  stageRef,
+  ids,
+  revision,
+}: {
+  stageRef: RefObject<Konva.Stage | null>;
+  /** Ids separados por `|` (una sola prop estable). */
+  ids: string;
+  /** Cambia con la proyección: fuerza una remedición cuando algo se mueve. */
+  revision: unknown;
+}): ReactNode {
+  const rectsRef = useRef(new Map<string, Konva.Rect>());
+  const layerRef = useRef<Konva.Layer | null>(null);
+  const list = ids.length > 0 ? ids.split('|') : [];
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    const layer = layerRef.current;
+    if (!stage || !layer) return;
+    const wanted = new Set(ids.length > 0 ? ids.split('|') : []);
+    for (const [id, rect] of rectsRef.current) {
+      const measured = wanted.has(id) ? measureSelection(stage, id) : null;
+      if (measured) rect.setAttrs({ ...measured, visible: true });
+      else rect.visible(false);
+    }
+    layer.batchDraw();
+    // `ids`/`revision` son las señales de cambios en la selección o el dibujo.
+  }, [ids, revision, stageRef]);
+
+  if (list.length === 0) return null;
+  return (
+    <Layer ref={layerRef} listening={false}>
+      {list.map((id) => (
+        <Rect
+          key={id}
+          ref={(node) => {
+            if (node) rectsRef.current.set(id, node);
+            else rectsRef.current.delete(id);
+          }}
+          stroke="#2563eb"
+          strokeWidth={1.5}
+          dash={[5, 4]}
+          strokeScaleEnabled={false}
+          visible={false}
+        />
+      ))}
+    </Layer>
+  );
+}
 
 /** Mide el nodo seleccionado; en un Tablix, su borde (la rejilla). */
 function measureSelection(
@@ -377,7 +472,7 @@ function zoomFromWheel(
   // En Electron, sin preventDefault Chromium haría zoom de toda la app.
   event.evt.preventDefault();
   const factor = deltaY > 0 ? 1 / 1.1 : 1.1;
-  onZoomChange(Math.min(2, Math.max(0.2, Number((zoom * factor).toFixed(3)))));
+  onZoomChange(roundZoom(clampZoom(zoom * factor)));
 }
 
 /** Marco de selección: caja del item y rejilla si es un Tablix. */

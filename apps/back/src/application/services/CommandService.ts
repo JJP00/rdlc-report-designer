@@ -40,6 +40,8 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   // Fusionar descarta celdas con contenido; separar crea celdas con textbox.
   'mergeCells',
   'unmergeCells',
+  // El lote puede incluir borrados/renombrados: se reconstruye el índice.
+  'batch',
 ]);
 
 function isStructural(command: { cmd: string }): boolean {

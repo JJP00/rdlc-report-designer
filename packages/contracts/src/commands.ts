@@ -533,6 +533,33 @@ const setMemberToggleItem = z.object({
   item: z.string().nullable(),
 });
 
+/* --------------------------- lote (U3) ---------------------------------- */
+
+/**
+ * Comandos que se pueden agrupar en un `batch` (edición en lote de la
+ * multiselección). Sin anidamiento: nunca otro `batch`.
+ */
+const batchableCommandSchema = z.discriminatedUnion('cmd', [
+  setLocation,
+  setSize,
+  setBounds,
+  setZIndex,
+  setName,
+  setVisibility,
+  setItemOptions,
+  setItemPageBreak,
+  setStyle,
+  setParagraphs,
+  deleteItem,
+]);
+export type BatchableCommand = z.infer<typeof batchableCommandSchema>;
+
+/** Varios comandos aplicados como **un solo paso de undo**. */
+const batch = z.object({
+  cmd: z.literal('batch'),
+  commands: z.array(batchableCommandSchema).min(1),
+});
+
 /* ------------------------------ Unión ----------------------------------- */
 
 export const commandSchema = z.discriminatedUnion('cmd', [
@@ -581,6 +608,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setHeaderFooterOptions,
   setReportCode,
   setImageOptions,
+  batch,
 ]);
 
 export type RdlcCommand = z.infer<typeof commandSchema>;

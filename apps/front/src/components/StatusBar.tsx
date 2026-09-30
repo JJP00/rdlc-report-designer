@@ -14,7 +14,9 @@ export interface StatusBarProps {
 export function StatusBar({ status, path, dirty, stats, reloads }: StatusBarProps): ReactNode {
   return (
     <footer className="flex items-center gap-3 border-t bg-background px-3 py-1 text-xs text-muted-foreground">
-      <span className="truncate">{status}</span>
+      <span className="truncate" role="status">
+        {status}
+      </span>
       {path ? (
         <span className="ml-auto flex shrink-0 items-center gap-3">
           <span className="max-w-[340px] truncate font-medium text-foreground" title={path}>
