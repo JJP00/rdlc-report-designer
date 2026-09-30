@@ -1,5 +1,77 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-30 (2.ª parte) · editores de tamaño en Estructura + NumberInput estándar** —
+> tamaños de filas/columnas editables en el panel Estructura con **tres formas de cambio**
+> (teclear con Enter/Escape, **flechas ↑/↓** y **arrastre sobre el valor** con cursor de
+> redimensionado), y **el contenido de las celdas acompaña al redimensionado**:
+>
+> - **Sincronización de contenido en el back** (`resizeTablix.ts`): al redimensionar
+>   columna/fila/tabla se actualizan los `Width`/`Height` **declarados** de los contenidos
+>   de las celdas cubiertas (incluida la cabecera); los canónicos sin tamaño declarado
+>   siguen por el **fallback de proyección** (la celda manda), sin inventar etiquetas.
+>   Undo byte-exacto verificado con cadena delete→insert→resize→undo×3.
+> - **`NumberInput` compartido** (`apps/front/src/components/ui/number-input.tsx`):
+>   borrador de tecleo (coma→punto, Enter/blur confirma, Escape cancela), flechas ↑/↓ con
+>   un commit por clic, **arrastre** con `cursor-ew/ns-resize` que confirma **una sola vez**
+>   al soltar (un paso de undo; Escape cancela; clic sin arrastre coloca el cursor). Ejes
+>   `x`/`y` con `invert` (la posición Y arrastra hacia abajo = aumenta). Estandarizado en
+>   **todos** los campos numéricos: Estructura, Propiedades (X/Y/Ancho/Alto), grosores de
+>   borde, tamaño de fuente (toolbar y editor de runs), Informe… (página y márgenes) y
+>   padding por lado.
+> - **Fix de refresco con Ctrl+Z**: el borrador del arrastre no se limpiaba en la ruta de
+>   commit y el panel Estructura quedaba clavado con el valor arrastrado hasta cambiar de
+>   tabla; ahora `finish()` limpia el borrador **siempre**, así que Ctrl+Z se refleja al
+>   momento.
+> - **Tests**: 273 back + 137 front verdes, `typecheck` limpio. E2E: 50 pasan; en la última
+>   pasada completa quedó **un fallo por resolver** (ver «Punto de retomada»). Ajustes
+>   deterministas ya aplicados: `getByLabel(..., { exact: true })` donde las flechas nuevas
+>   rompían la resolución estricta (padding y «Alto del encabezado/pie») y el padding
+>   espera `'2.00'` (el NumberInput muestra 2 decimales fijos).
+>
+> **Fallo E2E sin resolver (forense hecha, causa raíz pendiente)** —
+> «el panel Estructura edita el tamaño…», paso de **arrastre**, solo en pasada completa
+> (pasa solo, y con su test anterior, 3× de seguido). Señales del run fallido:
+>
+> - La columna 0 de `LinesTable2` acabó en **9.8259 cm** = corpus (11.51184) **menos el
+>   delta del test anterior** (60 px de cabecera ≈ 1,686 cm); el estado del test previo
+>   «volvió a aparecer».
+> - La barra de estado quedó en **`Deshecho (v37)`**: lo último aplicado fue **un undo**,
+>   no el commit del arrastre (el scrub de `NumberInput` es correcto: se verificó con
+>   instrumentación que parte de 11.51, zoom 0.6, selección `LinesTable2`, y commit
+>   absoluto +3 cm).
+> - La selección acabó en **`Rectangle3`** (contenido de la celda de `Tablix2`, 1×1);
+>   ningún test lo selecciona.
+> - Descartado: matemática del scrub (correcta), drag Konva «pegado» (los pointer events
+>   del panel no llegan al lienzo, x≈1311 > borde derecho del canvas ≈1053), zoom raro
+>   (es 0.6 en runs instrumentados), valores 6.8259/9.8259 en el corpus (no existen).
+> - **Hipótesis principal**: el hook `resetDocument` (afterEach) puede **quedarse corto**:
+>   compara la versión 20 ms tras `Ctrl+z` (`waitForTimeout(20)`) y corta si no cambió,
+>   pero la respuesta del undo puede tardar más → deja el documento **a medio deshacer**;
+>   un undo «tardío» aplicado durante el test siguiente encaja con `Deshecho (v37)` y el
+>   estado reaparecido. Alternativas: snapshot antiguo sobreescribiendo la proyección del
+>   front, o `dragend` de Konva disparándose dos veces reenviando el resize viejo.
+> - **Plan próximo paso**: endurecer `resetDocument` (esperar el cambio de versión con
+>   `waitForFunction`/timeout real en vez de 20 ms), exponer/leer el estado de la barra
+>   en el poll para ver qué comando aplica, revisar si el undo del front puede aplicar
+>   respuestas fuera de orden, y repetir la pasada completa varias veces.
+>
+> **Punto de retomada**:
+>
+> 1. **Resolver el fallo E2E del arrastre** (arriba): hook `resetDocument` más robusto +
+>   investigar el undo «tardío»; repetir la suite completa 2-3 veces hasta verla verde
+>   estable.
+> 2. **Probar en la app** los editores de tamaño de Estructura (tecleo/flechas/arrastre) y
+>   el arrastre en el resto de campos estandarizados; verificar que Ctrl+Z refresca el
+>   panel al instante.
+> 3. **U3 — multiselección de items + edición en lote** (diseño acordado): modos
+>   excluyentes item ↔ celda, `Ctrl/Shift+click` y **marco** de selección, panel con
+>   propiedades comunes (fuente, tamaño, N/I/S, color, fondo, bordes, padding,
+>   visibilidad y `CanGrow`/`KeepTogether`) aplicadas en **un solo paso de undo** con un
+>   comando **`batch`** nuevo (el journal ya soporta varios inversos por comando) y
+>   botones de **alinear/distribuir**.
+> 4. Sigue pendiente el **bug de `Maximum update depth exceeded`** al mover Tablix
+>   anidados (ver su sección) y el resto del pase de UX `intent` (U1/U2/U4–U9).
+
 > **Sesión 2026-09-30 · verificación en la app + previsualización del redimensionado** —
 > se probó en la app lo pendiente de la sesión anterior (log de comandos sobre
 > `SalesCreditMemoESP`): **Tablix 2×3** (7,5 × 1,2 cm, las 6 celdas), **drag de
