@@ -266,3 +266,88 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
     if (opened.isRight()) expect(opened.value.warnings).toEqual(['aviso de esquema']);
   });
 });
+
+describe('F0 · SessionService (nuevo / guardar como / recargar)', () => {
+  it('createNew escribe la plantilla en blanco, la abre y guarda bytes idénticos', async () => {
+    const { service, watcher, tmp } = await makeService();
+    const path = join(tmp, 'Nuevo.rdlc');
+
+    const created = await service.createNew(path);
+    expect(created.isRight()).toBe(true);
+    if (!created.isRight()) return;
+
+    expect(created.value.projection.reportName).toBe('Nuevo');
+    expect(created.value.projection.page.body.items).toEqual([]);
+    expect(created.value.projection.page.width.value).toBeCloseTo(21, 3);
+    expect(created.value.projection.page.height.value).toBeCloseTo(29.7, 3);
+    expect(watcher.watchingPaths).toEqual([path]);
+
+    // Sin cambios, el guardado escribe exactamente los bytes de la plantilla.
+    const saved = await service.save(created.value.sessionId);
+    expect(saved.isRight()).toBe(true);
+    if (saved.isRight()) expect(saved.value.bytesIdentical).toBe(true);
+  });
+
+  it('saveAs escribe en la ruta nueva, re-vigila y deja limpia la sesión', async () => {
+    const { service, watcher, tmp } = await makeService();
+    const original = await writeFixture(tmp, 'PalletOutput.rdlc');
+    const copy = join(tmp, 'Copia.rdlc');
+
+    const opened = await service.open(original);
+    expect(opened.isRight()).toBe(true);
+    if (!opened.isRight()) return;
+    const sessionId = opened.value.sessionId;
+
+    // Edición local (equivale a un comando): la sesión queda dirty.
+    const target = service.getEditTarget(sessionId);
+    if (!target.isRight()) return;
+    target.value.index.get('Textbox25')?.child('Width')?.setText('7.77cm');
+    service.touch(sessionId, { snapshotOut: false });
+
+    const savedAs = await service.saveAs(sessionId, copy);
+    expect(savedAs.isRight()).toBe(true);
+    if (savedAs.isRight()) expect(savedAs.value.path).toBe(copy);
+
+    expect(await readFile(copy, 'utf8')).toContain('7.77cm');
+    // El original no se tocó y el watcher sigue la ruta nueva.
+    expect(await readFile(original, 'utf8')).not.toContain('7.77cm');
+    expect(watcher.watchingPaths).toEqual([copy]);
+
+    // Limpia: cerrar ya no pide confirmación.
+    const closed = await service.close(sessionId);
+    expect(closed.isRight()).toBe(true);
+    if (closed.isRight()) expect(closed.value.closed).toBe(true);
+  });
+
+  it('reload descarta los cambios locales y refleja el disco', async () => {
+    const { service, events, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'PalletOutput.rdlc');
+    const opened = await service.open(path);
+    expect(opened.isRight()).toBe(true);
+    if (!opened.isRight()) return;
+    const sessionId = opened.value.sessionId;
+
+    const target = service.getEditTarget(sessionId);
+    if (!target.isRight()) return;
+    target.value.index.get('Textbox25')?.child('Width')?.setText('5cm');
+    service.touch(sessionId, { snapshotOut: false });
+
+    // Cambio externo: el usuario elige «Recargar» y se descarta lo local.
+    const external = (await readFile(path, 'utf8')).replace(
+      '<Value>(</Value>',
+      '<Value>[EXTERNO]</Value>',
+    );
+    await writeFile(path, external, 'utf8');
+
+    const reloaded = await service.reload(sessionId);
+    expect(reloaded.isRight()).toBe(true);
+    if (!reloaded.isRight()) return;
+
+    const after = service.getEditTarget(sessionId);
+    if (!after.isRight()) return;
+    expect(after.value.index.get('Textbox25')?.child('Width')?.text()).not.toBe('5cm');
+    expect(
+      events.payloads<{ sessionId: string; dirty: boolean }>(IPC_EVENTS.dirtyChanged).at(-1),
+    ).toEqual({ sessionId, dirty: false });
+  });
+});

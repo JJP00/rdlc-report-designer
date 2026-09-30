@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { app } from 'electron';
 import { join } from 'node:path';
 import { EVENT_BUS_PORT } from '../application/ports/out/EventBusPort.js';
 import { FILE_SYSTEM_PORT } from '../application/ports/out/FileSystemPort.js';
 import { FILE_WATCHER_PORT } from '../application/ports/out/FileWatcherPort.js';
+import { RECENT_FILES_PORT } from '../application/ports/out/RecentFilesPort.js';
 import { RDLC_PROJECTION_PORT } from '../application/ports/out/RdlcProjectionPort.js';
 import { RDLC_PARSER_PORT } from '../application/ports/out/RdlcParserPort.js';
 import { RDLC_SERIALIZER_PORT } from '../application/ports/out/RdlcSerializerPort.js';
@@ -12,6 +14,7 @@ import { ElectronEventBusAdapter } from '../infrastructure/events/ElectronEventB
 import { WindowsSystemFontsAdapter } from '../infrastructure/fonts/WindowsSystemFontsAdapter.js';
 import { ChokidarWatcherAdapter } from '../infrastructure/fs/ChokidarWatcherAdapter.js';
 import { NodeFileSystemAdapter } from '../infrastructure/fs/NodeFileSystemAdapter.js';
+import { JsonRecentFilesAdapter } from '../infrastructure/recent/JsonRecentFilesAdapter.js';
 import { TrueFormatProjectionAdapter } from '../infrastructure/rdlc/TrueFormatProjectionAdapter.js';
 import { TrueFormatXmlAdapter } from '../infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { LibXml2SchemaValidatorAdapter } from '../infrastructure/validation/LibXml2SchemaValidatorAdapter.js';
@@ -41,6 +44,11 @@ const RDL_SCHEMA_PATH = join(
       useFactory: () => new LibXml2SchemaValidatorAdapter(RDL_SCHEMA_PATH),
     },
     { provide: SYSTEM_FONTS_PORT, useClass: WindowsSystemFontsAdapter },
+    {
+      provide: RECENT_FILES_PORT,
+      useFactory: () =>
+        new JsonRecentFilesAdapter(join(app.getPath('userData'), 'recent-files.json')),
+    },
     ElectronEventBusAdapter,
     { provide: EVENT_BUS_PORT, useExisting: ElectronEventBusAdapter },
   ],
@@ -52,6 +60,7 @@ const RDL_SCHEMA_PATH = join(
     RDLC_PROJECTION_PORT,
     XML_SCHEMA_VALIDATOR_PORT,
     SYSTEM_FONTS_PORT,
+    RECENT_FILES_PORT,
     EVENT_BUS_PORT,
     ElectronEventBusAdapter,
   ],

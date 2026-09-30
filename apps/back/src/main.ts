@@ -1,9 +1,10 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log/main';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { IPC_CHANNELS, IPC_EVENTS, windowCloseConfirmationSchema } from '@rdlc-designer/contracts';
 import { AppModule } from './app.module.js';
 import { ElectronEventBusAdapter } from './infrastructure/events/ElectronEventBusAdapter.js';
 import { IpcController } from './presentation/ipc/IpcController.js';
@@ -11,6 +12,8 @@ import { IpcController } from './presentation/ipc/IpcController.js';
 log.initialize();
 
 let mainWindow: BrowserWindow | null = null;
+/** true cuando el front ya confirmó el cierre (no se vuelve a interceptar). */
+let allowClose = false;
 
 /** Fichero inicial: `RDLC_OPEN` (dev) o primer argumento `.rdlc` (CLI). */
 function findInitialFile(): string | null {
@@ -37,6 +40,16 @@ async function createWindow(): Promise<BrowserWindow> {
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Guarda de cierre: el SO pide cerrar (X, Alt+F4, quit) y **decide el front**
+  // (cambios sin guardar). Si el renderer aún no ha cargado, no hay trabajo que
+  // perder: se cierra directamente.
+  allowClose = false;
+  window.on('close', (event) => {
+    if (allowClose || window.webContents.isLoading()) return;
+    event.preventDefault();
+    window.webContents.send(IPC_EVENTS.closeRequested);
   });
 
   // Diagnóstico: la consola del renderer también va al log del main.
@@ -68,6 +81,14 @@ async function bootstrap(): Promise<void> {
   const ipc = nest.get(IpcController);
   ipc.setPendingOpen(findInitialFile());
   ipc.register(() => mainWindow);
+
+  // Respuesta del renderer a la petición de cierre (guardas de cambios).
+  ipcMain.handle(IPC_CHANNELS.confirmWindowClose, (_event, payload: unknown) => {
+    const parsed = windowCloseConfirmationSchema.safeParse(payload);
+    if (!parsed.success || !parsed.data.proceed) return;
+    allowClose = true;
+    mainWindow?.close();
+  });
 
   mainWindow = await createWindow();
   log.info('RDLC Report Designer iniciado');

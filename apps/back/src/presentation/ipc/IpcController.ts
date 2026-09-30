@@ -2,9 +2,12 @@ import {
   IPC_CHANNELS,
   clipboardSourceRequestSchema,
   closeRequestSchema,
+  createNewRequestSchema,
   executeCommandRequestSchema,
   openFileRequestSchema,
   pasteRequestSchema,
+  pickSavePathRequestSchema,
+  saveAsRequestSchema,
   sessionRequestSchema,
   type CloseResult,
   type CommandResult,
@@ -13,10 +16,18 @@ import {
   type OpenFileResult,
   type PendingOpenResult,
   type PickFileResult,
+  type PickSavePathResult,
+  type RecentFilesResult,
   type SaveResult,
 } from '@rdlc-designer/contracts';
 import { Inject, Injectable } from '@nestjs/common';
-import { dialog, ipcMain, type BrowserWindow, type OpenDialogOptions } from 'electron';
+import {
+  dialog,
+  ipcMain,
+  type BrowserWindow,
+  type OpenDialogOptions,
+  type SaveDialogOptions,
+} from 'electron';
 import type { ZodType } from 'zod';
 import {
   COMMAND_SERVICE,
@@ -31,8 +42,10 @@ import { SESSION_SERVICE } from '../../application/services/ISessionService.js';
 import type { SystemFontsPort } from '../../application/ports/out/SystemFontsPort.js';
 import { SYSTEM_FONTS_PORT } from '../../application/ports/out/SystemFontsPort.js';
 import type { CloseSessionResult } from '../../application/services/ISessionService.js';
-import type { Either } from '../../shared/either.js';
-import type { DomainError } from '../../shared/domainError.js';
+import type { RecentFilesPort } from '../../application/ports/out/RecentFilesPort.js';
+import { RECENT_FILES_PORT } from '../../application/ports/out/RecentFilesPort.js';
+import { left, right, type Either } from '../../shared/either.js';
+import { CommandRejectedError, type DomainError } from '../../shared/domainError.js';
 import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
 
 /**
@@ -48,6 +61,7 @@ export class IpcController {
     @Inject(SESSION_SERVICE) private readonly sessions: ISessionService,
     @Inject(COMMAND_SERVICE) private readonly commands: ICommandService,
     @Inject(SYSTEM_FONTS_PORT) private readonly fonts: SystemFontsPort,
+    @Inject(RECENT_FILES_PORT) private readonly recents: RecentFilesPort,
   ) {}
 
   /** Fichero inicial (argumento de CLI) que el front consume al montar. */
@@ -59,6 +73,15 @@ export class IpcController {
     this.getWindow = getWindow;
 
     ipcMain.handle(IPC_CHANNELS.pickFile, () => this.pickFile());
+
+    ipcMain.handle(IPC_CHANNELS.pickSavePath, (_event, payload) =>
+      this.handle(
+        pickSavePathRequestSchema,
+        payload,
+        async (req) => right(await this.pickSavePath(req.defaultPath)),
+        (value: PickSavePathResult): PickSavePathResult => value,
+      ),
+    );
 
     ipcMain.handle(IPC_CHANNELS.pendingOpen, (): PendingOpenResult => ({
       ok: true,
@@ -74,7 +97,32 @@ export class IpcController {
       this.handle(
         openFileRequestSchema,
         payload,
-        (req) => this.sessions.open(req.path),
+        async (req) => {
+          const result = await this.sessions.open(req.path);
+          if (result.isRight()) await this.recents.add(req.path);
+          return result;
+        },
+        (value: OpenSessionResult): OpenFileResult => ({
+          ok: true,
+          sessionId: value.sessionId,
+          projection: value.projection,
+          ...(value.warnings ? { warnings: value.warnings } : {}),
+        }),
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.createNew, (_event, payload) =>
+      this.handle(
+        createNewRequestSchema,
+        payload,
+        async (req) => {
+          if (!req.path) {
+            return left(CommandRejectedError.create('Falta la ruta del informe nuevo'));
+          }
+          const result = await this.sessions.createNew(req.path);
+          if (result.isRight()) await this.recents.add(req.path);
+          return result;
+        },
         (value: OpenSessionResult): OpenFileResult => ({
           ok: true,
           sessionId: value.sessionId,
@@ -96,6 +144,42 @@ export class IpcController {
         }),
       ),
     );
+
+    ipcMain.handle(IPC_CHANNELS.saveAs, (_event, payload) =>
+      this.handle(
+        saveAsRequestSchema,
+        payload,
+        async (req) => {
+          const result = await this.sessions.saveAs(req.sessionId, req.path);
+          if (result.isRight()) await this.recents.add(req.path);
+          return result;
+        },
+        (value: SaveSessionResult): SaveResult => ({
+          ok: true,
+          path: value.path,
+          bytesIdentical: value.bytesIdentical,
+        }),
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.reloadFile, (_event, payload) =>
+      this.handle(
+        sessionRequestSchema,
+        payload,
+        (req) => this.sessions.reload(req.sessionId),
+        (value: OpenSessionResult): OpenFileResult => ({
+          ok: true,
+          sessionId: value.sessionId,
+          projection: value.projection,
+          ...(value.warnings ? { warnings: value.warnings } : {}),
+        }),
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.recentFiles, async (): Promise<RecentFilesResult> => ({
+      ok: true,
+      files: await this.recents.list(),
+    }));
 
     ipcMain.handle(IPC_CHANNELS.close, (_event, payload) =>
       this.handle(
@@ -205,5 +289,18 @@ export class IpcController {
       : await dialog.showOpenDialog(options);
     const path = result.canceled ? undefined : result.filePaths[0];
     return { ok: true, path: path ?? null };
+  }
+
+  private async pickSavePath(defaultPath?: string): Promise<PickSavePathResult> {
+    const options: SaveDialogOptions = {
+      title: 'Guardar informe RDLC',
+      ...(defaultPath ? { defaultPath } : {}),
+      filters: [{ name: 'Informes RDLC', extensions: ['rdlc'] }],
+    };
+    const window = this.getWindow();
+    const result = window
+      ? await dialog.showSaveDialog(window, options)
+      : await dialog.showSaveDialog(options);
+    return { ok: true, path: result.canceled ? null : (result.filePath ?? null) };
   }
 }

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
+import { BLANK_REPORT_XML } from '../../src/domain/document/templates/blankReport.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { LibXml2SchemaValidatorAdapter } from '../../src/infrastructure/validation/LibXml2SchemaValidatorAdapter.js';
 import { corpusByName, loadCorpus } from '../golden/fixtures.js';
@@ -52,6 +53,12 @@ describe('validación XSD RDL 2016/01', () => {
     expect(applied.isRight()).toBe(true);
 
     const result = validator.validate(adapter.serialize(doc));
+    expect(result.problems, result.problems.join(' | ')).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it('la plantilla de informe nuevo (en blanco) valida contra el XSD', () => {
+    const result = validator.validate(BLANK_REPORT_XML);
     expect(result.problems, result.problems.join(' | ')).toEqual([]);
     expect(result.valid).toBe(true);
   });

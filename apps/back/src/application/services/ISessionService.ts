@@ -36,7 +36,16 @@ export interface TouchOptions {
 /** Caso de uso: ciclo de vida de pestañas (abrir/guardar/cerrar/vigilar). */
 export interface ISessionService {
   open(filePath: string): Promise<Either<DomainError, OpenSessionResult>>;
+  /** Escribe la plantilla en blanco en `filePath` y la abre como sesión nueva. */
+  createNew(filePath: string): Promise<Either<DomainError, OpenSessionResult>>;
   save(sessionId: string): Promise<Either<DomainError, SaveSessionResult>>;
+  /** Guarda copiando a `filePath`: la sesión pasa a apuntar y vigilar ahí. */
+  saveAs(sessionId: string, filePath: string): Promise<Either<DomainError, SaveSessionResult>>;
+  /**
+   * Recarga el documento desde disco **descartando** los cambios locales
+   * (resolución del conflicto «Recargar»). Devuelve la proyección nueva.
+   */
+  reload(sessionId: string): Promise<Either<DomainError, OpenSessionResult>>;
   /**
    * Cierra la sesión. Si hay cambios sin guardar y no se fuerza, **no cierra**:
    * devuelve `{ closed: false, reason: 'dirty' }` para que el front pregunte.

@@ -1,4 +1,6 @@
 import { NestFactory } from '@nestjs/core';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import 'reflect-metadata';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,7 +11,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
-  dialog: { showOpenDialog: vi.fn() },
+  dialog: { showOpenDialog: vi.fn(), showSaveDialog: vi.fn() },
+  app: { getPath: () => join(tmpdir(), 'rdlc-e2e-userData') },
 }));
 
 describe('F0 · bootstrap Nest (hexágono)', () => {

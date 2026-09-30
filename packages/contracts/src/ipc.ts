@@ -6,6 +6,8 @@ import { projectionSchema } from './projection.js';
 /** Canales `ipcMain.handle` / `ipcRenderer.invoke`. */
 export const IPC_CHANNELS = {
   pickFile: 'rdlc:pickFile',
+  /** Diálogo nativo de guardado (para «Guardar como…» y «Nuevo…»). */
+  pickSavePath: 'rdlc:pickSavePath',
   /** Fichero con el que se arrancó la app (CLI/argumento), si lo hay. */
   pendingOpen: 'rdlc:pendingOpen',
   /** Fuentes instaladas en el sistema (para la barra de formato). */
@@ -14,6 +16,12 @@ export const IPC_CHANNELS = {
   createNew: 'rdlc:createNew',
   save: 'rdlc:save',
   saveAs: 'rdlc:saveAs',
+  /** Recarga desde disco descartando los cambios locales (diálogo de conflicto). */
+  reloadFile: 'rdlc:reloadFile',
+  /** Ficheros abiertos recientemente (para el desplegable de «Abrir…»). */
+  recentFiles: 'rdlc:recentFiles',
+  /** El renderer confirma (o cancela) el cierre de la ventana pedido por el SO. */
+  confirmWindowClose: 'rdlc:confirmWindowClose',
   close: 'rdlc:close',
   executeCommand: 'rdlc:executeCommand',
   undo: 'rdlc:undo',
@@ -32,6 +40,8 @@ export const IPC_EVENTS = {
   conflictDetected: 'rdlc:evt:conflictDetected',
   saved: 'rdlc:evt:saved',
   sessionClosed: 'rdlc:evt:sessionClosed',
+  /** El SO quiere cerrar la ventana: el front decide (guardas de cambios). */
+  closeRequested: 'rdlc:evt:closeRequested',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];
 
@@ -57,6 +67,16 @@ export type OpenFileRequest = z.infer<typeof openFileRequestSchema>;
 
 export const createNewRequestSchema = z.object({ path: z.string().min(1).optional() }).strict();
 export type CreateNewRequest = z.infer<typeof createNewRequestSchema>;
+
+/** Diálogo nativo de guardado: `defaultPath` propone el nombre/ruta actual. */
+export const pickSavePathRequestSchema = z
+  .object({ defaultPath: z.string().min(1).optional() })
+  .strict();
+export type PickSavePathRequest = z.infer<typeof pickSavePathRequestSchema>;
+
+/** El renderer confirma o cancela el cierre de ventana pedido por el SO. */
+export const windowCloseConfirmationSchema = z.object({ proceed: z.boolean() }).strict();
+export type WindowCloseConfirmation = z.infer<typeof windowCloseConfirmationSchema>;
 
 export const sessionRequestSchema = z.object({ sessionId: z.string().min(1) }).strict();
 export type SessionRequest = z.infer<typeof sessionRequestSchema>;
@@ -122,6 +142,20 @@ export const pickFileResultSchema = z.object({
   path: z.string().nullable(),
 });
 export type PickFileResult = z.infer<typeof pickFileResultSchema>;
+
+/** Resultado del diálogo nativo de guardado (`path: null` si se cancela). */
+export const pickSavePathResultSchema = z.object({
+  ok: z.literal(true),
+  path: z.string().nullable(),
+});
+export type PickSavePathResult = z.infer<typeof pickSavePathResultSchema>;
+
+/** Ficheros recientes (los que ya no existen en disco se descartan al listar). */
+export const recentFilesResultSchema = z.object({
+  ok: z.literal(true),
+  files: z.array(z.string()),
+});
+export type RecentFilesResult = z.infer<typeof recentFilesResultSchema>;
 
 /** Fichero inicial pasado a la app (argumento de línea de comandos). */
 export const pendingOpenResultSchema = z.object({

@@ -7,6 +7,8 @@ export interface EditorBannersProps {
   hasBackend: boolean;
   /** Cierra el aviso de error a mano (además del cierre automático). */
   onDismissError?: () => void;
+  /** Reabre el diálogo para resolver el conflicto de fichero. */
+  onResolveConflict?: () => void;
 }
 
 /** Avisos del editor: error del último comando, conflicto de fichero y modo navegador. */
@@ -15,6 +17,7 @@ export function EditorBanners({
   conflict,
   hasBackend,
   onDismissError,
+  onResolveConflict,
 }: EditorBannersProps): ReactNode {
   return (
     <>
@@ -35,10 +38,18 @@ export function EditorBanners({
         </div>
       ) : null}
       {conflict ? (
-        <div className="border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-700">
-          El fichero <span className="font-mono">{conflict}</span> cambió por fuera y hay cambios
-          sin guardar: no se ha recargado para no perderlos. Guarda para sobrescribir, o cierra y
-          vuelve a abrir el fichero para descartar los tuyos.
+        <div className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-700">
+          <span className="min-w-0 flex-1">
+            El fichero <span className="font-mono">{conflict}</span> cambió por fuera y hay cambios
+            sin guardar: no se ha recargado para no perderlos.
+          </span>
+          <button
+            type="button"
+            className="shrink-0 rounded border border-amber-600/40 px-2 py-0.5 text-xs font-medium transition-colors hover:bg-amber-500/20"
+            onClick={onResolveConflict}
+          >
+            Resolver…
+          </button>
         </div>
       ) : null}
       {!hasBackend ? (

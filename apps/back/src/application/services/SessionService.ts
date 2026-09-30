@@ -3,6 +3,7 @@ import { IPC_EVENTS } from '@rdlc-designer/contracts';
 import type { ProjectionDto } from '@rdlc-designer/contracts';
 import { Injectable, Inject } from '@nestjs/common';
 import { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
+import { BLANK_REPORT_XML } from '../../domain/document/templates/blankReport.js';
 import type { EventBusPort } from '../ports/out/EventBusPort.js';
 import { EVENT_BUS_PORT } from '../ports/out/EventBusPort.js';
 import type { FileSystemPort } from '../ports/out/FileSystemPort.js';
@@ -118,41 +119,94 @@ export class SessionService implements ISessionService {
     });
   }
 
+  async createNew(filePath: string): Promise<Either<DomainError, OpenSessionResult>> {
+    // La plantilla en blanco se escribe y se abre como cualquier informe: a
+    // partir de ahí la sesión no tiene nada especial (comandos normales).
+    try {
+      await this.fileSystem.writeFile(filePath, Buffer.from(BLANK_REPORT_XML, 'utf8'));
+    } catch (error) {
+      return left(IoError.create('escribir', filePath, error));
+    }
+    return this.open(filePath);
+  }
+
   async save(sessionId: string): Promise<Either<DomainError, SaveSessionResult>> {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
 
-    const xml = this.serializer.serialize(session.document);
-    const bytes = Buffer.from(xml, 'utf8');
+    const serialized = this.serializeValidated(session);
+    if (serialized.isLeft()) return left(serialized.value);
 
-    // Validación de esquema ANTES de escribir: BC rompe con un XML inválido.
-    const validation = this.schema.validate(xml);
-    if (!validation.valid) {
-      return left(ValidationFailedError.create(validation.problems));
-    }
+    const written = await this.writeTo(session, session.filePath, serialized.value.bytes);
+    if (written.isLeft()) return left(written.value);
 
-    const bytesIdentical = bytes.equals(session.originalBytes);
+    this.markSaved(session, session.filePath);
+    return right({
+      path: session.filePath,
+      bytesIdentical: serialized.value.bytesIdentical,
+    });
+  }
 
-    session.writing = true;
+  async saveAs(
+    sessionId: string,
+    filePath: string,
+  ): Promise<Either<DomainError, SaveSessionResult>> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return left(UnknownSessionError.create(sessionId));
+
+    const serialized = this.serializeValidated(session);
+    if (serialized.isLeft()) return left(serialized.value);
+
+    const written = await this.writeTo(session, filePath, serialized.value.bytes);
+    if (written.isLeft()) return left(written.value);
+
+    // La sesión pasa a apuntar (y vigilar) el fichero nuevo.
+    session.unwatch?.();
+    session.filePath = filePath;
+    session.unwatch = await this.fileWatcher.watch(filePath, () => {
+      void this.onExternalChange(sessionId);
+    });
+
+    this.markSaved(session, filePath);
+    return right({ path: filePath, bytesIdentical: serialized.value.bytesIdentical });
+  }
+
+  async reload(sessionId: string): Promise<Either<DomainError, OpenSessionResult>> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return left(UnknownSessionError.create(sessionId));
+
+    const read = await this.tryRead(session.filePath);
+    if (read.isLeft()) return left(read.value);
+    const parsed = this.tryParse(session.filePath, read.value);
+    if (parsed.isLeft()) return left(parsed.value);
+
+    let mtimeMs: number;
     try {
-      await this.fileSystem.writeFile(session.filePath, bytes);
-      const stat = await this.fileSystem.stat(session.filePath);
-      session.lastWriteMs = stat.mtimeMs;
-      session.originalBytes = bytes;
+      mtimeMs = (await this.fileSystem.stat(session.filePath)).mtimeMs;
     } catch (error) {
-      return left(IoError.create('escribir', session.filePath, error));
-    } finally {
-      session.writing = false;
+      return left(IoError.create('leer', session.filePath, error));
     }
 
-    session.document.markClean();
+    // Se descarta el documento local (el usuario eligió «Recargar»): journal,
+    // portapapeles y dirty se van con él.
+    session.document = parsed.value;
+    session.index = DocumentIndex.build(parsed.value.root);
+    session.originalBytes = read.value;
+    session.version += 1;
+    session.lastWriteMs = mtimeMs;
+    session.clipboard = undefined;
     if (session.dirty) {
       session.dirty = false;
       this.events.send(IPC_EVENTS.dirtyChanged, { sessionId, dirty: false });
     }
 
-    this.events.send(IPC_EVENTS.saved, { sessionId, path: session.filePath });
-    return right({ path: session.filePath, bytesIdentical });
+    const validation = this.schema.validate(read.value.toString('utf8'));
+    const warnings = validation.valid ? undefined : validation.problems;
+    return right({
+      sessionId,
+      projection: this.project(session),
+      ...(warnings ? { warnings } : {}),
+    });
   }
 
   async close(
@@ -284,6 +338,54 @@ export class SessionService implements ISessionService {
       document: session.document,
       version: session.version,
     }) as ProjectionDto;
+  }
+
+  /* --------------------- guardado (compartido con «Guardar como») ---------- */
+
+  /**
+   * Serializa y **valida contra el XSD antes de escribir**: BC rompe con un XML
+   * inválido, así que un guardado que lo rompería se rechaza en seco.
+   */
+  private serializeValidated(
+    session: Session,
+  ): Either<DomainError, { bytes: Buffer; bytesIdentical: boolean }> {
+    const xml = this.serializer.serialize(session.document);
+    const validation = this.schema.validate(xml);
+    if (!validation.valid) {
+      return left(ValidationFailedError.create(validation.problems));
+    }
+    const bytes = Buffer.from(xml, 'utf8');
+    return right({ bytes, bytesIdentical: bytes.equals(session.originalBytes) });
+  }
+
+  /** Escribe los bytes y actualiza la referencia del disco (mtime/original). */
+  private async writeTo(
+    session: Session,
+    filePath: string,
+    bytes: Buffer,
+  ): Promise<Either<DomainError, void>> {
+    session.writing = true;
+    try {
+      await this.fileSystem.writeFile(filePath, bytes);
+      const stat = await this.fileSystem.stat(filePath);
+      session.lastWriteMs = stat.mtimeMs;
+      session.originalBytes = bytes;
+      return right(undefined);
+    } catch (error) {
+      return left(IoError.create('escribir', filePath, error));
+    } finally {
+      session.writing = false;
+    }
+  }
+
+  /** Guardado consumado: marca limpio y emite los avisos al front. */
+  private markSaved(session: Session, filePath: string): void {
+    session.document.markClean();
+    if (session.dirty) {
+      session.dirty = false;
+      this.events.send(IPC_EVENTS.dirtyChanged, { sessionId: session.sessionId, dirty: false });
+    }
+    this.events.send(IPC_EVENTS.saved, { sessionId: session.sessionId, path: filePath });
   }
 
   private async tryRead(filePath: string): Promise<Either<DomainError, Buffer>> {
