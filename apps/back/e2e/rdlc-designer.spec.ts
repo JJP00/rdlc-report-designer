@@ -2780,6 +2780,24 @@ test('el z-order tiene atajos (Ctrl+Shift+] / Ctrl+Shift+[)', async () => {
   await expect.poll(() => itemZIndex('Textbox4')).toBeUndefined();
 });
 
+test('el lote compara el estilo efectivo (Arial/Visible/8pt) sin declararlo en el item', async () => {
+  // Textbox93 y Textbox95 declaran 8pt/Bold en el run y no declaran fuente ni
+  // visibilidad: el panel debe mostrar los valores efectivos, no «—».
+  await selectItemViaPalette('Textbox93');
+  const center = await nodeCenter('Textbox95');
+  expect(center).not.toBeNull();
+  await page.keyboard.down('Control');
+  await page.mouse.click(center!.x, center!.y);
+  await page.keyboard.up('Control');
+
+  const panel = page.getByTestId('multi-selection-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('2 elementos');
+  await expect(page.getByLabel('Fuente de la selección')).toHaveValue('Arial');
+  await expect(page.getByLabel('Tamaño de la selección (pt)', { exact: true })).toHaveValue('8.00');
+  await expect(page.getByLabel('Visibilidad de la selección')).toHaveValue('visible');
+});
+
 test('multiselección: Ctrl+click, alinear en lote y un solo undo', async () => {
   // Textbox4 y Textbox17 viven en Rectangle1 (encabezado), con lefts distintos.
   await selectItemViaPalette('Textbox4');
