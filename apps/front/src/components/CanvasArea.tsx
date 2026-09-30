@@ -373,7 +373,7 @@ function CanvasMenuContent({
           <ContextMenuSeparator />
           <ContextMenuSub>
             <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
-            <ContextMenuSubContent>
+            <ContextMenuSubContent className="w-48" collisionPadding={8}>
               {INSERT_KINDS.map((kind) => (
                 <ContextMenuItem
                   key={kind}
@@ -428,7 +428,7 @@ function InsertRowColumnMenu({
   return (
     <ContextMenuSub>
       <ContextMenuSubTrigger>Insertar fila o columna</ContextMenuSubTrigger>
-      <ContextMenuSubContent className="w-60">
+      <ContextMenuSubContent className="w-60" collisionPadding={8}>
         {inGroup ? (
           <>
             <ContextMenuItem onSelect={() => onAddRowInside(cellScope.id, cellScope.row, 'above')}>
@@ -777,13 +777,13 @@ function ItemActionsMenu({
       {canReorder ? (
         <ContextMenuSub>
           <ContextMenuSubTrigger>Orden</ContextMenuSubTrigger>
-          <ContextMenuSubContent>
+          <ContextMenuSubContent className="w-56" collisionPadding={8}>
             <ContextMenuItem onSelect={onBringToFront}>
-              Traer al frente
+              <span className="truncate">Traer al frente</span>
               <ContextMenuShortcut>Ctrl+Shift+]</ContextMenuShortcut>
             </ContextMenuItem>
             <ContextMenuItem onSelect={onSendToBack}>
-              Enviar atrás
+              <span className="truncate">Enviar atrás</span>
               <ContextMenuShortcut>Ctrl+Shift+[</ContextMenuShortcut>
             </ContextMenuItem>
           </ContextMenuSubContent>

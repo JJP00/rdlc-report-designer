@@ -35,6 +35,14 @@ export function Breadcrumb({
     else onSelectCell({ id: target.id, row: target.row, col: target.col });
   };
 
+  /** Clave estable y única: un informe anidado puede repetir «Celda 1,1». */
+  const entryKey = (entry: (typeof entries)[number]): string => {
+    if (!entry.target) return `nav-${entry.label}`;
+    return entry.target.kind === 'item'
+      ? `item-${entry.target.id}`
+      : `cell-${entry.target.id}-${entry.target.row}-${entry.target.col}`;
+  };
+
   return (
     <nav
       aria-label="Ruta del elemento seleccionado"
@@ -43,7 +51,7 @@ export function Breadcrumb({
       {entries.map((entry, index) => {
         const last = index === entries.length - 1;
         return (
-          <span key={entry.label} className="flex shrink-0 items-center gap-0.5">
+          <span key={entryKey(entry)} className="flex shrink-0 items-center gap-0.5">
             {index > 0 ? (
               <ChevronRight aria-hidden className="size-3 text-muted-foreground/60" />
             ) : null}

@@ -14,13 +14,15 @@ import {
   Trash2,
   Underline,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { alignBoxes, alignCommands, distributeCommands } from '@/lib/align';
-import { toCm } from '@/lib/projection';
+import { BorderField } from '@/components/panels/BorderField';
+import { PaddingSection } from '@/components/panels/PaddingSection';
+import { useSystemFonts } from '@/hooks/useSystemFonts';
+import { alignBoxes, alignCommands, distributeCommands, type AlignBox } from '@/lib/align';
+import { toPt } from '@/lib/style';
 
 export interface MultiSelectionPanelProps {
   /** Items seleccionados (en orden de selección). */
@@ -29,35 +31,45 @@ export interface MultiSelectionPanelProps {
   movableIds: string[];
   /** Envía los comandos como un solo paso de undo (`batch`). */
   onBatchEdit: (commands: BatchableCommand[]) => void;
+  /** true si el id es contenido directo de una celda (para bordes/padding). */
+  isCellContentId?: (id: string) => boolean;
+}
+
+/** Valor común de una propiedad entre los seleccionados, o `undefined` (mezcla). */
+function common<T>(items: ItemDto[], read: (item: ItemDto) => T): T | undefined {
+  if (items.length === 0) return undefined;
+  const first = read(items[0]!);
+  return items.every((item) => read(item) === first) ? first : undefined;
 }
 
 /**
- * Panel de edición en lote (U3): propiedades comunes del estilo, alinear y
- * distribuir y borrado de la multiselección. Todo se envía en **un solo
- * `batch`** (un paso de undo) y el lienzo refresca con la proyección.
+ * Panel de edición en lote (U3): propiedades comunes de estilo (texto, bordes,
+ * padding, visibilidad), alinear/distribuir y borrado. Todo se envía en **un
+ * solo `batch`** (un paso de undo) y el lienzo refresca con la proyección.
+ *
+ * Convención de estados mixtos: un control muestra «—» cuando los elementos no
+ * comparten el valor; elegir uno lo aplica a todos.
  */
 export function MultiSelectionPanel({
   items,
   movableIds,
   onBatchEdit,
+  isCellContentId,
 }: MultiSelectionPanelProps): ReactNode {
   const movable = alignBoxes(items, movableIds);
   const count = items.length;
 
-  const styleCommands = (patch: StylePatch): BatchableCommand[] =>
-    items.map((item) => ({ cmd: 'setStyle', id: item.id, style: patch }));
+  /** Los bordes/padding no aplican al contenido de celdas (lo fija la celda). */
+  const styledItems = useMemo(() => {
+    if (!isCellContentId) return items;
+    const styled = new Set(items.map((item) => item.id).filter((id) => !isCellContentId(id)));
+    return items.filter((item) => styled.has(item.id));
+  }, [items, isCellContentId]);
 
-  const bold = items.every((item) => item.style?.fontWeight === 'Bold');
-  const italic = items.every((item) => item.style?.fontStyle === 'Italic');
-  const underlined = items.every((item) => item.style?.textDecoration === 'Underline');
-
-  const allTextboxes = items.every((item) => item.kind === 'textbox');
-  const family = allTextboxes ? (items[0]?.style?.fontFamily ?? '') : '';
-  const [familyDraft, setFamilyDraft] = useState(family);
-  useEffect(() => setFamilyDraft(family), [family]);
-  const fontSize = items[0]?.style?.fontSize ? toCm(items[0].style.fontSize!) * 10 : 10;
-  const color = items[0]?.style?.color ?? '#111827';
-  const background = items[0]?.style?.backgroundColor ?? '#ffffff';
+  const styleBatch = (patch: StylePatch): void => {
+    if (styledItems.length === 0) return;
+    onBatchEdit(styledItems.map((item) => ({ cmd: 'setStyle', id: item.id, style: patch })));
+  };
 
   return (
     <div className="flex flex-col gap-3 border-b p-3" data-testid="multi-selection-panel">
@@ -66,154 +78,15 @@ export function MultiSelectionPanel({
         <span className="ml-1 text-xs font-normal text-muted-foreground">
           ({count} elementos)
         </span>
-        <p className="mt-0.5 text-[11px] font-normal text-muted-foreground">
-          Los cambios se aplican a todos en un solo paso de undo.
+        <p className="mt-0.5 text-xs font-normal text-muted-foreground">
+          Los cambios se aplican a todos en un solo paso de undo. «—» = valores distintos.
         </p>
       </header>
 
-      {/* Estilo común */}
-      <section className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium text-muted-foreground">Texto</span>
-        <div className="flex items-center gap-1">
-          <Input
-            value={familyDraft}
-            onChange={(event) => setFamilyDraft(event.target.value)}
-            onBlur={() => {
-              if (familyDraft && familyDraft !== family) {
-                onBatchEdit(styleCommands({ fontFamily: familyDraft }));
-              }
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
-            }}
-            aria-label="Fuente de la selección"
-            placeholder="Fuente"
-            className="h-7 text-[11px]"
-          />
-          <NumberInput
-            value={fontSize}
-            min={1}
-            max={200}
-            suffix="pt"
-            label="Tamaño de la selección (pt)"
-            onCommit={(value) => onBatchEdit(styleCommands({ fontSize: { value, unit: 'pt' } }))}
-            className="w-16"
-          />
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant={bold ? 'secondary' : 'ghost'}
-            size="icon-sm"
-            aria-label="Negrita en la selección"
-            aria-pressed={bold}
-            onClick={() => onBatchEdit(styleCommands({ fontWeight: bold ? 'Normal' : 'Bold' }))}
-          >
-            <Bold />
-          </Button>
-          <Button
-            variant={italic ? 'secondary' : 'ghost'}
-            size="icon-sm"
-            aria-label="Cursiva en la selección"
-            aria-pressed={italic}
-            onClick={() => onBatchEdit(styleCommands({ fontStyle: italic ? 'Normal' : 'Italic' }))}
-          >
-            <Italic />
-          </Button>
-          <Button
-            variant={underlined ? 'secondary' : 'ghost'}
-            size="icon-sm"
-            aria-label="Subrayado en la selección"
-            aria-pressed={underlined}
-            onClick={() =>
-              onBatchEdit(styleCommands({ textDecoration: underlined ? 'None' : 'Underline' }))
-            }
-          >
-            <Underline />
-          </Button>
-          <label className="ml-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-            Color
-            <input
-              type="color"
-              aria-label="Color de texto de la selección"
-              value={/^#[0-9a-fA-F]{6}$/.test(color) ? color : '#111827'}
-              onChange={(event) => onBatchEdit(styleCommands({ color: event.target.value }))}
-              className="h-6 w-8 cursor-pointer rounded border"
-            />
-          </label>
-          <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            Fondo
-            <input
-              type="color"
-              aria-label="Color de fondo de la selección"
-              value={/^#[0-9a-fA-F]{6}$/.test(background) ? background : '#ffffff'}
-              onChange={(event) => onBatchEdit(styleCommands({ backgroundColor: event.target.value }))}
-              className="h-6 w-8 cursor-pointer rounded border"
-            />
-          </label>
-        </div>
-      </section>
-
-      {/* Alinear / distribuir */}
-      <section className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium text-muted-foreground">
-          Alinear {movable.length < 2 ? '(necesita 2 elementos movibles)' : ''}
-        </span>
-        <div className="flex flex-wrap items-center gap-1">
-          <AlignButton
-            label="Alinear a la izquierda"
-            icon={<AlignStartVertical />}
-            disabled={movable.length < 2}
-            onClick={() => onBatchEdit(alignCommands(movable, 'left'))}
-          />
-          <AlignButton
-            label="Centrar horizontalmente"
-            icon={<AlignCenterVertical />}
-            disabled={movable.length < 2}
-            onClick={() => onBatchEdit(alignCommands(movable, 'centerX'))}
-          />
-          <AlignButton
-            label="Alinear a la derecha"
-            icon={<AlignEndVertical />}
-            disabled={movable.length < 2}
-            onClick={() => onBatchEdit(alignCommands(movable, 'right'))}
-          />
-          <AlignButton
-            label="Alinear arriba"
-            icon={<AlignStartHorizontal />}
-            disabled={movable.length < 2}
-            onClick={() => onBatchEdit(alignCommands(movable, 'top'))}
-          />
-          <AlignButton
-            label="Centrar verticalmente"
-            icon={<AlignCenterHorizontal />}
-            disabled={movable.length < 2}
-            onClick={() => onBatchEdit(alignCommands(movable, 'middleY'))}
-          />
-          <AlignButton
-            label="Alinear abajo"
-            icon={<AlignEndHorizontal />}
-            disabled={movable.length < 2}
-            onClick={() => onBatchEdit(alignCommands(movable, 'bottom'))}
-          />
-        </div>
-        <span className="text-[11px] font-medium text-muted-foreground">
-          Distribuir {movable.length < 3 ? '(necesita 3 elementos movibles)' : ''}
-        </span>
-        <div className="flex items-center gap-1">
-          <AlignButton
-            label="Distribuir horizontalmente"
-            icon={<AlignHorizontalDistributeCenter />}
-            disabled={movable.length < 3}
-            onClick={() => onBatchEdit(distributeCommands(movable, 'x'))}
-          />
-          <AlignButton
-            label="Distribuir verticalmente"
-            icon={<AlignVerticalDistributeCenter />}
-            disabled={movable.length < 3}
-            onClick={() => onBatchEdit(distributeCommands(movable, 'y'))}
-          />
-        </div>
-      </section>
+      <TextSection items={styledItems} onStyle={styleBatch} />
+      <BoxSection items={styledItems} onStyle={styleBatch} />
+      <VisibilitySection items={items} onBatchEdit={onBatchEdit} />
+      <AlignSection movable={movable} onBatchEdit={onBatchEdit} />
 
       <Button
         variant="outline"
@@ -225,6 +98,255 @@ export function MultiSelectionPanel({
         Eliminar los {count} elementos
       </Button>
     </div>
+  );
+}
+
+/* ------------------------------- secciones ------------------------------- */
+
+/** Fuente, tamaño y formato común del texto. */
+function TextSection({
+  items,
+  onStyle,
+}: {
+  items: ItemDto[];
+  onStyle: (patch: StylePatch) => void;
+}): ReactNode {
+  const fonts = useSystemFonts();
+  const disabled = items.length === 0;
+  const familyOptions = useMemo(() => {
+    const all = new Set(fonts);
+    for (const item of items) {
+      const family = item.style?.fontFamily;
+      if (family) all.add(family);
+    }
+    return [...all].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [fonts, items]);
+
+  const family = common(items, (item) => item.style?.fontFamily);
+  /** Tamaño común en pt (los items pueden declararlo en unidades distintas). */
+  const sizePt = useMemo(() => {
+    if (items.length === 0) return null;
+    const first = items[0]?.style?.fontSize;
+    if (!first) return null;
+    const pt = Math.round(toPt(first) * 100) / 100;
+    const same = items.every(
+      (item) => item.style?.fontSize && Math.abs(toPt(item.style.fontSize) - pt) < 0.01,
+    );
+    return same ? pt : null;
+  }, [items]);
+
+  const bold = !disabled && items.every((item) => item.style?.fontWeight === 'Bold');
+  const italic = !disabled && items.every((item) => item.style?.fontStyle === 'Italic');
+  const underlined =
+    !disabled && items.every((item) => item.style?.textDecoration === 'Underline');
+  const color = common(items, (item) => item.style?.color);
+  const background = common(items, (item) => item.style?.backgroundColor);
+
+  return (
+    <section className="flex flex-col gap-2">
+      <span className="text-xs font-medium text-muted-foreground">Texto</span>
+      <div className="flex items-center gap-1.5">
+        <select
+          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          value={family ?? ''}
+          aria-label="Fuente de la selección"
+          disabled={disabled}
+          onChange={(event) => {
+            if (event.target.value) onStyle({ fontFamily: event.target.value });
+          }}
+        >
+          <option value="">—</option>
+          {familyOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <NumberInput
+          value={sizePt}
+          placeholder="—"
+          min={1}
+          max={200}
+          suffix="pt"
+          label="Tamaño de la selección (pt)"
+          disabled={disabled}
+          onCommit={(value) => onStyle({ fontSize: { value, unit: 'pt' } })}
+          className="h-8 w-20 text-sm"
+        />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant={bold ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          aria-label="Negrita en la selección"
+          aria-pressed={bold}
+          disabled={disabled}
+          onClick={() => onStyle({ fontWeight: bold ? 'Normal' : 'Bold' })}
+        >
+          <Bold />
+        </Button>
+        <Button
+          variant={italic ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          aria-label="Cursiva en la selección"
+          aria-pressed={italic}
+          disabled={disabled}
+          onClick={() => onStyle({ fontStyle: italic ? 'Normal' : 'Italic' })}
+        >
+          <Italic />
+        </Button>
+        <Button
+          variant={underlined ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          aria-label="Subrayado en la selección"
+          aria-pressed={underlined}
+          disabled={disabled}
+          onClick={() => onStyle({ textDecoration: underlined ? 'None' : 'Underline' })}
+        >
+          <Underline />
+        </Button>
+        <label className="ml-1 flex items-center gap-1 text-xs text-muted-foreground">
+          Color
+          <input
+            type="color"
+            aria-label="Color de texto de la selección"
+            value={/^#[0-9a-fA-F]{6}$/.test(color ?? '') ? color! : '#111827'}
+            disabled={disabled}
+            onChange={(event) => onStyle({ color: event.target.value })}
+            className="h-7 w-9 cursor-pointer rounded border"
+          />
+        </label>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          Fondo
+          <input
+            type="color"
+            aria-label="Color de fondo de la selección"
+            value={/^#[0-9a-fA-F]{6}$/.test(background ?? '') ? background! : '#ffffff'}
+            disabled={disabled}
+            onChange={(event) => onStyle({ backgroundColor: event.target.value })}
+            className="h-7 w-9 cursor-pointer rounded border"
+          />
+        </label>
+      </div>
+    </section>
+  );
+}
+
+/** Bordes y padding con los mismos controles que el panel de un item. */
+function BoxSection({
+  items,
+  onStyle,
+}: {
+  items: ItemDto[];
+  onStyle: (patch: StylePatch) => void;
+}): ReactNode {
+  return (
+    <section className="flex flex-col gap-2">
+      <BorderField border={common(items, (item) => item.style?.border)} onSetStyle={onStyle} />
+      <PaddingSection padding={common(items, (item) => item.style?.padding)} onSetStyle={onStyle} />
+    </section>
+  );
+}
+
+/** Visibilidad literal en lote (las expresiones se editan de una en una). */
+function VisibilitySection({
+  items,
+  onBatchEdit,
+}: {
+  items: ItemDto[];
+  onBatchEdit: (commands: BatchableCommand[]) => void;
+}): ReactNode {
+  const hidden = common(items, (item) => item.hidden);
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="w-16 shrink-0 text-xs text-muted-foreground">Visibilidad</span>
+      <select
+        className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        aria-label="Visibilidad de la selección"
+        value={hidden === true ? 'hidden' : hidden === false ? 'visible' : ''}
+        onChange={(event) => {
+          if (!event.target.value) return;
+          const next = event.target.value === 'hidden';
+          onBatchEdit(items.map((item) => ({ cmd: 'setVisibility', id: item.id, hidden: next })));
+        }}
+      >
+        <option value="">—</option>
+        <option value="visible">Visible</option>
+        <option value="hidden">Oculta</option>
+      </select>
+    </div>
+  );
+}
+
+/** Alinear/distribuir por la caja envolvente de los items movibles. */
+function AlignSection({
+  movable,
+  onBatchEdit,
+}: {
+  movable: AlignBox[];
+  onBatchEdit: (commands: BatchableCommand[]) => void;
+}): ReactNode {
+  return (
+    <section className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Alinear {movable.length < 2 ? '(necesita 2 elementos movibles)' : ''}
+      </span>
+      <div className="flex flex-wrap items-center gap-1">
+        <AlignButton
+          label="Alinear a la izquierda"
+          icon={<AlignStartVertical />}
+          disabled={movable.length < 2}
+          onClick={() => onBatchEdit(alignCommands(movable, 'left'))}
+        />
+        <AlignButton
+          label="Centrar horizontalmente"
+          icon={<AlignCenterVertical />}
+          disabled={movable.length < 2}
+          onClick={() => onBatchEdit(alignCommands(movable, 'centerX'))}
+        />
+        <AlignButton
+          label="Alinear a la derecha"
+          icon={<AlignEndVertical />}
+          disabled={movable.length < 2}
+          onClick={() => onBatchEdit(alignCommands(movable, 'right'))}
+        />
+        <AlignButton
+          label="Alinear arriba"
+          icon={<AlignStartHorizontal />}
+          disabled={movable.length < 2}
+          onClick={() => onBatchEdit(alignCommands(movable, 'top'))}
+        />
+        <AlignButton
+          label="Centrar verticalmente"
+          icon={<AlignCenterHorizontal />}
+          disabled={movable.length < 2}
+          onClick={() => onBatchEdit(alignCommands(movable, 'middleY'))}
+        />
+        <AlignButton
+          label="Alinear abajo"
+          icon={<AlignEndHorizontal />}
+          disabled={movable.length < 2}
+          onClick={() => onBatchEdit(alignCommands(movable, 'bottom'))}
+        />
+      </div>
+      <span className="text-xs font-medium text-muted-foreground">
+        Distribuir {movable.length < 3 ? '(necesita 3 elementos movibles)' : ''}
+      </span>
+      <div className="flex items-center gap-1">
+        <AlignButton
+          label="Distribuir horizontalmente"
+          icon={<AlignHorizontalDistributeCenter />}
+          disabled={movable.length < 3}
+          onClick={() => onBatchEdit(distributeCommands(movable, 'x'))}
+        />
+        <AlignButton
+          label="Distribuir verticalmente"
+          icon={<AlignVerticalDistributeCenter />}
+          disabled={movable.length < 3}
+          onClick={() => onBatchEdit(distributeCommands(movable, 'y'))}
+        />
+      </div>
+    </section>
   );
 }
 
