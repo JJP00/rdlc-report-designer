@@ -1428,7 +1428,11 @@ test('duplicar y portapapeles en lote (un undo por operación)', async () => {
   const total = async (): Promise<number> =>
     page.evaluate(() => {
       const projection = (window as never as Record<string, unknown>)['__rdlcProjection'] as {
-        page: { header: { items: unknown[] }; body: { items: unknown[] }; footer: { items: unknown[] } };
+        page: {
+          header: { items: unknown[] };
+          body: { items: unknown[] };
+          footer: { items: unknown[] };
+        };
       };
       const count = (items: unknown[]): number =>
         items.reduce<number>((sum, raw) => {
@@ -2746,6 +2750,65 @@ test('un grupo hoja (Tablix7) gana una fila dentro y se anida en la estructura',
   await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
 });
 
+/* ------------------------ F3 · grupos de columna ------------------------- */
+
+test('agrupar una columna crea el grupo sin tocar la rejilla (con undo)', async () => {
+  // Tablix3: 2 filas × 6 columnas estáticas, sin grupos de columna.
+  await selectItemViaPalette('Tablix3');
+  const columnsBefore = await tablixColumnCount('Tablix3');
+
+  await page.getByRole('button', { name: 'Agrupar la columna 2…' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Agrupar la columna 2' })).toBeVisible();
+  const editor = dialog.locator('.monaco-editor');
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.type('=Fields!DocumentNo.Value');
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect
+    .poll(() => memberExpression('Tablix3', 'column', [1]))
+    .toBe('=Fields!DocumentNo.Value');
+  // El grupo nuevo envuelve la columna: la rejilla no cambia.
+  expect(await tablixColumnCount('Tablix3')).toBe(columnsBefore);
+  await expect(page.getByRole('button', { name: 'Propiedades del grupo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Seleccionar columna 2' })).toBeVisible();
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberExpression('Tablix3', 'column', [1])).toBeUndefined();
+  expect(await tablixColumnCount('Tablix3')).toBe(columnsBefore);
+});
+
+test('extender un grupo de columna con la contigua desde la estructura (con undo)', async () => {
+  await selectItemViaPalette('Tablix3');
+  const columnsBefore = await tablixColumnCount('Tablix3');
+
+  // Grupo en la columna 2; la columna 3 (contigua) se añade como última hoja.
+  await page.getByRole('button', { name: 'Agrupar la columna 2…' }).click();
+  const dialog = page.getByRole('dialog');
+  const editor = dialog.locator('.monaco-editor');
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.type('=Fields!DocumentNo.Value');
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => memberChildCount('Tablix3', 'column', [1])).toBe(1);
+
+  await page.getByRole('button', { name: 'Añadir la columna 3 al grupo' }).click();
+  await expect.poll(() => memberChildCount('Tablix3', 'column', [1])).toBe(2);
+  // La rejilla no cambia (la columna 3 se anida en el grupo).
+  expect(await tablixColumnCount('Tablix3')).toBe(columnsBefore);
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberChildCount('Tablix3', 'column', [1])).toBe(1);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberExpression('Tablix3', 'column', [1])).toBeUndefined();
+  expect(await tablixColumnCount('Tablix3')).toBe(columnsBefore);
+});
+
 /* ----------------------- U6 · zoom: presets y atajos ---------------------- */
 
 /** Ancho del escenario Konva en px de pantalla (A4 a zoom 1 ≈ 793,7). */
@@ -2969,7 +3032,9 @@ test('multiselección: Ctrl+click, alinear en lote y un solo undo', async () => 
 
   // Un único Ctrl+Z revierte los dos (el lote es atómico).
   await page.keyboard.press('Control+z');
-  await expect.poll(async () => (await itemLocation('Textbox4'))?.left).toBeCloseTo(before4!.left, 3);
+  await expect
+    .poll(async () => (await itemLocation('Textbox4'))?.left)
+    .toBeCloseTo(before4!.left, 3);
   await expect
     .poll(async () => (await itemLocation('Textbox17'))?.left)
     .toBeCloseTo(before17!.left, 3);

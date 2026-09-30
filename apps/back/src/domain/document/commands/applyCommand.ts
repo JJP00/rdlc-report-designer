@@ -43,6 +43,8 @@ import { applySetZIndex } from './setZIndex.js';
 import { applySetMemberToggleItem, applySetMemberVisibility } from './memberVisibility.js';
 import { applyBatch } from './batch.js';
 import {
+  applyAddColumnGroup,
+  applyAddColumnToGroup,
   applyAddRowGroup,
   applyAddRowToGroup,
   applyDeleteRowGroup,
@@ -123,8 +125,12 @@ export function applyCommand(
       return applySetGroupExpressions(ctx, command);
     case 'addRowGroup':
       return applyAddRowGroup(ctx, command);
+    case 'addColumnGroup':
+      return applyAddColumnGroup(ctx, command);
     case 'addRowToGroup':
       return applyAddRowToGroup(ctx, command);
+    case 'addColumnToGroup':
+      return applyAddColumnToGroup(ctx, command);
     case 'deleteRowGroup':
       return applyDeleteRowGroup(ctx, command);
     case 'setGroupPageBreaks':

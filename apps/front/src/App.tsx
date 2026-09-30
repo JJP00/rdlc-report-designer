@@ -4,7 +4,7 @@ import { CanvasColumn } from '@/components/CanvasColumn';
 import { type GroupPropertiesRequest } from '@/components/DocumentDialogs';
 import { EditorBanners } from '@/components/EditorBanners';
 import { EditorToolbar } from '@/components/EditorToolbar';
-import { InspectorPanel } from '@/components/InspectorPanel';
+import { InspectorColumn } from '@/components/InspectorColumn';
 import { LeftPanels } from '@/components/LeftPanels';
 import { StatusBar } from '@/components/StatusBar';
 import { WorkspaceDialogs } from '@/components/WorkspaceDialogs';
@@ -246,41 +246,16 @@ export function App(): ReactNode {
             onEditText={setEditingTextId}
           />
 
-          <InspectorPanel
+          <InspectorColumn
             tablix={structureTablix}
             selectedCell={selectedCell}
-            item={selectedItem}
-            selectedItems={batchSelection.items}
-            movableIds={batchSelection.movableIds}
-            cellBatch={batchSelection.fromCells}
-            onBatchEdit={items.batchEdit}
-            cellContent={items.selectedIsCellContent}
-            onSelectCell={items.setSelectedCell}
-            onAddRow={items.addRow}
-            onDeleteRow={items.deleteRow}
-            onAddColumn={items.addColumn}
-            onDeleteColumn={items.deleteColumn}
-            onSetLocation={items.setItemLocation}
-            onSetSize={items.setItemSize}
-            onSetStyle={items.setItemStyle}
-            onSetName={items.setItemName}
-            onSetVisibility={items.setVisibility}
-            onSetItemOptions={items.setItemOptions}
-            onSetPageBreak={items.setItemPageBreak}
-            onSetMemberVisibility={items.setMemberVisibility}
+            items={items}
+            batchSelection={batchSelection}
+            projection={doc?.projection ?? null}
             onOpenGroupProperties={(tablixId, axis, member) =>
               setGroupProperties({ tablixId, axis, member })
             }
-            onAddRowToGroup={items.addRowToGroup}
-            onAddRowGroup={items.addRowGroup}
-            onDeleteRowGroup={items.deleteRowGroup}
-            onResizeRow={items.resizeRow}
-            onResizeColumn={items.resizeColumn}
             onOpenTablixFilters={setFiltersTablixId}
-            onSetText={items.setRunText}
-            onSetLabel={items.setRunLabel}
-            onSetImageOptions={items.setImageOptions}
-            embeddedImages={doc?.projection.meta.embeddedImages ?? []}
             onEditText={setEditingTextId}
           />
         </main>

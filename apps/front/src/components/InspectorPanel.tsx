@@ -61,8 +61,12 @@ export interface InspectorPanelProps {
   ) => void;
   /** Añade una fila contigua al grupo (extiende su rango de hojas). */
   onAddRowToGroup: (tablixId: string, row: number, groupPath: number[]) => void;
+  /** F3 · Matrix: añade una columna contigua al grupo. */
+  onAddColumnToGroup: (tablixId: string, column: number, groupPath: number[]) => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   onAddRowGroup: (tablixId: string, row: number, expression: string) => void;
+  /** F3 · Matrix: envuelve la columna en un grupo nuevo con esa expresión. */
+  onAddColumnGroup: (tablixId: string, column: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
   onDeleteRowGroup: (tablixId: string, axis: 'row' | 'column', path: number[]) => void;
   /** Fija el alto de una fila de la rejilla (el contenido sigue a la celda). */
@@ -106,7 +110,9 @@ export function InspectorPanel({
   onSetMemberVisibility,
   onOpenGroupProperties,
   onAddRowToGroup,
+  onAddColumnToGroup,
   onAddRowGroup,
+  onAddColumnGroup,
   onDeleteRowGroup,
   onResizeRow,
   onResizeColumn,
@@ -141,7 +147,11 @@ export function InspectorPanel({
           }
           onOpenGroupProperties={(axis, member) => onOpenGroupProperties(tablix.id, axis, member)}
           onAddRowToGroup={(row, groupPath) => onAddRowToGroup(tablix.id, row, groupPath)}
+          onAddColumnToGroup={(column, groupPath) =>
+            onAddColumnToGroup(tablix.id, column, groupPath)
+          }
           onAddRowGroup={(row, expression) => onAddRowGroup(tablix.id, row, expression)}
+          onAddColumnGroup={(column, expression) => onAddColumnGroup(tablix.id, column, expression)}
           onDeleteGroup={(axis, path) => onDeleteRowGroup(tablix.id, axis, path)}
           onResizeRow={(row, height) => onResizeRow(tablix.id, row, height)}
           onResizeColumn={(column, width) => onResizeColumn(tablix.id, column, width)}

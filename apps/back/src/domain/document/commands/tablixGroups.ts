@@ -12,13 +12,22 @@ import {
   setNodeTextChange,
   type Detached,
 } from './nodeChanges.js';
-import { leafAt, memberAt, memberLeafRange, tablixHierarchy } from './tablixParts.js';
+import {
+  leafAt,
+  memberAt,
+  memberLeafRange,
+  tablixColumns,
+  tablixHierarchy,
+  tablixRows,
+} from './tablixParts.js';
 
 export type SetGroupExpressionCommand = Extract<RdlcCommand, { cmd: 'setGroupExpression' }>;
 export type SetGroupNameCommand = Extract<RdlcCommand, { cmd: 'setGroupName' }>;
 export type SetGroupExpressionsCommand = Extract<RdlcCommand, { cmd: 'setGroupExpressions' }>;
 export type AddRowGroupCommand = Extract<RdlcCommand, { cmd: 'addRowGroup' }>;
+export type AddColumnGroupCommand = Extract<RdlcCommand, { cmd: 'addColumnGroup' }>;
 export type AddRowToGroupCommand = Extract<RdlcCommand, { cmd: 'addRowToGroup' }>;
+export type AddColumnToGroupCommand = Extract<RdlcCommand, { cmd: 'addColumnToGroup' }>;
 export type DeleteRowGroupCommand = Extract<RdlcCommand, { cmd: 'deleteRowGroup' }>;
 export type SetGroupPageBreaksCommand = Extract<RdlcCommand, { cmd: 'setGroupPageBreaks' }>;
 export type SetGroupSortingCommand = Extract<RdlcCommand, { cmd: 'setGroupSorting' }>;
@@ -29,22 +38,24 @@ interface GroupSort {
 }
 
 /**
- * Grupos del Tablix (F2.b): expresiones, creación/eliminación, saltos de página
- * y ordenación. El modelo RDL: un `TablixMember` con `<Group>` es dinámico (se
- * repite por valor de las expresiones) y sus hojas son filas del body.
+ * Grupos del Tablix (F2.b/F3): expresiones, creación/eliminación, saltos de
+ * página y ordenación, en la jerarquía de **filas o de columnas** (Matrix). El
+ * modelo RDL: un `TablixMember` con `<Group>` es dinámico (se repite por valor
+ * de las expresiones) y sus hojas son filas/columnas del body.
  *
  * Decisiones (lecciones del ida/vuelta con Report Builder):
- * - Un grupo puede ser **hoja** (sin `TablixMembers`): es la fila de detalle que
- *   se repite (caso real: `Tablix7` de BC). `deleteRowGroup` lo degrada a fila
- *   estática sin perder la fila (y conserva su `TablixHeader`).
- * - Un grupo **con hijos**: `deleteRowGroup` **eleva** las filas al padre y el
+ * - Un grupo puede ser **hoja** (sin `TablixMembers`): es la fila/columna de
+ *   detalle que se repite (caso real: `Tablix7` de BC y el grupo de columna
+ *   `BTC_Document_No_` de `BTCLoadingOrder`). `deleteRowGroup` lo degrada a
+ *   hoja estática sin perderla (y conserva su `TablixHeader`).
+ * - Un grupo **con hijos**: `deleteRowGroup` **eleva** las hojas al padre y el
  *   miembro desaparece (como RB al quitar el grupo: la línea de grupo no deja
  *   un contenedor fantasma). Si el grupo trae `TablixHeader` con contenido, se
  *   rechaza para no perderlo en silencio.
- * - `addRowGroup` **envuelve** la fila elegida en el grupo nuevo (como RB al
- *   agrupar una fila de detalle) y **no toca `TablixHeader`**: no se crea
- *   cabecera ni se convierte ninguna en fila; si el miembro ya tenía cabecera,
- *   se conserva.
+ * - `addRowGroup`/`addColumnGroup` **envuelven** la hoja elegida en el grupo
+ *   nuevo (como RB al agrupar una fila/columna de detalle) y **no tocan
+ *   `TablixHeader`**: no se crea cabecera ni se convierte ninguna en hoja; si el
+ *   miembro ya tenía cabecera, se conserva.
  * - La ordenación (`SortExpressions`) del grupo espeja la expresión: al crear el
  *   grupo nace ordenado por ella y al editarla se sincroniza si espejaba la
  *   anterior (igual que RB). Ascendente se **omite** en el XML (canónico de BC).
@@ -136,32 +147,58 @@ export function applyAddRowGroup(
   ctx: CommandContext,
   command: AddRowGroupCommand,
 ): Either<DomainError, CommandOutcome> {
-  const tablix = ctx.index.get(command.id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  return addLeafGroup(ctx, command.id, 'row', command.row, command.expression);
+}
 
-  const hierarchy = tablix.child('TablixRowHierarchy');
-  const rows = tablix.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? [];
+/** F3 · Matrix: agrupa una columna (espejo de `applyAddRowGroup`). */
+export function applyAddColumnGroup(
+  ctx: CommandContext,
+  command: AddColumnGroupCommand,
+): Either<DomainError, CommandOutcome> {
+  return addLeafGroup(ctx, command.id, 'column', command.column, command.expression);
+}
+
+/**
+ * Envuelve la hoja (fila/columna del body) `index` en un grupo nuevo con
+ * `expression`: `<TablixMember><Group/><SortExpressions/><TablixMembers>hoja
+ * </TablixMembers>` en el hueco que ocupaba la hoja. El body no cambia (las
+ * hojas siguen siendo las mismas); el nombre del grupo se deriva de la
+ * expresión y es único.
+ */
+function addLeafGroup(
+  ctx: CommandContext,
+  id: string,
+  axis: 'row' | 'column',
+  index: number,
+  wanted: string,
+): Either<DomainError, CommandOutcome> {
+  const tablix = ctx.index.get(id);
+  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+
+  const labels = leafLabels(axis);
+  const hierarchy = tablix.child(axis === 'row' ? 'TablixRowHierarchy' : 'TablixColumnHierarchy');
+  const leaves = axis === 'row' ? tablixRows(tablix) : tablixColumns(tablix);
   if (!hierarchy?.child('TablixMembers')) {
     return left(
-      CommandRejectedError.create(`El Tablix '${command.id}' no tiene jerarquía de filas`),
+      CommandRejectedError.create(`El Tablix '${id}' no tiene jerarquía de ${labels.many}`),
     );
   }
-  if (command.row >= rows.length) {
+  if (index >= leaves.length) {
     return left(
-      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
+      CommandRejectedError.create(`La ${labels.one} ${index} está fuera del Tablix '${id}'`),
     );
   }
 
-  const expression = normalizedExpression(command.expression);
+  const expression = normalizedExpression(wanted);
   if (expression === null) {
     return left(CommandRejectedError.create('La expresión del grupo no puede estar vacía'));
   }
 
-  const leaf = leafAt(hierarchy, command.row);
+  const leaf = leafAt(hierarchy, index);
   if (!leaf) {
     return left(
       CommandRejectedError.create(
-        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
+        `La jerarquía del Tablix '${id}' no tiene miembro para la ${labels.one} ${index}`,
       ),
     );
   }
@@ -205,46 +242,70 @@ export function applyAddRowToGroup(
   ctx: CommandContext,
   command: AddRowToGroupCommand,
 ): Either<DomainError, CommandOutcome> {
-  const tablix = ctx.index.get(command.id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  return addLeafToGroup(ctx, command.id, 'row', command.row, command.groupPath);
+}
 
-  const hierarchy = tablix.child('TablixRowHierarchy');
+/** F3 · Matrix: añade una columna contigua al grupo (espejo de `addRowToGroup`). */
+export function applyAddColumnToGroup(
+  ctx: CommandContext,
+  command: AddColumnToGroupCommand,
+): Either<DomainError, CommandOutcome> {
+  return addLeafToGroup(ctx, command.id, 'column', command.column, command.groupPath);
+}
+
+/**
+ * Añade una hoja **contigua** al grupo: pasa a ser la primera (si va justo
+ * antes del rango del grupo) o la última (si va justo después). Un grupo hoja
+ * (sin `TablixMembers`) se rechaza: añadirle hijos la haría desaparecer.
+ */
+function addLeafToGroup(
+  ctx: CommandContext,
+  id: string,
+  axis: 'row' | 'column',
+  index: number,
+  groupPath: number[],
+): Either<DomainError, CommandOutcome> {
+  const tablix = ctx.index.get(id);
+  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+
+  const labels = leafLabels(axis);
+  const hierarchy = tablix.child(axis === 'row' ? 'TablixRowHierarchy' : 'TablixColumnHierarchy');
   const root = hierarchy?.child('TablixMembers');
-  const rows = tablix.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? [];
+  const leaves = axis === 'row' ? tablixRows(tablix) : tablixColumns(tablix);
   if (!hierarchy || !root) {
     return left(
-      CommandRejectedError.create(`El Tablix '${command.id}' no tiene jerarquía de filas`),
+      CommandRejectedError.create(`El Tablix '${id}' no tiene jerarquía de ${labels.many}`),
     );
   }
-  if (command.row >= rows.length) {
+  if (index >= leaves.length) {
     return left(
-      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
+      CommandRejectedError.create(`La ${labels.one} ${index} está fuera del Tablix '${id}'`),
     );
   }
 
-  const leaf = leafAt(hierarchy, command.row);
+  const leaf = leafAt(hierarchy, index);
   if (!leaf) {
     return left(
       CommandRejectedError.create(
-        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
+        `La jerarquía del Tablix '${id}' no tiene miembro para la ${labels.one} ${index}`,
       ),
     );
   }
 
-  const target = memberAt(root, command.groupPath);
+  const target = memberAt(root, groupPath);
   if (!target?.child('Group')) {
     return left(CommandRejectedError.create('El destino no es un grupo: no declara <Group>'));
   }
   if (target.equals(leaf.member)) {
-    return left(CommandRejectedError.create('La fila ya es ese grupo'));
+    return left(CommandRejectedError.create(`La ${labels.one} ya es ese grupo`));
   }
 
-  // Un grupo hoja (sin miembros) ES su fila: añadirle hijos la haría desaparecer.
+  // Un grupo hoja (sin miembros) ES su hoja: añadirle hijos la haría desaparecer.
   const nested = target.child('TablixMembers');
   if (!nested) {
     return left(
       CommandRejectedError.create(
-        'El grupo es una fila (grupo hoja): no se le pueden añadir más filas',
+        `El grupo es una ${labels.one} (grupo hoja): no se le pueden añadir más ${labels.many}`,
       ),
     );
   }
@@ -253,31 +314,41 @@ export function applyAddRowToGroup(
   if (!range) {
     return left(CommandRejectedError.create('No se pudo localizar el rango de hojas del grupo'));
   }
-  if (command.row >= range.start && command.row <= range.end) {
-    return left(CommandRejectedError.create('La fila ya está dentro del grupo'));
+  if (index >= range.start && index <= range.end) {
+    return left(CommandRejectedError.create(`La ${labels.one} ya está dentro del grupo`));
   }
-  if (command.row !== range.start - 1 && command.row !== range.end + 1) {
-    return left(CommandRejectedError.create('Solo se pueden añadir filas contiguas al grupo'));
+  if (index !== range.start - 1 && index !== range.end + 1) {
+    return left(
+      CommandRejectedError.create(`Solo se pueden añadir ${labels.many} contiguas al grupo`),
+    );
   }
 
-  // Si la fila fuese el único hijo de su grupo, este se quedaría sin hojas.
+  // Si la hoja fuese el único hijo de su grupo, este se quedaría sin hojas.
   if (
     leaf.container.children('TablixMember').length === 1 &&
     leaf.container.parent?.tagName === 'TablixMember'
   ) {
     return left(
-      CommandRejectedError.create('La fila es la única de su grupo: muévela con el grupo'),
+      CommandRejectedError.create(`La ${labels.one} es la única de su grupo: muévela con el grupo`),
     );
   }
 
   const position = detach(leaf.member);
-  if (command.row < range.start) nested.insertChildAt(leaf.member, 0);
+  if (index < range.start) nested.insertChildAt(leaf.member, 0);
   else nested.appendChild(leaf.member);
 
   return right({
     inverse: [moveNode(leaf.member, position.container, position.index)],
     snapshotOut: true,
   });
+}
+
+/** Singular/plural de la hoja según el eje (mensajes de rechazo). */
+function leafLabels(axis: 'row' | 'column'): {
+  one: 'fila' | 'columna';
+  many: 'filas' | 'columnas';
+} {
+  return axis === 'row' ? { one: 'fila', many: 'filas' } : { one: 'columna', many: 'columnas' };
 }
 
 /* ------------------------------ setGroupName ----------------------------- */

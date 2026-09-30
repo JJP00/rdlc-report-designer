@@ -396,7 +396,7 @@ const unmergeCells = z.object({
   col: z.number().int().nonnegative(),
 });
 
-/* ------------------------ grupos de fila (F2.b) -------------------------- */
+/* --------------------- grupos de fila/columna (F2.b/F3) ------------------ */
 
 /**
  * Edita la expresión de un grupo (`Group > GroupExpressions`). El miembro se
@@ -424,6 +424,19 @@ const addRowGroup = z.object({
   id: z.string().min(1),
   /** Índice de la fila del body (hoja, 0-based) que se agrupa. */
   row: z.number().int().nonnegative(),
+  expression: z.string(),
+});
+
+/**
+ * F3 (Matrix): espejo de `addRowGroup` sobre `TablixColumnHierarchy`: envuelve
+ * una **columna** (hoja, 0-based) en un grupo nuevo con esa expresión. La
+ * rejilla no cambia (la columna sigue siendo la misma).
+ */
+const addColumnGroup = z.object({
+  cmd: z.literal('addColumnGroup'),
+  id: z.string().min(1),
+  /** Índice de la columna del body (hoja, 0-based) que se agrupa. */
+  column: z.number().int().nonnegative(),
   expression: z.string(),
 });
 
@@ -464,6 +477,19 @@ const addRowToGroup = z.object({
   id: z.string().min(1),
   /** Índice de la fila del body (hoja, 0-based) que se mueve al grupo. */
   row: z.number().int().nonnegative(),
+  /** Grupo destino (`path` de la proyección: índices de `TablixMember`). */
+  groupPath: z.array(z.number().int().nonnegative()).min(1),
+});
+
+/**
+ * F3 (Matrix): espejo de `addRowToGroup` sobre `TablixColumnHierarchy`: mueve
+ * al grupo una **columna** contigua a su rango de hojas (primera o última).
+ */
+const addColumnToGroup = z.object({
+  cmd: z.literal('addColumnToGroup'),
+  id: z.string().min(1),
+  /** Índice de la columna del body (hoja, 0-based) que se mueve al grupo. */
+  column: z.number().int().nonnegative(),
   /** Grupo destino (`path` de la proyección: índices de `TablixMember`). */
   groupPath: z.array(z.number().int().nonnegative()).min(1),
 });
@@ -583,8 +609,10 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setGroupExpression,
   setGroupName,
   addRowGroup,
+  addColumnGroup,
   deleteRowGroup,
   addRowToGroup,
+  addColumnToGroup,
   setGroupExpressions,
   setGroupPageBreaks,
   setGroupSorting,

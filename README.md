@@ -195,11 +195,12 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       (añadir/quitar filas y columnas), menú contextual, anclaje/recorte del contenido, refresco
       de la rejilla, cabeceras (Shift/Ctrl), borrado en lote, fusión/separación, colores-expresión,
       autocompletado (panel y diálogo), visibilidad (items y miembros), renombrado, etiqueta,
-      cabeceras del Tablix y **grupos de fila** (propiedades del grupo, agrupar, extender, filas
-      dentro/fuera del grupo —también grupos hoja—, quitar, con undo; 37 tests, con reset del
-      documento entre tests).
+      cabeceras del Tablix y **grupos** (propiedades del grupo, agrupar, extender, filas
+      dentro/fuera del grupo —también grupos hoja—, quitar, con undo; de **columna** en
+      F3: agrupar y extender con undo; con reset del documento entre tests).
 - [x] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
-      miembros) · [x] `TablixCorner`/`TablixHeader` · [x] grupos de fila · [ ] Matrix (F3).
+      miembros) · [x] `TablixCorner`/`TablixHeader` · [x] grupos de fila · [x] grupos de
+      columna (Matrix, F3: agrupar/extender/quitar con undo).
 - [x] **Bloque de gaps · G1–G13 (sesión 2026-09-29)**: **insertar Tablix**
       (rejilla 1×1 con celda y ambas jerarquías), **bordes por lado** (genérico
       `Border` + overrides de BC con la herencia resuelta propiedad a propiedad,

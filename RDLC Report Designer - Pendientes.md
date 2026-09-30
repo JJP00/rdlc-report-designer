@@ -1,5 +1,47 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-09-30 (5.ª parte) · F3 · Matrix — grupos de columna** — el
+> grueso funcional que quedaba de la fase 3: la edición visual de la
+> `TablixColumnHierarchy` (el corpus trae un grupo hoja real en
+> `BTCLoadingOrder.rdlc · Tablix2`). Todo el trabajo es **espejo del de filas**:
+>
+> - **Contrato**: `addColumnGroup` (envuelve una columna del body en un grupo
+>   nuevo con su expresión) y `addColumnToGroup` (mueve al grupo una columna
+>   **contigua** a su rango de hojas), con la misma forma que `addRowGroup`/
+>   `addRowToGroup`.
+> - **Dominio**: los cuatro comandos se apoyan ahora en helpers por eje
+>   (`addLeafGroup`/`addLeafToGroup` + `leafLabels`, con mensajes
+>   «fila/columna»); la rejilla (`TablixBody > TablixColumns`) no cambia — la
+>   hoja se anida en el grupo — y el undo es byte-exacto. Se conservan las
+>   decisiones de F2.b: un grupo hoja se envuelve **por fuera** sin tocar su
+>   fila/columna, los grupos hoja no admiten más hojas (se rechaza con motivo) y
+>   `addColumnGroup` **no crea cabecera** (BC las pone en `TablixHeader`).
+> - **Front**: en el panel de Estructura, la columna estática ofrece «Agrupar la
+>   columna N…» (diálogo de expresión con Monaco) y los grupos de columna
+>   ofrecen las flechas ↑/↓ («Añadir la columna N al grupo») igual que los de
+>   fila; «Propiedades del grupo» y el árbol ya eran por eje desde F2.b/F3 de
+>   lectura.
+> - **Refactor de acabado**: el cableado del panel derecho sale de `App` a
+>   `InspectorColumn` (mismo patrón que `CanvasColumn`/`LeftPanels`): el cuerpo
+>   de `App` había cruzado el umbral de 300 líneas de
+>   `react-doctor/no-giant-component` y vuelve a **100/100, 0 issues**.
+>
+> Verificación: **6 tests back nuevos** (`tablix-column-groups.spec.ts`:
+> envolver una columna estática y un grupo hoja, extender con la contigua +
+> rechazos de no contigua/ya incluida/grupo hoja, y `setGroupExpression` en el
+> eje columna con su ordenación sincronizada), **2 E2E nuevos** (agrupar una
+> columna y extender el grupo, ambos con undo) y la **suite completa: 69 E2E
+> verdes**. `typecheck` limpio.
+>
+> Estado: **291 back + 168 front**, React Doctor **100/100** y **69 E2E**.
+>
+> **Punto de retomada**: F3 queda **cerrado** salvo la inserción de columnas
+> «dentro/fuera del grupo» (el equivalente del menú de celdas de las filas; con
+> un solo grupo de columna en el corpus, no se pide). Lo siguiente del plan:
+> **F2.c** (conveniencia de totales, opcional) y cerrar con **T1**
+> (CI/empaquetado). Siguen abiertos el bug de `Maximum update depth exceeded`
+> al mover Tablix anidados y los P2/P3 de la re-evaluación 0002.
+
 > **Sesión 2026-09-30 · pase UX U1–U5 (vida de fichero, conflicto, multiselección, jerarquía y z-order) + re-evaluación `intent`** —
 > en paralelo con la 4.ª parte (U6–U9), sobre el mismo árbol. **U1–U5 hechos**:
 >
@@ -957,8 +999,12 @@ F2.c/F3, que ya es fase); sigue ② el pase de UX (`intent`, U1–U9).
    fila** (F2.b/F2.b.2: expresiones, crear/quitar elevando filas, saltos de
    página, ordenación y `ToggleItem`) ✅; falta la **conveniencia de totales**
    (F2.c, opcional: hoy ya se pueden hacer a mano, son filas estáticas con
-   agregados). Después: **Matrix (F3)**.
-5. **Matrix (Fase 3)** — ⬜ grupos de columna.
+   agregados).
+5. **Matrix (Fase 3)** — ✅ hecho (sesión 2026-09-30, 5.ª parte): **grupos de
+   columna** (`addColumnGroup`/`addColumnToGroup`) con la misma edición que los
+   de fila en el panel de Estructura (agrupar, extender con la contigua,
+   expresión/orden/saltos/visibilidad/renombrar/quitar) y undo byte-exacto.
+   Queda como opcional la inserción de columnas «dentro/fuera del grupo».
 6. **`moveItem`** (reparentar/reordenar) — ✅ hecho (G3, 2026-09-29): comando con
    ciclos + `Top/Left` opcionales, crecimiento del destino y drag&drop que
    reparenta conservando el punto agarrado; undo byte-exacto.

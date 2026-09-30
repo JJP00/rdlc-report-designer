@@ -133,12 +133,16 @@ export interface ItemEditing {
   applyGroupProperties: (commands: RdlcCommand[]) => void;
   /** Añade una fila contigua al grupo (extiende su rango de hojas). */
   addRowToGroup: (tablixId: string, row: number, groupPath: number[]) => void;
+  /** F3 · Matrix: añade una columna contigua al grupo (espejo de la fila). */
+  addColumnToGroup: (tablixId: string, column: number, groupPath: number[]) => void;
   /** Inserta una fila de relleno fuera del grupo (`where` = borde). */
   addRowOutsideGroup: (tablixId: string, row: number, where: 'above' | 'below') => void;
   /** Inserta una fila de relleno dentro del grupo, pegada a la fila indicada. */
   addRowInsideGroup: (tablixId: string, row: number, where: 'above' | 'below') => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   addRowGroup: (tablixId: string, row: number, expression: string) => void;
+  /** F3 · Matrix: envuelve la columna en un grupo nuevo con esa expresión. */
+  addColumnGroup: (tablixId: string, column: number, expression: string) => void;
   /** Quita el grupo: las filas que cuelgan se quedan como filas estáticas. */
   deleteRowGroup: (tablixId: string, axis: 'row' | 'column', path: number[]) => void;
   /** Reemplaza los filtros del Tablix (`[]` los quita): un paso de undo. */
@@ -274,8 +278,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   // La selección solo vale si los items siguen existiendo (undo/redo, recarga,
   // borrado): se **deriva** en vez de sincronizarse con un efecto.
   const selectedIds = useMemo(
-    () =>
-      doc ? selectedIdsState.filter((id) => findItem(doc.projection, id) !== undefined) : [],
+    () => (doc ? selectedIdsState.filter((id) => findItem(doc.projection, id) !== undefined) : []),
     [doc, selectedIdsState],
   );
   const selectedId = selectedIds.length > 0 ? (selectedIds[selectedIds.length - 1] ?? null) : null;
@@ -654,9 +657,23 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [sendCommand],
   );
 
+  const addColumnGroup = useCallback(
+    (tablixId: string, column: number, expression: string): void => {
+      void sendCommand({ cmd: 'addColumnGroup', id: tablixId, column, expression });
+    },
+    [sendCommand],
+  );
+
   const addRowToGroup = useCallback(
     (tablixId: string, row: number, groupPath: number[]): void => {
       void sendCommand({ cmd: 'addRowToGroup', id: tablixId, row, groupPath });
+    },
+    [sendCommand],
+  );
+
+  const addColumnToGroup = useCallback(
+    (tablixId: string, column: number, groupPath: number[]): void => {
+      void sendCommand({ cmd: 'addColumnToGroup', id: tablixId, column, groupPath });
     },
     [sendCommand],
   );
@@ -1104,9 +1121,11 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setMemberVisibility,
     applyGroupProperties,
     addRowToGroup,
+    addColumnToGroup,
     addRowOutsideGroup,
     addRowInsideGroup,
     addRowGroup,
+    addColumnGroup,
     deleteRowGroup,
     setTablixFilters,
     setImageOptions,
