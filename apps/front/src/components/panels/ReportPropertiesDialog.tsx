@@ -24,6 +24,8 @@ interface ReportPropertiesDialogProps {
   onSetPageMargins: (margins: { top: Length; bottom: Length; left: Length; right: Length }) => void;
   /** Alto de la banda de página (encabezado/pie). */
   onSetRegionHeight: (region: 'pageHeader' | 'pageFooter' | 'body', height: Length) => void;
+  /** Ancho de la sección (`ReportSection > Width`), que manda en el cuerpo. */
+  onSetSectionWidth: (width: Length) => void;
   /** Impresión del encabezado/pie en la primera/última página. */
   onSetHeaderFooterOptions: (
     region: 'pageHeader' | 'pageFooter',
@@ -50,6 +52,7 @@ export function ReportPropertiesDialog({
   onSetPageSize,
   onSetPageMargins,
   onSetRegionHeight,
+  onSetSectionWidth,
   onSetHeaderFooterOptions,
   onSetReportCode,
 }: ReportPropertiesDialogProps): ReactNode {
@@ -70,6 +73,7 @@ export function ReportPropertiesDialog({
           onSetPageSize={onSetPageSize}
           onSetPageMargins={onSetPageMargins}
           onSetRegionHeight={onSetRegionHeight}
+          onSetSectionWidth={onSetSectionWidth}
           onSetHeaderFooterOptions={onSetHeaderFooterOptions}
           onSetReportCode={onSetReportCode}
         />
@@ -83,6 +87,7 @@ function ReportPropertiesForm({
   onSetPageSize,
   onSetPageMargins,
   onSetRegionHeight,
+  onSetSectionWidth,
   onSetHeaderFooterOptions,
   onSetReportCode,
 }: Omit<ReportPropertiesDialogProps, 'open' | 'onOpenChange'>): ReactNode {
@@ -111,6 +116,8 @@ function ReportPropertiesForm({
   );
   /** Alto del cuerpo (`Body > Height`); también se arrastra en el lienzo (U10). */
   const [bodyHeight, setBodyHeight] = useState(() => toCm(projection.page.body.height));
+  /** Ancho de la sección (`ReportSection > Width`); también se arrastra (U10). */
+  const [bodyWidth, setBodyWidth] = useState(() => toCm(projection.page.body.width));
   const [code, setCode] = useState(() => projection.meta.code.text);
 
   const landscape = width > height;
@@ -129,6 +136,7 @@ function ReportPropertiesForm({
     });
     onSetRegionHeight('pageHeader', cmLength(headerHeight));
     onSetRegionHeight('pageFooter', cmLength(footerHeight));
+    onSetSectionWidth(cmLength(bodyWidth));
     onSetRegionHeight('body', cmLength(bodyHeight));
     onSetHeaderFooterOptions('pageHeader', {
       printOnFirstPage: headerFirst,
@@ -245,6 +253,12 @@ function ReportPropertiesForm({
         <div className="flex flex-col gap-2">
           <Label className="text-xs text-muted-foreground">Cuerpo</Label>
           <div className="grid grid-cols-2 gap-3">
+            <NumberField
+              label="Ancho del cuerpo (cm)"
+              value={bodyWidth}
+              axis="x"
+              onChange={setBodyWidth}
+            />
             <NumberField
               label="Alto del cuerpo (cm)"
               value={bodyHeight}

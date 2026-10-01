@@ -32,6 +32,8 @@ export interface DocumentDialogsProps {
   onSetPageSize: (width: Length, height: Length) => void;
   onSetPageMargins: (margins: { top: Length; bottom: Length; left: Length; right: Length }) => void;
   onSetRegionHeight: (region: 'pageHeader' | 'pageFooter' | 'body', height: Length) => void;
+  /** Ancho de la sección (`ReportSection > Width`). */
+  onSetSectionWidth: (width: Length) => void;
   onSetHeaderFooterOptions: (
     region: 'pageHeader' | 'pageFooter',
     options: { printOnFirstPage?: boolean; printOnLastPage?: boolean },
@@ -69,6 +71,7 @@ export function DocumentDialogs({
   onSetPageSize,
   onSetPageMargins,
   onSetRegionHeight,
+  onSetSectionWidth,
   onSetHeaderFooterOptions,
   onSetReportCode,
   editingText,
@@ -99,6 +102,7 @@ export function DocumentDialogs({
           onSetPageSize={onSetPageSize}
           onSetPageMargins={onSetPageMargins}
           onSetRegionHeight={onSetRegionHeight}
+          onSetSectionWidth={onSetSectionWidth}
           onSetHeaderFooterOptions={onSetHeaderFooterOptions}
           onSetReportCode={onSetReportCode}
         />

@@ -2335,18 +2335,40 @@ test('«Informe…» edita el alto y la impresión del encabezado y el pie', asy
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
 
-  await dialog.getByLabel('Alto del encabezado (cm)', { exact: true }).fill('2');
-  await dialog.getByLabel('Alto del pie (cm)', { exact: true }).fill('1.5');
+  const page0 = await projection();
+  // El alto de banda nunca baja de su contenido: se piden valores por encima.
+  const contentBottom = (region: 'header' | 'footer'): number =>
+    Math.max(
+      0,
+      ...page0.page[region].items.map((item) => lengthToCm(item.top) + lengthToCm(item.height)),
+    );
+  const headerTarget = Math.round((contentBottom('header') + 1) * 100) / 100;
+  const footerTarget = Math.round((contentBottom('footer') + 1) * 100) / 100;
+  // El ancho del cuerpo (sección) también se edita desde el diálogo (U10).
+  const requested = Math.round((lengthToCm(page0.page.body.width) - 0.5) * 100) / 100;
+
+  await dialog.getByLabel('Alto del encabezado (cm)', { exact: true }).fill(String(headerTarget));
+  await dialog.getByLabel('Alto del pie (cm)', { exact: true }).fill(String(footerTarget));
   await dialog
     .getByRole('checkbox', { name: 'Imprimir el encabezado en la primera página' })
     .click();
+  await dialog.getByLabel('Ancho del cuerpo (cm)', { exact: true }).fill(String(requested));
   await dialog.getByRole('button', { name: 'Aplicar' }).click();
 
-  await expect.poll(() => regionHeight('header')).toBe(2);
-  await expect.poll(() => regionHeight('footer')).toBe(1.5);
+  await expect.poll(() => regionHeight('header')).toBeCloseTo(headerTarget, 2);
+  await expect.poll(() => regionHeight('footer')).toBeCloseTo(footerTarget, 2);
   await expect.poll(() => regionFlag('header', 'printOnFirstPage')).toBe(false);
   await expect.poll(() => regionFlag('header', 'printOnLastPage')).toBe(true);
   await expect.poll(() => regionFlag('footer', 'printOnFirstPage')).toBe(true);
+
+  // El cuerpo nunca queda a la izquierda de su contenido: el dominio lo sube.
+  const expectedWidth = Math.max(contentRightCm(page0), requested);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.width))
+    .toBeCloseTo(expectedWidth, 2);
+  const afterWidth = await projection();
+  expect(lengthToCm(afterWidth.page.header.width)).toBeCloseTo(expectedWidth, 2);
+  expect(lengthToCm(afterWidth.page.footer.width)).toBeCloseTo(expectedWidth, 2);
 });
 
 test('el panel de propiedades renombra el elemento (con validación y undo)', async () => {

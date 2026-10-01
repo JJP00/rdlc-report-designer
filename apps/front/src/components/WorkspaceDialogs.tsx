@@ -1,9 +1,6 @@
 import type { TablixDto, TextboxDto } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
-import {
-  DocumentDialogs,
-  type GroupPropertiesRequest,
-} from '@/components/DocumentDialogs';
+import { DocumentDialogs, type GroupPropertiesRequest } from '@/components/DocumentDialogs';
 import type { DocumentCore } from '@/hooks/useDocumentCore';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 
@@ -65,6 +62,7 @@ export function WorkspaceDialogs({
       onSetPageSize={items.setPageSize}
       onSetPageMargins={items.setPageMargins}
       onSetRegionHeight={items.setRegionHeight}
+      onSetSectionWidth={items.setSectionWidth}
       onSetHeaderFooterOptions={items.setHeaderFooterOptions}
       onSetReportCode={items.setReportCode}
       editingText={editingText}

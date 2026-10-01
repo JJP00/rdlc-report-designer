@@ -1,5 +1,27 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-10-01 (5.ª parte) · pruebas manuales: ancho del cuerpo en «Informe…»**
+> — en «Informe… → Configurar página» solo se podía editar el **alto** del
+> cuerpo; el **ancho de la sección** (`ReportSection > Width`) solo se arrastraba
+> en el lienzo.
+>
+> - **Campo nuevo**: «Ancho del cuerpo (cm)» junto al alto, cableado a
+>   `setSectionWidth` (el mismo comando del arrastre); el dominio sigue
+>   clampeando al contenido y las tres bandas comparten el valor.
+> - **E2E**: el test de «Informe…» edita también el ancho y comprueba el valor
+>   resultante (con clamp) en el cuerpo, el encabezado y el pie.
+> - **Fallo latente cazado al ejecutarlo**: el test del diálogo pedía encabezado
+>   2 cm y pie 1,5 cm; con los topes de contenido de la 3.ª parte el dominio los
+>   sube (encabezado 8,43921 · pie 2,53503). Ahora pide valores **por encima del
+>   contenido**. Es exactamente lo que tenía que cazar la pasada completa.
+>
+> Verificación: typecheck limpio, **182 front**; **pasada completa de E2E:
+> 75/75 verdes** (incluye el diálogo corregido). Captura QA del campo nuevo.
+>
+> **Punto de retomada**: ① **pasada completa de E2E cerrada (75/75)**;
+> ② sigue **T1** (CI + empaquetado); ③ abiertos el bug de `Maximum update
+> depth exceeded` y los P2/P3 de 0002.
+
 > **Sesión 2026-10-01 (4.ª parte) · pruebas manuales: previsualización de márgenes**
 > — feedback del uso real: la pastilla de la previsualización de un margen se
 > quedaba en la esquina del papel (en las líneas verticales), se recortaba y
