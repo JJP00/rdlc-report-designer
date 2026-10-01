@@ -3011,6 +3011,33 @@ async function pageResizePreviewLine(): Promise<{
   });
 }
 
+/** Rect de la pastilla de la previsualización (px de papel; null si no hay). */
+async function pageResizeBadge(): Promise<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} | null> {
+  return page.evaluate(() => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(predicate: (node: { name: () => string }) => boolean): {
+        getAttr(name: string): unknown;
+      } | null;
+    } | null;
+    const group = stage?.findOne((candidate) => candidate.name() === 'page-resize-preview');
+    const visible = (group?.getAttr('visible') as boolean | undefined) ?? false;
+    if (!visible) return null;
+    const badge = stage?.findOne((candidate) => candidate.name() === 'page-resize-badge');
+    if (!badge) return null;
+    return {
+      x: badge.getAttr('x') as number,
+      y: badge.getAttr('y') as number,
+      width: badge.getAttr('width') as number,
+      height: badge.getAttr('height') as number,
+    };
+  });
+}
+
 /** Clic en un item de un submenú Radix: el nodo se re-monta y no siempre
  *  queda "estable" para el clic con ratón. */
 async function clickMenuItem(name: string): Promise<void> {
@@ -3193,7 +3220,7 @@ test('el borde derecho cambia el ancho de sección del informe (con undo)', asyn
     .toBeCloseTo(before, 2);
 });
 
-test('los márgenes se arrastran desde la regla (estilo Word, con undo)', async () => {
+test('los márgenes se arrastran desde la regla (previsualización junto a la línea, con undo)', async () => {
   const zoom = await stageZoom();
   const before = lengthToCm((await projection()).page.margins.left);
   const marker = page.getByRole('slider', { name: 'Margen izquierdo' });
@@ -3206,9 +3233,25 @@ test('los márgenes se arrastran desde la regla (estilo Word, con undo)', async 
   const label = await pageResizePreview();
   expect(label, 'la previsualización muestra el margen resultante').not.toBeNull();
   expect(label).toContain('Margen izq.');
+  const expected = snapCm(before + 20 / zoom / PX_PER_CM);
+  expect(Number((label ?? '').replace('Margen izq.', '').replace(' cm', ''))).toBeCloseTo(
+    expected,
+    2,
+  );
+  // Línea vertical sobre la nueva frontera y pastilla a su derecha, pegada.
+  const line = await pageResizePreviewLine();
+  const badge = await pageResizeBadge();
+  expect(line).not.toBeNull();
+  expect(line!.x1).toBeCloseTo(expected * PX_PER_CM, 2);
+  expect(line!.x1).toBeCloseTo(line!.x2, 5);
+  expect(badge).not.toBeNull();
+  expect(badge!.x).toBeGreaterThan(line!.x1);
+  expect(badge!.x - line!.x1).toBeLessThanOrEqual(24 / zoom);
+  expect(badge!.y).toBeLessThanOrEqual(24 / zoom);
+  // La pastilla crece con el texto: «Margen izq. X cm» no se recorta.
+  expect(badge!.width * zoom).toBeGreaterThan(80);
   await page.mouse.up();
 
-  const expected = snapCm(before + 20 / zoom / PX_PER_CM);
   await expect
     .poll(async () => lengthToCm((await projection()).page.margins.left))
     .toBeCloseTo(expected, 2);
@@ -3218,6 +3261,42 @@ test('los márgenes se arrastran desde la regla (estilo Word, con undo)', async 
   await expect
     .poll(async () => lengthToCm((await projection()).page.margins.left))
     .toBeCloseTo(before, 2);
+
+  // El margen superior (regla vertical): línea horizontal con la pastilla
+  // encima y el tamaño resultante.
+  const topBefore = lengthToCm((await projection()).page.margins.top);
+  const topMarker = page.getByRole('slider', { name: 'Margen superior' });
+  const topBox = (await topMarker.boundingBox())!;
+  await page.mouse.move(topBox.x + topBox.width / 2, topBox.y + topBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(topBox.x + topBox.width / 2, topBox.y + topBox.height / 2 + 80, {
+    steps: 8,
+  });
+  const topLabel = await pageResizePreview();
+  const topLine = await pageResizePreviewLine();
+  const topBadge = await pageResizeBadge();
+  const topExpected = snapCm(topBefore + 80 / zoom / PX_PER_CM);
+  expect(topLabel).toContain('Margen sup.');
+  expect(Number((topLabel ?? '').replace('Margen sup.', '').replace(' cm', ''))).toBeCloseTo(
+    topExpected,
+    2,
+  );
+  expect(topLine).not.toBeNull();
+  expect(topLine!.y1).toBeCloseTo(topExpected * PX_PER_CM, 2);
+  expect(topLine!.y1).toBeCloseTo(topLine!.y2, 5);
+  expect(topBadge).not.toBeNull();
+  expect(topBadge!.y + topBadge!.height).toBeLessThanOrEqual(topLine!.y1);
+  expect(topLine!.y1 - (topBadge!.y + topBadge!.height)).toBeLessThanOrEqual(24 / zoom);
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.margins.top))
+    .toBeCloseTo(topExpected, 2);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.margins.top))
+    .toBeCloseTo(topBefore, 2);
 });
 
 test('la regla marca el área imprimible y las bandas de encabezado y pie', async () => {

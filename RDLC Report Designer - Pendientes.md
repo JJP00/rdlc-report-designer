@@ -1,5 +1,29 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-10-01 (4.ª parte) · pruebas manuales: previsualización de márgenes**
+> — feedback del uso real: la pastilla de la previsualización de un margen se
+> quedaba en la esquina del papel (en las líneas verticales) y, con ancho fijo
+> de 74 px, «Margen der. X cm» se recortaba a «Margen der.» (sin el tamaño).
+>
+> - **Junto a la línea**: en líneas verticales la pastilla va a la **derecha** de
+>   la línea y, si no cabe en el papel, a la **izquierda** (las horizontales
+>   siguen encima, con su fallback de siempre). Aplica también al ancho de
+>   sección, que es vertical.
+> - **Ancho según el texto**: la pastilla crece con `Text.measureSize` (mínimo
+>   `BADGE_PX`), así el tamaño resultante no se recorta en ningún margen.
+> - **E2E**: el test de márgenes ahora exige el **valor** en la etiqueta, la
+>   posición de la pastilla junto a la línea (derecha en el margen izquierdo,
+>   encima en el superior) y que el ancho crezca con el texto.
+>
+> Verificación: typecheck limpio, **182 front**; E2E dirigidos (cuerpo, bandas,
+> márgenes, ancho de sección y tramos de regla) verdes, con captura QA de los
+> márgenes derecho y superior. **Pendiente: pasada completa de la suite E2E**
+> (75 tests).
+>
+> **Punto de retomada**: ① pasada completa de E2E; ② sigue **T1** (CI +
+> empaquetado); ③ abiertos el bug de `Maximum update depth exceeded` y los
+> P2/P3 de 0002.
+
 > **Sesión 2026-10-01 (3.ª parte) · pruebas manuales: reglas de contenido en U10**
 > — feedback del uso real sobre el redimensionado de página:
 >

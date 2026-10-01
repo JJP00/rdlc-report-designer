@@ -56,8 +56,10 @@ export interface PageResizeZonesProps {
 
 /** Grosor de las zonas de arrastre (px de pantalla). */
 const ZONE_PX = 8;
-/** Ancho de la etiqueta de la previsualización (px de pantalla). */
+/** Ancho **mínimo** de la etiqueta de la previsualización (px de pantalla). */
 const BADGE_PX = 74;
+/** Aire a cada lado del texto dentro de la etiqueta (px de pantalla). */
+const BADGE_PADDING_PX = 16;
 
 /** Zonas de arrastre de los bordes de página (capa **bajo** el papel). */
 export function PageResizeZones({
@@ -263,20 +265,29 @@ export const PageResizePreview = forwardRef<
     const text = previewText.current;
     if (!group || !line || !badge || !text) return;
 
-    // Tamaños en px de pantalla (no escalan con el zoom).
-    const badgeWidth = BADGE_PX / zoom;
+    // Tamaños en px de pantalla (no escalan con el zoom). La pastilla crece con
+    // el texto para que el tamaño resultante nunca se recorte.
     const badgeHeight = 16 / zoom;
     const gap = 6 / zoom;
+    const badgeWidth = Math.max(BADGE_PX, text.measureSize(label).width + BADGE_PADDING_PX) / zoom;
+    const placeBadge = (x: number, y: number): void => {
+      badge.setAttrs({ x, y, width: badgeWidth, height: badgeHeight });
+      text.setAttrs({ x, y, width: badgeWidth, height: badgeHeight, text: label });
+    };
+
     if (orientation === 'horizontal') {
       line.setAttrs({ points: [0, position, layout.sheetWidth, position] });
       const above = position - badgeHeight - gap;
-      const badgeY = above < gap ? position + gap : above;
-      badge.setAttrs({ x: gap, y: badgeY, width: badgeWidth, height: badgeHeight });
-      text.setAttrs({ x: gap, y: badgeY, width: badgeWidth, height: badgeHeight, text: label });
+      placeBadge(gap, above < gap ? position + gap : above);
     } else {
       line.setAttrs({ points: [position, 0, position, layout.sheetHeight] });
-      badge.setAttrs({ x: gap, y: gap, width: badgeWidth, height: badgeHeight });
-      text.setAttrs({ x: gap, y: gap, width: badgeWidth, height: badgeHeight, text: label });
+      // Junto a la línea: a su derecha; si no cabe en el papel, a su izquierda.
+      const right = position + gap;
+      const badgeX =
+        right + badgeWidth <= layout.sheetWidth - gap
+          ? right
+          : Math.max(gap, position - badgeWidth - gap);
+      placeBadge(badgeX, gap);
     }
     group.visible(true);
     group.getLayer()?.batchDraw();
@@ -305,7 +316,14 @@ export const PageResizePreview = forwardRef<
           dash={[5, 4]}
           strokeScaleEnabled={false}
         />
-        <Rect ref={previewBadge} width={BADGE_PX} height={16} fill="#2563eb" cornerRadius={3} />
+        <Rect
+          ref={previewBadge}
+          name="page-resize-badge"
+          width={BADGE_PX}
+          height={16}
+          fill="#2563eb"
+          cornerRadius={3}
+        />
         <KonvaText
           ref={previewText}
           name="page-resize-label"
