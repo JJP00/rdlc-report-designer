@@ -27,9 +27,27 @@ export function snapCm(value: number, step: number): number {
   return round2(Math.round(value / step) * step);
 }
 
-/** Alto de una banda tras un arrastre: nunca < 0 (la banda puede colapsar). */
-export function bandHeightFrom(currentCm: number, deltaCm: number, snapStepCm = 0.1): number {
-  return Math.max(0, snapCm(currentCm + deltaCm, snapStepCm));
+/**
+ * Alto de una banda tras un arrastre: nunca por debajo del contenido (los
+ * items mandan) ni por debajo de 0 (la banda puede colapsar si está vacía).
+ */
+export function bandHeightFrom(
+  currentCm: number,
+  deltaCm: number,
+  minCm = 0,
+  snapStepCm = 0.1,
+): number {
+  const wanted = snapCm(currentCm + deltaCm, snapStepCm);
+  return Math.max(wanted, round2(minCm), 0);
+}
+
+/** Fondo mínimo que impone el **contenido** de una banda (cm). */
+export function bandContentMinCm(page: PageDto, region: 'header' | 'body' | 'footer'): number {
+  let max = 0;
+  for (const item of page[region].items) {
+    max = Math.max(max, toCm(item.top) + toCm(item.height));
+  }
+  return max;
 }
 
 /** Ancho de sección tras un arrastre: entre el contenido y el ancho del papel. */
@@ -57,7 +75,7 @@ export function sectionContentMinCm(page: PageDto): number {
       max = Math.max(max, toCm(item.left) + toCm(item.width));
     }
   }
-  return round2(max);
+  return max;
 }
 
 /**

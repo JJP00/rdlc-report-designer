@@ -65,9 +65,10 @@ describe('G6 · bandas de página', () => {
   it('setRegionHeight cambia el alto del encabezado y el undo es byte-exacto', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
 
+    // Crecer siempre se permite (el encabezado mide 8.43921cm).
     const applied = applyCommand(
       { root: doc.root, index },
-      { cmd: 'setRegionHeight', region: 'pageHeader', height: { value: 4, unit: 'cm' } },
+      { cmd: 'setRegionHeight', region: 'pageHeader', height: { value: 10, unit: 'cm' } },
     );
     expect(applied.isRight()).toBe(true);
     if (!applied.isRight()) return;
@@ -75,10 +76,55 @@ describe('G6 · bandas de página', () => {
     const output = xmlAdapter.serialize(doc);
     expect(output).toContain('<PageHeader>');
     const header = output.slice(output.indexOf('<PageHeader>'), output.indexOf('</PageHeader>'));
-    expect(header).toContain('<Height>4cm</Height>');
+    expect(header).toContain('<Height>10cm</Height>');
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
+    expect(xmlAdapter.serialize(doc)).toBe(xml);
+  });
+
+  it('el alto de las bandas no baja de su contenido (la banda crece)', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const project = () =>
+      projectionAdapter.project({
+        sessionId: 'test',
+        filePath: 'SalesCreditMemoESP.rdlc',
+        document: doc,
+        version: 2,
+      });
+
+    // Encabezado: su contenido llega justo al alto actual (8.43921cm), así que
+    // intentar encoger es un no-op real.
+    const headerTry = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setRegionHeight', region: 'pageHeader', height: { value: 1, unit: 'cm' } },
+    );
+    expect(headerTry.isRight()).toBe(true);
+    expect(xmlAdapter.serialize(doc)).toBe(xml);
+    expect(project().page.header.height).toEqual({ value: 8.43921, unit: 'cm' });
+
+    // Cuerpo: el contenido llega a 12.51612cm (el declara 12.81245).
+    const bodyTry = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setRegionHeight', region: 'body', height: { value: 5, unit: 'cm' } },
+    );
+    expect(bodyTry.isRight()).toBe(true);
+    if (!bodyTry.isRight()) return;
+    expect(project().page.body.height).toEqual({ value: 12.51612, unit: 'cm' });
+    const undoneBody = undoAll({ root: doc.root, index }, bodyTry.value);
+    expect(undoneBody.isRight()).toBe(true);
+    expect(xmlAdapter.serialize(doc)).toBe(xml);
+
+    // Pie: el contenido llega a 2.53503cm (el declara 2.90049).
+    const footerTry = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setRegionHeight', region: 'pageFooter', height: { value: 0.5, unit: 'cm' } },
+    );
+    expect(footerTry.isRight()).toBe(true);
+    if (!footerTry.isRight()) return;
+    expect(project().page.footer.height).toEqual({ value: 2.53503, unit: 'cm' });
+    const undoneFooter = undoAll({ root: doc.root, index }, footerTry.value);
+    expect(undoneFooter.isRight()).toBe(true);
     expect(xmlAdapter.serialize(doc)).toBe(xml);
   });
 
@@ -160,14 +206,14 @@ describe('G6/U10 · cuerpo y ancho de sección', () => {
 
     const applied = applyCommand(
       { root: doc.root, index },
-      { cmd: 'setRegionHeight', region: 'body', height: { value: 12, unit: 'cm' } },
+      { cmd: 'setRegionHeight', region: 'body', height: { value: 14, unit: 'cm' } },
     );
     expect(applied.isRight()).toBe(true);
     if (!applied.isRight()) return;
 
     const output = xmlAdapter.serialize(doc);
     const body = output.slice(output.indexOf('<Body>'), output.indexOf('</Body>'));
-    expect(body).toContain('<Height>12cm</Height>');
+    expect(body).toContain('<Height>14cm</Height>');
     // El `Height` va después de los items (orden canónico del cuerpo).
     if (body.includes('<ReportItems>')) {
       expect(body.indexOf('<Height>')).toBeGreaterThan(body.indexOf('<ReportItems>'));
@@ -179,7 +225,7 @@ describe('G6/U10 · cuerpo y ancho de sección', () => {
       document: doc,
       version: 2,
     });
-    expect(projected.page.body.height).toEqual({ value: 12, unit: 'cm' });
+    expect(projected.page.body.height).toEqual({ value: 14, unit: 'cm' });
 
     const problems = validator.validate(output).problems;
     expect(problems, problems.join(' | ')).toEqual([]);

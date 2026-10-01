@@ -3039,7 +3039,8 @@ async function dragFromPoint(
 
 test('el borde inferior del cuerpo cambia su alto con previsualización (y undo)', async () => {
   const zoom = await stageZoom();
-  const before = lengthToCm((await projection()).page.body.height);
+  const page0 = await projection();
+  const before = lengthToCm(page0.page.body.height);
   const point = await pageZonePoint('body');
 
   const { label } = await dragFromPoint(point, 0, 20);
@@ -3051,7 +3052,23 @@ test('el borde inferior del cuerpo cambia su alto con previsualización (y undo)
     .poll(async () => lengthToCm((await projection()).page.body.height))
     .toBeCloseTo(expected, 2);
 
+  // Encoger no puede dejar contenido fuera: el cuerpo se queda en el fondo de
+  // sus items (misma regla que el ancho de sección).
+  const contentBottom = Math.max(
+    ...page0.page.body.items.map((item) => lengthToCm(item.top) + lengthToCm(item.height)),
+  );
+  const shrinkPoint = await pageZonePoint('body');
+  const shrink = await dragFromPoint(shrinkPoint, 0, -300);
+  expect(Number((shrink.label ?? '').replace(' cm', ''))).toBeCloseTo(contentBottom, 1);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.height))
+    .toBeCloseTo(contentBottom, 2);
+
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.height))
+    .toBeCloseTo(expected, 2);
   await page.keyboard.press('Control+z');
   await expect
     .poll(async () => lengthToCm((await projection()).page.body.height))
@@ -3063,18 +3080,34 @@ test('los bordes del encabezado y del pie redimensionan sus bandas (con undo)', 
   const page0 = await projection();
   const headerBefore = lengthToCm(page0.page.header.height);
   const footerBefore = lengthToCm(page0.page.footer.height);
-
-  // Encabezado: se arrastra su borde inferior hacia arriba (encoge). La guía
-  // viaja con el **borde inferior** resultante (margen superior + alto).
-  const headerPoint = await pageZonePoint('header');
-  const headerDrag = await dragFromPoint(headerPoint, 0, -20);
-  const headerExpected = snapCm(headerBefore - 20 / zoom / PX_PER_CM);
-  expect(Number((headerDrag.label ?? '').replace(' cm', ''))).toBeCloseTo(headerExpected, 1);
   const topMargin = lengthToCm(page0.page.margins.top);
+  const sheetHeight = lengthToCm(page0.page.height);
+  const bottomMargin = lengthToCm(page0.page.margins.bottom);
+  const contentBottom = (region: 'header' | 'footer'): number =>
+    Math.max(
+      ...page0.page[region].items.map((item) => lengthToCm(item.top) + lengthToCm(item.height)),
+    );
+
+  // Encabezado: crece al arrastrar su borde inferior hacia abajo. La guía viaja
+  // con el **borde inferior** resultante (margen superior + alto).
+  const headerPoint = await pageZonePoint('header');
+  const headerDrag = await dragFromPoint(headerPoint, 0, 20);
+  const headerExpected = snapCm(headerBefore + 20 / zoom / PX_PER_CM);
+  expect(Number((headerDrag.label ?? '').replace(' cm', ''))).toBeCloseTo(headerExpected, 1);
   expect(headerDrag.line?.y1 ?? -1).toBeCloseTo((topMargin + headerExpected) * PX_PER_CM, 1);
   await expect
     .poll(async () => lengthToCm((await projection()).page.header.height))
     .toBeCloseTo(headerExpected, 2);
+
+  // Encoger se topa con el contenido del encabezado (8.43921cm lo llena).
+  const headerMin = contentBottom('header');
+  const headerShrinkPoint = await pageZonePoint('header');
+  const headerShrink = await dragFromPoint(headerShrinkPoint, 0, -300);
+  expect(Number((headerShrink.label ?? '').replace(' cm', ''))).toBeCloseTo(headerMin, 1);
+  expect(headerShrink.line?.y1 ?? -1).toBeCloseTo((topMargin + headerMin) * PX_PER_CM, 1);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.header.height))
+    .toBeCloseTo(headerMin, 2);
 
   // Pie: se arrastra su borde superior hacia arriba (crece). La guía viaja con
   // el **nuevo borde superior** (fondo del pie menos su alto), no con la base.
@@ -3082,8 +3115,6 @@ test('los bordes del encabezado y del pie redimensionan sus bandas (con undo)', 
   const footerDrag = await dragFromPoint(footerPoint, 0, -20);
   const footerExpected = snapCm(footerBefore + 20 / zoom / PX_PER_CM);
   expect(Number((footerDrag.label ?? '').replace(' cm', ''))).toBeCloseTo(footerExpected, 1);
-  const sheetHeight = lengthToCm(page0.page.height);
-  const bottomMargin = lengthToCm(page0.page.margins.bottom);
   expect(footerDrag.line?.y1 ?? -1).toBeCloseTo(
     (sheetHeight - bottomMargin - footerExpected) * PX_PER_CM,
     1,
@@ -3092,11 +3123,29 @@ test('los bordes del encabezado y del pie redimensionan sus bandas (con undo)', 
     .poll(async () => lengthToCm((await projection()).page.footer.height))
     .toBeCloseTo(footerExpected, 2);
 
+  // Encoger el pie se topa con su contenido (2.53503cm).
+  const footerMin = contentBottom('footer');
+  const footerShrinkPoint = await pageZonePoint('footer');
+  const footerShrink = await dragFromPoint(footerShrinkPoint, 0, 300);
+  expect(Number((footerShrink.label ?? '').replace(' cm', ''))).toBeCloseTo(footerMin, 1);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.footer.height))
+    .toBeCloseTo(footerMin, 2);
+
+  // Undo por pasos: pie (clamp, crecer), encabezado (clamp, crecer) → estado inicial.
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Control+z');
   await expect
     .poll(async () => lengthToCm((await projection()).page.footer.height))
+    .toBeCloseTo(footerExpected, 2);
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.footer.height))
     .toBeCloseTo(footerBefore, 2);
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.header.height))
+    .toBeCloseTo(headerExpected, 2);
   await page.keyboard.press('Control+z');
   await expect
     .poll(async () => lengthToCm((await projection()).page.header.height))

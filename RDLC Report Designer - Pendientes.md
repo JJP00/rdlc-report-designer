@@ -1,7 +1,7 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
-> **Sesión 2026-10-01 (3.ª parte) · pruebas manuales: dos arreglos de U10** —
-> feedback del uso real sobre el redimensionado de página:
+> **Sesión 2026-10-01 (3.ª parte) · pruebas manuales: reglas de contenido en U10**
+> — feedback del uso real sobre el redimensionado de página:
 >
 > - **Previsualización del pie**: la guía se pintaba en `footerBase` (pegada al
 >   margen inferior) en vez de en el **nuevo borde superior** del pie. El
@@ -15,6 +15,12 @@
 >   `sectionContentMinCm`, y no-op byte-exacto si el valor no cambia). Es la
 >   misma regla que el crecimiento de rectángulos: colocar items ya está clampado
 >   al cuerpo, así que la única vía de fuga era encoger.
+> - **El alto de las bandas tampoco baja de su contenido** (encabezado, **cuerpo**
+>   y pie): el dominio clampa `setRegionHeight` al fondo más lejano de los items
+>   de la banda (`bandContentBottomCm`) y el arrastre usa su mínimo
+>   (`bandContentMinCm`), con no-op byte-exacto si no cambia. En
+>   `SalesCreditMemoESP`: el encabezado está lleno (8,43921 cm), el cuerpo baja
+>   como mucho a 12,51612 y el pie a 2,53503.
 > - **Estabilización E2E**: el test del menú de celda clicaba un item de submenú
 >   Radix que se re-monta («element is not stable»); ahora usa
 >   `clickMenuItem` (espera visible + `dispatchEvent('click')`), espera al cierre
@@ -22,10 +28,10 @@
 >   re-encuadra tras la interacción). `undoAll` tolera outcomes **sin inversos**
 >   (comandos no-op).
 >
-> Verificación: **300 back + 180 front**, typecheck limpio; E2E dirigidos verdes
-> (bandas, márgenes, clamp de sección y menú con `--repeat-each=3`). **Pendiente:
-> pasada completa de la suite E2E** (75 tests) en la próxima sesión + commit de
-> cierre si todo está verde.
+> Verificación: **301 back + 182 front**, typecheck limpio; E2E dirigidos verdes
+> (bandas con los topes de contenido, márgenes, clamp de sección y menú con
+> `--repeat-each=3`). **Pendiente: pasada completa de la suite E2E** (75 tests)
+> en la próxima sesión.
 >
 > **Punto de retomada**: ① pasada completa de E2E; ② sigue **T1** (CI +
 > empaquetado); ③ abiertos el bug de `Maximum update depth exceeded` y los

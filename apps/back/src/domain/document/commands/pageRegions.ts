@@ -33,7 +33,7 @@ export function applySetRegionHeight(
   if (command.region === 'body') {
     const body = section.child('Body');
     if (!body) return left(CommandRejectedError.create('El documento no tiene Body'));
-    return right(writeHeight(body, command.height));
+    return right(writeHeight(body, clampBandHeight(body, command.height)));
   }
 
   const tag = regionTag(command.region);
@@ -46,7 +46,30 @@ export function applySetRegionHeight(
     return right({ inverse: [{ cmd: 'removeNode', node: created }] });
   }
 
-  return right(writeHeight(existing, command.height));
+  return right(writeHeight(existing, clampBandHeight(existing, command.height)));
+}
+
+/**
+ * El alto de una banda nunca queda por debajo de su contenido: si el alto
+ * pedido es menor que el fondo más lejano de los items de primer nivel, la
+ * banda **crece** hasta él (los items no se mueven). Misma regla que el ancho
+ * de sección.
+ */
+function clampBandHeight(region: RdlcNode, height: Length): Length {
+  const contentCm = bandContentBottomCm(region);
+  return contentCm > toCm(height) ? fromCm(contentCm) : height;
+}
+
+/** Fondo más lejano del contenido (cm) de una banda: items de primer nivel. */
+function bandContentBottomCm(region: RdlcNode): number {
+  const zero: Length = { value: 0, unit: 'cm' };
+  let max = 0;
+  for (const item of region.child('ReportItems')?.children() ?? []) {
+    const top = toCm(readLength(item, 'Top') ?? zero);
+    const height = toCm(readLength(item, 'Height') ?? zero);
+    max = Math.max(max, top + height);
+  }
+  return max;
 }
 
 /**
@@ -104,7 +127,7 @@ function contentRightCm(section: RdlcNode): number {
       max = Math.max(max, left + width);
     }
   }
-  return Math.round(max * 100) / 100;
+  return max;
 }
 
 /** Escribe `Height` en la banda/cuerpo (lo crea en orden canónico si falta). */
@@ -112,7 +135,10 @@ function writeHeight(container: RdlcNode, height: Length): CommandOutcome {
   const existing = container.child('Height');
   if (existing) {
     const previous = existing.text() ?? '';
-    existing.setText(formatLength(height));
+    const next = formatLength(height);
+    // Sin cambio real (p. ej. el clamp devuelve el alto actual): no-op.
+    if (previous === next) return { inverse: [] };
+    existing.setText(next);
     return { inverse: [setNodeTextChange({ node: existing, value: previous })] };
   }
 

@@ -1,6 +1,12 @@
 import type { PageMarginsDto, ProjectionDto } from '@rdlc-designer/contracts';
-import { useCallback, useRef, type RefObject } from 'react';
-import { clampMargin, formatCm, marginFromPointer } from '@/lib/pageResize';
+import { useCallback, useMemo, useRef, type RefObject } from 'react';
+import {
+  bandContentMinCm,
+  clampMargin,
+  formatCm,
+  marginFromPointer,
+  sectionContentMinCm,
+} from '@/lib/pageResize';
 import { cm, toCm } from '@/lib/projection';
 import type { PageResizeHandle } from './PageResizeLayer';
 import type { RulerMark } from './Ruler';
@@ -36,11 +42,25 @@ export function usePageResize({
 }): {
   pageResizeRef: RefObject<PageResizeHandle | null>;
   rulerMarks: (axis: 'x' | 'y') => RulerMark[];
+  /** Mínimos por contenido: el cuerpo no baja de sus items (cm). */
+  sectionMinCm: number;
+  /** Mínimos por contenido de cada banda: su alto no baja de sus items (cm). */
+  bandMinCm: { header: number; body: number; footer: number };
 } {
   const pageResizeRef = useRef<PageResizeHandle | null>(null);
   const margins = projection.page.margins;
   const sheetWidthCm = toCm(projection.page.width);
   const sheetHeightCm = toCm(projection.page.height);
+  // El cuerpo nunca queda por debajo de su contenido (ni a la izquierda).
+  const sectionMinCm = useMemo(() => sectionContentMinCm(projection.page), [projection]);
+  const bandMinCm = useMemo(
+    () => ({
+      header: bandContentMinCm(projection.page, 'header'),
+      body: bandContentMinCm(projection.page, 'body'),
+      footer: bandContentMinCm(projection.page, 'footer'),
+    }),
+    [projection],
+  );
 
   /** Margen resultante de un arrastre y posición de su frontera. */
   const resolveMargin = useCallback(
@@ -99,5 +119,5 @@ export function usePageResize({
     [commitMargin, margins, onSetPageMargins, resolveMargin, sheetHeightCm, sheetWidthCm],
   );
 
-  return { pageResizeRef, rulerMarks };
+  return { pageResizeRef, rulerMarks, sectionMinCm, bandMinCm };
 }

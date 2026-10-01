@@ -46,6 +46,8 @@ export interface PageResizeZonesProps {
   onResizeSectionWidth?: (cm: number) => void;
   /** Mínimo por contenido (cm): el cuerpo no queda a la izquierda de sus items. */
   sectionMinCm?: number;
+  /** Mínimos por contenido (cm) de cada banda: su alto no baja de sus items. */
+  bandMinCm?: { header: number; body: number; footer: number };
   /** Pinta la previsualización (vive en `PageResizePreview`, sobre el contenido). */
   onPreview: (orientation: 'horizontal' | 'vertical', position: number, label: string) => void;
   /** Oculta la previsualización al soltar/cancelar. */
@@ -64,6 +66,7 @@ export function PageResizeZones({
   onResizeRegion,
   onResizeSectionWidth,
   sectionMinCm,
+  bandMinCm,
   onPreview,
   onPreviewEnd,
 }: PageResizeZonesProps): ReactNode {
@@ -139,11 +142,19 @@ export function PageResizeZones({
           length={layout.sheetWidth}
           zoom={zoom}
           onPreviewMove={(delta, shift) => {
-            const heightCm = bandHeightFrom(headerCm, delta, snapStep(shift));
+            const heightCm = bandHeightFrom(
+              headerCm,
+              delta,
+              bandMinCm?.header ?? 0,
+              snapStep(shift),
+            );
             previewBand(header.y, heightCm);
           }}
           onDragged={(delta, shift) =>
-            onResizeRegion('pageHeader', bandHeightFrom(headerCm, delta, snapStep(shift)))
+            onResizeRegion(
+              'pageHeader',
+              bandHeightFrom(headerCm, delta, bandMinCm?.header ?? 0, snapStep(shift)),
+            )
           }
           onPreviewEnd={onPreviewEnd}
         />
@@ -158,11 +169,14 @@ export function PageResizeZones({
           length={layout.sheetWidth}
           zoom={zoom}
           onPreviewMove={(delta, shift) => {
-            const heightCm = bandHeightFrom(bodyCm, delta, snapStep(shift));
+            const heightCm = bandHeightFrom(bodyCm, delta, bandMinCm?.body ?? 0, snapStep(shift));
             previewBand(body.y, heightCm);
           }}
           onDragged={(delta, shift) =>
-            onResizeRegion('body', bandHeightFrom(bodyCm, delta, snapStep(shift)))
+            onResizeRegion(
+              'body',
+              bandHeightFrom(bodyCm, delta, bandMinCm?.body ?? 0, snapStep(shift)),
+            )
           }
           onPreviewEnd={onPreviewEnd}
         />
@@ -177,13 +191,21 @@ export function PageResizeZones({
           length={layout.sheetWidth}
           zoom={zoom}
           onPreviewMove={(delta, shift) => {
-            const heightCm = bandHeightFrom(footerCm, -delta, snapStep(shift));
+            const heightCm = bandHeightFrom(
+              footerCm,
+              -delta,
+              bandMinCm?.footer ?? 0,
+              snapStep(shift),
+            );
             // La guía va en el **nuevo borde superior** del pie (la base está
             // pegada al margen inferior).
             onPreview('horizontal', footerBase - heightCm * PX_PER_CM, formatCm(heightCm));
           }}
           onDragged={(delta, shift) =>
-            onResizeRegion('pageFooter', bandHeightFrom(footerCm, -delta, snapStep(shift)))
+            onResizeRegion(
+              'pageFooter',
+              bandHeightFrom(footerCm, -delta, bandMinCm?.footer ?? 0, snapStep(shift)),
+            )
           }
           onPreviewEnd={onPreviewEnd}
         />

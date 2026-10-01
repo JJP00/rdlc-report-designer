@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PageDto } from '@rdlc-designer/contracts';
 import {
+  bandContentMinCm,
   bandHeightFrom,
   clampMargin,
   formatCm,
@@ -31,7 +32,35 @@ describe('U10 · pageResize', () => {
     // Nunca negativo: la banda puede quedarse a 0.
     expect(bandHeightFrom(0.4, -1)).toBe(0);
     // Shift (sin imán) conserva el valor exacto redondeado.
-    expect(bandHeightFrom(2.5, 0.07, 0)).toBe(2.57);
+    expect(bandHeightFrom(2.5, 0.07, 0, 0)).toBe(2.57);
+  });
+
+  it('bandHeightFrom no baja del contenido de la banda', () => {
+    // El contenido del encabezado llega a 6.7: pedir 1 deja 6.7.
+    expect(bandHeightFrom(8.44, -7, 6.7)).toBe(6.7);
+    // Hacia arriba no cambia nada.
+    expect(bandHeightFrom(8.44, 1, 6.7)).toBe(9.4);
+  });
+
+  it('bandContentMinCm toma el fondo más lejano de la banda', () => {
+    const length = (value: number): { value: number; unit: string } => ({ value, unit: 'cm' });
+    const item = (top: number, height: number): Record<string, unknown> => ({
+      id: `item-${top}-${height}`,
+      kind: 'textbox',
+      top: length(top),
+      left: length(0),
+      width: length(2),
+      height: length(height),
+      paragraphs: [],
+    });
+    const page = {
+      header: { items: [item(1, 2)] },
+      body: { items: [item(0, 12), item(3, 2)] },
+      footer: { items: [item(0.5, 1.2)] },
+    } as unknown as PageDto;
+    expect(bandContentMinCm(page, 'header')).toBe(3);
+    expect(bandContentMinCm(page, 'body')).toBe(12);
+    expect(bandContentMinCm(page, 'footer')).toBe(1.7);
   });
 
   it('sectionWidthFrom limita la sección a [1 cm, ancho del papel]', () => {

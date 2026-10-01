@@ -12,7 +12,7 @@ import { Stage, Layer, Rect } from 'react-konva';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
-import { pageRulerSegments, sectionContentMinCm } from '@/lib/pageResize';
+import { pageRulerSegments } from '@/lib/pageResize';
 import {
   cm,
   findItemInList,
@@ -229,7 +229,10 @@ export function CanvasPreview({
 
   /* --------------------- redimensionado de página (U10) ------------------- */
 
-  const { pageResizeRef, rulerMarks } = usePageResize({ projection, onSetPageMargins });
+  const { pageResizeRef, rulerMarks, sectionMinCm, bandMinCm } = usePageResize({
+    projection,
+    onSetPageMargins,
+  });
 
   /**
    * Marcos discontinuos de los **demás** items de la multiselección: se miden
@@ -361,7 +364,8 @@ export function CanvasPreview({
               zoom={zoom}
               onResizeRegion={onResizeRegion}
               onResizeSectionWidth={onResizeSectionWidth}
-              sectionMinCm={sectionContentMinCm(projection.page)}
+              sectionMinCm={sectionMinCm}
+              bandMinCm={bandMinCm}
               onPreview={(orientation, position, label) =>
                 pageResizeRef.current?.showPreview(orientation, position, label)
               }
