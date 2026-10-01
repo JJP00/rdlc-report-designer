@@ -1,8 +1,8 @@
 import type { RdlcCommand } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
-import { childOrCreate, insertCanonical } from '../geometry/geometry.js';
-import { formatLength, type Length } from '../style/Length.js';
+import { childOrCreate, insertCanonical, readLength } from '../geometry/geometry.js';
+import { formatLength, fromCm, toCm, type Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome, DomainCommand } from './CommandContext.js';
 import { setNodeTextChange } from './nodeChanges.js';
@@ -52,6 +52,10 @@ export function applySetRegionHeight(
 /**
  * Ancho de la sección del informe (`ReportSection > Width`): manda en el ancho
  * de encabezado, cuerpo y pie (la proyección los sirve todos con ese valor).
+ *
+ * **El cuerpo nunca queda a la izquierda de su contenido**: si el ancho pedido
+ * es menor que el borde derecho más lejano de los items de primer nivel de las
+ * tres bandas, la sección **crece** hasta el contenido (los items no se mueven).
  */
 export function applySetSectionWidth(
   ctx: CommandContext,
@@ -62,16 +66,45 @@ export function applySetSectionWidth(
     return left(CommandRejectedError.create('El documento no tiene ReportSection'));
   }
 
+  const contentCm = contentRightCm(section);
+  const width: Length = contentCm > toCm(command.width) ? fromCm(contentCm) : command.width;
+
   const existing = section.child('Width');
   if (existing) {
     const previous = existing.text() ?? '';
-    existing.setText(formatLength(command.width));
+    const next = formatLength(width);
+    // Sin cambio real (p. ej. el clamp devuelve el ancho actual): no-op.
+    if (previous === next) return right({ inverse: [] });
+    existing.setText(next);
     return right({ inverse: [setNodeTextChange({ node: existing, value: previous })] });
   }
 
-  const created = section.createElement('Width', formatLength(command.width));
+  const created = section.createElement('Width', formatLength(width));
   insertCanonical(section, 'Width', created);
   return right({ inverse: [{ cmd: 'removeNode', node: created }] });
+}
+
+/**
+ * Borde derecho más lejano del contenido (cm): items de **primer nivel** de
+ * `Body`, `PageHeader` y `PageFooter` (como el crecimiento de rectángulos).
+ */
+function contentRightCm(section: RdlcNode): number {
+  const zero: Length = { value: 0, unit: 'cm' };
+  const containers = [
+    section.child('Body')?.child('ReportItems'),
+    section.child('Page')?.child('PageHeader')?.child('ReportItems'),
+    section.child('Page')?.child('PageFooter')?.child('ReportItems'),
+  ];
+
+  let max = 0;
+  for (const container of containers) {
+    for (const item of container?.children() ?? []) {
+      const left = toCm(readLength(item, 'Left') ?? zero);
+      const width = toCm(readLength(item, 'Width') ?? zero);
+      max = Math.max(max, left + width);
+    }
+  }
+  return Math.round(max * 100) / 100;
 }
 
 /** Escribe `Height` en la banda/cuerpo (lo crea en orden canónico si falta). */

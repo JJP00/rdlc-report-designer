@@ -1084,15 +1084,21 @@ test('el menú contextual de una celda inserta filas y columnas', async () => {
   // Click derecho sobre la celda: submenú «Insertar fila o columna» → fila debajo.
   await page.mouse.click(point!.x, point!.y, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
-  await page.getByRole('menuitem', { name: 'Fila debajo' }).click();
+  await clickMenuItem('Fila debajo');
   await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore + 1);
   await page.keyboard.press('Control+z');
   await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
+  // El menú se cierra con animación: hasta que desaparece, Radix bloquea el
+  // puntero y el siguiente click derecho no abriría nada.
+  await expect(page.getByRole('menuitem', { name: 'Insertar fila o columna' })).toBeHidden();
 
-  // Click derecho otra vez: submenú → columna a la derecha.
-  await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  // Click derecho otra vez: submenú → columna a la derecha. El punto se
+  // recalcula: el lienzo puede re-encuadrarse al cerrarse el menú anterior.
+  const again = await nodeCenter(content!.id);
+  expect(again).not.toBeNull();
+  await page.mouse.click(again!.x, again!.y, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
-  await page.getByRole('menuitem', { name: 'Columna a la derecha' }).click();
+  await clickMenuItem('Columna a la derecha');
   await expect.poll(() => tablixColumnCount('LinesTable2')).toBe(columnsBefore + 1);
   await page.keyboard.press('Control+z');
   await expect.poll(() => tablixColumnCount('LinesTable2')).toBe(columnsBefore);
@@ -2879,6 +2885,17 @@ function snapCm(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+/** Borde derecho más lejano del contenido (items de primer nivel), en cm. */
+function contentRightCm(proj: Projection): number {
+  const right = (item: {
+    left?: { value: number; unit: string };
+    width?: { value: number; unit: string };
+  }): number => lengthToCm(item.left) + lengthToCm(item.width);
+  return Math.max(
+    ...[...proj.page.header.items, ...proj.page.body.items, ...proj.page.footer.items].map(right),
+  );
+}
+
 /** Zoom vivo del escenario (los tests de zoom previos pueden haberlo cambiado). */
 async function stageZoom(): Promise<number> {
   return page.evaluate(() => {
@@ -2974,18 +2991,50 @@ async function pageResizePreview(): Promise<string | null> {
   });
 }
 
-/** Arrastra desde un punto y devuelve la etiqueta de la previsualización. */
+/** Puntos de la línea de la previsualización (px de papel; null si no hay). */
+async function pageResizePreviewLine(): Promise<{
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+} | null> {
+  return page.evaluate(() => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(predicate: (node: { name: () => string }) => boolean): {
+        points?: () => number[];
+      } | null;
+    } | null;
+    const line = stage?.findOne((candidate) => candidate.name() === 'page-resize-line');
+    const points = line?.points?.();
+    if (!points || points.length < 4) return null;
+    return { x1: points[0]!, y1: points[1]!, x2: points[2]!, y2: points[3]! };
+  });
+}
+
+/** Clic en un item de un submenú Radix: el nodo se re-monta y no siempre
+ *  queda "estable" para el clic con ratón. */
+async function clickMenuItem(name: string): Promise<void> {
+  const item = page.getByRole('menuitem', { name });
+  await expect(item).toBeVisible();
+  await item.dispatchEvent('click');
+}
+
+/** Arrastra desde un punto y devuelve la previsualización (etiqueta y línea). */
 async function dragFromPoint(
   point: { x: number; y: number },
   dx: number,
   dy: number,
-): Promise<string | null> {
+): Promise<{
+  label: string | null;
+  line: { x1: number; y1: number; x2: number; y2: number } | null;
+}> {
   await page.mouse.move(point.x, point.y);
   await page.mouse.down();
   await page.mouse.move(point.x + dx, point.y + dy, { steps: 8 });
   const label = await pageResizePreview();
+  const line = await pageResizePreviewLine();
   await page.mouse.up();
-  return label;
+  return { label, line };
 }
 
 test('el borde inferior del cuerpo cambia su alto con previsualización (y undo)', async () => {
@@ -2993,7 +3042,7 @@ test('el borde inferior del cuerpo cambia su alto con previsualización (y undo)
   const before = lengthToCm((await projection()).page.body.height);
   const point = await pageZonePoint('body');
 
-  const label = await dragFromPoint(point, 0, 20);
+  const { label } = await dragFromPoint(point, 0, 20);
   const expected = snapCm(before + 20 / zoom / PX_PER_CM);
   expect(label, 'la previsualización muestra el alto resultante').not.toBeNull();
   expect(Number((label ?? '').replace(' cm', ''))).toBeCloseTo(expected, 1);
@@ -3015,18 +3064,30 @@ test('los bordes del encabezado y del pie redimensionan sus bandas (con undo)', 
   const headerBefore = lengthToCm(page0.page.header.height);
   const footerBefore = lengthToCm(page0.page.footer.height);
 
-  // Encabezado: se arrastra su borde inferior hacia arriba (encoge).
+  // Encabezado: se arrastra su borde inferior hacia arriba (encoge). La guía
+  // viaja con el **borde inferior** resultante (margen superior + alto).
   const headerPoint = await pageZonePoint('header');
-  await dragFromPoint(headerPoint, 0, -20);
+  const headerDrag = await dragFromPoint(headerPoint, 0, -20);
   const headerExpected = snapCm(headerBefore - 20 / zoom / PX_PER_CM);
+  expect(Number((headerDrag.label ?? '').replace(' cm', ''))).toBeCloseTo(headerExpected, 1);
+  const topMargin = lengthToCm(page0.page.margins.top);
+  expect(headerDrag.line?.y1 ?? -1).toBeCloseTo((topMargin + headerExpected) * PX_PER_CM, 1);
   await expect
     .poll(async () => lengthToCm((await projection()).page.header.height))
     .toBeCloseTo(headerExpected, 2);
 
-  // Pie: se arrastra su borde superior hacia arriba (crece).
+  // Pie: se arrastra su borde superior hacia arriba (crece). La guía viaja con
+  // el **nuevo borde superior** (fondo del pie menos su alto), no con la base.
   const footerPoint = await pageZonePoint('footer');
-  await dragFromPoint(footerPoint, 0, -20);
+  const footerDrag = await dragFromPoint(footerPoint, 0, -20);
   const footerExpected = snapCm(footerBefore + 20 / zoom / PX_PER_CM);
+  expect(Number((footerDrag.label ?? '').replace(' cm', ''))).toBeCloseTo(footerExpected, 1);
+  const sheetHeight = lengthToCm(page0.page.height);
+  const bottomMargin = lengthToCm(page0.page.margins.bottom);
+  expect(footerDrag.line?.y1 ?? -1).toBeCloseTo(
+    (sheetHeight - bottomMargin - footerExpected) * PX_PER_CM,
+    1,
+  );
   await expect
     .poll(async () => lengthToCm((await projection()).page.footer.height))
     .toBeCloseTo(footerExpected, 2);
@@ -3049,7 +3110,7 @@ test('el borde derecho cambia el ancho de sección del informe (con undo)', asyn
   const sheet = lengthToCm(page0.page.width);
   const point = await pageZonePoint('section');
 
-  const label = await dragFromPoint(point, 20, 0);
+  const { label } = await dragFromPoint(point, 20, 0);
   const expected = Math.min(snapCm(before + 20 / zoom / PX_PER_CM), snapCm(sheet));
   expect(label, 'la previsualización muestra el ancho resultante').not.toBeNull();
   expect(Number((label ?? '').replace(' cm', ''))).toBeCloseTo(expected, 1);
@@ -3062,7 +3123,21 @@ test('el borde derecho cambia el ancho de sección del informe (con undo)', asyn
   expect(lengthToCm(after.page.header.width)).toBeCloseTo(expected, 2);
   expect(lengthToCm(after.page.footer.width)).toBeCloseTo(expected, 2);
 
+  // Encoger no puede dejar contenido fuera: la sección se queda en el borde
+  // derecho del contenido (el cuerpo "crece" hasta él) y la guía lo muestra.
+  const contentRight = contentRightCm(page0);
+  const shrinkPoint = await pageZonePoint('section');
+  const shrink = await dragFromPoint(shrinkPoint, -200, 0);
+  expect(Number((shrink.label ?? '').replace(' cm', ''))).toBeCloseTo(contentRight, 1);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.width))
+    .toBeCloseTo(contentRight, 2);
+
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.width))
+    .toBeCloseTo(expected, 2);
   await page.keyboard.press('Control+z');
   await expect
     .poll(async () => lengthToCm((await projection()).page.body.width))

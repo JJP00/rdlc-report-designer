@@ -12,7 +12,7 @@ import { Stage, Layer, Rect } from 'react-konva';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
-import { pageRulerSegments } from '@/lib/pageResize';
+import { pageRulerSegments, sectionContentMinCm } from '@/lib/pageResize';
 import {
   cm,
   findItemInList,
@@ -361,6 +361,7 @@ export function CanvasPreview({
               zoom={zoom}
               onResizeRegion={onResizeRegion}
               onResizeSectionWidth={onResizeSectionWidth}
+              sectionMinCm={sectionContentMinCm(projection.page)}
               onPreview={(orientation, position, label) =>
                 pageResizeRef.current?.showPreview(orientation, position, label)
               }

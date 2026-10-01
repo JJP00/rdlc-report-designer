@@ -1,11 +1,14 @@
+import type { PageDto } from '@rdlc-designer/contracts';
+import { toCm } from './projection';
+
 /**
  * Matemática del **redimensionado de página** en el lienzo (U10): alto de las
  * bandas (encabezado, cuerpo y pie), ancho de la sección del informe y márgenes.
  *
  * Todo en cm, con imán de 0,1 cm (el mismo que la rejilla) y los mismos límites
- * que aplica el dominio: el cuerpo de la sección no baja de 1 cm, los márgenes
- * no dejan menos de 1 cm de contenido entre lados opuestos y las bandas pueden
- * colapsar a 0.
+ * que aplica el dominio: el ancho de sección **nunca baja del contenido** (si un
+ * elemento sobresale, el cuerpo crece), los márgenes no dejan menos de 1 cm de
+ * contenido entre lados opuestos y las bandas pueden colapsar a 0.
  */
 
 /** Ancho mínimo de la sección del informe. */
@@ -29,15 +32,32 @@ export function bandHeightFrom(currentCm: number, deltaCm: number, snapStepCm = 
   return Math.max(0, snapCm(currentCm + deltaCm, snapStepCm));
 }
 
-/** Ancho de sección tras un arrastre: entre 1 cm y el ancho del papel. */
+/** Ancho de sección tras un arrastre: entre el contenido y el ancho del papel. */
 export function sectionWidthFrom(
   currentCm: number,
   deltaCm: number,
   maxCm: number,
+  minCm = MIN_SECTION_CM,
   snapStepCm = 0.1,
 ): number {
   const wanted = snapCm(currentCm + deltaCm, snapStepCm);
-  return Math.min(Math.max(wanted, MIN_SECTION_CM), Math.max(MIN_SECTION_CM, round2(maxCm)));
+  const floor = Math.max(MIN_SECTION_CM, round2(minCm));
+  return Math.min(Math.max(wanted, floor), Math.max(floor, round2(maxCm)));
+}
+
+/**
+ * Mínimo de ancho de sección que impone el **contenido**: el borde derecho más
+ * lejano de los items de primer nivel de las tres bandas. El cuerpo nunca queda
+ * a la izquierda de su contenido: si un elemento sobresale, crece.
+ */
+export function sectionContentMinCm(page: PageDto): number {
+  let max = 0;
+  for (const region of [page.header, page.body, page.footer]) {
+    for (const item of region.items) {
+      max = Math.max(max, toCm(item.left) + toCm(item.width));
+    }
+  }
+  return round2(max);
 }
 
 /**

@@ -1,5 +1,37 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-10-01 (3.ª parte) · pruebas manuales: dos arreglos de U10** —
+> feedback del uso real sobre el redimensionado de página:
+>
+> - **Previsualización del pie**: la guía se pintaba en `footerBase` (pegada al
+>   margen inferior) en vez de en el **nuevo borde superior** del pie. El
+>   comando era correcto; solo fallaba la posición de la línea. El E2E ahora
+>   asevera también la **posición de la línea** (encabezado: margen superior +
+>   alto; pie: fondo − alto), así que el bug no pasaría.
+> - **El ancho de sección no baja del contenido**: el cuerpo nunca queda a la
+>   izquierda de sus items. El dominio clampa `setSectionWidth` al borde derecho
+>   más lejano de los items de **primer nivel** de las tres bandas (si el
+>   contenido sobresale, la sección crece; clamp visible en el arrastre con
+>   `sectionContentMinCm`, y no-op byte-exacto si el valor no cambia). Es la
+>   misma regla que el crecimiento de rectángulos: colocar items ya está clampado
+>   al cuerpo, así que la única vía de fuga era encoger.
+> - **Estabilización E2E**: el test del menú de celda clicaba un item de submenú
+>   Radix que se re-monta («element is not stable»); ahora usa
+>   `clickMenuItem` (espera visible + `dispatchEvent('click')`), espera al cierre
+>   del menú antes de reabrirlo y **recalcula el punto** (el lienzo se
+>   re-encuadra tras la interacción). `undoAll` tolera outcomes **sin inversos**
+>   (comandos no-op).
+>
+> Verificación: **300 back + 180 front**, typecheck limpio; E2E dirigidos verdes
+> (bandas, márgenes, clamp de sección y menú con `--repeat-each=3`). **Pendiente:
+> pasada completa de la suite E2E** (75 tests) en la próxima sesión + commit de
+> cierre si todo está verde.
+>
+> **Punto de retomada**: ① pasada completa de E2E; ② sigue **T1** (CI +
+> empaquetado); ③ abiertos el bug de `Maximum update depth exceeded` y los
+> P2/P3 de 0002. **Nota**: `docs/features/0001-capas.md` (y su línea del README)
+> siguen siendo trabajo del usuario, sin tocar.
+
 > **Sesión 2026-10-01 (2.ª parte) · F2.c · fila de totales del grupo** — el
 > «Añadir total» del plan: insertar la fila de agregados **antes o después del
 > grupo** con las expresiones ya precargadas por columna.

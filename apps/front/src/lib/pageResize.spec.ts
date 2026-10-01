@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import type { PageDto } from '@rdlc-designer/contracts';
 import {
   bandHeightFrom,
   clampMargin,
   formatCm,
   marginFromPointer,
   pageRulerSegments,
+  sectionContentMinCm,
   sectionWidthFrom,
   snapCm,
 } from './pageResize';
@@ -12,7 +14,8 @@ import {
 /**
  * U10 · matemática del redimensionado de página: alto de bandas (encabezado,
  * cuerpo y pie), ancho de sección y márgenes, con imán de 0,1 cm y los límites
- * del dominio (bandas ≥ 0, sección ≥ 1 cm, contenido ≥ 1 cm entre márgenes).
+ * del dominio (bandas ≥ 0, sección ≥ el contenido y ≥ 1 cm, contenido ≥ 1 cm
+ * entre márgenes).
  */
 
 describe('U10 · pageResize', () => {
@@ -36,6 +39,32 @@ describe('U10 · pageResize', () => {
     expect(sectionWidthFrom(19, -25, 21)).toBe(1);
     expect(sectionWidthFrom(19, 5, 21)).toBe(21);
     expect(sectionWidthFrom(19, 0.03, 21)).toBe(19);
+  });
+
+  it('sectionWidthFrom no encoge por debajo del contenido (mínimo)', () => {
+    // El contenido llega a 18.94: pedir 10 deja la sección en 18.94.
+    expect(sectionWidthFrom(19, -9, 21, 18.94)).toBe(18.94);
+    // Hacia la derecha no cambia nada.
+    expect(sectionWidthFrom(19, 0.5, 21, 18.94)).toBe(19.5);
+  });
+
+  it('sectionContentMinCm toma el borde derecho más lejano de las tres bandas', () => {
+    const length = (value: number): { value: number; unit: string } => ({ value, unit: 'cm' });
+    const item = (left: number, width: number): Record<string, unknown> => ({
+      id: `item-${left}-${width}`,
+      kind: 'textbox',
+      top: length(0),
+      left: length(left),
+      width: length(width),
+      height: length(1),
+      paragraphs: [],
+    });
+    const page = {
+      header: { items: [item(1, 2)] },
+      body: { items: [item(0, 19), item(2, 3)] },
+      footer: { items: [item(0.5, 1)] },
+    } as unknown as PageDto;
+    expect(sectionContentMinCm(page)).toBe(19);
   });
 
   it('marginFromPointer mide desde el borde que se arrastra', () => {

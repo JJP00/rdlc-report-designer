@@ -4,7 +4,7 @@ import type {
   CommandOutcome,
 } from '../../src/domain/document/commands/CommandContext.js';
 import { inverseCommands } from '../../src/domain/document/commands/CommandContext.js';
-import type { Either } from '../../src/shared/either.js';
+import { right, type Either } from '../../src/shared/either.js';
 import type { DomainError } from '../../src/shared/domainError.js';
 
 /**
@@ -16,6 +16,8 @@ export function undoAll(
   outcome: CommandOutcome,
 ): Either<DomainError, CommandOutcome> {
   const inverses = [...inverseCommands(outcome)].reverse();
+  // Un comando no-op (p. ej. un clamp que deja el valor igual) no tiene inversos.
+  if (inverses.length === 0) return right({ inverse: [] });
   let result = applyCommand(ctx, inverses[0]!);
   for (const inverse of inverses.slice(1)) {
     if (result.isLeft()) return result;

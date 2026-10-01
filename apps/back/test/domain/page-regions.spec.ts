@@ -216,7 +216,7 @@ describe('G6/U10 · cuerpo y ancho de sección', () => {
 
     const applied = applyCommand(
       { root: doc.root, index },
-      { cmd: 'setSectionWidth', width: { value: 15, unit: 'cm' } },
+      { cmd: 'setSectionWidth', width: { value: 20, unit: 'cm' } },
     );
     expect(applied.isRight()).toBe(true);
     if (!applied.isRight()) return;
@@ -224,7 +224,7 @@ describe('G6/U10 · cuerpo y ancho de sección', () => {
     const output = xmlAdapter.serialize(doc);
     // El `Width` de la sección (tras `</Body>`), no los de los items.
     const section = output.slice(output.indexOf('</Body>'));
-    expect(section).toContain('<Width>15cm</Width>');
+    expect(section).toContain('<Width>20cm</Width>');
 
     const projected = projectionAdapter.project({
       sessionId: 'test',
@@ -232,13 +232,55 @@ describe('G6/U10 · cuerpo y ancho de sección', () => {
       document: doc,
       version: 2,
     });
-    expect(projected.page.body.width).toEqual({ value: 15, unit: 'cm' });
-    expect(projected.page.header.width).toEqual({ value: 15, unit: 'cm' });
-    expect(projected.page.footer.width).toEqual({ value: 15, unit: 'cm' });
+    expect(projected.page.body.width).toEqual({ value: 20, unit: 'cm' });
+    expect(projected.page.header.width).toEqual({ value: 20, unit: 'cm' });
+    expect(projected.page.footer.width).toEqual({ value: 20, unit: 'cm' });
 
     const problems = validator.validate(output).problems;
     expect(problems, problems.join(' | ')).toEqual([]);
 
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(xmlAdapter.serialize(doc)).toBe(xml);
+  });
+
+  it('el ancho de sección no baja del contenido: el cuerpo crece hasta él', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+
+    // Borde derecho más lejano del contenido (items de primer nivel).
+    const projectedBefore = projectionAdapter.project({
+      sessionId: 'test',
+      filePath: 'SalesCreditMemoESP.rdlc',
+      document: doc,
+      version: 1,
+    });
+    const contentRightCm = Math.max(
+      ...[
+        ...projectedBefore.page.header.items,
+        ...projectedBefore.page.body.items,
+        ...projectedBefore.page.footer.items,
+      ].map((item) => item.left.value + item.width.value),
+    );
+    expect(contentRightCm).toBe(19);
+
+    // Pedir 5cm no encoge la sección: se queda en el contenido.
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setSectionWidth', width: { value: 5, unit: 'cm' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const projectedAfter = projectionAdapter.project({
+      sessionId: 'test',
+      filePath: 'SalesCreditMemoESP.rdlc',
+      document: doc,
+      version: 2,
+    });
+    expect(projectedAfter.page.body.width).toEqual({ value: contentRightCm, unit: 'cm' });
+
+    // Es un no-op real: el fichero no cambia y el undo también lo deja igual.
+    expect(xmlAdapter.serialize(doc)).toBe(xml);
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(xmlAdapter.serialize(doc)).toBe(xml);

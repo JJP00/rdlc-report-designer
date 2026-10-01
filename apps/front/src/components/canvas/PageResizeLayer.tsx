@@ -44,6 +44,8 @@ export interface PageResizeZonesProps {
   onResizeRegion?: (region: PageRegion, cm: number) => void;
   /** Ancho de sección al soltar el borde derecho (cm). */
   onResizeSectionWidth?: (cm: number) => void;
+  /** Mínimo por contenido (cm): el cuerpo no queda a la izquierda de sus items. */
+  sectionMinCm?: number;
   /** Pinta la previsualización (vive en `PageResizePreview`, sobre el contenido). */
   onPreview: (orientation: 'horizontal' | 'vertical', position: number, label: string) => void;
   /** Oculta la previsualización al soltar/cancelar. */
@@ -61,6 +63,7 @@ export function PageResizeZones({
   zoom,
   onResizeRegion,
   onResizeSectionWidth,
+  sectionMinCm,
   onPreview,
   onPreviewEnd,
 }: PageResizeZonesProps): ReactNode {
@@ -175,7 +178,9 @@ export function PageResizeZones({
           zoom={zoom}
           onPreviewMove={(delta, shift) => {
             const heightCm = bandHeightFrom(footerCm, -delta, snapStep(shift));
-            previewBand(footerBase - heightCm * PX_PER_CM, heightCm);
+            // La guía va en el **nuevo borde superior** del pie (la base está
+            // pegada al margen inferior).
+            onPreview('horizontal', footerBase - heightCm * PX_PER_CM, formatCm(heightCm));
           }}
           onDragged={(delta, shift) =>
             onResizeRegion('pageFooter', bandHeightFrom(footerCm, -delta, snapStep(shift)))
@@ -194,11 +199,19 @@ export function PageResizeZones({
           length={Math.max(reportBottom - layout.marginTop, ZONE_PX)}
           zoom={zoom}
           onPreviewMove={(delta, shift) => {
-            const widthCm = sectionWidthFrom(sectionCm, delta, sheetWidthCm, snapStep(shift));
+            const widthCm = sectionWidthFrom(
+              sectionCm,
+              delta,
+              sheetWidthCm,
+              sectionMinCm,
+              snapStep(shift),
+            );
             previewSection(widthCm);
           }}
           onDragged={(delta, shift) =>
-            onResizeSectionWidth(sectionWidthFrom(sectionCm, delta, sheetWidthCm, snapStep(shift)))
+            onResizeSectionWidth(
+              sectionWidthFrom(sectionCm, delta, sheetWidthCm, sectionMinCm, snapStep(shift)),
+            )
           }
           onPreviewEnd={onPreviewEnd}
         />
@@ -263,6 +276,7 @@ export const PageResizePreview = forwardRef<
       <Group ref={previewGroup} name="page-resize-preview" visible={false} listening={false}>
         <Line
           ref={previewLine}
+          name="page-resize-line"
           points={[0, 0, 0, 0]}
           stroke="#2563eb"
           strokeWidth={1.5}
