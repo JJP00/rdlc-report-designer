@@ -11,18 +11,12 @@ import { cm, toCm } from '@/lib/projection';
 import type { PageResizeHandle } from './PageResizeLayer';
 import type { RulerMark } from './Ruler';
 
-/** Etiquetas de los márgenes (accesibles y de la previsualización). */
+/** Etiquetas accesibles de los márgenes (aria-label de los marcadores). */
 const MARGIN_LABELS = {
   left: 'Margen izquierdo',
   right: 'Margen derecho',
   top: 'Margen superior',
   bottom: 'Margen inferior',
-} as const;
-const MARGIN_SHORT = {
-  left: 'Margen izq.',
-  right: 'Margen der.',
-  top: 'Margen sup.',
-  bottom: 'Margen inf.',
 } as const;
 
 type MarginSide = keyof typeof MARGIN_LABELS;
@@ -106,10 +100,12 @@ export function usePageResize({
         label: MARGIN_LABELS[side],
         onPreview: (value, shift) => {
           const { margin, position } = resolveMargin(side, value, shift);
+          // La etiqueta es solo el tamaño resultante, como en el resto de
+          // previsualizaciones de página.
           pageResizeRef.current?.showMarginPreview(
             horizontal ? 'vertical' : 'horizontal',
             position,
-            `${MARGIN_SHORT[side]} ${formatCm(margin)}`,
+            formatCm(margin),
           );
         },
         onCommit: (value, shift) => commitMargin(side, value, shift),

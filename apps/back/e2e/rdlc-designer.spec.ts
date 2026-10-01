@@ -3232,12 +3232,9 @@ test('los márgenes se arrastran desde la regla (previsualización junto a la l�
   await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 8 });
   const label = await pageResizePreview();
   expect(label, 'la previsualización muestra el margen resultante').not.toBeNull();
-  expect(label).toContain('Margen izq.');
+  expect(label, 'la etiqueta es solo el tamaño, sin el nombre').not.toContain('Margen');
   const expected = snapCm(before + 20 / zoom / PX_PER_CM);
-  expect(Number((label ?? '').replace('Margen izq.', '').replace(' cm', ''))).toBeCloseTo(
-    expected,
-    2,
-  );
+  expect(Number((label ?? '').replace(' cm', ''))).toBeCloseTo(expected, 2);
   // Línea vertical sobre la nueva frontera y pastilla a su derecha, pegada.
   const line = await pageResizePreviewLine();
   const badge = await pageResizeBadge();
@@ -3248,8 +3245,8 @@ test('los márgenes se arrastran desde la regla (previsualización junto a la l�
   expect(badge!.x).toBeGreaterThan(line!.x1);
   expect(badge!.x - line!.x1).toBeLessThanOrEqual(24 / zoom);
   expect(badge!.y).toBeLessThanOrEqual(24 / zoom);
-  // La pastilla crece con el texto: «Margen izq. X cm» no se recorta.
-  expect(badge!.width * zoom).toBeGreaterThan(80);
+  // La pastilla respeta su ancho mínimo de pantalla (74 px).
+  expect(badge!.width * zoom).toBeGreaterThanOrEqual(73);
   await page.mouse.up();
 
   await expect
@@ -3276,11 +3273,8 @@ test('los márgenes se arrastran desde la regla (previsualización junto a la l�
   const topLine = await pageResizePreviewLine();
   const topBadge = await pageResizeBadge();
   const topExpected = snapCm(topBefore + 80 / zoom / PX_PER_CM);
-  expect(topLabel).toContain('Margen sup.');
-  expect(Number((topLabel ?? '').replace('Margen sup.', '').replace(' cm', ''))).toBeCloseTo(
-    topExpected,
-    2,
-  );
+  expect(topLabel).not.toContain('Margen');
+  expect(Number((topLabel ?? '').replace(' cm', ''))).toBeCloseTo(topExpected, 2);
   expect(topLine).not.toBeNull();
   expect(topLine!.y1).toBeCloseTo(topExpected * PX_PER_CM, 2);
   expect(topLine!.y1).toBeCloseTo(topLine!.y2, 5);
