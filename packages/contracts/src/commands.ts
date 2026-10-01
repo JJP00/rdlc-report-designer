@@ -353,6 +353,22 @@ const addRowInsideGroup = z.object({
   height: lengthSchema.optional(),
 });
 
+/**
+ * F2.c · fila de **totales del grupo**: como `addRowOutsideGroup`, nace una
+ * fila estática pegada al grupo (encima = antes de su primera hoja; debajo =
+ * después de la última) y el dominio **precarga** cada celda con el agregado de
+ * su columna, con el ámbito del grupo: `Sum` para los campos que el informe ya
+ * suma en algún sitio y `First` para el resto (totales de campos no aditivos).
+ */
+const addTotalRow = z.object({
+  cmd: z.literal('addTotalRow'),
+  id: z.string().min(1),
+  /** Fila (hoja) del body que marca el grupo. */
+  row: z.number().int().nonnegative(),
+  where: z.enum(['above', 'below']),
+  height: lengthSchema.optional(),
+});
+
 const deleteRow = z.object({
   cmd: z.literal('deleteRow'),
   id: z.string().min(1),
@@ -610,6 +626,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   addRow,
   addRowOutsideGroup,
   addRowInsideGroup,
+  addTotalRow,
   deleteRow,
   addColumn,
   deleteColumn,

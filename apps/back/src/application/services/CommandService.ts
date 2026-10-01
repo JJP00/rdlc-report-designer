@@ -28,6 +28,13 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'setRegionHeight',
   // El ancho de sección es el de las tres bandas: cambian los límites.
   'setSectionWidth',
+  // Crean celdas con textbox **nuevos con nombre**: el índice debe verlos para
+  // que la siguiente inserción no reutilice el nombre (F2/F2.c).
+  'addRow',
+  'addRowOutsideGroup',
+  'addRowInsideGroup',
+  'addTotalRow',
+  'addColumn',
   'setReportCode',
   'insertItem',
   'duplicateItem',

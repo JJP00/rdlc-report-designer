@@ -2729,6 +2729,48 @@ test('el menú contextual inserta fila fuera del grupo y abre sus propiedades', 
   await expect(dialog).toBeHidden();
 });
 
+/** Valores del primer run de cada celda con contenido de una fila. */
+async function rowRunValues(tablixId: string, row: number): Promise<string[]> {
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, tablixId) as
+    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
+  return (tablix?.body.rows[row]?.cells ?? [])
+    .map((cell) => cell?.content?.paragraphs?.[0]?.runs[0]?.value)
+    .filter((value): value is string => typeof value === 'string');
+}
+
+test('el total del grupo se añade desde el menú con los agregados por columna (con undo)', async () => {
+  // Celda de la primera fila del grupo LineNo2 de LinesTable2 (fila 3, hoja 2):
+  // el mismo punto que usa el test de «fuera del grupo».
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, 'LinesTable2') as
+    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
+  const content = tablix?.body.rows[2]?.cells
+    .map((cell) => cell?.content)
+    .find((entry): entry is ItemLike => Boolean(entry));
+  expect(content).toBeTruthy();
+
+  const point = await nodeCenter(content!.id);
+  expect(point).not.toBeNull();
+  const rowsBefore = await tablixRowCount('LinesTable2');
+
+  await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Total del grupo' }).click();
+  await page.getByRole('menuitem', { name: 'Fila de total debajo' }).click();
+
+  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore + 1);
+  // Nace pegada al grupo (tras su última hoja: índice 4) con los agregados por
+  // columna y el ámbito del grupo; `UnitPrice` no se suma en el informe.
+  const values = await rowRunValues('LinesTable2', 4);
+  expect(values).toContain('=Sum(Fields!BTCQuantity.Value, "LineNo2")');
+  expect(values).toContain('=Sum(Fields!LineAmount_Line.Value, "LineNo2")');
+  expect(values).toContain('=First(Fields!UnitPrice.Value, "LineNo2")');
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
+});
+
 test('un grupo hoja (Tablix7) gana una fila dentro y se anida en la estructura', async () => {
   await selectItemViaPalette('Tablix7');
   await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
@@ -2848,49 +2890,71 @@ async function stageZoom(): Promise<number> {
 }
 
 /**
- * Punto de pantalla del centro de una zona de redimensionado de página
- * (`header`/`body`/`footer`/`section`). Se lee **en vivo** del nodo Konva (el
- * hook `__rdlcPageResize` no se refresca al hacer scroll) y, si la zona queda
- * fuera de la vista, se centra el contenedor con scroll.
+ * Punto de pantalla de una zona de redimensionado de página
+ * (`header`/`body`/`footer`/`section`). Las zonas viven **bajo el papel**, así
+ * que se busca un punto de la zona **libre** (sin item encima) con el
+ * `getIntersection` de Konva; si hace falta, se centra el contenedor con scroll.
  */
 async function pageZonePoint(zone: string): Promise<{ x: number; y: number }> {
   return page.evaluate((name) => {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
       container(): HTMLElement;
       scaleX(): number;
+      getIntersection(pos: { x: number; y: number }): { name(): string } | null;
       findOne(predicate: (node: { name: () => string }) => boolean): {
         getAbsolutePosition(): { x: number; y: number };
         width(): number;
         height(): number;
+        name(): string;
       } | null;
     } | null;
     if (!stage) throw new Error('sin stage');
     const node = stage.findOne((candidate) => candidate.name() === `page-resize-${name}`);
     if (!node) throw new Error(`sin zona de página '${name}'`);
     const scale = stage.scaleX();
-    const center = (): { x: number; y: number } => {
+
+    /** Primer punto de muestreo de la zona que no tiene un item encima. */
+    const freePoint = (): { x: number; y: number } => {
+      const abs = node.getAbsolutePosition();
+      const width = node.width() * scale;
+      const height = node.height() * scale;
+      const vertical = name === 'section';
+      const samples = 40;
+      // En las bandas se busca desde la izquierda (margen); en la sección, desde
+      // abajo (junto al margen inferior): son los tramos libres habituales.
+      for (let index = 0; index < samples; index += 1) {
+        const t = vertical ? 1 - (index + 0.5) / samples : (index + 0.5) / samples;
+        const x = abs.x + (vertical ? width / 2 : width * t);
+        const y = abs.y + (vertical ? height * t : height / 2);
+        const hit = stage.getIntersection({ x, y });
+        if (!hit || hit === node) {
+          const rect = stage.container().getBoundingClientRect();
+          return { x: rect.left + x, y: rect.top + y };
+        }
+      }
+      // Sin hueco libre: el centro (el arrastre tocará el item, no la zona).
       const rect = stage.container().getBoundingClientRect();
-      const position = node.getAbsolutePosition();
       return {
-        x: rect.left + position.x + (node.width() * scale) / 2,
-        y: rect.top + position.y + (node.height() * scale) / 2,
+        x: rect.left + abs.x + width / 2,
+        y: rect.top + abs.y + height / 2,
       };
     };
-    const first = center();
+
+    let point = freePoint();
     if (
-      first.x < 60 ||
-      first.y < 60 ||
-      first.x > window.innerWidth - 60 ||
-      first.y > window.innerHeight - 60
+      point.x < 60 ||
+      point.y < 60 ||
+      point.x > window.innerWidth - 60 ||
+      point.y > window.innerHeight - 60
     ) {
       const scroll = document.querySelector('div.overflow-auto');
       scroll?.scrollBy({
-        left: first.x - window.innerWidth / 2,
-        top: first.y - window.innerHeight / 2,
+        left: point.x - window.innerWidth / 2,
+        top: point.y - window.innerHeight / 2,
       });
-      return center();
+      point = freePoint();
     }
-    return first;
+    return point;
   }, zone);
 }
 

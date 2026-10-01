@@ -1,5 +1,36 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-10-01 (2.ª parte) · F2.c · fila de totales del grupo** — el
+> «Añadir total» del plan: insertar la fila de agregados **antes o después del
+> grupo** con las expresiones ya precargadas por columna.
+>
+> - **Contrato**: `addTotalRow` (fila estática pegada al grupo, como
+>   `addRowOutsideGroup`; encima = antes de su primera hoja, debajo = después
+>   de la última).
+> - **Dominio**: el comando infiere el agregado de cada columna desde el
+>   **detalle del grupo** (la última fila de su rango con una expresión de **un
+>   solo campo** — vale `=Fields!X.Value`, `=Sum(Fields!X.Value)` o
+>   `=Format(Fields!X.Value)`; las de varios campos se ignoran) y desde el
+>   propio informe: si el campo aparece en algún `Sum(` del documento →
+>   `=Sum(Fields!X.Value, "Grupo")`; si no → `=First(..., "Grupo")` (totales de
+>   campos no aditivos). Undo byte-exacto: la fila entera se crea y se quita.
+> - **Front**: submenú **«Total del grupo»** en el menú contextual de una celda
+>   (solo si su fila está dentro de un grupo) con «Fila de total encima» y
+>   «Fila de total debajo».
+> - **Fix de proceso**: los comandos que crean celdas con **textbox con
+>   nombre** (`addRow`, `addRowOutsideGroup`, `addRowInsideGroup`,
+>   `addTotalRow`, `addColumn`) fuerzan la **reconstrucción del índice**: sin
+>   ella, dos inserciones seguidas podían reutilizar el mismo `TextboxN` (test
+>   de regresión a nivel de servicio).
+>
+> Verificación: **5 tests back nuevos** (`tablix-totals.spec.ts` +
+> unicidad de nombres), **E2E de totales** desde el menú (Sum/First reales de
+> `LinesTable2`) y React Doctor **100/100**. **Suite completa: 75 E2E verdes**.
+>
+> **Punto de retomada**: F2.c **cerrado**; lo siguiente del plan es **T1** (CI +
+> empaquetado). Quedan abiertos el bug de `Maximum update depth exceeded` y los
+> P2/P3 de 0002.
+
 > **Sesión 2026-10-01 · U10 · redimensionado de página en el lienzo** — pedido
 > en las pruebas manuales: además de los altos de encabezado/pie, poder
 > **arrastrar los límites** en el lienzo (cuerpo, bandas, márgenes y ancho del
@@ -8,7 +39,7 @@
 >
 > - **Contrato/dominio**: `setRegionHeight` acepta `body`
 >   (`ReportSection > Body > Height`, con orden canónico `ReportItems, Height,
->   Style`) y nuevo **`setSectionWidth`** (`ReportSection > Width`, estructural:
+Style`) y nuevo **`setSectionWidth`** (`ReportSection > Width`, estructural:
 >   manda en el ancho de las tres bandas). Undo byte-exacto y XSD válido.
 > - **Lienzo** (`PageResizeLayer`): zonas en el borde inferior del encabezado y
 >   del cuerpo, el superior del pie y el derecho de la sección. Al soltar, **un
@@ -25,15 +56,19 @@
 >   `dragstart`, que en Konva llega **después de su umbral de 3 px**; ahora se
 >   ancla en `mousedown` (el gesto no pierde ese tramo). Aplicado también al
 >   redimensionado de cabeceras del Tablix, que arrastraba el mismo defecto.
+> - **Fix de capas (lo destapó la pasada completa)**: las zonas de página,
+>   estando **encima del papel**, se comían clics donde el contenido toca el
+>   borde de una banda (14 tests de selección fallaban). Ahora las zonas van
+>   **bajo el papel** (el contenido siempre gana el clic; la línea se agarra en
+>   los tramos libres) y la previsualización vive en una capa superior sin
+>   `listening`. El E2E busca el punto libre con `getIntersection` muestreando
+>   desde los extremos libres (margen izquierdo en las bandas, inferior en la
+>   sección).
 > - **Verificación**: **294 back + 178 front**, typecheck limpio, React Doctor
 >   **100/100** y **5 E2E nuevos** (bandas, ancho de sección, márgenes y tramos
->   de regla) verdes en pasada dirigida. **Pendiente**: pasada completa de la
->   suite E2E (74 tests) en la próxima sesión.
+>   de regla). **Suite completa: 75 E2E verdes** (los 14 fallos de la primera
+>   pasada quedaron cerrados con el fix de capas).
 >
-> **Punto de retomada**: ① pasar la **suite E2E completa** (el build de `out/`
-> ya incluye estos cambios) y, si todo está verde, **commitear U10**; ② sigue en
-> el plan **F2.c** (totales, opcional) y cerrar con **T1** (CI/empaquetado);
-> ③ abiertos: bug de `Maximum update depth exceeded` y P2/P3 de 0002.
 > **Nota**: `docs/features/0001-capas.md` y su línea en el README son trabajo
 > del usuario: **no se han tocado**.
 
@@ -1032,11 +1067,11 @@ F2.c/F3, que ya es fase); sigue ② el pase de UX (`intent`, U1–U9).
 4. **Tablix visual (Fase 2)** — 🔶 rejilla editable, estructura (bloque 1), rejilla
    segmentada, fusión por tramos, proyección de anchos por columna acumulada,
    **visibilidad de items y de filas/columnas/grupos**, **cabeceras
-   (`TablixHeader`) + esquina (`TablixCorner`)** y **gestión completa de grupos de
+   (`TablixHeader`) + esquina (`TablixCorner`)**, **gestión completa de grupos de
    fila** (F2.b/F2.b.2: expresiones, crear/quitar elevando filas, saltos de
-   página, ordenación y `ToggleItem`) ✅; falta la **conveniencia de totales**
-   (F2.c, opcional: hoy ya se pueden hacer a mano, son filas estáticas con
-   agregados).
+   página, ordenación y `ToggleItem`) ✅ y **totales del grupo** (F2.c, sesión
+   2026-10-01: `addTotalRow` con `Sum`/`First` inferidos por columna y el
+   submenú «Total del grupo») ✅.
 5. **Matrix (Fase 3)** — ✅ hecho (sesión 2026-09-30, 5.ª parte): **grupos de
    columna** (`addColumnGroup`/`addColumnToGroup`) con la misma edición que los
    de fila en el panel de Estructura (agrupar, extender con la contigua,

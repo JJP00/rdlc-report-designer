@@ -77,6 +77,8 @@ interface RowInsertPlan {
   member: { container: RdlcNode; index: number };
 }
 
+export type AddTotalRowCommand = Extract<RdlcCommand, { cmd: 'addTotalRow' }>;
+
 export function applyAddRow(
   ctx: CommandContext,
   command: AddRowCommand,
@@ -226,12 +228,161 @@ export function applyAddRowInsideGroup(
   });
 }
 
+/* ------------------------------ addTotalRow ------------------------------ */
+
+/**
+ * F2.c · fila de **totales del grupo**: inserta una fila estática pegada al
+ * grupo que contiene `row` (como `addRowOutsideGroup`) y precarga cada celda con
+ * el agregado de su columna, con el ámbito del grupo. La heurística es
+ * documental (el corpus de BC no declara tipos de campo): si el campo del
+ * detalle aparece en algún `Sum(` del informe, el total es `=Sum(...)`; si no,
+ * `=First(...)` (total de un campo no aditivo). Las columnas cuya expresión de
+ * detalle referencia varios campos quedan vacías.
+ */
+export function applyAddTotalRow(
+  ctx: CommandContext,
+  command: AddTotalRowCommand,
+): Either<DomainError, CommandOutcome> {
+  const parts = tablixParts(ctx, command.id);
+  if (parts.isLeft()) return left(parts.value);
+  const { rows, hierarchy, columns } = parts.value;
+
+  if (command.row >= rows.length) {
+    return left(
+      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
+    );
+  }
+
+  const chain = memberChainAt(hierarchy, command.row);
+  if (!chain || chain.length === 0) {
+    return left(
+      CommandRejectedError.create(
+        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
+      ),
+    );
+  }
+
+  const group = [...chain].reverse().find((ref) => ref.member.child('Group'));
+  if (!group) {
+    return left(CommandRejectedError.create('La fila no está dentro de un grupo'));
+  }
+
+  const range = memberLeafRange(hierarchy, group.member);
+  if (!range) {
+    return left(CommandRejectedError.create('No se pudo localizar el rango de hojas del grupo'));
+  }
+
+  const textFor = totalExpressions(ctx.root, rows, columns.length, range, group.member);
+
+  const above = command.where === 'above';
+  return performAddRow(
+    ctx,
+    parts.value,
+    {
+      row: above ? range.start : range.end + 1,
+      member: { container: group.container, index: above ? group.index : group.index + 1 },
+    },
+    command.height,
+    textFor,
+  );
+}
+
+/** Agregado de cada columna para la fila de totales (o vacío). */
+function totalExpressions(
+  root: RdlcNode,
+  rows: RdlcNode[],
+  columnCount: number,
+  range: { start: number; end: number },
+  groupMember: RdlcNode,
+): (column: number) => string | undefined {
+  const name = groupMember.child('Group')?.attribute('Name');
+  const scope = name ? `, "${name}"` : '';
+  const summed = collectSummedFields(root);
+  const byColumn: (string | undefined)[] = [];
+
+  for (let column = 0; column < columnCount; column += 1) {
+    const field = detailFieldAt(rows, range, column);
+    if (field === undefined) {
+      byColumn.push(undefined);
+      continue;
+    }
+    const aggregate = summed.has(field) ? 'Sum' : 'First';
+    byColumn.push(`=${aggregate}(Fields!${field}.Value${scope})`);
+  }
+
+  return (column) => byColumn[column];
+}
+
+/**
+ * Campo del detalle de una columna: la **última** fila del grupo cuya celda
+ * declara una expresión con **un único campo** referenciado — vale
+ * `=Fields!X.Value`, `=Sum(Fields!X.Value)` o `=Format(Fields!X.Value)`. Las
+ * filas de resumen con `ColSpan` suelen estar encima del detalle y no mandan, y
+ * las expresiones con varios campos (totales compuestos) se ignoran.
+ */
+function detailFieldAt(
+  rows: RdlcNode[],
+  range: { start: number; end: number },
+  column: number,
+): string | undefined {
+  for (let index = range.end; index >= range.start; index -= 1) {
+    const row = rows[index];
+    if (!row) continue;
+    const entry = positionedCells(row).find(
+      (cell) => column >= cell.col && column < cell.col + cell.colSpan,
+    );
+    if (!entry) continue;
+    const content = entry.cell
+      .child('CellContents')
+      ?.children()
+      .find((child) => child.tagName !== 'ColSpan' && child.tagName !== 'RowSpan');
+    const value = content
+      ?.child('Paragraphs')
+      ?.child('Paragraph')
+      ?.child('TextRuns')
+      ?.child('TextRun')
+      ?.child('Value')
+      ?.text();
+    const field = value ? uniqueFieldReference(value) : undefined;
+    if (field) return field;
+  }
+  return undefined;
+}
+
+/** Campo único referenciado por una expresión (`undefined` si hay 0 o varios). */
+function uniqueFieldReference(expression: string): string | undefined {
+  if (!expression.startsWith('=')) return undefined;
+  const refs = [...expression.matchAll(/Fields!([A-Za-z_]\w*)\.Value/g)].map((match) => match[1]!);
+  if (refs.length === 0) return undefined;
+  return new Set(refs).size === 1 ? refs[0] : undefined;
+}
+
+/** Campos que el informe ya agrega con `Sum(` en algún `<Value>`. */
+function collectSummedFields(root: RdlcNode): Set<string> {
+  const fields = new Set<string>();
+  const walk = (node: RdlcNode): void => {
+    if (node.tagName === 'Value') {
+      const text = node.text() ?? '';
+      if (/\bSum\s*\(/.test(text)) {
+        for (const match of text.matchAll(/Fields!([A-Za-z_]\w*)\.Value/g)) {
+          fields.add(match[1]!);
+        }
+      }
+    }
+    for (const child of node.children()) walk(child);
+  };
+  walk(root);
+  return fields;
+}
+
 /** Crea la fila (con sus celdas) y el miembro, y devuelve el inverso común. */
 function performAddRow(
   ctx: CommandContext,
   parts: TablixParts,
   plan: RowInsertPlan,
   height: Length | undefined,
+  /** Expresión de la celda de cada columna (filas de totales): vacío si `undefined`. */
+  textFor?: (column: number) => string | undefined,
 ): Either<DomainError, CommandOutcome> {
   const { body, rowsContainer, columns, rows } = parts;
 
@@ -257,7 +408,8 @@ function performAddRow(
   const cells = row.createElement('TablixCells');
   const takenNames = new Set<string>();
   for (let column = 0; column < columns.length; column += 1) {
-    if (!covered[column]) cells.appendChild(createCellWithTextbox(ctx, row, takenNames));
+    if (!covered[column])
+      cells.appendChild(createCellWithTextbox(ctx, row, takenNames, textFor?.(column)));
   }
   row.appendChild(cells);
   rowsContainer.insertChildAt(row, plan.row);
@@ -873,18 +1025,20 @@ function createCellWithTextbox(
   ctx: CommandContext,
   parent: RdlcNode,
   taken: Set<string>,
+  /** Texto/expresión inicial del textbox (filas de totales). */
+  value?: string,
 ): RdlcNode {
   const cell = parent.createElement('TablixCell');
   const contents = cell.createElement('CellContents');
   const name = nextItemName(ctx, 'textbox', taken);
   taken.add(name);
-  contents.appendChild(emptyTextbox(contents, name));
+  contents.appendChild(emptyTextbox(contents, name, value));
   cell.appendChild(contents);
   return cell;
 }
 
 /** Textbox vacío con el orden canónico del XSD y sin longitudes. */
-function emptyTextbox(parent: RdlcNode, name: string): RdlcNode {
+function emptyTextbox(parent: RdlcNode, name: string, value?: string): RdlcNode {
   const textbox = parent.createElement('Textbox');
   textbox.setAttribute('Name', name);
   textbox.appendChild(textbox.createElement('CanGrow', 'true'));
@@ -893,7 +1047,7 @@ function emptyTextbox(parent: RdlcNode, name: string): RdlcNode {
   const paragraph = paragraphs.createElement('Paragraph');
   const runs = paragraph.createElement('TextRuns');
   const run = runs.createElement('TextRun');
-  run.appendChild(run.createElement('Value', ''));
+  run.appendChild(run.createElement('Value', value ?? ''));
   runs.appendChild(run);
   paragraph.appendChild(runs);
   paragraphs.appendChild(paragraph);

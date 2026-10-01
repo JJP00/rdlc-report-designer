@@ -18,6 +18,7 @@ import {
   applyAddRow,
   applyAddRowInsideGroup,
   applyAddRowOutsideGroup,
+  applyAddTotalRow,
   applyDeleteColumn,
   applyDeleteColumns,
   applyDeleteRow,
@@ -87,6 +88,8 @@ export function applyCommand(
       return applyAddRowOutsideGroup(ctx, command);
     case 'addRowInsideGroup':
       return applyAddRowInsideGroup(ctx, command);
+    case 'addTotalRow':
+      return applyAddTotalRow(ctx, command);
     case 'deleteRow':
       return applyDeleteRow(ctx, command);
     case 'addColumn':

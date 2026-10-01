@@ -139,6 +139,8 @@ export interface ItemEditing {
   addRowOutsideGroup: (tablixId: string, row: number, where: 'above' | 'below') => void;
   /** Inserta una fila de relleno dentro del grupo, pegada a la fila indicada. */
   addRowInsideGroup: (tablixId: string, row: number, where: 'above' | 'below') => void;
+  /** F2.c: fila de totales pegada al grupo, con los agregados por columna. */
+  addTotalRow: (tablixId: string, row: number, where: 'above' | 'below') => void;
   /** Envuelve la fila en un grupo nuevo con esa expresión. */
   addRowGroup: (tablixId: string, row: number, expression: string) => void;
   /** F3 · Matrix: envuelve la columna en un grupo nuevo con esa expresión. */
@@ -694,6 +696,14 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [sendCommand],
   );
 
+  const addTotalRow = useCallback(
+    (tablixId: string, row: number, where: 'above' | 'below'): void => {
+      // El dominio infiere los agregados (Sum/First) con el ámbito del grupo.
+      void sendCommand({ cmd: 'addTotalRow', id: tablixId, row, where });
+    },
+    [sendCommand],
+  );
+
   const deleteRowGroup = useCallback(
     (tablixId: string, axis: 'row' | 'column', path: number[]): void => {
       void sendCommand({ cmd: 'deleteRowGroup', id: tablixId, axis, path });
@@ -1133,6 +1143,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     addColumnToGroup,
     addRowOutsideGroup,
     addRowInsideGroup,
+    addTotalRow,
     addRowGroup,
     addColumnGroup,
     deleteRowGroup,

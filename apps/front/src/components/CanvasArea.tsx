@@ -93,6 +93,8 @@ export interface CanvasAreaProps {
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
   /** Fila de relleno dentro del grupo, pegada a la fila (`above`/`below`). */
   onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
+  /** F2.c: fila de totales pegada al grupo, con los agregados por columna. */
+  onAddTotal: (id: string, row: number, where: 'above' | 'below') => void;
   /** Abre «Propiedades del grupo» del grupo que posee la fila. */
   onOpenGroupProperties: (id: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
   /** Envuelve una fila estática en un grupo nuevo (menú contextual). */
@@ -147,6 +149,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onAddRow,
     onAddRowOutside,
     onAddRowInside,
+    onAddTotal,
     onOpenGroupProperties,
     onAddRowGroup,
     onDeleteRow,
@@ -235,6 +238,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
           onAddRow={onAddRow}
           onAddRowOutside={onAddRowOutside}
           onAddRowInside={onAddRowInside}
+          onAddTotal={onAddTotal}
           onOpenGroupProperties={onOpenGroupProperties}
           onGroupRow={(id, row) => setGroupRow({ id, row })}
           onDeleteRow={onDeleteRow}
@@ -282,6 +286,7 @@ type CanvasMenuProps = Pick<
   | 'onAddRow'
   | 'onAddRowOutside'
   | 'onAddRowInside'
+  | 'onAddTotal'
   | 'onOpenGroupProperties'
   | 'onDeleteRow'
   | 'onAddColumn'
@@ -323,6 +328,7 @@ function CanvasMenuContent({
   onAddRow,
   onAddRowOutside,
   onAddRowInside,
+  onAddTotal,
   onOpenGroupProperties,
   onGroupRow,
   onDeleteRow,
@@ -356,6 +362,7 @@ function CanvasMenuContent({
           onAddRow={onAddRow}
           onAddRowOutside={onAddRowOutside}
           onAddRowInside={onAddRowInside}
+          onAddTotal={onAddTotal}
           onOpenGroupProperties={onOpenGroupProperties}
           onGroupRow={onGroupRow}
           onDeleteRow={onDeleteRow}
@@ -540,6 +547,7 @@ function TablixMenuItems({
   onAddRow,
   onAddRowOutside,
   onAddRowInside,
+  onAddTotal,
   onOpenGroupProperties,
   onGroupRow,
   onDeleteRow,
@@ -556,6 +564,8 @@ function TablixMenuItems({
   onAddRow: (id: string, row: number) => void;
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
   onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
+  /** F2.c: fila de totales pegada al grupo, con los agregados por columna. */
+  onAddTotal: (id: string, row: number, where: 'above' | 'below') => void;
   onOpenGroupProperties: (id: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
   /** Fila estática: abrir «Agrupar la fila…» (grupo nuevo). */
   onGroupRow: (id: string, row: number) => void;
@@ -601,6 +611,20 @@ function TablixMenuItems({
         onAddRowInside={onAddRowInside}
         onAddColumn={onAddColumn}
       />
+
+      {group ? (
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>Total del grupo</ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-52" collisionPadding={8}>
+            <ContextMenuItem onSelect={() => onAddTotal(cellScope.id, cellScope.row, 'above')}>
+              Fila de total encima
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => onAddTotal(cellScope.id, cellScope.row, 'below')}>
+              Fila de total debajo
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+      ) : null}
 
       {group ? (
         <ContextMenuItem onSelect={() => onOpenGroupProperties(cellScope.id, 'row', group)}>

@@ -25,7 +25,7 @@ import type { BoxCm } from '@/lib/resize';
 import type { SelectedCell } from '@/lib/tablix';
 import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
-import { PageResizeLayer, type PageRegion } from './PageResizeLayer';
+import { PageResizePreview, PageResizeZones, type PageRegion } from './PageResizeLayer';
 import { Paper } from './Paper';
 import { Ruler, type RulerMark } from './Ruler';
 import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
@@ -355,6 +355,18 @@ export function CanvasPreview({
             }}
             onWheel={(event) => zoomFromWheel(event, zoom, onZoomChange)}
           >
+            {/* Zonas de página **bajo** el papel: el contenido gana el clic. */}
+            <PageResizeZones
+              layout={layout}
+              zoom={zoom}
+              onResizeRegion={onResizeRegion}
+              onResizeSectionWidth={onResizeSectionWidth}
+              onPreview={(orientation, position, label) =>
+                pageResizeRef.current?.showPreview(orientation, position, label)
+              }
+              onPreviewEnd={() => pageResizeRef.current?.hidePreview()}
+            />
+
             <Paper
               layout={layout}
               selectedId={selectedId}
@@ -367,16 +379,10 @@ export function CanvasPreview({
               draggable={onMoveTo !== undefined}
             />
 
-            <PageResizeLayer
-              ref={pageResizeRef}
-              layout={layout}
-              zoom={zoom}
-              onResizeRegion={onResizeRegion}
-              onResizeSectionWidth={onResizeSectionWidth}
-            />
-
             <SelectionFrame {...frameProps} />
             <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
+            {/* Previsualización de página por encima del contenido. */}
+            <PageResizePreview ref={pageResizeRef} layout={layout} zoom={zoom} />
             {/* Marco de selección (arrastrar en vacío). */}
             <Layer listening={false}>
               <Rect

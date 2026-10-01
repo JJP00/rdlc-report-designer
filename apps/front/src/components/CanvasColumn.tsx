@@ -86,6 +86,7 @@ export function CanvasColumn({
         onAddRow={editing.addRow}
         onAddRowOutside={editing.addRowOutsideGroup}
         onAddRowInside={editing.addRowInsideGroup}
+        onAddTotal={editing.addTotalRow}
         onAddRowGroup={editing.addRowGroup}
         onOpenGroupProperties={onOpenGroupProperties}
         onDeleteRow={editing.deleteRow}
