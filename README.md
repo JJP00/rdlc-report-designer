@@ -17,6 +17,7 @@ packages/contracts/   # @rdlc-designer/contracts — zod: comandos, proyección,
 fixtures/corpus/      # corpus de .rdlc versionado para golden tests
 docs/adr/             # decisiones de arquitectura
 docs/perf/            # líneas base de rendimiento
+docs/features/        # diseño de funcionalidades y planes
 ```
 
 ### UI (front)
@@ -200,7 +201,8 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       F3: agrupar y extender con undo; con reset del documento entre tests).
 - [x] **Tablix visual completo** (F2): [x] celdas y filas/columnas · [x] visibilidad (items y
       miembros) · [x] `TablixCorner`/`TablixHeader` · [x] grupos de fila · [x] grupos de
-      columna (Matrix, F3: agrupar/extender/quitar con undo).
+      columna (Matrix, F3: agrupar/extender/quitar con undo) · [x] totales del grupo (F2.c:
+      `addTotalRow` con `Sum`/`First` por columna y el submenú «Total del grupo»).
 - [x] **Bloque de gaps · G1–G13 (sesión 2026-09-29)**: **insertar Tablix**
       (rejilla 1×1 con celda y ambas jerarquías), **bordes por lado** (genérico
       `Border` + overrides de BC con la herencia resuelta propiedad a propiedad,
