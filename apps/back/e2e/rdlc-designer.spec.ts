@@ -150,6 +150,7 @@ test.afterEach(async () => {
 
 interface RegionLike {
   items: ItemLike[];
+  width?: { value: number; unit: string };
   height?: { value: number; unit: string };
   printOnFirstPage?: boolean;
   printOnLastPage?: boolean;
@@ -159,6 +160,14 @@ interface Projection {
   reportName: string;
   version: number;
   page: {
+    width: { value: number; unit: string };
+    height: { value: number; unit: string };
+    margins: {
+      top: { value: number; unit: string };
+      bottom: { value: number; unit: string };
+      left: { value: number; unit: string };
+      right: { value: number; unit: string };
+    };
     header: RegionLike;
     body: RegionLike;
     footer: RegionLike;
@@ -2807,6 +2816,240 @@ test('extender un grupo de columna con la contigua desde la estructura (con undo
   await page.keyboard.press('Control+z');
   await expect.poll(() => memberExpression('Tablix3', 'column', [1])).toBeUndefined();
   expect(await tablixColumnCount('Tablix3')).toBe(columnsBefore);
+});
+
+/* ------------- U10 · redimensionado de página en el lienzo ---------------- */
+
+/** Factor px↔cm del lienzo (96 dpi, como `geometry.ts` del front). */
+const PX_PER_CM = 96 / 2.54;
+
+/** Longitud proyectada en cm (los ficheros de BC usan cm, pero no se asume). */
+function lengthToCm(length: { value: number; unit: string } | undefined): number {
+  if (!length) return 0;
+  if (length.unit === 'mm') return length.value / 10;
+  if (length.unit === 'in') return length.value * 2.54;
+  if (length.unit === 'pt') return (length.value * 2.54) / 72;
+  return length.value;
+}
+
+/** Imán de 0,1 cm del redimensionado de página. */
+function snapCm(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/** Zoom vivo del escenario (los tests de zoom previos pueden haberlo cambiado). */
+async function stageZoom(): Promise<number> {
+  return page.evaluate(() => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      scaleX(): number;
+    } | null;
+    return stage?.scaleX() ?? 1;
+  });
+}
+
+/**
+ * Punto de pantalla del centro de una zona de redimensionado de página
+ * (`header`/`body`/`footer`/`section`). Se lee **en vivo** del nodo Konva (el
+ * hook `__rdlcPageResize` no se refresca al hacer scroll) y, si la zona queda
+ * fuera de la vista, se centra el contenedor con scroll.
+ */
+async function pageZonePoint(zone: string): Promise<{ x: number; y: number }> {
+  return page.evaluate((name) => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      container(): HTMLElement;
+      scaleX(): number;
+      findOne(predicate: (node: { name: () => string }) => boolean): {
+        getAbsolutePosition(): { x: number; y: number };
+        width(): number;
+        height(): number;
+      } | null;
+    } | null;
+    if (!stage) throw new Error('sin stage');
+    const node = stage.findOne((candidate) => candidate.name() === `page-resize-${name}`);
+    if (!node) throw new Error(`sin zona de página '${name}'`);
+    const scale = stage.scaleX();
+    const center = (): { x: number; y: number } => {
+      const rect = stage.container().getBoundingClientRect();
+      const position = node.getAbsolutePosition();
+      return {
+        x: rect.left + position.x + (node.width() * scale) / 2,
+        y: rect.top + position.y + (node.height() * scale) / 2,
+      };
+    };
+    const first = center();
+    if (
+      first.x < 60 ||
+      first.y < 60 ||
+      first.x > window.innerWidth - 60 ||
+      first.y > window.innerHeight - 60
+    ) {
+      const scroll = document.querySelector('div.overflow-auto');
+      scroll?.scrollBy({
+        left: first.x - window.innerWidth / 2,
+        top: first.y - window.innerHeight / 2,
+      });
+      return center();
+    }
+    return first;
+  }, zone);
+}
+
+/** Etiqueta de la previsualización de página (null si está oculta). */
+async function pageResizePreview(): Promise<string | null> {
+  return page.evaluate(() => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(predicate: (node: { name: () => string }) => boolean): {
+        getAttr(name: string): unknown;
+        text?: () => string;
+      } | null;
+    } | null;
+    const group = stage?.findOne((candidate) => candidate.name() === 'page-resize-preview');
+    const label = stage?.findOne((candidate) => candidate.name() === 'page-resize-label');
+    const visible = (group?.getAttr('visible') as boolean | undefined) ?? false;
+    return visible ? (label?.text?.() ?? null) : null;
+  });
+}
+
+/** Arrastra desde un punto y devuelve la etiqueta de la previsualización. */
+async function dragFromPoint(
+  point: { x: number; y: number },
+  dx: number,
+  dy: number,
+): Promise<string | null> {
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down();
+  await page.mouse.move(point.x + dx, point.y + dy, { steps: 8 });
+  const label = await pageResizePreview();
+  await page.mouse.up();
+  return label;
+}
+
+test('el borde inferior del cuerpo cambia su alto con previsualización (y undo)', async () => {
+  const zoom = await stageZoom();
+  const before = lengthToCm((await projection()).page.body.height);
+  const point = await pageZonePoint('body');
+
+  const label = await dragFromPoint(point, 0, 20);
+  const expected = snapCm(before + 20 / zoom / PX_PER_CM);
+  expect(label, 'la previsualización muestra el alto resultante').not.toBeNull();
+  expect(Number((label ?? '').replace(' cm', ''))).toBeCloseTo(expected, 1);
+
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.height))
+    .toBeCloseTo(expected, 2);
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.height))
+    .toBeCloseTo(before, 2);
+});
+
+test('los bordes del encabezado y del pie redimensionan sus bandas (con undo)', async () => {
+  const zoom = await stageZoom();
+  const page0 = await projection();
+  const headerBefore = lengthToCm(page0.page.header.height);
+  const footerBefore = lengthToCm(page0.page.footer.height);
+
+  // Encabezado: se arrastra su borde inferior hacia arriba (encoge).
+  const headerPoint = await pageZonePoint('header');
+  await dragFromPoint(headerPoint, 0, -20);
+  const headerExpected = snapCm(headerBefore - 20 / zoom / PX_PER_CM);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.header.height))
+    .toBeCloseTo(headerExpected, 2);
+
+  // Pie: se arrastra su borde superior hacia arriba (crece).
+  const footerPoint = await pageZonePoint('footer');
+  await dragFromPoint(footerPoint, 0, -20);
+  const footerExpected = snapCm(footerBefore + 20 / zoom / PX_PER_CM);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.footer.height))
+    .toBeCloseTo(footerExpected, 2);
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.footer.height))
+    .toBeCloseTo(footerBefore, 2);
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.header.height))
+    .toBeCloseTo(headerBefore, 2);
+});
+
+test('el borde derecho cambia el ancho de sección del informe (con undo)', async () => {
+  const zoom = await stageZoom();
+  const page0 = await projection();
+  const before = lengthToCm(page0.page.body.width);
+  const sheet = lengthToCm(page0.page.width);
+  const point = await pageZonePoint('section');
+
+  const label = await dragFromPoint(point, 20, 0);
+  const expected = Math.min(snapCm(before + 20 / zoom / PX_PER_CM), snapCm(sheet));
+  expect(label, 'la previsualización muestra el ancho resultante').not.toBeNull();
+  expect(Number((label ?? '').replace(' cm', ''))).toBeCloseTo(expected, 1);
+
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.width))
+    .toBeCloseTo(expected, 2);
+  // Las tres bandas comparten el ancho de la sección.
+  const after = await projection();
+  expect(lengthToCm(after.page.header.width)).toBeCloseTo(expected, 2);
+  expect(lengthToCm(after.page.footer.width)).toBeCloseTo(expected, 2);
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.body.width))
+    .toBeCloseTo(before, 2);
+});
+
+test('los márgenes se arrastran desde la regla (estilo Word, con undo)', async () => {
+  const zoom = await stageZoom();
+  const before = lengthToCm((await projection()).page.margins.left);
+  const marker = page.getByRole('slider', { name: 'Margen izquierdo' });
+  const box = (await marker.boundingBox())!;
+  expect(box).not.toBeNull();
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 8 });
+  const label = await pageResizePreview();
+  expect(label, 'la previsualización muestra el margen resultante').not.toBeNull();
+  expect(label).toContain('Margen izq.');
+  await page.mouse.up();
+
+  const expected = snapCm(before + 20 / zoom / PX_PER_CM);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.margins.left))
+    .toBeCloseTo(expected, 2);
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.margins.left))
+    .toBeCloseTo(before, 2);
+});
+
+test('la regla marca el área imprimible y las bandas de encabezado y pie', async () => {
+  const zoom = await stageZoom();
+  const proj = await projection();
+  const headerCm = lengthToCm(proj.page.header.height);
+
+  // El área imprimible se marca en las dos reglas.
+  await expect(page.getByTitle('Área imprimible')).toHaveCount(2);
+
+  // La banda del encabezado (regla vertical) mide su alto real en pantalla.
+  const header = page.getByTitle('Encabezado');
+  await expect(header).toHaveCount(1);
+  const box = (await header.boundingBox())!;
+  expect(box).not.toBeNull();
+  const expectedPx = headerCm * zoom * PX_PER_CM;
+  expect(Math.abs(box.height - expectedPx)).toBeLessThan(2);
+
+  // El pie también está delimitado (la proyección lo trae con alto > 0).
+  await expect(page.getByTitle('Pie')).toHaveCount(1);
 });
 
 /* ----------------------- U6 · zoom: presets y atajos ---------------------- */

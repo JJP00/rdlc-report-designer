@@ -2,6 +2,7 @@ import type {
   ItemDto,
   Length,
   NewItemSpec,
+  PageMarginsDto,
   ProjectionDto,
   ScopeRef,
   TablixMemberDto,
@@ -79,6 +80,12 @@ export interface CanvasAreaProps {
   /** Separadores de la rejilla: redimensionar una columna/fila del Tablix. */
   onResizeColumn: (id: string, column: number, width: Length) => void;
   onResizeRow: (id: string, row: number, height: Length) => void;
+  /** U10: alto de banda/cuerpo al arrastrar los bordes de la página (cm). */
+  onResizeRegion: (region: 'pageHeader' | 'pageFooter' | 'body', cm: number) => void;
+  /** U10: ancho de la sección al arrastrar el borde derecho del informe (cm). */
+  onResizeSectionWidth: (cm: number) => void;
+  /** U10: márgenes al arrastrar los marcadores de la regla. */
+  onSetPageMargins: (margins: PageMarginsDto) => void;
   onInsertAt: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
   /** Estructura del Tablix desde el menú contextual de una celda. */
   onAddRow: (id: string, row: number) => void;
@@ -133,6 +140,9 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onResizeItem,
     onResizeColumn,
     onResizeRow,
+    onResizeRegion,
+    onResizeSectionWidth,
+    onSetPageMargins,
     onInsertAt,
     onAddRow,
     onAddRowOutside,
@@ -202,6 +212,9 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
                 onResizeItem={onResizeItem}
                 onResizeColumn={onResizeColumn}
                 onResizeRow={onResizeRow}
+                onResizeRegion={onResizeRegion}
+                onResizeSectionWidth={onResizeSectionWidth}
+                onSetPageMargins={onSetPageMargins}
                 reveal={reveal}
               />
             ) : (

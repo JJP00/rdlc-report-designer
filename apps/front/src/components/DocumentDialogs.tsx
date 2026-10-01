@@ -31,7 +31,7 @@ export interface DocumentDialogsProps {
   onPropertiesOpenChange: (open: boolean) => void;
   onSetPageSize: (width: Length, height: Length) => void;
   onSetPageMargins: (margins: { top: Length; bottom: Length; left: Length; right: Length }) => void;
-  onSetRegionHeight: (region: 'pageHeader' | 'pageFooter', height: Length) => void;
+  onSetRegionHeight: (region: 'pageHeader' | 'pageFooter' | 'body', height: Length) => void;
   onSetHeaderFooterOptions: (
     region: 'pageHeader' | 'pageFooter',
     options: { printOnFirstPage?: boolean; printOnLastPage?: boolean },

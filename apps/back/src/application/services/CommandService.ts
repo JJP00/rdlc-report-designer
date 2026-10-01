@@ -26,6 +26,8 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'setPageMargins',
   // El alto de banda entra en los límites del índice (clamp de inserción).
   'setRegionHeight',
+  // El ancho de sección es el de las tres bandas: cambian los límites.
+  'setSectionWidth',
   'setReportCode',
   'insertItem',
   'duplicateItem',

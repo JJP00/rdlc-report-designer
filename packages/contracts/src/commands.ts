@@ -243,8 +243,19 @@ const setPageMargins = z.object({
 
 const setRegionHeight = z.object({
   cmd: z.literal('setRegionHeight'),
-  region: z.enum(['pageHeader', 'pageFooter']),
+  /** `body` escribe `ReportSection > Body > Height`. */
+  region: z.enum(['pageHeader', 'pageFooter', 'body']),
   height: lengthSchema,
+});
+
+/**
+ * Ancho de la sección del informe (`ReportSection > Width`): manda en el ancho
+ * de las tres bandas (encabezado, cuerpo y pie). En Report Builder se
+ * redimensiona arrastrando el borde derecho del cuerpo.
+ */
+const setSectionWidth = z.object({
+  cmd: z.literal('setSectionWidth'),
+  width: lengthSchema,
 });
 
 const setHeaderFooterOptions = z.object({
@@ -634,6 +645,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setPageSize,
   setPageMargins,
   setRegionHeight,
+  setSectionWidth,
   setHeaderFooterOptions,
   setReportCode,
   setImageOptions,

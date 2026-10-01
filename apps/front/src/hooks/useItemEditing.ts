@@ -166,8 +166,10 @@ export interface ItemEditing {
 
   setPageSize: (width: Length, height: Length) => void;
   setPageMargins: (margins: { top: Length; bottom: Length; left: Length; right: Length }) => void;
-  /** Alto de la banda de página (encabezado/pie). */
-  setRegionHeight: (region: 'pageHeader' | 'pageFooter', height: Length) => void;
+  /** Alto de la banda de página o del **cuerpo** (`Height` del contenedor). */
+  setRegionHeight: (region: 'pageHeader' | 'pageFooter' | 'body', height: Length) => void;
+  /** Ancho de la sección (`ReportSection > Width`: manda en las tres bandas). */
+  setSectionWidth: (width: Length) => void;
   /** Impresión del encabezado/pie en la primera/última página. */
   setHeaderFooterOptions: (
     region: 'pageHeader' | 'pageFooter',
@@ -947,11 +949,18 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [doc, sendCommand, updateProjection],
   );
 
-  // Bandas de página: la proyección se refresca con el snapshot del comando
-  // (no hay un item que parchear de forma optimista).
+  // Bandas de página y cuerpo: la proyección se refresca con el snapshot del
+  // comando (no hay un item que parchear de forma optimista).
   const setRegionHeight = useCallback(
-    (region: 'pageHeader' | 'pageFooter', height: Length): void => {
+    (region: 'pageHeader' | 'pageFooter' | 'body', height: Length): void => {
       void sendCommand({ cmd: 'setRegionHeight', region, height });
+    },
+    [sendCommand],
+  );
+
+  const setSectionWidth = useCallback(
+    (width: Length): void => {
+      void sendCommand({ cmd: 'setSectionWidth', width });
     },
     [sendCommand],
   );
@@ -1143,6 +1152,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setPageSize,
     setPageMargins,
     setRegionHeight,
+    setSectionWidth,
     setHeaderFooterOptions,
     setReportCode,
     batchEdit,

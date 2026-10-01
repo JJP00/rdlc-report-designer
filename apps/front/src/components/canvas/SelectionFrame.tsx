@@ -313,17 +313,38 @@ function TablixHeaders({
     const badgeHeight = 16 / zoom;
     const gap = 6 / zoom;
     if (vertical) {
-      line.setAttrs({ x: edgePx, y: 0, points: [0, rect.y, 0, rect.y + (rowEdges[rowEdges.length - 1] ?? 0)] });
-      const fitsRight = edgePx + gap + badgeWidth <= rect.x + (columnEdges[columnEdges.length - 1] ?? 0);
+      line.setAttrs({
+        x: edgePx,
+        y: 0,
+        points: [0, rect.y, 0, rect.y + (rowEdges[rowEdges.length - 1] ?? 0)],
+      });
+      const fitsRight =
+        edgePx + gap + badgeWidth <= rect.x + (columnEdges[columnEdges.length - 1] ?? 0);
       const badgeX = fitsRight ? edgePx + gap : edgePx - gap - badgeWidth;
       badge.setAttrs({ x: badgeX, y: rect.y + 2 / zoom, width: badgeWidth, height: badgeHeight });
-      text.setAttrs({ x: badgeX, y: rect.y + 2 / zoom, width: badgeWidth, height: badgeHeight, text: label });
+      text.setAttrs({
+        x: badgeX,
+        y: rect.y + 2 / zoom,
+        width: badgeWidth,
+        height: badgeHeight,
+        text: label,
+      });
     } else {
-      line.setAttrs({ x: 0, y: edgePx, points: [rect.x, 0, rect.x + (columnEdges[columnEdges.length - 1] ?? 0), 0] });
+      line.setAttrs({
+        x: 0,
+        y: edgePx,
+        points: [rect.x, 0, rect.x + (columnEdges[columnEdges.length - 1] ?? 0), 0],
+      });
       const fitsBelow = edgePx + gap + badgeHeight <= rect.y + (rowEdges[rowEdges.length - 1] ?? 0);
       const badgeY = fitsBelow ? edgePx + gap : edgePx - gap - badgeHeight;
       badge.setAttrs({ x: rect.x + 2 / zoom, y: badgeY, width: badgeWidth, height: badgeHeight });
-      text.setAttrs({ x: rect.x + 2 / zoom, y: badgeY, width: badgeWidth, height: badgeHeight, text: label });
+      text.setAttrs({
+        x: rect.x + 2 / zoom,
+        y: badgeY,
+        width: badgeWidth,
+        height: badgeHeight,
+        text: label,
+      });
     }
     group.visible(true);
     group.getLayer()?.batchDraw();
@@ -522,7 +543,23 @@ function HeaderResizeZone({
   onPreviewEnd?: () => void;
 }): ReactNode {
   const thickness = 8 / zoom;
-  const startRef = useRef(0);
+  const startPointer = useRef<{ x: number; y: number } | null>(null);
+  const startLocal = useRef<{ x: number; y: number } | null>(null);
+
+  /**
+   * Delta del puntero en cm. Se mide con la posición del puntero (px de
+   * pantalla) entre el zoom y los px de papel por cm: leer la posición del nodo
+   * añadiría el factor de escala del stage por segunda vez (la frontera se
+   * movería de más con zoom ≠ 100 %).
+   */
+  const deltaCm = (event: Konva.KonvaEventObject<DragEvent>): number | null => {
+    const pointer = event.target.getStage()?.getPointerPosition();
+    const start = startPointer.current;
+    if (!pointer || !start) return null;
+    const scale = event.target.getStage()?.scaleX() ?? 1;
+    const screenDelta = vertical ? pointer.x - start.x : pointer.y - start.y;
+    return screenDelta / scale / PX_PER_CM;
+  };
 
   return (
     <Rect
@@ -533,7 +570,6 @@ function HeaderResizeZone({
       height={vertical ? length : thickness}
       fill="rgba(0,0,0,0.001)"
       draggable
-      dragBoundFunc={(point) => (vertical ? { x: point.x, y } : { x, y: point.y })}
       onMouseEnter={(event) => {
         const stage = event.target.getStage();
         if (stage) stage.container().style.cursor = vertical ? 'ew-resize' : 'ns-resize';
@@ -542,28 +578,38 @@ function HeaderResizeZone({
         const stage = event.target.getStage();
         if (stage) stage.container().style.cursor = '';
       }}
+      onMouseDown={(event) => {
+        // El gesto empieza en el mousedown: el `dragstart` de Konva llega
+        // después de su umbral (3 px) y el delta perdería ese tramo.
+        startPointer.current = event.target.getStage()?.getPointerPosition() ?? null;
+        startLocal.current = { x: event.target.x(), y: event.target.y() };
+      }}
       onDragStart={(event) => {
         event.cancelBubble = true;
-        startRef.current = vertical ? event.target.x() : event.target.y();
+        if (!startPointer.current) {
+          startPointer.current = event.target.getStage()?.getPointerPosition() ?? null;
+          startLocal.current = { x: event.target.x(), y: event.target.y() };
+        }
       }}
       onDragMove={(event) => {
         event.cancelBubble = true;
-        const node = event.target;
-        const scale = node.getStage()?.scaleX() ?? 1;
-        const delta = ((vertical ? node.x() : node.y()) - startRef.current) / scale / PX_PER_CM;
-        onPreviewMove?.(delta);
+        const delta = deltaCm(event);
+        if (delta !== null) onPreviewMove?.(delta);
       }}
       onDragEnd={(event) => {
         event.cancelBubble = true;
-        const node = event.target;
-        const scale = node.getStage()?.scaleX() ?? 1;
-        const delta = ((vertical ? node.x() : node.y()) - startRef.current) / scale / PX_PER_CM;
+        const delta = deltaCm(event);
         // El nodo vuelve a su sitio: la posición la fija la proyección.
-        if (vertical) node.x(x - thickness / 2);
-        else node.y(y - thickness / 2);
-        node.getLayer()?.batchDraw();
+        const local = startLocal.current;
+        if (local) {
+          event.target.x(local.x);
+          event.target.y(local.y);
+        }
+        event.target.getLayer()?.batchDraw();
+        startPointer.current = null;
+        startLocal.current = null;
         onPreviewEnd?.();
-        onDragged(delta);
+        if (delta !== null) onDragged(delta);
       }}
     />
   );

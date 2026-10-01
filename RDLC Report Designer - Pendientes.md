@@ -1,5 +1,42 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-10-01 · U10 · redimensionado de página en el lienzo** — pedido
+> en las pruebas manuales: además de los altos de encabezado/pie, poder
+> **arrastrar los límites** en el lienzo (cuerpo, bandas, márgenes y ancho del
+> informe) con la misma previsualización que el redimensionado de celdas
+> (línea discontinua + cm), y **marcas en la regla** estilo Word/Report Builder.
+>
+> - **Contrato/dominio**: `setRegionHeight` acepta `body`
+>   (`ReportSection > Body > Height`, con orden canónico `ReportItems, Height,
+>   Style`) y nuevo **`setSectionWidth`** (`ReportSection > Width`, estructural:
+>   manda en el ancho de las tres bandas). Undo byte-exacto y XSD válido.
+> - **Lienzo** (`PageResizeLayer`): zonas en el borde inferior del encabezado y
+>   del cuerpo, el superior del pie y el derecho de la sección. Al soltar, **un
+>   comando por gesto**; imán de 0,1 cm (Shift lo desactiva) y la
+>   previsualización usa **la misma matemática** (`lib/pageResize`) que el
+>   commit.
+> - **Reglas estilo Word**: marcadores de margen **arrastrables** (izq/der en
+>   la horizontal; sup/inf en la vertical, también con flechas del teclado) con
+>   previsualización en el lienzo, y **tramos resaltados**: área imprimible en
+>   ambas reglas y bandas de **encabezado/pie delimitadas en la vertical**
+>   (como la regla de Report Builder).
+> - **«Informe…»** gana el campo «Alto del cuerpo (cm)».
+> - **Fix de sensibilidad**: el delta de las zonas Konva se medía desde
+>   `dragstart`, que en Konva llega **después de su umbral de 3 px**; ahora se
+>   ancla en `mousedown` (el gesto no pierde ese tramo). Aplicado también al
+>   redimensionado de cabeceras del Tablix, que arrastraba el mismo defecto.
+> - **Verificación**: **294 back + 178 front**, typecheck limpio, React Doctor
+>   **100/100** y **5 E2E nuevos** (bandas, ancho de sección, márgenes y tramos
+>   de regla) verdes en pasada dirigida. **Pendiente**: pasada completa de la
+>   suite E2E (74 tests) en la próxima sesión.
+>
+> **Punto de retomada**: ① pasar la **suite E2E completa** (el build de `out/`
+> ya incluye estos cambios) y, si todo está verde, **commitear U10**; ② sigue en
+> el plan **F2.c** (totales, opcional) y cerrar con **T1** (CI/empaquetado);
+> ③ abiertos: bug de `Maximum update depth exceeded` y P2/P3 de 0002.
+> **Nota**: `docs/features/0001-capas.md` y su línea en el README son trabajo
+> del usuario: **no se han tocado**.
+
 > **Sesión 2026-09-30 (5.ª parte) · F3 · Matrix — grupos de columna** — el
 > grueso funcional que quedaba de la fase 3: la edición visual de la
 > `TablixColumnHierarchy` (el corpus trae un grupo hoja real en

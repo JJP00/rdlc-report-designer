@@ -75,6 +75,9 @@ const PAGE_SECTION_ORDER = [
   'Style',
 ];
 
+/** Cuerpo del informe: items, alto y estilo. */
+const BODY_ORDER = ['ReportItems', 'Height', 'Style'];
+
 /** Contenido de un borde (genérico o por lado), en el orden de BC. */
 const BORDER_ORDER = ['Color', 'Style', 'Width'];
 
@@ -124,6 +127,7 @@ const CONTAINER_ORDERS: Record<string, string[]> = {
   Page: PAGE_ORDER,
   PageHeader: PAGE_SECTION_ORDER,
   PageFooter: PAGE_SECTION_ORDER,
+  Body: BODY_ORDER,
   Border: BORDER_ORDER,
   TopBorder: BORDER_ORDER,
   BottomBorder: BORDER_ORDER,

@@ -2,6 +2,7 @@ import type {
   ItemDto,
   Length,
   NewItemSpec,
+  PageMarginsDto,
   ProjectionDto,
   ScopeRef,
 } from '@rdlc-designer/contracts';
@@ -11,6 +12,7 @@ import { Stage, Layer, Rect } from 'react-konva';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
+import { pageRulerSegments } from '@/lib/pageResize';
 import {
   cm,
   findItemInList,
@@ -23,10 +25,12 @@ import type { BoxCm } from '@/lib/resize';
 import type { SelectedCell } from '@/lib/tablix';
 import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
+import { PageResizeLayer, type PageRegion } from './PageResizeLayer';
 import { Paper } from './Paper';
-import { Ruler } from './Ruler';
+import { Ruler, type RulerMark } from './Ruler';
 import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
 import { useMarqueeSelection } from './useMarqueeSelection';
+import { usePageResize } from './usePageResize';
 import { bandAt, paperLayout, type PaperLayout } from './bands';
 import { clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
 
@@ -70,6 +74,12 @@ export interface CanvasPreviewProps {
   /** Redimensionar una columna/fila de la rejilla (separadores internos). */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
+  /** U10: alto de una banda de página al arrastrar su borde (cm). */
+  onResizeRegion?: (region: PageRegion, cm: number) => void;
+  /** U10: ancho de la sección del informe (`ReportSection > Width`, cm). */
+  onResizeSectionWidth?: (cm: number) => void;
+  /** U10: márgenes al arrastrar los marcadores de la regla. */
+  onSetPageMargins?: (margins: PageMarginsDto) => void;
   /** Celda de Tablix seleccionada (F2 parte 3). */
   selectedCell?: SelectedCell | null;
   onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
@@ -106,6 +116,9 @@ export function CanvasPreview({
   onResizeItem,
   onResizeColumn,
   onResizeRow,
+  onResizeRegion,
+  onResizeSectionWidth,
+  onSetPageMargins,
   selectedCell,
   onSelectCell,
   onZoomChange,
@@ -214,6 +227,10 @@ export function CanvasPreview({
   const stageWidth = layout.sheetWidth * zoom;
   const stageHeight = layout.sheetHeight * zoom;
 
+  /* --------------------- redimensionado de página (U10) ------------------- */
+
+  const { pageResizeRef, rulerMarks } = usePageResize({ projection, onSetPageMargins });
+
   /**
    * Marcos discontinuos de los **demás** items de la multiselección: se miden
    * del nodo Konva real (como el marco principal) para que acompañen al zoom y
@@ -308,13 +325,13 @@ export function CanvasPreview({
         className="relative"
         style={{ width: RULER_PX + stageWidth, height: RULER_PX + stageHeight }}
       >
-        {/* Esquina de las reglas */}
-        <div
-          className="absolute left-0 top-0 border-b border-r bg-muted"
-          style={{ width: RULER_PX, height: RULER_PX }}
+        <CanvasRulers
+          projection={projection}
+          zoom={zoom}
+          stageWidth={stageWidth}
+          stageHeight={stageHeight}
+          rulerMarks={rulerMarks}
         />
-        <Ruler orientation="horizontal" zoom={zoom} lengthPx={stageWidth} />
-        <Ruler orientation="vertical" zoom={zoom} lengthPx={stageHeight} />
 
         <div className="absolute" style={{ left: RULER_PX, top: RULER_PX }}>
           <Stage
@@ -350,6 +367,14 @@ export function CanvasPreview({
               draggable={onMoveTo !== undefined}
             />
 
+            <PageResizeLayer
+              ref={pageResizeRef}
+              layout={layout}
+              zoom={zoom}
+              onResizeRegion={onResizeRegion}
+              onResizeSectionWidth={onResizeSectionWidth}
+            />
+
             <SelectionFrame {...frameProps} />
             <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
             {/* Marco de selección (arrastrar en vacío). */}
@@ -373,6 +398,45 @@ export function CanvasPreview({
 }
 
 /* ------------------------------- helpers -------------------------------- */
+
+/** Esquina y reglas del lienzo: marcadores de margen y tramos de página. */
+function CanvasRulers({
+  projection,
+  zoom,
+  stageWidth,
+  stageHeight,
+  rulerMarks,
+}: {
+  projection: ProjectionDto;
+  zoom: number;
+  stageWidth: number;
+  stageHeight: number;
+  rulerMarks: (axis: 'x' | 'y') => RulerMark[];
+}): ReactNode {
+  return (
+    <>
+      {/* Esquina de las reglas */}
+      <div
+        className="absolute left-0 top-0 border-b border-r bg-muted"
+        style={{ width: RULER_PX, height: RULER_PX }}
+      />
+      <Ruler
+        orientation="horizontal"
+        zoom={zoom}
+        lengthPx={stageWidth}
+        marks={rulerMarks('x')}
+        segments={pageRulerSegments(projection.page, 'x')}
+      />
+      <Ruler
+        orientation="vertical"
+        zoom={zoom}
+        lengthPx={stageHeight}
+        marks={rulerMarks('y')}
+        segments={pageRulerSegments(projection.page, 'y')}
+      />
+    </>
+  );
+}
 
 /**
  * Marcos discontinuos de la **multiselección** (U3): se miden del nodo Konva

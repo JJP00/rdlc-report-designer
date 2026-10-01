@@ -4,6 +4,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { CanvasArea } from '@/components/CanvasArea';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 import type { CanvasHit } from '@/lib/hit';
+import { cm } from '@/lib/projection';
 import type { SelectedCell } from '@/lib/tablix';
 
 export interface CanvasColumnProps {
@@ -78,6 +79,9 @@ export function CanvasColumn({
         onResizeItem={editing.resizeItem}
         onResizeColumn={editing.resizeColumn}
         onResizeRow={editing.resizeRow}
+        onResizeRegion={(region, value) => editing.setRegionHeight(region, cm(value))}
+        onResizeSectionWidth={(value) => editing.setSectionWidth(cm(value))}
+        onSetPageMargins={editing.setPageMargins}
         onInsertAt={editing.insertAt}
         onAddRow={editing.addRow}
         onAddRowOutside={editing.addRowOutsideGroup}

@@ -27,7 +27,11 @@ import {
 } from './tablixStructure.js';
 import { applySetPageMargins } from './setPageMargins.js';
 import { applySetPageSize } from './setPageSize.js';
-import { applySetHeaderFooterOptions, applySetRegionHeight } from './pageRegions.js';
+import {
+  applySetHeaderFooterOptions,
+  applySetRegionHeight,
+  applySetSectionWidth,
+} from './pageRegions.js';
 import { applySetParagraphs } from './setParagraphs.js';
 import { applySetImageOptions } from './setImageOptions.js';
 import { applySetItemOptions } from './setItemOptions.js';
@@ -145,6 +149,8 @@ export function applyCommand(
       return applySetPageMargins(ctx, command);
     case 'setRegionHeight':
       return applySetRegionHeight(ctx, command);
+    case 'setSectionWidth':
+      return applySetSectionWidth(ctx, command);
     case 'setHeaderFooterOptions':
       return applySetHeaderFooterOptions(ctx, command);
     case 'setReportCode':
