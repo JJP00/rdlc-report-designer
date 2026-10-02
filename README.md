@@ -17,6 +17,7 @@ packages/contracts/   # @rdlc-designer/contracts — zod: comandos, proyección,
 fixtures/corpus/      # corpus de .rdlc versionado para golden tests
 docs/adr/             # decisiones de arquitectura
 docs/perf/            # líneas base de rendimiento
+docs/release/         # CI y empaquetado (T1)
 docs/features/        # diseño de funcionalidades y planes
 ```
 
@@ -45,6 +46,8 @@ pnpm format                     # prettier
 pnpm e2e                        # Playwright sobre la app Electron (compila out/ y lanza los E2E)
 pnpm --filter @rdlc-designer/back dev     # Electron en modo dev (HMR renderer)
 pnpm --filter @rdlc-designer/back build   # build de producción (main + preload + renderer)
+pnpm dist                       # instaladores Windows: NSIS + MSI en apps/back/release/
+pnpm dist:dir                   # app desempaquetada (smoke test sin instalador)
 ```
 
 ### Troubleshooting
@@ -56,12 +59,17 @@ pnpm --filter @rdlc-designer/back build   # build de producción (main + preload
 ### Benchmark del lienzo
 
 ```bash
-# Electron abrirá la página de benchmark (972 textboxes, drag simulado 3 s)
+# 3 pasadas del escenario de 972 textboxes sobre el build de producción
+pnpm --filter @rdlc-designer/back bench
+# Otro tamaño / nº de pasadas: node apps/back/scripts/bench.mjs 5000 5
+
+# Alternativa interactiva (página de benchmark en dev)
 $env:RDLC_BENCH='972'; pnpm --filter @rdlc-designer/back dev
 ```
 
-El resultado (`[bench] {...}`) sale en consola/log y el estado actual está
-documentado en [`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-lienzo.md).
+El resultado se imprime como JSON (mediana de p50) y el estado actual está en
+[`docs/perf/0001-baseline-lienzo.md`](./docs/perf/0001-baseline-lienzo.md)
+(972 textboxes: **59,5–59,9 fps p50** tras T3, presupuesto 60).
 
 ### Modo QA (capturas y guiones sobre la app real)
 
@@ -88,7 +96,7 @@ para trazar eventos) y `__rdlcProjection` (la proyección viva).
 con `--mode e2e` (los ganchos se publican también ahí), usa ratón/teclado reales y deja
 traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntuales.
 
-## Estado (Fase 0 cerrada · Fase 1 y Fase 2 en curso — sesión 2026-09-29)
+## Estado (Fase 0–3 cerradas funcionalmente · T1–T3 hechos — sesión 2026-10-02)
 
 **Fase 0 (spike round-trip) — cerrada:**
 
@@ -251,5 +259,13 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       grupo, grupos hoja) y undo byte-exacto al reinsertar/mover nodos (indentación recordada) ·
       **bloque de gaps (G1–G13)** con un commit por gap · **400 unit tests**
       (266 back + 134 front) + **50 E2E** de Playwright y `typecheck` limpio.
+- [x] **Sesión 2026-10-02 · T1–T3**: **CI** (`.github/workflows/ci.yml`: typecheck + unit en
+      ubuntu y E2E en windows) y **empaquetado** ([doc](./docs/release/0001-empaquetado-windows.md):
+      electron-builder NSIS+MSI, XSD fuera del asar, firma opcional por secretos y `release.yml`
+      en tags) · **endurecimiento de Electron** (sandbox con preload CJS bundleado,
+      navegación/ventanas/permisos bloqueados, 3 E2E de seguridad) · **rendimiento del lienzo**
+      (culling por ventana visible, `perfectDrawEnabled:false` y rejilla cacheada;
+      **59,5–59,9 fps p50** con 972 textboxes, [perf](./docs/perf/0001-baseline-lienzo.md)).
+      Estado: **306 back + 189 front** unit + **78 E2E** verdes.
 
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

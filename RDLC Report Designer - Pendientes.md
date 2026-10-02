@@ -1,5 +1,47 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-10-02 · T1–T3 (CI + empaquetado, endurecimiento de Electron, rendimiento del lienzo)** —
+> los tres técnicos del backlog que quedaban por delante. La deuda de UX (P2/P3 de 0002)
+> sigue fuera de este bloque.
+>
+> - **T1 · CI + empaquetado** ✅: electron-builder 26 con **NSIS + MSI**
+>   (`apps/back/electron-builder.yml`), scripts `pnpm dist` / `pnpm dist:dir`, icono
+>   placeholder en `build/icon.ico` y el XSD del validador copiado **fuera del asar**
+>   (`extraResources` → `resources/rdl2016/`, resuelto con `app.isPackaged`).
+>   **Verificado**: `dist:dir` + smoke del .exe empaquetado (`openFile` + `save` desde un
+>   guion de QA → `bytesIdentical: true`, es decir la validación XSD real con el esquema
+>   empaquetado) y `dist` completo (**NSIS 111 MB + MSI 125 MB**). CI:
+>   `.github/workflows/ci.yml` (checks en ubuntu + E2E en windows) y `release.yml`
+>   (tags `v*` o dispatch → instaladores + adjuntos a la release; firma opcional con
+>   `CSC_LINK`/`CSC_KEY_PASSWORD`). Detalle en `docs/release/0001-empaquetado-windows.md`.
+>   **Pendiente**: primera ejecución del CI en la nube y certificado de firma real.
+> - **T2 · Endurecer Electron** ✅: `sandbox: true` con **preload en CommonJS y bundleado**
+>   (el sandbox no admite ESM ni `require` de `node_modules`; zod entra en el bundle),
+>   navegación bloqueada fuera de la URL de la app, `window.open` y `<webview>` denegados y
+>   permisos restringidos a `clipboard-sanitized-write`. Política pura en
+>   `src/security/navigation.ts` (con tests) y **3 E2E nuevos** en `e2e/security.spec.ts`
+>   (sandbox/contextIsolation, ventanas nuevas y navegación).
+> - **T3 · Rendimiento del lienzo** ✅: el benchmark mide ya el **camino real de arrastre**
+>   (nodo Konva + `batchDraw` por frame, sin React) sobre el build de producción
+>   (`apps/back/scripts/bench.mjs`; 3 pasadas y mediana). Añadidos **culling por ventana
+>   visible** (intersección con el stage, cuantizada a 400 px con margen de 600, activo a
+>   partir de 250 items), `perfectDrawEnabled: false` y **caché de rejillas grandes**.
+>   Escenario de 972 textboxes: **29,9 → 59,5–59,9 fps p50**, `draw()` del layer
+>   25,6 → 6,9–12,5 ms y 755 de 1.945 grupos ocultos. Tabla completa en
+>   `docs/perf/0001-baseline-lienzo.md`. «Solo la pestaña activa monta el stage» queda N/A
+>   (una ventana = un documento).
+>
+> Verificación: `typecheck` limpio; **306 back + 189 front** unit y **78/78 E2E**
+> (incluye los 3 de seguridad) en pasada completa. `dist:dir`/`dist` y el smoke
+> empaquetado, hechos a mano.
+>
+> **Punto de retomada**: ① **UX pendiente** (P2 #4 etiquetas de alinear/distribuir, P2 #5
+> hoja de atajos y los P3 de `docs/ux/0002`: toolbar, barra de estado, error persistente,
+> grupo Insertar); ② bug de `Maximum update depth exceeded` al mover Tablix anidados;
+> ③ técnicos que quedan: **T4** (property tests) y **T5** (flujo BC documentado); ④ primera
+> pasada de CI en la nube y firma real cuando haya certificado. `docs/features/0001-capas.md`
+> sigue siendo trabajo del usuario, sin tocar.
+
 > **Sesión 2026-10-01 (5.ª parte) · pruebas manuales: ancho del cuerpo en «Informe…»**
 > — en «Informe… → Configurar página» solo se podía editar el **alto** del
 > cuerpo; el **ancho de la sección** (`ReportSection > Width`) solo se arrastraba
@@ -20,7 +62,7 @@
 >
 > **Punto de retomada**: ① **pasada completa de E2E cerrada (75/75)**;
 > ② sigue **T1** (CI + empaquetado); ③ abiertos el bug de `Maximum update
-> depth exceeded` y los P2/P3 de 0002.
+depth exceeded` y los P2/P3 de 0002.
 
 > **Sesión 2026-10-01 (4.ª parte) · pruebas manuales: previsualización de márgenes**
 > — feedback del uso real: la pastilla de la previsualización de un margen se
@@ -1120,20 +1162,21 @@ Trade-offs documentados:
 
 ### 🛠️ P3 · Técnicos/proceso
 
-| #   | Gap                                       | Estado hoy                                                            | Qué falta                                                                                  | Tam. |
-| --- | ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---- |
-| T1  | **CI + empaquetado**                      | Nada                                                                  | GitHub Actions (typecheck + unit + E2E) y electron-builder (MSI/NSIS), firma y recursos    | M    |
-| T2  | **Endurecer Electron**                    | `contextIsolation`, `nodeIntegration:false`, CSP y zod en el borde ✅ | `will-navigate`, `setWindowOpenHandler`, revisar `sandbox`/permisos                        | S    |
-| T3  | **Rendimiento del lienzo**                | Línea base medida (972 textboxes ≈ 30 fps)                            | Viewport culling, drag sin re-render, grid cacheado, solo la pestaña activa monta el stage | L    |
-| T4  | **Property tests** de comandos aleatorios | No hay                                                                | Generador + invariantes (undo byte-exacto)                                                 | M    |
-| T5  | **Flujo BC documentado** (página 9650)    | No hay                                                                | Guía exportar → editar → reimportar y evolutivo de despliegue                              | S    |
+| #     | Gap                                       | Estado hoy                                                            | Qué falta                                                                                                            | Tam. |
+| ----- | ----------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---- |
+| T1 ✅ | **CI + empaquetado**                      | Nada                                                                  | Hecho (2026-10-02): GitHub Actions (typecheck + unit + E2E) y electron-builder (NSIS/MSI), firma opcional y recursos | M    |
+| T2 ✅ | **Endurecer Electron**                    | `contextIsolation`, `nodeIntegration:false`, CSP y zod en el borde ✅ | Hecho (2026-10-02): `will-navigate`, `setWindowOpenHandler`, `sandbox: true` y permisos                              | S    |
+| T3 ✅ | **Rendimiento del lienzo**                | Línea base medida (972 textboxes ≈ 30 fps)                            | Hecho (2026-10-02): culling, drag sin React, rejilla cacheada; **59,5–59,9 fps p50**                                 | L    |
+| T4    | **Property tests** de comandos aleatorios | No hay                                                                | Generador + invariantes (undo byte-exacto)                                                                           | M    |
+| T5    | **Flujo BC documentado** (página 9650)    | No hay                                                                | Guía exportar → editar → reimportar y evolutivo de despliegue                                                        | S    |
 
 **Plan acordado (2026-09-29)**: ① cubrir gaps (G1–G13, priorizando P1) →
 ② pase de UX con el skill `intent` (U1–U9) → ③ seguir fase (**F2.c** totales →
 **F3** Matrix) y cerrar con T1 (CI/empaquetado).
 
-**Progreso**: ① **G1–G13 ✅** en el bloque de gaps del 2026-09-29 (queda G14 =
-F2.c/F3, que ya es fase); sigue ② el pase de UX (`intent`, U1–U9).
+**Progreso**: ① **G1–G13 ✅** (2026-09-29), ② **U1–U9 ✅** (pase `intent`, 2026-09-30) y
+**T1–T3 ✅** (2026-10-02). Quedan **T4** (property tests) y **T5** (flujo BC documentado),
+la deuda de UX P2/P3 de 0002 y el bug de los Tablix anidados.
 
 ## 🔴 Gaps funcionales (MVP)
 
@@ -1176,29 +1219,34 @@ F2.c/F3, que ya es fase); sigue ② el pase de UX (`intent`, U1–U9).
 
 ## 🟡 Gaps técnicos de frontend
 
-9. **Rendimiento del lienzo** — 🔶 línea base medida (972 textboxes ≈ 30 fps p50,
-   [docs/perf/0001-baseline-lienzo.md](docs/perf/0001-baseline-lienzo.md)); faltan las
-   optimizaciones: drag sin re-render de React, viewport culling, grid cacheado,
-   solo la pestaña activa monta el stage, batching de comandos.
-10. **Arquitectura del lienzo** — 🔶 hay base (capas, selección, drag, snap, **toolbox con
-    drag&drop real**); faltan multi-selección, alineación/distribución y guías inteligentes.
+9. **Rendimiento del lienzo** — ✅ hecho (T3, 2026-10-02): drag sin re-render de React,
+   **viewport culling** por ventana visible, rejilla grande cacheada y
+   `perfectDrawEnabled: false`; 972 textboxes a **59,5–59,9 fps p50**
+   ([docs/perf/0001-baseline-lienzo.md](docs/perf/0001-baseline-lienzo.md)). «Solo la
+   pestaña activa monta el stage» es N/A (una ventana = un documento).
+10. **Arquitectura del lienzo** — ✅ base y **U3** (multi-selección por Ctrl/Shift+click y
+    marco, alinear/distribuir y lote con `batch`); lo único no hecho son **guías
+    inteligentes** al arrastrar (no estaban en el plan auditado).
 11. **Lista de variables → inserción en Monaco** — ✅ hecho: inserta en la posición del
     cursor del editor registrado (y copia al portapapeles si no hay editor).
 12. **Breadcrumb de contenedor** (Rectángulo/Celda) y **panel de jerarquía** del informe
-    (árbol de elementos) — ⬜ el renombrado ya vive en el panel de propiedades ✅.
+    (árbol de elementos) — ✅ hecho (U4, 2026-09-30): `lib/hierarchy.ts`, breadcrumb
+    clicable sobre el lienzo y panel de Jerarquía conmutables desde la toolbar.
 
 ## 🟠 Proceso y operativa
 
-13. **Empaquetado** — ⬜ electron-builder (MSI/NSIS), decisión de firma, recursos del
-    renderer (el XSD viaja en `apps/back/resources/`).
-14. **Seguridad Electron** — 🔶 `contextIsolation`, `nodeIntegration:false`, CSP y zod en
-    el borde ya están; falta revisar el checklist antes de abrir el repo.
+13. **Empaquetado** — ✅ hecho (T1, 2026-10-02): electron-builder NSIS + MSI, XSD fuera del
+    asar, icono y CI de release; firma pendiente de certificado
+    ([docs/release/0001-empaquetado-windows.md](docs/release/0001-empaquetado-windows.md)).
+14. **Seguridad Electron** — ✅ hecho (T2, 2026-10-02): sandbox activo con preload CJS
+    bundleado, navegación/ventanas/`webview` bloqueados y permisos denegados salvo
+    `clipboard-sanitized-write` (3 E2E de regresión).
 15. **XML corrupto / inválido** — ✅ resuelto: parse error → no se abre; XSD inválido →
     aviso al importar y **bloqueo al guardar** con lista de problemas.
 16. **Flujo BC** — ⬜ documentar el ciclo exportar layout (página 9650) → editar →
-    reimportar; evolutivo: desplegar a BC.
-17. **Testing más allá del golden** — 🔶 350 tests (225 back + 125 front) y **E2E de
-    Playwright del lienzo ✅ (32)**; faltan property tests de comandos aleatorios y CI.
+    reimportar; evolutivo: desplegar a BC. (**T5**, pendiente.)
+17. **Testing más allá del golden** — 🔶 **495 unit** (306 back + 189 front), **78 E2E** de
+    Playwright ✅ y **CI** ✅ (T1); falta el **property testing** de comandos aleatorios (**T4**).
 
 ## ⚪ Decisiones menores
 
