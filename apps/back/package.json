@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Electron main + NestJS — el hexágono (dominio, aplicación, presentación, infraestructura)",
+  "author": "RDLC Report Designer",
   "type": "module",
   "main": "out/main/main.js",
   "scripts": {
@@ -14,7 +15,10 @@
     "typecheck": "tsc --noEmit",
     "e2e": "pnpm build:e2e && playwright test",
     "e2e:run": "playwright test",
-    "build:e2e": "electron-vite build --mode e2e"
+    "build:e2e": "electron-vite build --mode e2e",
+    "bench": "electron-vite build && node scripts/bench.mjs",
+    "dist": "electron-vite build && electron-builder --win",
+    "dist:dir": "electron-vite build && electron-builder --win --dir"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -32,6 +36,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^5",
     "electron": "^44.3.0",
+    "electron-builder": "26.15.3",
     "electron-vite": "^5.0.0",
     "fast-xml-parser": "^4.5.1",
     "libxml2-wasm": "^0.7.2",

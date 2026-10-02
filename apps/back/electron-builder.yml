@@ -1,0 +1,48 @@
+# Empaquetado Windows (T1).
+#
+#   pnpm --filter @rdlc-designer/back dist:dir   # carpeta sin instalador (smoke test)
+#   pnpm --filter @rdlc-designer/back dist       # NSIS + MSI en `release/`
+#
+# Firma: electron-builder firma si `CSC_LINK` (ruta/base64 del .pfx) y
+# `CSC_KEY_PASSWORD` están en el entorno; sin certificado el instalador sale
+# sin firmar (aviso de SmartScreen). Ver `docs/release/0001-empaquetado-windows.md`.
+appId: com.rdlcdesigner.desktop
+productName: RDLC Report Designer
+copyright: Copyright © 2026 RDLC Report Designer
+
+directories:
+  output: release
+
+# La app empaquetada solo necesita el build y sus dependencias de producción
+# (electron-builder las incluye aparte; el renderer, Monaco incluido, ya va en
+# `out/renderer`).
+files:
+  - out/**
+  - package.json
+
+# El XSD oficial se lee con `readFileSync` en runtime: viaja fuera del asar.
+extraResources:
+  - from: resources/rdl2016
+    to: rdl2016
+
+# Sin dependencias nativas: no hace falta recompilar.
+npmRebuild: false
+publish: null
+
+win:
+  target:
+    - nsis
+    - msi
+  # Icono placeholder (azul con hoja) en `build/icon.ico`: sustituible por el definitivo.
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  shortcutName: RDLC Report Designer
+  artifactName: RDLC-Report-Designer-${version}-setup.${ext}
+
+msi:
+  artifactName: RDLC-Report-Designer-${version}.${ext}

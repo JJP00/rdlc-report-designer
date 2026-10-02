@@ -21,12 +21,12 @@ import { LibXml2SchemaValidatorAdapter } from '../infrastructure/validation/LibX
 
 /**
  * Esquema oficial RDL 2016/01 (MS-RDL §5.8, XSD de ReportViewer) que viaja
- * con la app en `apps/back/resources/`.
+ * con la app en `apps/back/resources/` (dev) o en `resources/rdl2016/` del
+ * paquete (electron-builder lo copia con `extraResources`).
  */
-const RDL_SCHEMA_PATH = join(
-  import.meta.dirname,
-  '../../resources/rdl2016/ReportDefinition2016.xsd',
-);
+const RDL_SCHEMA_PATH = app.isPackaged
+  ? join(process.resourcesPath, 'rdl2016', 'ReportDefinition2016.xsd')
+  : join(import.meta.dirname, '../../resources/rdl2016/ReportDefinition2016.xsd');
 
 /**
  * Módulo de infraestructura: binding tokens → adaptadores.
