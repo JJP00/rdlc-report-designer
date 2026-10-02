@@ -5,6 +5,7 @@ import type { DropInfo } from '@/lib/dragTypes';
 import { sortByZIndex } from '@/lib/projection';
 import type { SelectedCell } from '@/lib/tablix';
 import type { PaperLayout } from './bands';
+import type { VisibleRect } from './culling';
 import { ItemView } from './ItemView';
 import { toPx } from './geometry';
 
@@ -20,6 +21,8 @@ export interface PaperProps {
   selectedCell?: SelectedCell | null;
   onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
   draggable: boolean;
+  /** Culling (T3): ventana visible en px de papel; null = pinta todo. */
+  cull?: VisibleRect | null;
 }
 
 /** Papel + área imprimible + bandas con sus items (los items se apilan por `ZIndex`). */
@@ -33,6 +36,7 @@ export function Paper({
   selectedCell,
   onSelectCell,
   draggable,
+  cull,
 }: PaperProps): ReactNode {
   return (
     <Layer>
@@ -88,6 +92,9 @@ export function Paper({
                 selectedCell={selectedCell}
                 onSelectCell={onSelectCell}
                 bounds={{ width: layout.reportWidth, height: toPx(band.region.height) }}
+                originX={band.x}
+                originY={band.y}
+                cull={cull ?? null}
               />
             ))}
           </Group>

@@ -17,12 +17,16 @@ import { paintColor } from '@/lib/style';
 import { tablixLayout, cellRange, isCellInRange, type SelectedCell } from '@/lib/tablix';
 import { browserTextMeasurer, layoutTextbox } from '@/lib/textLayout';
 import { itemOpacity } from '@/lib/visibility';
+import { intersectsBox, itemExtent, type VisibleRect } from './culling';
 import { PX_PER_CM, SNAP_CM, toPx } from './geometry';
 
 /**
  * Item del lienzo: el nodo Konva de cada elemento (selección y drag) y su
  * contenido según el tipo (textbox, rectángulo, línea, imagen, tablix).
  */
+
+/** A partir de estos segmentos, la rejilla del Tablix se cachea (T3). */
+const GRID_CACHE_MIN_SEGMENTS = 120;
 
 interface MovableNode {
   x(): number;
@@ -35,6 +39,8 @@ interface NodeGroupProps {
   itemId: string;
   x: number;
   y: number;
+  /** Culling (T3): false = el nodo no se pinta ni entra en el hit graph. */
+  visible?: boolean;
   /** Opacidad de pintado (los items con `Hidden = true` se atenúan). */
   opacity?: number;
   draggable?: boolean;
@@ -62,6 +68,7 @@ function NodeGroup({
   itemId,
   x,
   y,
+  visible,
   opacity,
   draggable,
   onSelect,
@@ -108,6 +115,7 @@ function NodeGroup({
       id={itemId}
       x={x}
       y={y}
+      visible={visible}
       opacity={opacity}
       draggable={draggable}
       onClick={(event) => {
@@ -215,6 +223,11 @@ interface ItemViewProps {
   /** Si el item es el contenido directo de una celda, su celda (Shift+click). */
   cellOwner?: { id: string; row: number; col: number } | null;
   bounds?: { width: number; height: number };
+  /** Origen absoluto del contenedor (px de papel) para el culling (T3). */
+  originX?: number;
+  originY?: number;
+  /** Ventana visible (px de papel); `null`/ausente = sin culling. */
+  cull?: VisibleRect | null;
 }
 
 export function ItemView({
@@ -229,11 +242,17 @@ export function ItemView({
   onSelectCell,
   cellOwner,
   bounds,
+  originX = 0,
+  originY = 0,
+  cull,
 }: ItemViewProps): ReactNode {
   const x = toPx(item.left);
   const y = toPx(item.top);
   const width = toPx(item.width);
   const height = toPx(item.height);
+  const absoluteX = originX + x;
+  const absoluteY = originY + y;
+  const visible = cull ? intersectsBox(itemExtent(item, originX, originY), cull) : true;
 
   // El estilo efectivo por párrafo/run lo resuelve el layout del textbox
   // (precedencia RDL: run > párrafo > item).
@@ -244,6 +263,7 @@ export function ItemView({
       itemId={item.id}
       x={x}
       y={y}
+      visible={visible}
       // `Hidden = true` literal se atenúa (el layout sigue editable); las
       // expresiones no se evalúan en diseño, como en RB.
       opacity={itemOpacity(item.hidden)}
@@ -267,6 +287,9 @@ export function ItemView({
         onResizeRow,
         selectedCell,
         onSelectCell,
+        absoluteX,
+        absoluteY,
+        cull,
       )}
     </NodeGroup>
   );
@@ -285,6 +308,9 @@ function renderContent(
   onResizeRow?: (id: string, row: number, height: Length) => void,
   selectedCell?: SelectedCell | null,
   onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void,
+  originX?: number,
+  originY?: number,
+  cull?: VisibleRect | null,
 ): ReactNode {
   switch (item.kind) {
     case 'textbox':
@@ -301,6 +327,9 @@ function renderContent(
           onSelectCell={onSelectCell}
           width={width}
           height={height}
+          originX={originX ?? 0}
+          originY={originY ?? 0}
+          cull={cull ?? null}
         />
       );
     case 'line':
@@ -325,6 +354,9 @@ function renderContent(
           onResizeRow={onResizeRow}
           selectedCell={selectedCell}
           onSelectCell={onSelectCell}
+          originX={originX ?? 0}
+          originY={originY ?? 0}
+          cull={cull ?? null}
         />
       );
     default:
@@ -374,6 +406,7 @@ function TextboxContent({
           fill={paintColor(style?.backgroundColor, '#ffffff')}
           stroke="#e5e7eb"
           strokeWidth={0.5}
+          perfectDrawEnabled={false}
         />
         <ItemBorder border={style?.border} width={width} height={height} />
         {layout.runs.map((run) => (
@@ -388,6 +421,7 @@ function TextboxContent({
             fontStyle={run.fontStyle || 'normal'}
             fill={run.fill}
             wrap="none"
+            perfectDrawEnabled={false}
             {...(run.textDecoration !== undefined ? { textDecoration: run.textDecoration } : {})}
           />
         ))}
@@ -406,6 +440,9 @@ function RectangleContent({
   onResizeRow,
   selectedCell,
   onSelectCell,
+  originX,
+  originY,
+  cull,
 }: {
   item: RectangleDto;
   width: number;
@@ -416,6 +453,9 @@ function RectangleContent({
   onResizeRow?: (id: string, row: number, height: Length) => void;
   selectedCell?: SelectedCell | null;
   onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
+  originX: number;
+  originY: number;
+  cull: VisibleRect | null;
 }): ReactNode {
   return (
     <>
@@ -427,6 +467,7 @@ function RectangleContent({
         fill={paintColor(item.style?.backgroundColor, 'rgba(0,0,0,0)')}
         stroke="#9ca3af"
         strokeWidth={0.5}
+        perfectDrawEnabled={false}
       />
       <ItemBorder border={item.style?.border} width={width} height={height} />
       {sortByZIndex(item.children).map((child) => (
@@ -440,6 +481,9 @@ function RectangleContent({
           selectedCell={selectedCell}
           onSelectCell={onSelectCell}
           draggable={onMoveTo !== undefined}
+          originX={originX}
+          originY={originY}
+          cull={cull}
           /* Sin bounds: el contenedor no es un límite duro en RDL. */
         />
       ))}
@@ -448,7 +492,14 @@ function RectangleContent({
 }
 
 function LineContent({ width, height }: { width: number; height: number }): ReactNode {
-  return <Line points={[0, 0, width, height]} stroke="#111827" hitStrokeWidth={8} />;
+  return (
+    <Line
+      points={[0, 0, width, height]}
+      stroke="#111827"
+      hitStrokeWidth={8}
+      perfectDrawEnabled={false}
+    />
+  );
 }
 
 function UnknownContent({ width, height }: { width: number; height: number }): ReactNode {
@@ -497,6 +548,7 @@ function ItemBorder({
           key={`${side}-${inset}`}
           name="item-border"
           listening={false}
+          perfectDrawEnabled={false}
           points={sidePoints(side, inset, width, height)}
           stroke={stroke}
           strokeWidth={thickness}
@@ -623,6 +675,9 @@ function TablixContent({
   onResizeRow,
   selectedCell,
   onSelectCell,
+  originX,
+  originY,
+  cull,
 }: {
   item: TablixDto;
   selected?: boolean;
@@ -632,6 +687,9 @@ function TablixContent({
   onResizeRow?: (id: string, row: number, height: Length) => void;
   selectedCell?: SelectedCell | null;
   onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
+  originX: number;
+  originY: number;
+  cull: VisibleRect | null;
 }): ReactNode {
   const layout = tablixLayout(item);
   const totalWidth = layout.width * PX_PER_CM;
@@ -653,9 +711,18 @@ function TablixContent({
   const cells: ReactNode[] = layout.cells.map((cell) => {
     const cellWidth = cell.width * PX_PER_CM;
     const cellHeight = cell.height * PX_PER_CM;
+    const cellX = originX + cell.x * PX_PER_CM;
+    const cellY = originY + cell.y * PX_PER_CM;
+    const cellVisible =
+      !cull || intersectsBox({ x: cellX, y: cellY, width: cellWidth, height: cellHeight }, cull);
 
     return (
-      <Group key={`c${cell.row}-${cell.col}`} x={cell.x * PX_PER_CM} y={cell.y * PX_PER_CM}>
+      <Group
+        key={`c${cell.row}-${cell.col}`}
+        x={cell.x * PX_PER_CM}
+        y={cell.y * PX_PER_CM}
+        visible={cellVisible}
+      >
         {/* Área de la celda, **debajo** del contenido: un item anidado gana el
             click (selecciona el item); una celda vacía selecciona la celda. */}
         <Rect
@@ -663,6 +730,7 @@ function TablixContent({
           width={cellWidth}
           height={cellHeight}
           fill="rgba(0,0,0,0)"
+          perfectDrawEnabled={false}
           onClick={selectCell(cell.row, cell.col)}
           onTap={selectCell(cell.row, cell.col)}
         />
@@ -683,6 +751,9 @@ function TablixContent({
               onSelectCell={onSelectCell}
               cellOwner={{ id: item.id, row: cell.row, col: cell.col }}
               draggable={false}
+              originX={cellX}
+              originY={cellY}
+              cull={cull}
             />
           </Group>
         ) : null}
@@ -738,6 +809,20 @@ function TablixContent({
   // dibujan, así una celda con ColSpan/RowSpan se ve como una caja continua
   // (antes la línea de columna la partía en dos).
   const gridSegments = tablixGrid(item);
+  const gridSegmentCount = gridSegments.vertical.length + gridSegments.horizontal.length;
+  // T3: una rejilla grande se cachea como bitmap (deja de redibujar cada
+  // segmento por frame); las rejillas normales siguen vectoriales.
+  const gridRef = useRef<Konva.Group | null>(null);
+  useEffect(() => {
+    const group = gridRef.current;
+    if (!group) return;
+    if (gridSegmentCount < GRID_CACHE_MIN_SEGMENTS) {
+      group.clearCache();
+      return;
+    }
+    group.cache({ pixelRatio: 2 });
+    group.getLayer()?.batchDraw();
+  }, [item.id, gridSegmentCount, totalWidth, totalHeight]);
   const grid: ReactNode[] = [
     ...gridSegments.vertical.map((segment) => (
       <Line
@@ -751,6 +836,7 @@ function TablixContent({
         ]}
         stroke="#d1d5db"
         strokeWidth={0.5}
+        perfectDrawEnabled={false}
         listening={false}
       />
     )),
@@ -766,6 +852,7 @@ function TablixContent({
         ]}
         stroke="#d1d5db"
         strokeWidth={0.5}
+        perfectDrawEnabled={false}
         listening={false}
       />
     )),
@@ -776,12 +863,20 @@ function TablixContent({
       {/* Cabeceras y esquina (fuera de la rejilla): contenido ya colocado, se
           pinta como cualquier item (seleccionable; anclado a su celda). */}
       {tablixHeaderItems(item).map((header) => (
-        <ItemView key={header.id} item={header} onSelect={onSelect} draggable={false} />
+        <ItemView
+          key={header.id}
+          item={header}
+          onSelect={onSelect}
+          draggable={false}
+          originX={originX}
+          originY={originY}
+          cull={cull}
+        />
       ))}
       {cells}
       {/* La rejilla va encima de las celdas (los separadores se dibujan en la
           capa de selección, como los tiradores). */}
-      {grid}
+      <Group ref={gridRef}>{grid}</Group>
       {/* Resaltado del rango seleccionado (una sola figura, encima de la rejilla). */}
       {highlight ? (
         <Rect
@@ -825,6 +920,7 @@ function TablixContent({
         fill="rgba(0,0,0,0)"
         stroke="#9ca3af"
         strokeWidth={0.5}
+        perfectDrawEnabled={false}
         hitFunc={tablixBorderHit}
         onClick={(event) => {
           if (isSecondaryClick(event)) return;

@@ -49,3 +49,41 @@ RDLC_BENCH=972 pnpm --filter @rdlc-designer/back dev
 ```
 
 En PowerShell: `$env:RDLC_BENCH='972'; pnpm --filter @rdlc-designer/back dev`.
+
+## Medición T3 (2026-10-02) — camino real de arrastre + culling
+
+- **Implementación medida**: `BenchPage` reproduce el **camino real de arrastre**
+  (`node.y()` + `batchDraw()` por frame, sin re-render de React), que es exactamente lo que
+  hace `ItemView.onDragMove`; mide sobre el **build de producción** (`scripts/bench.mjs`).
+- **Optimizaciones (T3)**:
+  - **Culling por ventana visible**: intersección del hueco de scroll con el **stage**
+    (lo que el canvas recorta no se pinta), cuantizada a pasos de 400 px y con margen de 600,
+    activa a partir de **250 items** (los informes normales de BC no cambian de comportamiento).
+    Cajas absolutas con unión de descendientes en rectángulos (`components/canvas/culling.ts`).
+  - `perfectDrawEnabled: false` en las figuras del lienzo (rects, líneas, runs de texto, rejilla).
+  - **Rejilla de Tablix cacheada** a partir de 120 segmentos (bitmap a `pixelRatio: 2`).
+
+### Antes / después (972 textboxes, mismo escenario)
+
+| Métrica                       | Línea base F0 (React por frame) | Camino real sin culling | T3 (culling + caché) |
+| ----------------------------- | ------------------------------- | ----------------------- | -------------------- |
+| FPS en drag (p50)             | 30                              | 29,9                    | **59,5–59,9**        |
+| FPS p95                       | 20                              | 15–19,9                 | 29,9–59,2            |
+| `draw()` del layer            | —                               | 25,6 ms                 | 6,9–12,5 ms          |
+| Grupos ocultos por el culling | —                               | 0 de 1.945              | **755 de 1.945**     |
+| Montaje inicial               | 311 ms (dev)                    | 9,6 ms                  | 60–114 ms            |
+
+- El p95 con caídas puntuales a 30 fps aparece en el **primer** run de cada lanzamiento
+  (warm-up); en las pasadas repetidas el mínimo se sostiene en 56,8–59,2 fps. El criterio
+  de aceptación es el **p50** (60 fps), y la mediana de las 3 pasadas es 59,5–59,9.
+- El culling añade una pasada de cálculo en el montaje (60–114 ms), muy por debajo del
+  presupuesto de 1.500 ms.
+- **Solo la pestaña activa monta el stage**: N/A en esta versión (una ventana = un
+  documento). Si se añaden pestañas, el `Stage` deberá montarse solo en la activa.
+
+### Reproducir T3
+
+```bash
+pnpm --filter @rdlc-designer/back bench     # 972 textboxes × 3 pasadas (build de producción)
+node apps/back/scripts/bench.mjs 5000 5     # otro tamaño / nº de pasadas
+```

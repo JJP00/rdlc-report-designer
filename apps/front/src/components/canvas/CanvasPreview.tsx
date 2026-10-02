@@ -32,10 +32,19 @@ import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
 import { useMarqueeSelection } from './useMarqueeSelection';
 import { usePageResize } from './usePageResize';
 import { bandAt, paperLayout, type PaperLayout } from './bands';
+import { CULL_MIN_ITEMS, countProjectionItems, type VisibleRect } from './culling';
 import { clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
 
 /** Padding del contenedor con scroll (`p-6`): 1,5 rem. */
 const CANVAS_PADDING_PX = 24;
+
+/**
+ * Culling (T3): el origen visible se cuantiza a pasos de 400 px y se deja un
+ * margen de 600 px (> paso), así al hacer scroll no hay pop-in y solo se
+ * re-renderiza cada 400 px de desplazamiento.
+ */
+const CULL_STEP_PX = 400;
+const CULL_MARGIN_PX = 600;
 
 /** Scope del contrato para cada banda del papel. */
 function scopeOfBand(key: string): ScopeRef {
@@ -96,6 +105,8 @@ export interface CanvasPreviewProps {
   onDropItem?: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
   /** Petición de llevar un elemento a la vista (paleta Ctrl+K). */
   reveal?: { id: string; nonce: number } | null;
+  /** Stage real del lienzo (benchmark/QA): permite mover nodos sin re-render. */
+  stageRef?: RefObject<Konva.Stage | null>;
 }
 
 /**
@@ -126,8 +137,10 @@ export function CanvasPreview({
   onContextMenuHit,
   onDropItem,
   reveal,
+  stageRef: stageRefProp,
 }: CanvasPreviewProps): ReactNode {
-  const stageRef = useRef<Konva.Stage | null>(null);
+  const localStageRef = useRef<Konva.Stage | null>(null);
+  const stageRef = stageRefProp ?? localStageRef;
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   /* ----------------------- marco de selección (U3) ------------------------ */
@@ -180,6 +193,70 @@ export function CanvasPreview({
 
   const layout = paperLayout(projection);
   const visibleBands = layout.bands.filter((band) => band.visible);
+
+  /* ------------------- culling de la ventana visible (T3) ------------------ */
+
+  const itemCount = useMemo(() => countProjectionItems(projection), [projection]);
+  const [visibleRect, setVisibleRect] = useState<VisibleRect | null>(null);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || itemCount < CULL_MIN_ITEMS) {
+      setVisibleRect(null);
+      return;
+    }
+
+    let frame = 0;
+    const update = (): void => {
+      frame = 0;
+      // Ventana en px de papel = intersección del hueco de scroll con el
+      // **stage** (lo que el canvas recorta no se ve aunque esté en el hueco).
+      const rawLeft = (container.scrollLeft - CANVAS_PADDING_PX - RULER_PX) / zoom;
+      const rawTop = (container.scrollTop - CANVAS_PADDING_PX - RULER_PX) / zoom;
+      const rawRight = rawLeft + container.clientWidth / zoom;
+      const rawBottom = rawTop + container.clientHeight / zoom;
+
+      const left = Math.max(rawLeft, 0);
+      const top = Math.max(rawTop, 0);
+      const right = Math.min(rawRight, layout.sheetWidth);
+      const bottom = Math.min(rawBottom, layout.sheetHeight);
+
+      // El origen se cuantiza a pasos de `CULL_STEP_PX` y se deja margen.
+      // El resultado se recorta al papel: fuera del stage no se ve nada.
+      const x0 = Math.max(0, Math.floor(left / CULL_STEP_PX) * CULL_STEP_PX - CULL_MARGIN_PX);
+      const y0 = Math.max(0, Math.floor(top / CULL_STEP_PX) * CULL_STEP_PX - CULL_MARGIN_PX);
+      const x1 = Math.min(layout.sheetWidth, Math.max(right, 0) + CULL_MARGIN_PX + CULL_STEP_PX);
+      const y1 = Math.min(layout.sheetHeight, Math.max(bottom, 0) + CULL_MARGIN_PX + CULL_STEP_PX);
+      const next: VisibleRect = {
+        x: x0,
+        y: y0,
+        width: Math.max(x1 - x0, 0),
+        height: Math.max(y1 - y0, 0),
+      };
+      setVisibleRect((prev) =>
+        prev &&
+        prev.x === next.x &&
+        prev.y === next.y &&
+        prev.width === next.width &&
+        prev.height === next.height
+          ? prev
+          : next,
+      );
+    };
+    const schedule = (): void => {
+      if (frame === 0) frame = requestAnimationFrame(update);
+    };
+
+    update();
+    container.addEventListener('scroll', schedule, { passive: true });
+    const observer = new ResizeObserver(schedule);
+    observer.observe(container);
+    return () => {
+      if (frame !== 0) cancelAnimationFrame(frame);
+      container.removeEventListener('scroll', schedule);
+      observer.disconnect();
+    };
+  }, [itemCount, zoom]);
 
   /**
    * «Ajustar al ancho»: mide el hueco real del lienzo (menos paddings y reglas)
@@ -382,6 +459,7 @@ export function CanvasPreview({
               selectedCell={selectedCell}
               onSelectCell={onSelectCell}
               draggable={onMoveTo !== undefined}
+              cull={visibleRect}
             />
 
             <SelectionFrame {...frameProps} />

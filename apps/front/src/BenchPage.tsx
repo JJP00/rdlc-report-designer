@@ -1,3 +1,4 @@
+import type Konva from 'konva';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { makeProjection, summarize, type BenchResult } from '@/lib/bench';
@@ -5,16 +6,20 @@ import { CanvasPreview } from '@/components/canvas/CanvasPreview';
 
 const MEASURE_MS = 3000;
 const ZOOM = 0.45;
+/** Amplitud del vaivén vertical del item arrastrado (px de papel). */
+const DRAG_AMPLITUDE_PX = 20;
 
 /**
- * Página de benchmark (dev-only, `?bench=972`).
- * Renderiza N textboxes y simula un drag de 3 s moviendo un item por frame,
- * midiendo los intervalos entre frames (React + Konva, sin optimizar todavía:
- * es la línea base de F0 para F1).
+ * Página de benchmark (dev/QA, `?bench=972`).
+ *
+ * Mide el **camino real de arrastre**: se mueve el nodo Konva del primer item
+ * (`node.y()` + `batchDraw()`, como `ItemView.onDragMove`) sin re-renderizar
+ * React. El montaje también se mide. Criterio de aceptación de F1/T3: 60 fps
+ * p50 en el escenario de 972 textboxes.
  */
 export function BenchPage({ count }: { count: number }): ReactNode {
   const base = useMemo(() => makeProjection(count), [count]);
-  const [offset, setOffset] = useState(0);
+  const stageRef = useRef<Konva.Stage | null>(null);
   const [phase, setPhase] = useState<'montando' | 'midiendo' | 'hecho'>('montando');
   const [result, setResult] = useState<BenchResult | null>(null);
   // Momento de montaje: se toma en un efecto (no en render) para no escribir
@@ -26,17 +31,6 @@ export function BenchPage({ count }: { count: number }): ReactNode {
     mountAt.current = performance.now();
   }, []);
 
-  const movedId = base.page.body.items[0]?.id ?? '';
-  const projection = useMemo(() => {
-    if (offset === 0) return base;
-    const items = base.page.body.items.map((item) =>
-      item.id === movedId
-        ? { ...item, top: { ...item.top, value: item.top.value + 0.02 * (offset % 8) } }
-        : item,
-    );
-    return { ...base, page: { ...base.page, body: { ...base.page.body, items } } };
-  }, [base, movedId, offset]);
-
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -47,18 +41,41 @@ export function BenchPage({ count }: { count: number }): ReactNode {
     return () => cancelAnimationFrame(id);
   }, []);
 
+  const movedId = base.page.body.items[0]?.id ?? '';
+
   useEffect(() => {
     if (phase !== 'midiendo') return;
 
     const frames: number[] = [];
-    let last = performance.now();
-    const start = last;
     let raf = 0;
+    let started = false;
+    let start = 0;
+    let last = 0;
+    let baseY = 0;
+    let node: Konva.Node | null = null;
 
     const loop = (now: number): void => {
+      if (!started) {
+        // El stage puede tardar un frame en montar: se espera sin medir.
+        node = stageRef.current?.findOne(`#${movedId}`) ?? null;
+        if (node === null) {
+          raf = requestAnimationFrame(loop);
+          return;
+        }
+        baseY = node.y();
+        started = true;
+        start = now;
+        last = now;
+        raf = requestAnimationFrame(loop);
+        return;
+      }
+
       frames.push(now - last);
       last = now;
-      setOffset((value) => value + 1);
+
+      const t = (now - start) / 1000;
+      node?.y(baseY + Math.sin(t * Math.PI * 2) * DRAG_AMPLITUDE_PX);
+      node?.getLayer()?.batchDraw();
 
       if (now - start < MEASURE_MS) {
         raf = requestAnimationFrame(loop);
@@ -68,21 +85,51 @@ export function BenchPage({ count }: { count: number }): ReactNode {
       const summary = summarize(frames, count, firstPaintAt.current - mountAt.current);
       (window as Window & { __benchResult?: BenchResult }).__benchResult = summary;
       console.log('[bench]', JSON.stringify(summary));
+
+      // Diagnóstico T3: coste de un draw completo y nodos visibles/ocultos.
+      const layer = node?.getLayer() ?? null;
+      const drawStart = performance.now();
+      layer?.draw();
+      const drawMs = performance.now() - drawStart;
+      const groups = layer?.find('Group') ?? [];
+      const debug = {
+        drawMs: Math.round(drawMs * 10) / 10,
+        groups: groups.length,
+        hiddenGroups: groups.filter((group) => !group.visible()).length,
+      };
+      (window as Window & { __benchDebug?: unknown }).__benchDebug = debug;
+      console.log('[bench-debug]', JSON.stringify(debug));
+
+      node?.y(baseY);
+      node?.getLayer()?.batchDraw();
       setResult(summary);
       setPhase('hecho');
     };
 
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [phase, count]);
+  }, [phase, count, movedId]);
 
   const restart = (): void => {
     setResult(null);
-    setOffset(0);
     mountAt.current = performance.now();
     setPhase('montando');
-    requestAnimationFrame(() => requestAnimationFrame(() => setPhase('midiendo')));
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        firstPaintAt.current = performance.now();
+        setPhase('midiendo');
+      }),
+    );
   };
+
+  // QA: el runner repite el benchmark varias veces para promediar.
+  useEffect(() => {
+    const holder = window as Window & { __benchRestart?: () => void };
+    holder.__benchRestart = restart;
+    return () => {
+      delete holder.__benchRestart;
+    };
+  });
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -108,7 +155,7 @@ export function BenchPage({ count }: { count: number }): ReactNode {
             <span>{phase === 'montando' ? 'Montando…' : 'Midiendo drag simulado (3 s)…'}</span>
           )}
         </div>
-        <CanvasPreview projection={projection} zoom={ZOOM} />
+        <CanvasPreview projection={base} zoom={ZOOM} stageRef={stageRef} />
       </main>
 
       <footer className="border-t px-3 py-1 text-xs text-muted-foreground">
