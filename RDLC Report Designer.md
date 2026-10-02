@@ -21,6 +21,12 @@ Los ficheros los genera Business Central (schema RDLC 2016) y esta app los edita
 | `Line`                              | 2     |                                                                                                      |
 | Charts / Gauges / Maps / Subreports | 0     | Fuera de alcance                                                                                     |
 
+La app abre **`.rdlc` de Business Central y `.rdl` de SSRS**: comparten el
+esquema RDL 2016/01, así que la edición y el round-trip son idénticos. Un `.rdl`
+anterior a 2016 (2005/2008/2010) usa `Report > Body` sin `ReportSections` y se
+**rechaza al abrir** con un motivo accionable (`E_UNSUPPORTED_SCHEMA`) en vez de
+abrirlo vacío y no poder guardarlo.
+
 Otros hallazgos:
 
 - **1 dataset por fichero** y `DataSource` genérico (BC lo inyecta en runtime). Sin soporte multi-datasource.

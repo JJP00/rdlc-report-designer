@@ -76,7 +76,7 @@ export function App(): ReactNode {
     setConflictOpen(conflict !== null);
   }, [conflict]);
 
-  /** Drag&drop de `.rdlc` sobre la ventana (overlay + apertura con guardas). */
+  /** Drag&drop de `.rdlc`/`.rdl` sobre la ventana (overlay + apertura con guardas). */
   const { dropActive, dropHandlers } = useFileDrop({
     enabled: hasBackend,
     onOpenPath: core.openPath,
@@ -172,7 +172,7 @@ export function App(): ReactNode {
       <div className="relative flex h-full flex-col bg-background" {...dropHandlers}>
         {dropActive ? (
           <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-sm font-medium text-primary">
-            Suelta el fichero .rdlc para abrirlo
+            Suelta el fichero .rdlc o .rdl para abrirlo
           </div>
         ) : null}
         <EditorToolbar

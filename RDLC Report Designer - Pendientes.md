@@ -1,5 +1,28 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Sesión 2026-10-02 (2.ª parte) · soporte `.rdl` (RDL 2016)** — la app solo
+> abría `.rdlc`; los RDL de SSRS se quedaban fuera de los diálogos y del
+> drag&drop.
+>
+> - **Extensiones**: diálogos Abrir/Guardar («Informes RDL/RDLC»), argumento de
+>   CLI/`RDLC_OPEN` y drag&drop aceptan `.rdlc` y `.rdl`; el overlay y la barra
+>   de estado lo dicen.
+> - **Esquema al abrir**: RDL y RDLC comparten el esquema **2016/01**, así que
+>   la edición y el round-trip son los mismos; el nombre del informe sale sin la
+>   extensión. Al abrir se comprueba la raíz (`<Report>`) y el namespace: un RDL
+>   anterior a 2016 (2005/2008/2010, con `Report > Body` sin `ReportSections`)
+>   se rechaza con un motivo accionable (`E_UNSUPPORTED_SCHEMA`: «ábrelo con
+>   Report Builder 2016 o superior, guárdalo y vuelve a intentarlo»), en vez de
+>   abrirse vacío y no poder guardarse.
+> - **Tests**: 3 unit nuevos en `session.service.spec.ts` (`.rdl` 2016 con
+>   round-trip byte-exacto, RDL 2008 rechazado y raíz que no es `<Report>`) y
+>   spec E2E nuevo `rdl-support.spec.ts` (2 tests: abre/guarda un `.rdl` byte a
+>   byte y el aviso del esquema antiguo).
+>
+> Verificación: typecheck limpio, **309 back + 189 front** unit y **80/80 E2E**
+> verdes. El punto de retomada del bloque T1–T3 (UX P2/P3, bug de Tablix
+> anidados, T4/T5) sigue vigente.
+
 > **Sesión 2026-10-02 · T1–T3 (CI + empaquetado, endurecimiento de Electron, rendimiento del lienzo)** —
 > los tres técnicos del backlog que quedaban por delante. La deuda de UX (P2/P3 de 0002)
 > sigue fuera de este bloque.

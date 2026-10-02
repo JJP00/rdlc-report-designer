@@ -897,7 +897,7 @@ function elementChildren(parent: XmlElement | undefined, tagName?: string): XmlE
 
 function baseName(filePath: string): string {
   const name = filePath.split(/[\\/]/).pop() ?? filePath;
-  return name.replace(/\.rdlc$/i, '');
+  return name.replace(/\.(rdlc|rdl)$/i, '');
 }
 
 /** true si la fila contiene alguna expresión agregada (`=Sum(`, `=Count(`…). */

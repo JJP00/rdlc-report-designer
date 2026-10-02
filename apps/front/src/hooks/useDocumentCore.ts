@@ -86,7 +86,9 @@ const ERROR_BANNER_MS = 6000;
 
 export function useDocumentCore(): DocumentCore {
   const [doc, setDoc] = useState<OpenDocument | null>(null);
-  const [status, setStatus] = useState('Listo. Abre un .rdlc exportado de Business Central.');
+  const [status, setStatus] = useState(
+    'Listo. Abre un informe .rdlc de Business Central o un .rdl 2016.',
+  );
   const [error, setErrorState] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);

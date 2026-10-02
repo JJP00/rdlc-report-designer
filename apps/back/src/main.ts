@@ -39,11 +39,11 @@ function hardenWebContents(contents: WebContents): void {
   });
 }
 
-/** Fichero inicial: `RDLC_OPEN` (dev) o primer argumento `.rdlc` (CLI). */
+/** Fichero inicial: `RDLC_OPEN` (dev) o primer argumento `.rdlc`/`.rdl` (CLI). */
 function findInitialFile(): string | null {
   const fromEnv = process.env['RDLC_OPEN'];
   if (fromEnv) return fromEnv;
-  const fromArgs = process.argv.slice(1).find((arg) => arg.toLowerCase().endsWith('.rdlc'));
+  const fromArgs = process.argv.slice(1).find((arg) => /\.(rdlc|rdl)$/i.test(arg));
   return fromArgs ?? null;
 }
 

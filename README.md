@@ -1,8 +1,9 @@
 # RDLC Report Designer
 
-Editor visual de layouts de informes `.rdlc` de Business Central. Alternativa
-moderna al Report Builder (obsoleto): Electron + React (lienzo Konva), backend
-NestJS con arquitectura hexagonal y **XML lossless** como fuente de verdad.
+Editor visual de informes `.rdlc` de Business Central y `.rdl` de SSRS
+(esquema RDL 2016/01). Alternativa moderna al Report Builder (obsoleto):
+Electron + React (lienzo Konva), backend NestJS con arquitectura hexagonal y
+**XML lossless** como fuente de verdad.
 
 > Documentación funcional: [`RDLC Report Designer.md`](./RDLC%20Report%20Designer.md)
 > Arquitectura: [`RDLC Report Designer - arquitectura.md`](./RDLC%20Report%20Designer%20-%20arquitectura.md)
@@ -267,5 +268,11 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       (culling por ventana visible, `perfectDrawEnabled:false` y rejilla cacheada;
       **59,5–59,9 fps p50** con 972 textboxes, [perf](./docs/perf/0001-baseline-lienzo.md)).
       Estado: **306 back + 189 front** unit + **78 E2E** verdes.
+
+- [x] **Sesión 2026-10-02 (2.ª parte) · `.rdl`**: Abrir/Guardar, argumento CLI y
+      drag&drop aceptan `.rdlc` y `.rdl`; RDL y RDLC comparten el esquema 2016/01
+      (misma edición y round-trip) y un RDL anterior a 2016 se rechaza al abrir con un
+      motivo accionable (`E_UNSUPPORTED_SCHEMA`). **309 back + 189 front** unit y
+      **80 E2E** verdes.
 
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

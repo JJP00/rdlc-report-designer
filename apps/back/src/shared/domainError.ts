@@ -35,6 +35,30 @@ export class InvalidXmlError implements DomainError {
   }
 }
 
+/**
+ * RDL/RDLC con un esquema distinto del 2016/01 (2005, 2008, 2010…). El dominio
+ * escribe en orden canónico 2016 y las secciones (`ReportSections`) no existen
+ * antes: editarlo como si fuera 2016 lo corrompería, así que no se abre.
+ */
+export class UnsupportedRdlSchemaError implements DomainError {
+  readonly code = 'E_UNSUPPORTED_SCHEMA' as const;
+
+  private constructor(readonly errorMessage: string) {}
+
+  static create(path: string, namespace: string | undefined): UnsupportedRdlSchemaError {
+    const version = namespace?.match(/\/(\d{4})\/\d{2}\/reportdefinition/i)?.[1];
+    const found = version
+      ? `el esquema RDL ${version}`
+      : namespace
+        ? `un esquema distinto ('${namespace}')`
+        : 'sin namespace RDL';
+    return new UnsupportedRdlSchemaError(
+      `El fichero usa ${found}; esta versión solo edita RDL/RDLC 2016/01. ` +
+        `Ábrelo con Report Builder 2016 o superior, guárdalo para actualizarlo a 2016 y vuelve a intentarlo: ${path}`,
+    );
+  }
+}
+
 export class IoError implements DomainError {
   readonly code = 'E_IO' as const;
 

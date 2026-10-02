@@ -27,6 +27,7 @@ import {
   InvalidXmlError,
   IoError,
   UnknownSessionError,
+  UnsupportedRdlSchemaError,
   ValidationFailedError,
 } from '../../shared/domainError.js';
 import type {
@@ -81,6 +82,11 @@ export class SessionService implements ISessionService {
 
     const parsed = this.tryParse(filePath, read.value);
     if (parsed.isLeft()) return left(parsed.value);
+
+    // RDL y RDLC comparten el esquema 2016/01; otras versiones no se abren
+    // (ver `checkSupportedSchema`).
+    const schemaProblem = checkSupportedSchema(filePath, parsed.value.root);
+    if (schemaProblem) return left(schemaProblem);
 
     let mtimeMs: number;
     try {
@@ -425,4 +431,24 @@ export class SessionService implements ISessionService {
       return left(InvalidXmlError.create(filePath, (error as Error).message));
     }
   }
+}
+
+/** Namespace del esquema que el dominio sabe editar (RDL y RDLC lo comparten). */
+const RDL_2016_NAMESPACE =
+  'http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition';
+
+/**
+ * Comprueba que el fichero es un informe RDL/RDLC **2016/01**. Un RDL anterior
+ * usa `Report > Body` (sin `ReportSections`) y el dominio lo escribiría en
+ * orden canónico 2016: mejor rechazarlo con un motivo claro que abrirlo vacío.
+ */
+function checkSupportedSchema(filePath: string, root: RdlcNode): DomainError | null {
+  if (root.tagName !== 'Report') {
+    return InvalidXmlError.create(filePath, `<${root.tagName}> no es un informe RDL/RDLC`);
+  }
+  const namespace = root.attribute('xmlns');
+  if (namespace !== RDL_2016_NAMESPACE) {
+    return UnsupportedRdlSchemaError.create(filePath, namespace);
+  }
+  return null;
 }

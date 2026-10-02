@@ -279,9 +279,9 @@ export class IpcController {
 
   private async pickFile(): Promise<PickFileResult> {
     const options: OpenDialogOptions = {
-      title: 'Abrir layout RDLC',
+      title: 'Abrir informe RDL/RDLC',
       properties: ['openFile'],
-      filters: [{ name: 'Informes RDLC', extensions: ['rdlc'] }],
+      filters: [{ name: 'Informes RDL/RDLC', extensions: ['rdlc', 'rdl'] }],
     };
     const window = this.getWindow();
     const result = window
@@ -293,9 +293,9 @@ export class IpcController {
 
   private async pickSavePath(defaultPath?: string): Promise<PickSavePathResult> {
     const options: SaveDialogOptions = {
-      title: 'Guardar informe RDLC',
+      title: 'Guardar informe RDL/RDLC',
       ...(defaultPath ? { defaultPath } : {}),
-      filters: [{ name: 'Informes RDLC', extensions: ['rdlc'] }],
+      filters: [{ name: 'Informes RDL/RDLC', extensions: ['rdlc', 'rdl'] }],
     };
     const window = this.getWindow();
     const result = window

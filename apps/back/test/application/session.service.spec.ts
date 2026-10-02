@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { IPC_EVENTS, type DocumentChangedEvent } from '@rdlc-designer/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { corpusByName } from '../golden/fixtures.js';
 import { cleanupTempDirs, makeService, writeFixture } from './test-utils.js';
 
 /** F0 — caso de uso completo con adaptadores fake (sin Electron). */
@@ -30,6 +31,54 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
 
     const after = await readFile(path);
     expect(after.equals(before)).toBe(true);
+  });
+
+  it('abre un RDL 2016 (extensión .rdl): misma proyección y round-trip', async () => {
+    const { service, tmp } = await makeService();
+    const path = join(tmp, 'PalletOutput.rdl');
+    await writeFile(path, corpusByName('PalletOutput.rdlc').bytes);
+
+    const opened = await service.open(path);
+    expect(opened.isRight()).toBe(true);
+    if (!opened.isRight()) return;
+
+    expect(opened.value.projection.reportName).toBe('PalletOutput');
+    expect(opened.value.projection.page.body.items.length).toBeGreaterThan(0);
+
+    const saved = await service.save(opened.value.sessionId);
+    expect(saved.isRight()).toBe(true);
+    if (!saved.isRight()) return;
+    expect(saved.value.bytesIdentical).toBe(true);
+  });
+
+  it('rechaza un RDL anterior a 2016 con un motivo claro (E_UNSUPPORTED_SCHEMA)', async () => {
+    const { service, tmp } = await makeService();
+    const path = join(tmp, 'Viejo.rdl');
+    await writeFile(
+      path,
+      '<?xml version="1.0" encoding="utf-8"?>\r\n' +
+        '<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2008/01/reportdefinition">' +
+        '<Body><ReportItems /></Body></Report>',
+      'utf8',
+    );
+
+    const opened = await service.open(path);
+    expect(opened.isLeft()).toBe(true);
+    if (opened.isRight()) return;
+    expect(opened.value.code).toBe('E_UNSUPPORTED_SCHEMA');
+    expect(opened.value.errorMessage).toContain('RDL 2008');
+    expect(opened.value.errorMessage).toContain('2016');
+  });
+
+  it('rechaza un XML cuya raíz no es <Report>', async () => {
+    const { service, tmp } = await makeService();
+    const path = join(tmp, 'NoEsInforme.rdlc');
+    await writeFile(path, '<?xml version="1.0"?><foo><bar /></foo>', 'utf8');
+
+    const opened = await service.open(path);
+    expect(opened.isLeft()).toBe(true);
+    if (opened.isRight()) return;
+    expect(opened.value.code).toBe('E_INVALID_XML');
   });
 
   it('proyecta el corpus: items, texto y funciones del bloque <Code>', async () => {

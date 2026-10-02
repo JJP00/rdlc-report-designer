@@ -54,6 +54,7 @@ export const ERROR_CODES = [
   'E_VALIDATION',
   'E_NOT_FOUND',
   'E_INVALID_XML',
+  'E_UNSUPPORTED_SCHEMA',
   'E_IO',
   'E_UNEXPECTED',
 ] as const;
