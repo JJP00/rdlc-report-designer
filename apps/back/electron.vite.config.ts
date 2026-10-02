@@ -22,11 +22,14 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@rdlc-designer/contracts'] })],
+    // El sandbox de Electron no admite ESM ni `require` de `node_modules`:
+    // el preload se emite en CommonJS y con todo bundleado (T2).
+    plugins: [externalizeDepsPlugin({ exclude: ['@rdlc-designer/contracts', 'zod'] })],
     build: {
       outDir: 'out/preload',
       rollupOptions: {
         input: { preload: resolve(root, 'src/preload.ts') },
+        output: { format: 'cjs', entryFileNames: '[name].cjs' },
       },
     },
   },
