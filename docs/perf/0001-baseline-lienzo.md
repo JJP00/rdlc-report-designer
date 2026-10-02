@@ -65,16 +65,16 @@ En PowerShell: `$env:RDLC_BENCH='972'; pnpm --filter @rdlc-designer/back dev`.
 
 ### Antes / después (972 textboxes, mismo escenario)
 
-| Métrica                       | Línea base F0 (React por frame) | Camino real sin culling | T3 (culling + caché) |
-| ----------------------------- | ------------------------------- | ----------------------- | -------------------- |
-| FPS en drag (p50)             | 30                              | 29,9                    | **59,5–59,9**        |
-| FPS p95                       | 20                              | 15–19,9                 | 29,9–59,2            |
-| `draw()` del layer            | —                               | 25,6 ms                 | 6,9–12,5 ms          |
-| Grupos ocultos por el culling | —                               | 0 de 1.945              | **755 de 1.945**     |
-| Montaje inicial               | 311 ms (dev)                    | 9,6 ms                  | 60–114 ms            |
+| Métrica                       | Línea base F0 (React por frame) | Camino real sin culling | T3 (culling + caché)     |
+| ----------------------------- | ------------------------------- | ----------------------- | ------------------------ |
+| FPS en drag (p50)             | 30                              | 29,9                    | **59,5–59,9**            |
+| FPS p95                       | 20                              | 15–19,9                 | 59,2–59,5 (tras warm-up) |
+| `draw()` del layer            | —                               | 25,6 ms                 | 6,9–12,5 ms              |
+| Grupos ocultos por el culling | —                               | 0 de 1.945              | **755 de 1.945**         |
+| Montaje inicial               | 311 ms (dev)                    | 9,6 ms                  | 60–114 ms                |
 
 - El p95 con caídas puntuales a 30 fps aparece en el **primer** run de cada lanzamiento
-  (warm-up); en las pasadas repetidas el mínimo se sostiene en 56,8–59,2 fps. El criterio
+  (warm-up); en las pasadas repetidas el mínimo se sostiene en 58,8–59,2 fps. El criterio
   de aceptación es el **p50** (60 fps), y la mediana de las 3 pasadas es 59,5–59,9.
 - El culling añade una pasada de cálculo en el montaje (60–114 ms), muy por debajo del
   presupuesto de 1.500 ms.

@@ -7,6 +7,8 @@ export const PX_PER_CM = 96 / 2.54;
 export const SNAP_CM = 0.1;
 /** Grosor de las reglas (px de pantalla, no escala con el zoom). */
 export const RULER_PX = 20;
+/** Padding del contenedor con scroll del lienzo (`p-6`): 1,5 rem. */
+export const CANVAS_PADDING_PX = 24;
 
 export function toPx(length: Length): number {
   switch (length.unit) {

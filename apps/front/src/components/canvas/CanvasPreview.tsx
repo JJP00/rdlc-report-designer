@@ -7,7 +7,7 @@ import type {
   ScopeRef,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
@@ -23,7 +23,6 @@ import {
 } from '@/lib/projection';
 import type { BoxCm } from '@/lib/resize';
 import type { SelectedCell } from '@/lib/tablix';
-import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
 import { PageResizePreview, PageResizeZones, type PageRegion } from './PageResizeLayer';
 import { Paper } from './Paper';
@@ -31,20 +30,10 @@ import { Ruler, type RulerMark } from './Ruler';
 import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
 import { useMarqueeSelection } from './useMarqueeSelection';
 import { usePageResize } from './usePageResize';
+import { measureSelection, useSelectionMeasure } from './useSelectionMeasure';
+import { useVisibleRect } from './useVisibleRect';
 import { bandAt, paperLayout, type PaperLayout } from './bands';
-import { CULL_MIN_ITEMS, countProjectionItems, type VisibleRect } from './culling';
-import { clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
-
-/** Padding del contenedor con scroll (`p-6`): 1,5 rem. */
-const CANVAS_PADDING_PX = 24;
-
-/**
- * Culling (T3): el origen visible se cuantiza a pasos de 400 px y se deja un
- * margen de 600 px (> paso), así al hacer scroll no hay pop-in y solo se
- * re-renderiza cada 400 px de desplazamiento.
- */
-const CULL_STEP_PX = 400;
-const CULL_MARGIN_PX = 600;
+import { CANVAS_PADDING_PX, clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
 
 /** Scope del contrato para cada banda del papel. */
 function scopeOfBand(key: string): ScopeRef {
@@ -150,113 +139,26 @@ export function CanvasPreview({
     suppressClickRef,
   } = useMarqueeSelection({ stageRef, projection, onSelectMany });
 
-  const [selectionRect, setSelectionRect] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
-
-  // El propio stage, para que los guiones de QA puedan consultar
-  // `getIntersection` (hit-test de Konva, no del dominio).
-  useEffect(() => {
-    if (TEST_HOOKS_ENABLED) {
-      (window as Window & { __rdlcStage?: Konva.Stage | null }).__rdlcStage = stageRef.current;
-    }
-  }, []);
-
-  // QA: celda seleccionada (el marco de item no existe para celdas).
-  useEffect(() => {
-    if (!TEST_HOOKS_ENABLED) return;
-    (window as Window & { __rdlcCell?: SelectedCell | null }).__rdlcCell = selectedCell ?? null;
-  }, [selectedCell]);
-
-  // El marco de selección se mide del nodo real (funciona con anidados y celdas).
-  // En un Tablix manda su **borde** (la rejilla): medir el grupo incluiría el
-  // contenido que sobresale de las celdas e inflaría el marco.
-  useEffect(() => {
-    const stage = stageRef.current;
-    const measuredId = selectedId ?? selectedCell?.id ?? null;
-    const rect = stage && measuredId ? measureSelection(stage, measuredId) : null;
-    setSelectionRect(rect);
-
-    // QA/diagnóstico: los guiones (Playwright) leen id + rect del elemento
-    // seleccionado. Las cabeceras del Tablix las publica `SelectionFrame`.
-    if (TEST_HOOKS_ENABLED && measuredId) {
-      (
-        window as Window & {
-          __rdlcSelection?: { id: string; rect: typeof rect; zoom: number } | null;
-        }
-      ).__rdlcSelection = rect ? { id: measuredId, rect, zoom } : null;
-    }
-  }, [selectedId, selectedCell, projection, zoom]);
+  // El marco se mide del nodo real (con anidados y celdas) y publica el QA.
+  const selectionRect = useSelectionMeasure({
+    stageRef,
+    selectedId,
+    selectedCell,
+    projection,
+    zoom,
+  });
 
   const layout = paperLayout(projection);
   const visibleBands = layout.bands.filter((band) => band.visible);
 
-  /* ------------------- culling de la ventana visible (T3) ------------------ */
-
-  const itemCount = useMemo(() => countProjectionItems(projection), [projection]);
-  const [visibleRect, setVisibleRect] = useState<VisibleRect | null>(null);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container || itemCount < CULL_MIN_ITEMS) {
-      setVisibleRect(null);
-      return;
-    }
-
-    let frame = 0;
-    const update = (): void => {
-      frame = 0;
-      // Ventana en px de papel = intersección del hueco de scroll con el
-      // **stage** (lo que el canvas recorta no se ve aunque esté en el hueco).
-      const rawLeft = (container.scrollLeft - CANVAS_PADDING_PX - RULER_PX) / zoom;
-      const rawTop = (container.scrollTop - CANVAS_PADDING_PX - RULER_PX) / zoom;
-      const rawRight = rawLeft + container.clientWidth / zoom;
-      const rawBottom = rawTop + container.clientHeight / zoom;
-
-      const left = Math.max(rawLeft, 0);
-      const top = Math.max(rawTop, 0);
-      const right = Math.min(rawRight, layout.sheetWidth);
-      const bottom = Math.min(rawBottom, layout.sheetHeight);
-
-      // El origen se cuantiza a pasos de `CULL_STEP_PX` y se deja margen.
-      // El resultado se recorta al papel: fuera del stage no se ve nada.
-      const x0 = Math.max(0, Math.floor(left / CULL_STEP_PX) * CULL_STEP_PX - CULL_MARGIN_PX);
-      const y0 = Math.max(0, Math.floor(top / CULL_STEP_PX) * CULL_STEP_PX - CULL_MARGIN_PX);
-      const x1 = Math.min(layout.sheetWidth, Math.max(right, 0) + CULL_MARGIN_PX + CULL_STEP_PX);
-      const y1 = Math.min(layout.sheetHeight, Math.max(bottom, 0) + CULL_MARGIN_PX + CULL_STEP_PX);
-      const next: VisibleRect = {
-        x: x0,
-        y: y0,
-        width: Math.max(x1 - x0, 0),
-        height: Math.max(y1 - y0, 0),
-      };
-      setVisibleRect((prev) =>
-        prev &&
-        prev.x === next.x &&
-        prev.y === next.y &&
-        prev.width === next.width &&
-        prev.height === next.height
-          ? prev
-          : next,
-      );
-    };
-    const schedule = (): void => {
-      if (frame === 0) frame = requestAnimationFrame(update);
-    };
-
-    update();
-    container.addEventListener('scroll', schedule, { passive: true });
-    const observer = new ResizeObserver(schedule);
-    observer.observe(container);
-    return () => {
-      if (frame !== 0) cancelAnimationFrame(frame);
-      container.removeEventListener('scroll', schedule);
-      observer.disconnect();
-    };
-  }, [itemCount, zoom]);
+  // Culling (T3): ventana visible en px de papel (null = pinta todo).
+  const visibleRect = useVisibleRect({
+    containerRef: scrollRef,
+    projection,
+    zoom,
+    sheetWidth: layout.sheetWidth,
+    sheetHeight: layout.sheetHeight,
+  });
 
   /**
    * «Ajustar al ancho»: mide el hueco real del lienzo (menos paddings y reglas)
@@ -580,44 +482,6 @@ function ExtraSelectionFrames({
       ))}
     </Layer>
   );
-}
-
-/** Mide el nodo seleccionado; en un Tablix, su borde (la rejilla). */
-function measureSelection(
-  stage: Konva.Stage,
-  measuredId: string,
-): { x: number; y: number; width: number; height: number } | null {
-  const node = stage.findOne((candidate: Konva.Node) => candidate.id() === measuredId);
-  if (!node) return null;
-  // Se mide la **caja** del item (`item-box`) o el borde de la rejilla del
-  // Tablix, no el grupo: `getClientRect` incluiría descendientes que sobresalen
-  // (texto sin `width`, adornos) e inflaría el marco y los tiradores.
-  const measured = findOwnAdornment(node, ['tablix-border', 'item-box']) ?? node;
-  return measured.getClientRect({ relativeTo: stage });
-}
-
-/**
- * Busca un adorno **del propio item** (`tablix-border`/`item-box`), no el de un
- * item anidado: `find()` recorre en profundidad y devolvería el borde del
- * primer Tablix interno (el borde propio se dibuja al final, tras las celdas),
- * así que al seleccionar `Tablix2` el marco salía sobre `LinesTable2`.
- * Se recorre por **niveles**: el adorno propio siempre está más cerca de la
- * raíz que el de los items anidados.
- */
-function findOwnAdornment(root: Konva.Node, names: string[]): Konva.Node | undefined {
-  const wanted = new Set(names);
-  let level: Konva.Node[] = (root as Konva.Container).getChildren?.() ?? [];
-  while (level.length > 0) {
-    const found = level.find((node) => wanted.has(node.name()));
-    if (found) return found;
-    const next: Konva.Node[] = [];
-    for (const node of level) {
-      const children = (node as Konva.Container).getChildren?.();
-      if (children) next.push(...children);
-    }
-    level = next;
-  }
-  return undefined;
 }
 
 /** Traduce un evento del DOM (drop, click derecho) a `CanvasHit`. */
