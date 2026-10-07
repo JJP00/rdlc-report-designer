@@ -10,6 +10,11 @@ export const IPC_CHANNELS = {
   pickSavePath: 'rdlc:pickSavePath',
   /** Fichero con el que se arrancó la app (CLI/argumento), si lo hay. */
   pendingOpen: 'rdlc:pendingOpen',
+  /**
+   * Solo preload → main: registra la ruta de un fichero soltado sobre la
+   * ventana para que `openFile` la acepte. No se expone en `window.api`.
+   */
+  registerDroppedFile: 'rdlc:registerDroppedFile',
   /** Fuentes instaladas en el sistema (para la barra de formato). */
   listFonts: 'rdlc:listFonts',
   openFile: 'rdlc:openFile',
@@ -18,6 +23,11 @@ export const IPC_CHANNELS = {
   saveAs: 'rdlc:saveAs',
   /** Recarga desde disco descartando los cambios locales (diálogo de conflicto). */
   reloadFile: 'rdlc:reloadFile',
+  /**
+   * Proyección **vigente** de la sesión, sin tocar el documento ni recargar del
+   * disco: el front la pide para deshacer el optimismo de un comando rechazado.
+   */
+  readProjection: 'rdlc:readProjection',
   /** Ficheros abiertos recientemente (para el desplegable de «Abrir…»). */
   recentFiles: 'rdlc:recentFiles',
   /** El renderer confirma (o cancela) el cierre de la ventana pedido por el SO. */
@@ -65,6 +75,10 @@ export type ErrorCode = z.infer<typeof errorCodeSchema>;
 
 export const openFileRequestSchema = z.object({ path: z.string().min(1) }).strict();
 export type OpenFileRequest = z.infer<typeof openFileRequestSchema>;
+
+/** Drop de un fichero real sobre la ventana (lo registra el preload, BUG-50). */
+export const droppedFileRequestSchema = z.object({ path: z.string().min(1) }).strict();
+export type DroppedFileRequest = z.infer<typeof droppedFileRequestSchema>;
 
 export const createNewRequestSchema = z.object({ path: z.string().min(1).optional() }).strict();
 export type CreateNewRequest = z.infer<typeof createNewRequestSchema>;
@@ -185,6 +199,13 @@ export const openFileResultSchema = z.discriminatedUnion('ok', [
   ipcErrorSchema,
 ]);
 export type OpenFileResult = z.infer<typeof openFileResultSchema>;
+
+/** Proyección vigente de la sesión (resincronización tras un rechazo). */
+export const readProjectionResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), projection: projectionSchema }),
+  ipcErrorSchema,
+]);
+export type ReadProjectionResult = z.infer<typeof readProjectionResultSchema>;
 
 export const saveResultSchema = z.discriminatedUnion('ok', [
   z.object({

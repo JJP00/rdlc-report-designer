@@ -6,7 +6,7 @@ import { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
 import { BLANK_REPORT_XML } from '../../domain/document/templates/blankReport.js';
 import type { EventBusPort } from '../ports/out/EventBusPort.js';
 import { EVENT_BUS_PORT } from '../ports/out/EventBusPort.js';
-import type { FileSystemPort } from '../ports/out/FileSystemPort.js';
+import type { FileStat, FileSystemPort } from '../ports/out/FileSystemPort.js';
 import { FILE_SYSTEM_PORT } from '../ports/out/FileSystemPort.js';
 import type { FileWatcherPort, Unwatch } from '../ports/out/FileWatcherPort.js';
 import { FILE_WATCHER_PORT } from '../ports/out/FileWatcherPort.js';
@@ -16,16 +16,21 @@ import type { RdlcParserPort } from '../ports/out/RdlcParserPort.js';
 import { RDLC_PARSER_PORT } from '../ports/out/RdlcParserPort.js';
 import type { RdlcSerializerPort } from '../ports/out/RdlcSerializerPort.js';
 import { RDLC_SERIALIZER_PORT } from '../ports/out/RdlcSerializerPort.js';
-import type { XmlSchemaValidatorPort } from '../ports/out/XmlSchemaValidatorPort.js';
+import type {
+  XmlSchemaValidatorPort,
+  SchemaValidationResult,
+} from '../ports/out/XmlSchemaValidatorPort.js';
 import { XML_SCHEMA_VALIDATOR_PORT } from '../ports/out/XmlSchemaValidatorPort.js';
 import type { RdlcDocument, RdlcNode } from '../../domain/document/tree/RdlcNode.js';
 import { left, right, type Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
 import {
   CommandRejectedError,
+  FileConflictError,
   FileNotFoundError,
   InvalidXmlError,
   IoError,
+  UnexpectedError,
   UnknownSessionError,
   UnsupportedRdlSchemaError,
   ValidationFailedError,
@@ -51,6 +56,8 @@ interface Session {
   dirty: boolean;
   /** mtime de la última escritura propia (filtra el eco del watcher). */
   lastWriteMs: number;
+  /** Tamaño del fichero en la última referencia (mtime solo no basta). */
+  lastWriteSize: number;
   /** true mientras escribimos: el watcher ignora esos eventos. */
   writing: boolean;
   /** Subárboles desprendidos copiados/cortados (portapapeles de la sesión). */
@@ -88,11 +95,21 @@ export class SessionService implements ISessionService {
     const schemaProblem = checkSupportedSchema(filePath, parsed.value.root);
     if (schemaProblem) return left(schemaProblem);
 
-    let mtimeMs: number;
+    let diskStat: FileStat;
     try {
-      mtimeMs = (await this.fileSystem.stat(filePath)).mtimeMs;
+      diskStat = await this.fileSystem.stat(filePath);
     } catch (error) {
       return left(IoError.create('leer', filePath, error));
+    }
+
+    // Validación de esquema al importar: avisa, no bloquea (el usuario puede
+    // querer arreglar un fichero roto con la herramienta). Se valida antes de
+    // registrar nada: un validador que lance no deja sesión ni watcher (BUG-23).
+    let validation: SchemaValidationResult;
+    try {
+      validation = this.schema.validate(read.value.toString('utf8'));
+    } catch (error) {
+      return left(UnexpectedError.create(error));
     }
 
     const sessionId = randomUUID();
@@ -104,18 +121,25 @@ export class SessionService implements ISessionService {
       originalBytes: read.value,
       version: 1,
       dirty: false,
-      lastWriteMs: mtimeMs,
+      lastWriteMs: diskStat.mtimeMs,
+      lastWriteSize: diskStat.size,
       writing: false,
     };
+
+    // El watcher se arranca **antes** de registrar la sesión: si falla
+    // (permisos, límite de descriptores, ruta de red) no queda sesión huérfana
+    // en el mapa (BUG-24).
+    let unwatch: Unwatch;
+    try {
+      unwatch = await this.fileWatcher.watch(filePath, () => {
+        void this.onExternalChange(sessionId);
+      });
+    } catch (error) {
+      return left(IoError.create('vigilar', filePath, error));
+    }
+    session.unwatch = unwatch;
     this.sessions.set(sessionId, session);
 
-    session.unwatch = await this.fileWatcher.watch(filePath, () => {
-      void this.onExternalChange(sessionId);
-    });
-
-    // Validación de esquema al importar: avisa, no bloquea (el usuario puede
-    // querer arreglar un fichero roto con la herramienta).
-    const validation = this.schema.validate(read.value.toString('utf8'));
     const warnings = validation.valid ? undefined : validation.problems;
 
     return right({
@@ -139,6 +163,13 @@ export class SessionService implements ISessionService {
   async save(sessionId: string): Promise<Either<DomainError, SaveSessionResult>> {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
+
+    // El watcher también detecta cambios externos, pero puede perder el evento
+    // (debounce, unidad de red): Guardar comprueba el disco para no pisar una
+    // edición externa en silencio (BUG-20).
+    if (!(await this.referenceStillOnDisk(session))) {
+      return left(FileConflictError.create(session.filePath));
+    }
 
     const serialized = this.serializeValidated(session);
     if (serialized.isLeft()) return left(serialized.value);
@@ -186,11 +217,26 @@ export class SessionService implements ISessionService {
     const parsed = this.tryParse(session.filePath, read.value);
     if (parsed.isLeft()) return left(parsed.value);
 
-    let mtimeMs: number;
+    // Recargar pasa por las mismas comprobaciones que abrir (BUG-27): un RDL de
+    // otra versión no se carga en silencio y el siguiente guardado no lo
+    // reescribiría en orden 2016.
+    const schemaProblem = checkSupportedSchema(session.filePath, parsed.value.root);
+    if (schemaProblem) return left(schemaProblem);
+
+    let diskStat: FileStat;
     try {
-      mtimeMs = (await this.fileSystem.stat(session.filePath)).mtimeMs;
+      diskStat = await this.fileSystem.stat(session.filePath);
     } catch (error) {
       return left(IoError.create('leer', session.filePath, error));
+    }
+
+    // Se valida antes de tocar la sesión: un validador que lance no la deja a
+    // medias (la recarga sigue avisando, no bloquea).
+    let validation: SchemaValidationResult;
+    try {
+      validation = this.schema.validate(read.value.toString('utf8'));
+    } catch (error) {
+      return left(UnexpectedError.create(error));
     }
 
     // Se descarta el documento local (el usuario eligió «Recargar»): journal,
@@ -199,14 +245,14 @@ export class SessionService implements ISessionService {
     session.index = DocumentIndex.build(parsed.value.root);
     session.originalBytes = read.value;
     session.version += 1;
-    session.lastWriteMs = mtimeMs;
+    session.lastWriteMs = diskStat.mtimeMs;
+    session.lastWriteSize = diskStat.size;
     session.clipboard = undefined;
     if (session.dirty) {
       session.dirty = false;
       this.events.send(IPC_EVENTS.dirtyChanged, { sessionId, dirty: false });
     }
 
-    const validation = this.schema.validate(read.value.toString('utf8'));
     const warnings = validation.valid ? undefined : validation.problems;
     return right({
       sessionId,
@@ -296,6 +342,13 @@ export class SessionService implements ISessionService {
     return this.sessions.get(sessionId)?.version ?? 0;
   }
 
+  /** Proyección vigente (el front deshace con ella un optimismo rechazado). */
+  projectionOf(sessionId: string): Either<DomainError, ProjectionDto> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return left(UnknownSessionError.create(sessionId));
+    return right(this.project(session));
+  }
+
   /**
    * Recalcula `dirty` contra los bytes de referencia: si deshacer/rehacer dejó
    * el documento exactamente como estaba en disco, la sesión vuelve a estar
@@ -322,15 +375,35 @@ export class SessionService implements ISessionService {
 
     try {
       const stat = await this.fileSystem.stat(session.filePath);
-      // Eco de nuestra propia escritura (p. ej. si `writing` ya se limpió).
-      if (stat.mtimeMs <= session.lastWriteMs) return;
 
+      // Camino rápido: mtime y tamaño idénticos a la referencia (eco de
+      // nuestra propia escritura o fichero intacto). Nada que hacer.
+      if (stat.mtimeMs === session.lastWriteMs && stat.size === session.lastWriteSize) {
+        return;
+      }
+
+      // El mtime no basta para distinguir el eco propio de un reemplazo
+      // externo: Explorer/robocopy/`git restore` pueden conservar el mtime
+      // anterior. Si el mtime **no avanza**, manda el contenido comparado con
+      // la referencia (BUG-21); si avanza se conserva la semántica de siempre
+      // (cualquier escritura externa recarga o avisa).
       const bytes = await this.fileSystem.readFile(session.filePath);
+      if (stat.mtimeMs <= session.lastWriteMs && bytes.equals(session.originalBytes)) {
+        // Mismo contenido: solo se actualiza la referencia del disco.
+        session.lastWriteMs = stat.mtimeMs;
+        session.lastWriteSize = stat.size;
+        return;
+      }
 
       // El fichero cambió en disco pero hay ediciones sin guardar: no se pisa el
       // trabajo del usuario (se perdería en silencio). Se avisa al front y la
       // decisión (recargar / sobrescribir) queda para el diálogo de conflicto.
       if (session.dirty) {
+        // La referencia de disco pasa al estado externo: si el usuario decide
+        // «sobrescribir», el guardado posterior no vuelve a rechazarse por este
+        // mismo cambio (el aviso ya se dio); otro cambio distinto sí se detecta.
+        session.lastWriteMs = stat.mtimeMs;
+        session.lastWriteSize = stat.size;
         this.events.send(IPC_EVENTS.conflictDetected, {
           sessionId,
           filePath: session.filePath,
@@ -340,6 +413,16 @@ export class SessionService implements ISessionService {
 
       const doc = this.parser.parse(bytes.toString('utf8'));
 
+      // El cambio externo pasa por la misma comprobación de esquema que open
+      // (BUG-27): un RDL de otra versión no se carga y se avisa como conflicto.
+      if (checkSupportedSchema(session.filePath, doc.root)) {
+        this.events.send(IPC_EVENTS.conflictDetected, {
+          sessionId,
+          filePath: session.filePath,
+        });
+        return;
+      }
+
       session.document = doc;
       session.index = DocumentIndex.build(doc.root);
       session.originalBytes = bytes;
@@ -347,6 +430,7 @@ export class SessionService implements ISessionService {
       session.clipboard = undefined;
       session.version += 1;
       session.lastWriteMs = stat.mtimeMs;
+      session.lastWriteSize = stat.size;
 
       this.events.send(IPC_EVENTS.documentChanged, {
         sessionId,
@@ -378,12 +462,51 @@ export class SessionService implements ISessionService {
     session: Session,
   ): Either<DomainError, { bytes: Buffer; bytesIdentical: boolean }> {
     const xml = this.serializer.serialize(session.document);
-    const validation = this.schema.validate(xml);
+    let validation: SchemaValidationResult;
+    try {
+      validation = this.schema.validate(xml);
+    } catch (error) {
+      // Sin validación no se escribe: un validador que lance se reporta como
+      // E_VALIDATION (nunca deja escapar la excepción) (BUG-23).
+      const problem = error instanceof Error ? error.message : String(error);
+      return left(ValidationFailedError.create([problem]));
+    }
     if (!validation.valid) {
       return left(ValidationFailedError.create(validation.problems));
     }
     const bytes = Buffer.from(xml, 'utf8');
     return right({ bytes, bytesIdentical: bytes.equals(session.originalBytes) });
+  }
+
+  /**
+   * ¿Sigue el disco en el estado de referencia de la sesión? Compara
+   * mtime/tamaño y, si difieren, el contenido: un mtime distinto con los mismos
+   * bytes (un `touch`, una copia que preserva el contenido) no es conflicto.
+   */
+  private async referenceStillOnDisk(session: Session): Promise<boolean> {
+    let stat: FileStat;
+    try {
+      stat = await this.fileSystem.stat(session.filePath);
+    } catch {
+      // No se pudo leer el estado (p. ej. borrado por fuera): se intenta la
+      // escritura, que dará el error definitivo o recreará el fichero.
+      return true;
+    }
+    if (stat.mtimeMs === session.lastWriteMs && stat.size === session.lastWriteSize) {
+      return true;
+    }
+    try {
+      const bytes = await this.fileSystem.readFile(session.filePath);
+      if (bytes.equals(session.originalBytes)) {
+        // Mismo contenido: solo ha cambiado el metadato de disco.
+        session.lastWriteMs = stat.mtimeMs;
+        session.lastWriteSize = stat.size;
+        return true;
+      }
+    } catch {
+      return true;
+    }
+    return false;
   }
 
   /** Escribe los bytes y actualiza la referencia del disco (mtime/original). */
@@ -397,6 +520,7 @@ export class SessionService implements ISessionService {
       await this.fileSystem.writeFile(filePath, bytes);
       const stat = await this.fileSystem.stat(filePath);
       session.lastWriteMs = stat.mtimeMs;
+      session.lastWriteSize = stat.size;
       session.originalBytes = bytes;
       return right(undefined);
     } catch (error) {

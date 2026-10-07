@@ -1,6 +1,6 @@
 import type { Length, ProjectionDto } from '@rdlc-designer/contracts';
 import { Plus, RectangleHorizontal, RectangleVertical, Trash2 } from 'lucide-react';
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DialogFooter } from '@/components/ui/dialog';
@@ -28,6 +28,9 @@ export interface ReportPropertiesFormProps {
   onSetReportCode: (code: string) => void;
   /** `dialog` ajusta el pie al marco del diálogo; `panel` al inspector lateral. */
   variant?: 'dialog' | 'panel';
+  /** Pestaña activa; el panel la mantiene fuera del remonte por huella (BUG-37). */
+  tab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
 /** Presets de papel en cm (vertical), como la lista de Report Builder. */
@@ -70,10 +73,14 @@ function paperNameFor(width: number, height: number): string {
 }
 
 /**
- * Huella de lo que edita el formulario (página + código). El panel lateral la
- * usa como `key`: si el documento cambia por fuera (undo, arrastre en el
+ * Huella de lo que edita el formulario (página). El panel lateral la usa como
+ * `key`: si el documento cambia por fuera (undo, arrastre de la página en el
  * lienzo), el borrador se remonta con los valores vigentes; los cambios que no
  * toca el formulario (mover un item, p. ej.) no lo reinician.
+ *
+ * El bloque `<Code>` **no** entra en la huella: aplicarlo cambiaba la huella y
+ * remontaba el formulario, reseteando la pestaña activa y los borradores de
+ * página sin aplicar (BUG-37). El búfer del editor se sincroniza con un efecto.
  */
 export function reportPropertiesSignature(projection: ProjectionDto): string {
   const { page } = projection;
@@ -91,7 +98,6 @@ export function reportPropertiesSignature(projection: ProjectionDto): string {
     page.footer.printOnLastPage,
     page.body.width,
     page.body.height,
-    projection.meta.code.text,
   ]);
 }
 
@@ -111,6 +117,8 @@ export function ReportPropertiesForm({
   onSetRegionPresent,
   onSetReportCode,
   variant = 'dialog',
+  tab,
+  onTabChange,
 }: ReportPropertiesFormProps): ReactNode {
   const [width, setWidth] = useState(() => toCm(projection.page.width));
   const [height, setHeight] = useState(() => toCm(projection.page.height));
@@ -125,11 +133,21 @@ export function ReportPropertiesForm({
     header: projection.page.header.present !== false,
     footer: projection.page.footer.present !== false,
   }).current;
+  // Altos vigentes al montar (y tras cada «Aplicar»): solo se envía el comando
+  // si el usuario cambió el valor; si no, una banda corta (0,6 cm) se quedaría
+  // como está en lugar de crecer al mínimo del editor.
+  const appliedHeights = useRef({
+    header: toCm(projection.page.header.height),
+    footer: toCm(projection.page.footer.height),
+  }).current;
   const [headerPresent, setHeaderPresent] = useState(initialPresent.header);
   const [footerPresent, setFooterPresent] = useState(initialPresent.footer);
   // En RDL los flags de impresión valen `true` por defecto si no se declaran.
+  // El mínimo (`DEFAULT_BAND_CM`) solo se propone al **insertar** una banda ausente.
   const [headerHeight, setHeaderHeight] = useState(() =>
-    Math.max(toCm(projection.page.header.height), DEFAULT_BAND_CM),
+    initialPresent.header
+      ? appliedHeights.header
+      : Math.max(appliedHeights.header, DEFAULT_BAND_CM),
   );
   const [headerFirst, setHeaderFirst] = useState(
     () => projection.page.header.printOnFirstPage ?? true,
@@ -138,7 +156,9 @@ export function ReportPropertiesForm({
     () => projection.page.header.printOnLastPage ?? true,
   );
   const [footerHeight, setFooterHeight] = useState(() =>
-    Math.max(toCm(projection.page.footer.height), DEFAULT_BAND_CM),
+    initialPresent.footer
+      ? appliedHeights.footer
+      : Math.max(appliedHeights.footer, DEFAULT_BAND_CM),
   );
   const [footerFirst, setFooterFirst] = useState(
     () => projection.page.footer.printOnFirstPage ?? true,
@@ -151,6 +171,25 @@ export function ReportPropertiesForm({
   /** Ancho de la sección (`ReportSection > Width`); también se arrastra (U10). */
   const [bodyWidth, setBodyWidth] = useState(() => toCm(projection.page.body.width));
   const [code, setCode] = useState(() => projection.meta.code.text);
+  /** Pestaña activa (controlada desde el panel para sobrevivir a remontes). */
+  const [internalTab, setInternalTab] = useState('page');
+  const activeTab = tab ?? internalTab;
+  const changeTab = onTabChange ?? setInternalTab;
+  /**
+   * Ctrl+Intro pide un aplicar **diferido**: el `NumberInput` confirma su
+   * borrador en el mismo keydown (setState aún sin propagar) y aplicar aquí en
+   * el acto leería el valor viejo (BUG-34). El contador dispara el aplicar en
+   * el efecto posterior al render, ya con el estado confirmado.
+   */
+  const [applyRequest, setApplyRequest] = useState(0);
+
+  // Cambio externo del `<Code>` (undo, recarga): el búfer del editor se
+  // sincroniza sin remontar el formulario, así «Aplicar» no resetea la pestaña
+  // ni los borradores de página (BUG-37). Al aplicar el propio formulario el
+  // valor no cambia, así que no pisa el búfer.
+  useEffect(() => {
+    setCode(projection.meta.code.text);
+  }, [projection.meta.code.text]);
 
   const landscape = width > height;
   const selectedPaper = paperNameFor(width, height);
@@ -184,22 +223,31 @@ export function ReportPropertiesForm({
       left: cmLength(margins.left),
       right: cmLength(margins.right),
     });
-    // Insertar/quitar la banda solo si el usuario lo cambió.
+    // Insertar/quitar la banda solo si el usuario lo cambió (el valor aplicado
+    // pasa a ser la referencia para el siguiente «Aplicar»).
     if (headerPresent !== initialPresent.header) {
       onSetRegionPresent('pageHeader', headerPresent);
+      initialPresent.header = headerPresent;
     }
     if (footerPresent !== initialPresent.footer) {
       onSetRegionPresent('pageFooter', footerPresent);
+      initialPresent.footer = footerPresent;
     }
     if (headerPresent) {
-      onSetRegionHeight('pageHeader', cmLength(headerHeight));
+      if (headerHeight !== appliedHeights.header) {
+        onSetRegionHeight('pageHeader', cmLength(headerHeight));
+        appliedHeights.header = headerHeight;
+      }
       onSetHeaderFooterOptions('pageHeader', {
         printOnFirstPage: headerFirst,
         printOnLastPage: headerLast,
       });
     }
     if (footerPresent) {
-      onSetRegionHeight('pageFooter', cmLength(footerHeight));
+      if (footerHeight !== appliedHeights.footer) {
+        onSetRegionHeight('pageFooter', cmLength(footerHeight));
+        appliedHeights.footer = footerHeight;
+      }
       onSetHeaderFooterOptions('pageFooter', {
         printOnFirstPage: footerFirst,
         printOnLastPage: footerLast,
@@ -209,8 +257,22 @@ export function ReportPropertiesForm({
     onSetRegionHeight('body', cmLength(bodyHeight));
   };
 
+  // El aplicar diferido de Ctrl+Intro usa siempre el `applyPage` del último
+  // render (con los setState del keydown ya confirmados).
+  const applyPageRef = useRef(applyPage);
+  useEffect(() => {
+    applyPageRef.current = applyPage;
+  });
+  useEffect(() => {
+    if (applyRequest > 0) applyPageRef.current();
+  }, [applyRequest]);
+
   return (
-    <Tabs defaultValue="page" className={variant === 'panel' ? 'gap-3 p-3' : undefined}>
+    <Tabs
+      value={activeTab}
+      onValueChange={changeTab}
+      className={variant === 'panel' ? 'gap-3 p-3' : undefined}
+    >
       <TabsList>
         <TabsTrigger value="page">Configurar página</TabsTrigger>
         <TabsTrigger value="code">Código</TabsTrigger>
@@ -221,9 +283,11 @@ export function ReportPropertiesForm({
         className="flex flex-col gap-4 pt-2"
         onKeyDown={(event) => {
           // Ctrl+Intro = Aplicar la página (teclado completo en el diálogo).
+          // Diferido: el campo enfocado confirma su borrador en este mismo
+          // keydown; aplicar en el acto mandaría el valor viejo (BUG-34).
           if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
             event.preventDefault();
-            applyPage();
+            setApplyRequest((request) => request + 1);
           }
         }}
       >

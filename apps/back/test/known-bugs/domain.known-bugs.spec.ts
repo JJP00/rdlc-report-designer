@@ -381,7 +381,7 @@ const BLOCK_SLOT_XML = `<?xml version="1.0" encoding="utf-8"?>
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-02 · deleteRows/deleteColumns atómicos', () => {
-  it.fails('deleteRows de todas las filas se rechaza y deja el documento intacto', () => {
+  it('deleteRows de todas las filas se rechaza y deja el documento intacto', () => {
     const { doc, ctx } = openXml(BASE_XML);
     const before = adapter.serialize(doc);
 
@@ -391,7 +391,7 @@ describe('BUG-02 · deleteRows/deleteColumns atómicos', () => {
     expect(adapter.serialize(doc), 'un rechazo no debe dejar filas borradas a medias').toBe(before);
   });
 
-  it.fails('deleteColumns de todas las columnas se rechaza y deja el documento intacto', () => {
+  it('deleteColumns de todas las columnas se rechaza y deja el documento intacto', () => {
     const { doc, ctx } = openXml(BASE_XML);
     const before = adapter.serialize(doc);
 
@@ -414,7 +414,7 @@ describe('BUG-02 · deleteRows/deleteColumns atómicos', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-03 · batch de duplicateItem con nombres únicos', () => {
-  it.fails('duplicar dos textboxes en un batch da clones con Name distinto', () => {
+  it('duplicar dos textboxes en un batch da clones con Name distinto', () => {
     const { doc, ctx } = openXml(BASE_XML);
 
     const result = applyCommand(ctx, {
@@ -445,7 +445,7 @@ describe('BUG-03 · batch de duplicateItem con nombres únicos', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-04 · borrar la fila de un grupo no deja hojas sin fila', () => {
-  it.fails('addRowGroup + deleteRow mantiene hojas de filas == TablixRows', () => {
+  it('addRowGroup + deleteRow mantiene hojas de filas == TablixRows', () => {
     const { ctx } = openXml(BASE_XML);
 
     const grouped = applyCommand(ctx, {
@@ -466,7 +466,7 @@ describe('BUG-04 · borrar la fila de un grupo no deja hojas sin fila', () => {
     ).toBe(tablixRows(tablix).length);
   });
 
-  it.fails('addColumnGroup + deleteColumn mantiene hojas de columnas == TablixColumns', () => {
+  it('addColumnGroup + deleteColumn mantiene hojas de columnas == TablixColumns', () => {
     const { ctx } = openXml(BASE_XML);
 
     const grouped = applyCommand(ctx, {
@@ -502,7 +502,7 @@ describe('BUG-04 · borrar la fila de un grupo no deja hojas sin fila', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-05 · número de celdas coherente bajo un RowSpan', () => {
-  it.fails('addRow bajo un RowSpan + unmergeCells: cada fila tiene una celda por columna', () => {
+  it('addRow bajo un RowSpan + unmergeCells: cada fila tiene una celda por columna', () => {
     const { ctx } = openXml(ROWSPAN_XML);
 
     const added = applyCommand(ctx, { cmd: 'addRow', id: 'T', row: 1 });
@@ -524,7 +524,7 @@ describe('BUG-05 · número de celdas coherente bajo un RowSpan', () => {
     ).toEqual(tablixRows(tablix).map(() => columnCount));
   });
 
-  it.fails(
+  it(
     'addColumn dentro de un bloque RowSpan×ColSpan: la fila cubierta gana su relleno',
     () => {
       const { ctx } = openXml(BLOCK_SLOT_XML);
@@ -553,7 +553,7 @@ describe('BUG-05 · número de celdas coherente bajo un RowSpan', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-10 · undo de setStyle con override en el run', () => {
-  it.fails('setStyle fontSize + undo devuelve el XML byte a byte (run a 8pt)', () => {
+  it('setStyle fontSize + undo devuelve el XML byte a byte (run a 8pt)', () => {
     const { doc, ctx } = openXml(BASE_XML);
     const before = adapter.serialize(doc);
 
@@ -589,7 +589,7 @@ describe('BUG-10 · undo de setStyle con override en el run', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-11 · nombres de items y grupos no colisionan', () => {
-  it.fails('addRowGroup no reutiliza el nombre de un report item', () => {
+  it('addRowGroup no reutiliza el nombre de un report item', () => {
     const { doc, ctx } = openXml(BASE_XML);
 
     const grouped = applyCommand(ctx, {
@@ -605,21 +605,24 @@ describe('BUG-11 · nombres de items y grupos no colisionan', () => {
     expect(clashing, 'ningún grupo puede llamarse como un report item').toEqual([]);
   });
 
-  it.fails('setName rechaza renombrar un item al nombre de un grupo existente', () => {
+  it('setName rechaza renombrar un item al nombre de un grupo existente', () => {
     const { ctx } = openXml(BASE_XML);
-    const grouped = applyCommand(ctx, {
+    // `D2` ya es un textbox; se renombra **antes** de crear el grupo para que el
+    // único dueño de `D2` sea el grupo (con el namespace unificado, si el
+    // textbox siguiera llamándose `D2` el grupo habría nacido `D21`).
+    expect(applyCommand(ctx, { cmd: 'setName', id: 'D2', name: 'D2Cell' }).isRight()).toBe(true);
+    const ctx2 = rebuilt(ctx);
+
+    const grouped = applyCommand(ctx2, {
       cmd: 'addRowGroup',
       id: 'T',
       row: 1,
       expression: '=Fields!D2.Value',
     });
     expect(grouped.isRight()).toBe(true);
-    const ctx2 = rebuilt(ctx);
-    const group = groupNames(ctx2.root)[0]!;
-    expect(group).toBe('D2');
-    // `D2` ya es un textbox; se renombra primero para que el único dueño sea el grupo.
-    expect(applyCommand(ctx2, { cmd: 'setName', id: 'D2', name: 'D2Cell' }).isRight()).toBe(true);
     const ctx3 = rebuilt(ctx2);
+    const group = groupNames(ctx3.root)[0]!;
+    expect(group).toBe('D2');
 
     const renamed = applyCommand(ctx3, { cmd: 'setName', id: 'H2', name: group });
     expect(renamed.isLeft(), `renombrar H2 a '${group}' (nombre de grupo) debe rechazarse`).toBe(
@@ -627,7 +630,7 @@ describe('BUG-11 · nombres de items y grupos no colisionan', () => {
     );
   });
 
-  it.fails('insertItem rechaza un nombre que ya usa un grupo', () => {
+  it('insertItem rechaza un nombre que ya usa un grupo', () => {
     const { doc, ctx } = openXml(BASE_XML);
     const grouped = applyCommand(ctx, {
       cmd: 'addRowGroup',
@@ -667,7 +670,7 @@ describe('BUG-11 · nombres de items y grupos no colisionan', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-12 · clonar actualiza ToggleItem a los nombres del clon', () => {
-  it.fails(
+  it(
     'duplicateItem de un rectángulo: el ToggleItem del clon apunta al toggler del clon',
     () => {
       const { ctx } = openXml(BASE_XML);
@@ -696,7 +699,7 @@ describe('BUG-12 · clonar actualiza ToggleItem a los nombres del clon', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-13 · ampliar una celda ya combinada', () => {
-  it.fails('mergeCells colSpan 2 y luego colSpan 3 desde la misma ancla', () => {
+  it('mergeCells colSpan 2 y luego colSpan 3 desde la misma ancla', () => {
     const { ctx } = openXml(BASE_XML);
 
     const first = applyCommand(ctx, {
@@ -735,7 +738,7 @@ describe('BUG-13 · ampliar una celda ya combinada', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-14 · undo de setRegionPresent sin <Page> previo', () => {
-  it.fails('añadir el encabezado en un documento sin <Page> y deshacer es byte-exacto', () => {
+  it('añadir el encabezado en un documento sin <Page> y deshacer es byte-exacto', () => {
     const { doc, ctx } = openXml(BASE_XML);
     const before = adapter.serialize(doc);
     expect(before).not.toContain('<Page>');
@@ -764,7 +767,7 @@ describe('BUG-14 · undo de setRegionPresent sin <Page> previo', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-15 · undo de setStyle con ListStyle legado + clave null', () => {
-  it.fails('color:null + listStyle:null y undo devuelven el <Style> en su orden original', () => {
+  it('color:null + listStyle:null y undo devuelven el <Style> en su orden original', () => {
     const { doc, ctx } = openXml(BASE_XML);
     const before = adapter.serialize(doc);
 
@@ -814,7 +817,7 @@ describe('BUG-16 · el índice se reconstruye tras borrar filas/columnas', () =>
     return { commands: new CommandService(service), service, sessionId: opened.value.sessionId };
   }
 
-  it.fails('setText sobre un textbox de una fila borrada se rechaza (no encontrado)', async () => {
+  it('setText sobre un textbox de una fila borrada se rechaza (no encontrado)', async () => {
     const { commands, service, sessionId } = await openBase();
 
     expect(commands.execute(sessionId, { cmd: 'deleteRow', id: 'T', row: 1 }).isRight()).toBe(true);
@@ -833,7 +836,7 @@ describe('BUG-16 · el índice se reconstruye tras borrar filas/columnas', () =>
     expect(edited.isLeft(), 'setText sobre un textbox borrado debe rechazarse').toBe(true);
   });
 
-  it.fails(
+  it(
     'setText sobre un textbox de una columna borrada se rechaza (no encontrado)',
     async () => {
       const { commands, sessionId } = await openBase();

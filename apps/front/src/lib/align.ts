@@ -1,5 +1,5 @@
 import type { BatchableCommand, ItemDto } from '@rdlc-designer/contracts';
-import { cm, toCm } from './projection';
+import { cm, tablixHeaderItems, toCm } from './projection';
 
 /**
  * Alinear y distribuir para la edición en lote (U3): matemática pura sobre las
@@ -21,19 +21,61 @@ function round4(value: number): number {
   return Number(value.toFixed(4));
 }
 
+/** Hijos directos de un item (rectángulos, celdas y cabeceras de Tablix). */
+function directChildren(item: ItemDto): ItemDto[] {
+  if (item.kind === 'rectangle') return item.children;
+  if (item.kind === 'tablix') {
+    const cellContents = item.body.rows.flatMap((row) =>
+      row.cells.flatMap((cell) => (cell?.content ? [cell.content] : [])),
+    );
+    return [...cellContents, ...tablixHeaderItems(item)];
+  }
+  return [];
+}
+
+/**
+ * De los ids seleccionados, los que **no** están contenidos en otro item
+ * seleccionado. La multiselección por lazo incluye el rectángulo y sus hijos;
+ * los hijos con un contenedor seleccionado viajan con él (sus `top/left` son
+ * relativos y no comparten espacio de coordenadas: alinear el conjunto movía
+ * el contenedor al borde del hijo, y borrarlos por separado hacía fallar el
+ * `batch` porque el padre ya no estaba — BUG-35).
+ */
+export function topLevelIds(items: ItemDto[], ids: string[]): string[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const selected = new Set(ids.filter((id) => byId.has(id)));
+
+  const nested = new Set<string>();
+  const collectSelectedDescendants = (item: ItemDto): void => {
+    for (const child of directChildren(item)) {
+      if (selected.has(child.id)) nested.add(child.id);
+      collectSelectedDescendants(child);
+    }
+  };
+  for (const id of selected) {
+    const item = byId.get(id);
+    if (item) collectSelectedDescendants(item);
+  }
+
+  return ids.filter((id) => selected.has(id) && !nested.has(id));
+}
+
 /** Cajas (cm) de los items indicados, en el orden recibido. */
 export function alignBoxes(items: ItemDto[], ids: string[]): AlignBox[] {
   const byId = new Map(items.map((item) => [item.id, item]));
-  return ids
-    .map((id) => byId.get(id))
-    .filter((item): item is ItemDto => item !== undefined)
-    .map((item) => ({
-      id: item.id,
-      top: toCm(item.top),
-      left: toCm(item.left),
-      width: toCm(item.width),
-      height: toCm(item.height),
-    }));
+  return topLevelIds(items, ids).flatMap((id) => {
+    const item = byId.get(id);
+    if (!item) return [];
+    return [
+      {
+        id: item.id,
+        top: toCm(item.top),
+        left: toCm(item.left),
+        width: toCm(item.width),
+        height: toCm(item.height),
+      },
+    ];
+  });
 }
 
 /** Alinea por el borde/centro de la **caja envolvente** de la selección. */

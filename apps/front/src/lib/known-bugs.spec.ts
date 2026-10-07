@@ -45,7 +45,7 @@ describe('BUG-35 alinear rectángulo + hijo mezcla coordenadas', () => {
   // los devuelve findItem, cada uno con sus coordenadas propias.
   const items: ItemDto[] = [rect, child];
 
-  it.fails('alinear a la izquierda no lleva el rectángulo al left relativo del hijo', () => {
+  it('alinear a la izquierda no lleva el rectángulo al left relativo del hijo', () => {
     const commands = alignCommands(alignBoxes(items, ['Rect', 'Child']), 'left');
     // El borde izquierdo de la selección (en absoluto) es el del rectángulo
     // (5 cm): el rectángulo no debe moverse. Hoy recibe left = 1 cm (el left
@@ -66,7 +66,7 @@ describe('BUG-35 alinear rectángulo + hijo mezcla coordenadas', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-36 el tirador S recorta el ancho de un hijo que ya desborda', () => {
-  it.fails('arrastrar S solo cambia el alto', () => {
+  it('arrastrar S solo cambia el alto', () => {
     const result = computeResize({
       handle: 's',
       // left 1 + width 5 = 6 > ancho del contenedor (4): ya desborda.

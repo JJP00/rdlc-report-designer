@@ -51,13 +51,44 @@ export interface PositionedCell {
  * desborda la cuenta (las columnas cubiertas están rellenas de celdas vacías).
  * En ese caso la celda i vive en la columna i. El resto de filas usan la
  * convención del editor, que acumula los `ColSpan` de las anclas.
+ *
+ * `covered` son las columnas de esa fila cubiertas por un `RowSpan` de arriba
+ * (ver `rowSpanCoverage`): una rellena por un `RowSpan` también delata la
+ * convención SSRS/BC aunque no haya ningún `ColSpan` que desborde.
  */
-export function usesSlotCells(row: RdlcNode, columnCount: number): boolean {
+export function usesSlotCells(
+  row: RdlcNode,
+  columnCount: number,
+  covered?: readonly boolean[],
+): boolean {
   const cells = tablixCells(row);
   if (cells.length !== columnCount) return false;
   let total = 0;
   for (const cell of cells) total += cellSpan(cell, 'ColSpan');
-  return total !== columnCount;
+  return total !== columnCount || covered?.some(Boolean) === true;
+}
+
+/**
+ * Columnas de la fila `rowIndex` cubiertas por el `RowSpan` de una celda de una
+ * fila anterior (el cuerpo de una celda que baja de fila).
+ */
+export function rowSpanCoverage(
+  rows: RdlcNode[],
+  rowIndex: number,
+  columnCount: number,
+): boolean[] {
+  const covered = new Array<boolean>(columnCount).fill(false);
+  for (let index = 0; index < rowIndex; index += 1) {
+    const row = rows[index];
+    if (!row) continue;
+    for (const entry of positionedCells(row, columnCount)) {
+      if (entry.placeholder || entry.rowSpan <= 1 || index + entry.rowSpan <= rowIndex) continue;
+      for (let column = entry.col; column < entry.col + entry.colSpan; column += 1) {
+        if (column < columnCount) covered[column] = true;
+      }
+    }
+  }
+  return covered;
 }
 
 /**
@@ -65,11 +96,18 @@ export function usesSlotCells(row: RdlcNode, columnCount: number): boolean {
  * convención SSRS/BC (ver `usesSlotCells`); sin él se asume la del editor (la
  * geometría coincide cuando no hay fusiones).
  */
-export function positionedCells(row: RdlcNode, columnCount?: number): PositionedCell[] {
+export function positionedCells(
+  row: RdlcNode,
+  columnCount?: number,
+  covered?: readonly boolean[],
+): PositionedCell[] {
   const cells = tablixCells(row);
   const spans = cells.map((cell) => cellSpan(cell, 'ColSpan'));
   const total = spans.reduce((acc, span) => acc + span, 0);
-  const bySlot = columnCount !== undefined && cells.length === columnCount && total !== columnCount;
+  const bySlot =
+    columnCount !== undefined &&
+    cells.length === columnCount &&
+    (total !== columnCount || covered?.some(Boolean) === true);
 
   const result: PositionedCell[] = [];
   let coveredUntil = 0;

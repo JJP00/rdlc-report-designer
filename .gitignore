@@ -45,3 +45,8 @@ blob-report/
 
 # originales de trabajo (el corpus versionado vive en fixtures/corpus/)
 /*.rdlc
+/*.rdl
+/*.rdl.bak
+
+# scripts sueltos de depuración del back
+apps/back/tmp-*.mjs

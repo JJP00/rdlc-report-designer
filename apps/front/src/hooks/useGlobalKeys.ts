@@ -47,10 +47,27 @@ export interface GlobalKeysOptions {
 
 export function useGlobalKeys(options: GlobalKeysOptions): void {
   const onKeyDown = useEffectEvent((event: KeyboardEvent): void => {
+    // El evento ya estaba manejado (p. ej. un slider que consume las flechas):
+    // no se actúa dos veces sobre él.
+    if (event.defaultPrevented) return;
+
     const key = event.key.toLowerCase();
     const accel = event.ctrlKey || event.metaKey;
     const target = event.target as HTMLElement | null;
-    const isTextField = Boolean(target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+    const isTextField = Boolean(
+      target &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable),
+    );
+    /**
+     * Controles que usan las flechas/Supr para sí mismos (botones, pestañas,
+     * sliders, checkboxes, radios…): con el foco en ellos, las flechas navegan
+     * el control y no mueven el item seleccionado del lienzo (BUG-41).
+     */
+    const isInteractiveControl = Boolean(
+      target?.closest(
+        'button, [role="slider"], [role="tab"], [role="checkbox"], [role="switch"], [role="radio"], [role="spinbutton"], [role="menuitem"], [role="option"]',
+      ),
+    );
     // Con un diálogo o menú **abierto**, sus teclas son suyas (Escape cierra el
     // diálogo y no debe además cambiar la selección del lienzo; Ctrl+S no debe
     // guardar por debajo). Durante la animación de cierre ya no bloquea.
@@ -110,6 +127,16 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
 
     if (dialogOpen || isTextField) return;
     if (!options.hasDocument) return;
+
+    // Con el foco en un control (toolbar, pestaña, slider…), Supr/Flechas son
+    // del control: no borran ni mueven el item seleccionado (BUG-41).
+    if (
+      isInteractiveControl &&
+      !accel &&
+      (event.key.startsWith('Arrow') || event.key === 'Delete')
+    ) {
+      return;
+    }
 
     if (accel && key === 'z') {
       event.preventDefault();

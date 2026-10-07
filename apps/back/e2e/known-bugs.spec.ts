@@ -311,7 +311,6 @@ test.describe('BUG-30 abrir un fichero corrupto deja la sesión anterior cerrada
   const ctx = useApp('PalletOutput.rdlc');
 
   test('tras fallar la apertura, el documento anterior sigue usable (o no hay documento)', async () => {
-    test.fail();
     const { app, page, workspace } = ctx();
     const bad = join(workspace, 'Corrupto.rdlc');
     writeFileSync(bad, 'esto no es XML <Report', 'utf8');
@@ -365,7 +364,6 @@ test.describe('BUG-31 el optimismo no se revierte si el comando es rechazado', (
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   test('mover con flechas un item y que el backend lo rechace deja la posición original', async () => {
-    test.fail();
     const { app, page } = ctx();
     await selectItemViaPalette(page, 'Textbox93');
     const original = await itemLeftCm(page, 'Textbox93');
@@ -410,7 +408,6 @@ test.describe('BUG-32 Aplicar un margen agranda un pie corto a 1,25 cm', () => {
   const ctx = useApp('BTCQualityControl.rdlc');
 
   test('cambiar solo el margen izquierdo no toca el alto del pie (proyección y XML guardado)', async () => {
-    test.fail();
     const { page, file } = ctx();
     const before = await projection(page);
     expect(toCm(before!.page.footer.height)).toBeCloseTo(0.6, 3);
@@ -460,7 +457,6 @@ test.describe('BUG-33 cabeceras del Tablix desalineadas con cabeceras de grupo',
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   test('la cabecera de la columna 1 empieza donde empieza la celda (0,0) del cuerpo', async () => {
-    test.fail();
     const { page } = ctx();
     await selectItemViaPalette(page, 'Tablix7');
     await page.getByRole('button', { name: 'Seleccionar columna 1' }).click();
@@ -513,7 +509,6 @@ test.describe('BUG-34 Ctrl+Intro aplica el margen anterior', () => {
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   test('teclear un margen y pulsar Ctrl+Intro aplica el valor tecleado', async () => {
-    test.fail();
     const { page } = ctx();
     // Sin selección, el inspector muestra el formulario del informe.
     const panel = page.getByRole('region', { name: 'Propiedades del informe' });
@@ -551,7 +546,6 @@ test.describe('BUG-38 el color diferido cae en el item recién seleccionado', ()
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   test('cambiar de selección antes de 250 ms aplica el color al item original', async () => {
-    test.fail();
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox4');
     const target = await nodeCenter(page, 'Textbox17');
@@ -589,7 +583,6 @@ test.describe('BUG-39 Eliminar de la toolbar ignora la multiselección', () => {
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   test('con dos items seleccionados, el botón Eliminar borra los dos', async () => {
-    test.fail();
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox4');
     const center = await nodeCenter(page, 'Textbox17');
@@ -623,7 +616,6 @@ test.describe('BUG-40 la celda seleccionada queda fuera de la rejilla', () => {
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   test('borrar la última columna con su celda seleccionada no deja una selección fuera de rango', async () => {
-    test.fail();
     const { page } = ctx();
     await selectTablix(page, 'LinesTable2');
     const columns = (await findItem(page, 'LinesTable2'))!.body!.columns.length;
@@ -658,7 +650,6 @@ test.describe('BUG-41 las flechas con foco en un botón mueven el item', () => {
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   test('ArrowRight con el foco en un botón de la toolbar no mueve la selección', async () => {
-    test.fail();
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox93');
     const before = await itemLeftCm(page, 'Textbox93');
@@ -689,7 +680,6 @@ test.describe('BUG-44 el NumberInput acepta texto inválido', () => {
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   test('«12abc» se rechaza (no mueve el item a 12 cm)', async () => {
-    test.fail();
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox93');
     const before = await itemLeftCm(page, 'Textbox93');
@@ -701,7 +691,6 @@ test.describe('BUG-44 el NumberInput acepta texto inválido', () => {
   });
 
   test('«1.234,5» no se trunca a 1,234', async () => {
-    test.fail();
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox93');
     const field = page.getByLabel('X (Left)', { exact: true });

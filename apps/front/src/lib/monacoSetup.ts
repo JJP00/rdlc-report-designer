@@ -277,9 +277,24 @@ export function createExpressionEditor(
   });
 
   const submit = callbacks.onSubmit ?? callbacks.onCommit;
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, submit);
+  // `addAction` (no `addCommand`): las acciones viven en su editor; un
+  // `addCommand` dinámico con varios editores montados enruta al último
+  // registrado (monaco#2947) y puede secuestrar sus atajos (BUG-45).
+  editor.addAction({
+    id: 'rdlc-submit',
+    label: 'Aplicar',
+    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+    run: () => submit(),
+  });
   if (mode === 'expression') {
-    editor.addCommand(monaco.KeyCode.Enter, submit);
+    editor.addAction({
+      id: 'rdlc-submit-enter',
+      label: 'Aplicar (Enter)',
+      keybindings: [monaco.KeyCode.Enter],
+      // Con el desplegable de sugerencias abierto, Enter la acepta.
+      precondition: '!suggestWidgetVisible',
+      run: () => submit(),
+    });
   }
 
   const blurSubscription = editor.onDidBlurEditorText(() => callbacks.onCommit());

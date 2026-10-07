@@ -130,7 +130,7 @@ const RDL_2010 = `<?xml version="1.0" encoding="utf-8"?>
 // con la referencia y devuelve Left (conflicto) sin escribir.
 // Remove `.fails` when fixing; the test must then pass.
 describe('BUG-20 save sobrescribe un cambio externo no detectado por el watcher', () => {
-  it.fails('save devuelve conflicto y no pisa el fichero si cambió en disco', async () => {
+  it('save devuelve conflicto y no pisa el fichero si cambió en disco', async () => {
     const { service, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
     const opened = await service.open(path);
@@ -158,7 +158,7 @@ describe('BUG-20 save sobrescribe un cambio externo no detectado por el watcher'
 // Esperado: se recarga (documentChanged 'external') o se avisa (conflictDetected).
 // Remove `.fails` when fixing; the test must then pass.
 describe('BUG-21 cambio externo con mtime más antiguo se ignora', () => {
-  it.fails('un fichero reemplazado con mtime anterior provoca recarga o conflicto', async () => {
+  it('un fichero reemplazado con mtime anterior provoca recarga o conflicto', async () => {
     const { service, watcher, events, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
     const opened = await service.open(path);
@@ -195,7 +195,7 @@ describe('BUG-21 cambio externo con mtime más antiguo se ignora', () => {
 // fallo de rename no deja `*.tmp-*` huérfanos.
 // Remove `.fails` when fixing; the test must then pass.
 describe('BUG-22 NodeFileSystemAdapter.writeFile: temporal compartido y huérfano', () => {
-  it.fails('varios writeFile concurrentes al mismo path resuelven todos', async () => {
+  it('varios writeFile concurrentes al mismo path resuelven todos', async () => {
     const dir = await ownTempDir();
     const fs = new NodeFileSystemAdapter();
     const path = join(dir, 'Concurrente.rdlc');
@@ -213,7 +213,7 @@ describe('BUG-22 NodeFileSystemAdapter.writeFile: temporal compartido y huérfan
     }
   });
 
-  it.fails('si rename falla no deja el temporal en disco', async () => {
+  it('si rename falla no deja el temporal en disco', async () => {
     const dir = await ownTempDir();
     const fs = new NodeFileSystemAdapter();
     // El destino es un directorio: `rename(fichero, directorio)` falla.
@@ -247,7 +247,7 @@ describe('BUG-23 validación que lanza: sesión/watcher filtrados y error genér
     warmUp(): void {}
   }
 
-  it.fails('open con un validador que lanza no deja sesión ni watcher', async () => {
+  it('open con un validador que lanza no deja sesión ni watcher', async () => {
     const tmp = await ownTempDir();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
     const watcher = new FakeWatcher();
@@ -259,40 +259,34 @@ describe('BUG-23 validación que lanza: sesión/watcher filtrados y error genér
     expect(sessionCount(service)).toBe(0);
   });
 
-  it.fails(
-    'open con libxml2 real y XML que trueformat acepta pero libxml2 no: no rechaza ni filtra',
-    async () => {
-      const tmp = await ownTempDir();
-      const path = join(tmp, 'Entidad.rdl');
-      // `&foo;` no está definida: xml-trueformat lo tolera, libxml2 lanza XmlParseError.
-      await writeFile(
-        path,
-        BLANK_REPORT_XML.replace(
-          '<AutoRefresh>0</AutoRefresh>',
-          '<AutoRefresh>&foo;</AutoRefresh>',
-        ),
-        'utf8',
-      );
-      const watcher = new FakeWatcher();
-      const service = buildService(watcher, new LibXml2SchemaValidatorAdapter(XSD_PATH));
+  it('open con libxml2 real y XML que trueformat acepta pero libxml2 no: no rechaza ni filtra', async () => {
+    const tmp = await ownTempDir();
+    const path = join(tmp, 'Entidad.rdl');
+    // `&foo;` no está definida: xml-trueformat lo tolera, libxml2 lanza XmlParseError.
+    await writeFile(
+      path,
+      BLANK_REPORT_XML.replace('<AutoRefresh>0</AutoRefresh>', '<AutoRefresh>&foo;</AutoRefresh>'),
+      'utf8',
+    );
+    const watcher = new FakeWatcher();
+    const service = buildService(watcher, new LibXml2SchemaValidatorAdapter(XSD_PATH));
 
-      let rejected: unknown = null;
-      const opened = await service.open(path).catch((error: unknown) => {
-        rejected = error;
-        return null;
-      });
+    let rejected: unknown = null;
+    const opened = await service.open(path).catch((error: unknown) => {
+      rejected = error;
+      return null;
+    });
 
-      expect(rejected).toBeNull();
-      if (opened?.isRight()) {
-        expect(opened.value.warnings?.length ?? 0).toBeGreaterThan(0);
-      } else {
-        expect(watcher.watchingPaths).toEqual([]);
-        expect(sessionCount(service)).toBe(0);
-      }
-    },
-  );
+    expect(rejected).toBeNull();
+    if (opened?.isRight()) {
+      expect(opened.value.warnings?.length ?? 0).toBeGreaterThan(0);
+    } else {
+      expect(watcher.watchingPaths).toEqual([]);
+      expect(sessionCount(service)).toBe(0);
+    }
+  });
 
-  it.fails('save con XML que libxml2 no parsea devuelve Left E_VALIDATION (no lanza)', async () => {
+  it('save con XML que libxml2 no parsea devuelve Left E_VALIDATION (no lanza)', async () => {
     /** Valida OK al abrir; después delega en el adaptador libxml2 real. */
     class SwitchableSchema implements XmlSchemaValidatorPort {
       delegate: XmlSchemaValidatorPort | null = null;
@@ -334,7 +328,7 @@ describe('BUG-23 validación que lanza: sesión/watcher filtrados y error genér
 // Esperado: open falla (Left o rechazo) sin dejar sesiones vivas.
 // Remove `.fails` when fixing; the test must then pass.
 describe('BUG-24 watcher que rechaza en open deja la sesión filtrada', () => {
-  it.fails('si watch rechaza no queda ninguna sesión', async () => {
+  it('si watch rechaza no queda ninguna sesión', async () => {
     class RejectingWatcher implements FileWatcherPort {
       async watch(): Promise<Unwatch> {
         throw new Error('EMFILE: too many open files, watch');
@@ -366,7 +360,7 @@ class LibXml2Stub implements XmlSchemaValidatorPort {
 // packages/contracts/src/projection.ts, `fields[].dataType`).
 // Remove `.fails` when fixing; the test must then pass.
 describe('BUG-25 rd:TypeName como elemento hijo de <Field> no se proyecta', () => {
-  it.fails('proyecta dataType desde <rd:TypeName> hijo', () => {
+  it('proyecta dataType desde <rd:TypeName> hijo', () => {
     const xml = BLANK_REPORT_XML.replace(
       '<ReportSections>',
       `<DataSets>
@@ -420,11 +414,11 @@ describe('BUG-26 longitudes `.5in` y `pc` colapsan a 0', () => {
     return item;
   };
 
-  it.fails('proyecta `.5in` (sin cero inicial) como 0.5in', () => {
+  it('proyecta `.5in` (sin cero inicial) como 0.5in', () => {
     expect(toCm(tb1(textboxXml('.5in', '3cm')).top)).toBeCloseTo(1.27, 3);
   });
 
-  it.fails('proyecta `1pc` (pica) como 12pt', () => {
+  it('proyecta `1pc` (pica) como 12pt', () => {
     expect(toCm(tb1(textboxXml('1cm', '1pc')).width)).toBeCloseTo((12 * 2.54) / 72, 3);
   });
 });
@@ -440,7 +434,7 @@ describe('BUG-26 longitudes `.5in` y `pc` colapsan a 0', () => {
 // con conflictDetected (el mismo evento que para un fichero corrupto).
 // Remove `.fails` when fixing; the test must then pass.
 describe('BUG-27 reload / cambio externo aceptan esquemas no soportados', () => {
-  it.fails('reload a un RDL 2010 devuelve E_UNSUPPORTED_SCHEMA', async () => {
+  it('reload a un RDL 2010 devuelve E_UNSUPPORTED_SCHEMA', async () => {
     const { service, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
     const opened = await service.open(path);
@@ -453,7 +447,7 @@ describe('BUG-27 reload / cambio externo aceptan esquemas no soportados', () => 
     if (reloaded.isLeft()) expect(reloaded.value.code).toBe('E_UNSUPPORTED_SCHEMA');
   });
 
-  it.fails('reload a un XML cuya raíz no es <Report> devuelve E_INVALID_XML', async () => {
+  it('reload a un XML cuya raíz no es <Report> devuelve E_INVALID_XML', async () => {
     const { service, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
     const opened = await service.open(path);
@@ -466,7 +460,7 @@ describe('BUG-27 reload / cambio externo aceptan esquemas no soportados', () => 
     if (reloaded.isLeft()) expect(reloaded.value.code).toBe('E_INVALID_XML');
   });
 
-  it.fails('un cambio externo a RDL 2010 no se carga y emite conflictDetected', async () => {
+  it('un cambio externo a RDL 2010 no se carga y emite conflictDetected', async () => {
     const { service, watcher, events, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
     const opened = await service.open(path);
@@ -502,7 +496,7 @@ describe('BUG-27 reload / cambio externo aceptan esquemas no soportados', () => 
 // totalmente revertido. Lo ideal es que este undo concreto funcione.
 // Remove `.fails` when fixing; the test must then pass.
 describe('BUG-28 undo de un batch deja el documento medio revertido', () => {
-  it.fails('undo de [setLocation, setName] es todo-o-nada', async () => {
+  it('undo de [setLocation, setName] es todo-o-nada', async () => {
     const { service, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
     const opened = await service.open(path);
@@ -573,7 +567,7 @@ describe('BUG-28 undo de un batch deja el documento medio revertido', () => {
 // Esperado: el primer get devuelve la ruta; los siguientes devuelven null.
 // Remove `.fails` when fixing; the test must then pass.
 describe('BUG-29 pendingOpen se devuelve más de una vez', () => {
-  it.fails('el segundo getPendingOpen devuelve null', async () => {
+  it('el segundo getPendingOpen devuelve null', async () => {
     ipcHandlers.clear();
     const dummy = {} as never;
     const controller = new IpcController(dummy, dummy, dummy, dummy);

@@ -24,7 +24,7 @@ import {
   toCm,
 } from '@/lib/projection';
 import type { BoxCm } from '@/lib/resize';
-import type { SelectedCell } from '@/lib/tablix';
+import { tablixLayout, type SelectedCell } from '@/lib/tablix';
 import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
 import { PageResizePreview, PageResizeZones, type PageRegion } from './PageResizeLayer';
 import { Paper } from './Paper';
@@ -544,7 +544,14 @@ function zoomFromWheel(
 interface SelectedFrame {
   box?: BoxCm;
   bounds?: { width: number; height: number };
-  grid?: { columns: Length[]; rows: Length[]; rowCount: number; columnCount: number };
+  grid?: {
+    columns: Length[];
+    rows: Length[];
+    rowCount: number;
+    columnCount: number;
+    /** Desplazamiento de la rejilla por las cabeceras de grupo (px de papel). */
+    offset?: { x: number; y: number };
+  };
 }
 
 function computeSelectedFrame(
@@ -577,6 +584,11 @@ function computeSelectedFrame(
     if (item.kind === 'tablix') {
       const columns = item.body.columns.reduce((acc, column) => acc + toCm(column), 0);
       const rows = item.body.rows.reduce((acc, row) => acc + toCm(row.height), 0);
+      // La `box` es la rejilla del cuerpo (lo que espera `resizeTable`), pero
+      // las cabeceras de grupo desplazan las columnas/filas: el marco medido
+      // (el borde del Tablix) las incluye y las tiras deben sumar el offset
+      // (el layout lo da en cm; las tiras trabajan en px de papel).
+      const { offset } = tablixLayout(item);
       return {
         box: {
           top: toCm(item.top),
@@ -590,6 +602,7 @@ function computeSelectedFrame(
           rows: item.body.rows.map((row) => row.height),
           rowCount: item.body.rows.length,
           columnCount: item.body.columns.length,
+          offset: { x: offset.x * PX_PER_CM, y: offset.y * PX_PER_CM },
         },
       };
     }
@@ -636,7 +649,11 @@ function selectionFrameProps(options: FramePropsOptions): SelectionFrameProps {
 
   if (frameId && selectedFrame?.grid) {
     const grid = selectedFrame.grid;
-    props.grid = { columns: grid.columns, rows: grid.rows };
+    props.grid = {
+      columns: grid.columns,
+      rows: grid.rows,
+      ...(grid.offset ? { offset: grid.offset } : {}),
+    };
     if (selection) props.selection = selection;
     if (options.onResizeColumn) {
       const resizeColumn = options.onResizeColumn;

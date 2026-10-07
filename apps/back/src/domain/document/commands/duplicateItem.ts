@@ -5,6 +5,7 @@ import { readLength } from '../geometry/geometry.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import { insertCloneAt } from './cloneInsert.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
+import { hasGroupNamed } from './scopeNames.js';
 
 export type DuplicateItemCommand = Extract<RdlcCommand, { cmd: 'duplicateItem' }>;
 
@@ -21,9 +22,9 @@ export function applyDuplicateItem(
     return left(CommandRejectedError.create(`El elemento '${command.id}' no tiene contenedor`));
   }
 
-  if (command.name && ctx.index.has(command.name)) {
+  if (command.name && (ctx.index.has(command.name) || hasGroupNamed(ctx.root, command.name))) {
     return left(
-      CommandRejectedError.create(`Ya existe un elemento con el nombre '${command.name}'`),
+      CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${command.name}'`),
     );
   }
 

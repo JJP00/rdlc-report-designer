@@ -93,8 +93,14 @@ export function applySetStyle(
   const { listStyle, ...stylePatch } = command.style as StylePatch & {
     listStyle?: 'None' | 'Bulleted' | 'Numbered' | null;
   };
-  const { previous, removed, changes } = writeStylePatch(style, stylePatch as StylePatch);
-  if (listStyle !== undefined) writeListStyle(node, listStyle, changes, removed);
+  // Índices prístinos compartidos por todos los borrados del comando.
+  const indexesOf = createOriginalIndexes();
+  const { previous, removed, changes } = writeStylePatch(
+    style,
+    stylePatch as StylePatch,
+    indexesOf,
+  );
+  if (listStyle !== undefined) writeListStyle(node, listStyle, changes, removed, indexesOf);
 
   const restored = syncShadowingStyles(node, stylePatch as StylePatch);
 
@@ -115,11 +121,18 @@ export function applySetStyle(
     // Orden de los inversos: el journal los aplica al revés, así que el último
     // es el primero en deshacerse. Si el comando creó el `<Style>` (el item no
     // lo tenía), al final del undo se quita para volver a los bytes originales.
+    //
+    // `setStyle(previous)` va **después** de `restored` en la lista y, por
+    // tanto, se aplica antes al deshacer: primero vuelve el estilo del item (con
+    // su sincronización de overrides a los valores previos) y luego los
+    // overrides originales de párrafos y runs, que quedan byte a byte como
+    // estaban. Al revés, la sincronización del `setStyle` inverso pisaría el
+    // override restaurado (p. ej. el run a 8pt volvía a 10pt).
     inverse: [
       ...(styleExisted ? [] : [{ cmd: 'removeNode', node: style } as const]),
       ...reinsert,
-      { cmd: 'setStyle', id: command.id, style: previous },
       ...restored,
+      { cmd: 'setStyle', id: command.id, style: previous },
       ...changes,
     ],
     applied: [{ id: command.id, values: { style: readStyle(style) } }],
@@ -131,37 +144,46 @@ export function applySetStyle(
 
 /* --------------------------- escritura ---------------------------------- */
 
+/** Índices originales (prístinos) de los hijos de un contenedor, cacheados. */
+type OriginalIndexes = (parent: RdlcNode) => Map<string, number>;
+
+function createOriginalIndexes(): OriginalIndexes {
+  // Los envoltorios `RdlcNode` no tienen identidad estable (cada `child()`
+  // devuelve uno nuevo sobre el mismo elemento): el contenedor se localiza por
+  // `equals`, que compara el nodo del documento.
+  const entries: { container: RdlcNode; map: Map<string, number> }[] = [];
+  return (parent) => {
+    const found = entries.find((entry) => entry.container.equals(parent));
+    if (found) return found.map;
+
+    const map = new Map<string, number>();
+    parent.children().forEach((child, index) => {
+      if (!map.has(child.tagName)) map.set(child.tagName, index);
+    });
+    entries.push({ container: parent, map });
+    return map;
+  };
+}
+
 /**
  * Aplica un parche al `<Style>`. Devuelve:
  * - `previous`: valores anteriores de los campos que **existían** (para el
  *   inverso; `null` = el tag no existía).
  * - `removed`: nodos borrados por un valor `null`, con su índice, para poder
  *   reinsertarlos tal cual (quitar y volver a crear perdería el orden original).
+ *
+ * `indexesOf` se comparte con quien quite más nodos del mismo contenedor en el
+ * mismo comando (p. ej. `writeListStyle`): los índices deben ser los **de antes
+ * de cualquier borrado**, no los vivos (que se van desplazando).
  */
 export function writeStylePatch(
   style: RdlcNode,
   patch: StylePatch,
+  indexesOf: OriginalIndexes = createOriginalIndexes(),
 ): { previous: StylePatch; removed: RemovedStyleNode[]; changes: DomainCommand[] } {
   const previous: StylePatch = {};
   const removed: RemovedStyleNode[] = [];
   const changes: DomainCommand[] = [];
-
-  // Índices **originales** de los hijos de cada contenedor: si se quitan varios
-  // tags seguidos, los índices vivos ya no sirven para devolverlos a su sitio
-  // (cada borrado mueve a los siguientes). Con el mapa prístino, el undo los
-  // reinserta en orden ascendente y el XML queda igual que al principio.
-  const originalIndexes = new Map<RdlcNode, Map<string, number>>();
-  const indexesOf = (parent: RdlcNode): Map<string, number> => {
-    let map = originalIndexes.get(parent);
-    if (!map) {
-      map = new Map();
-      parent.children().forEach((child, index) => {
-        if (!map!.has(child.tagName)) map!.set(child.tagName, index);
-      });
-      originalIndexes.set(parent, map);
-    }
-    return map;
-  };
 
   const removeTag = (parent: RdlcNode, tag: string): void => {
     const child = parent.child(tag);
@@ -460,17 +482,18 @@ function writeListStyle(
   value: 'None' | 'Bulleted' | 'Numbered' | null,
   changes: DomainCommand[],
   removed: RemovedStyleNode[],
+  indexesOf: OriginalIndexes,
 ): void {
   const itemStyle = item.child('Style');
   for (const style of [...(itemStyle ? [itemStyle] : []), ...paragraphAndRunStyles(item)]) {
     const legacy = style.child('ListStyle');
-    if (legacy) removeStyleChild(legacy, removed);
+    if (legacy) removeStyleChild(legacy, removed, indexesOf);
   }
 
   for (const paragraph of item.child('Paragraphs')?.children('Paragraph') ?? []) {
     const existing = paragraph.child('ListStyle');
     if (value === null) {
-      if (existing) removeStyleChild(existing, removed);
+      if (existing) removeStyleChild(existing, removed, indexesOf);
       continue;
     }
     if (existing) {
@@ -486,12 +509,19 @@ function writeListStyle(
   }
 }
 
-/** Quita un nodo guardando el contenedor y el índice para el undo. */
-function removeStyleChild(node: RdlcNode, removed: RemovedStyleNode[]): void {
+/**
+ * Quita un nodo guardando el contenedor y su índice **prístino** para el undo
+ * (el vivo se desplaza con cada borrado anterior del mismo comando).
+ */
+function removeStyleChild(
+  node: RdlcNode,
+  removed: RemovedStyleNode[],
+  indexesOf: OriginalIndexes,
+): void {
   const container = node.parent;
   if (!container) return;
-  const index = container.children().findIndex((child) => child.equals(node));
-  removed.push({ style: container, node, index: index < 0 ? 0 : index });
+  const index = indexesOf(container).get(node.tagName) ?? 0;
+  removed.push({ style: container, node, index });
   node.remove();
 }
 

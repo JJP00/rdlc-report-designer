@@ -166,6 +166,7 @@ export function applySetRegionPresent(
   }
 
   const tag = regionTag(command.region);
+  const pageExisted = section.child('Page') !== undefined;
   // Al **quitar** no se crea un `Page` vacío: si no existe la banda, es no-op.
   const page = command.present ? childOrCreate(section, 'Page') : section.child('Page');
   if (!page) return right({ inverse: [], snapshotOut: true });
@@ -178,7 +179,15 @@ export function applySetRegionPresent(
       created.createElement('Height', formatLength(fromCm(DEFAULT_BAND_HEIGHT_CM))),
     );
     insertCanonical(page, tag, created);
-    return right({ inverse: [{ cmd: 'removeNode', node: created }], snapshotOut: true });
+    return right({
+      inverse: [
+        // Si el comando creó el `<Page>`, el undo también se lo lleva: nada de
+        // dejar un `<Page>` vacío (el documento vuelve byte a byte).
+        ...(pageExisted ? [] : [{ cmd: 'removeNode' as const, node: page }]),
+        { cmd: 'removeNode', node: created },
+      ],
+      snapshotOut: true,
+    });
   }
 
   if (!existing || !existing.parent) {
@@ -217,10 +226,18 @@ export function applySetHeaderFooterOptions(
   }
 
   const tag = regionTag(command.region);
+  const pageExisted = section.child('Page') !== undefined;
   const page = childOrCreate(section, 'Page');
+  const regionExisted = page.child(tag) !== undefined;
   const region = childOrCreate(page, tag);
 
-  const inverse: DomainCommand[] = [];
+  // Lo que este comando creó (Page/banda) se quita al deshacer; el journal
+  // aplica los inversos al revés, así que los flags se deshacen primero y los
+  // contenedores se quitan después (de dentro hacia fuera al aplicarlos).
+  const inverse: DomainCommand[] = [
+    ...(pageExisted ? [] : [{ cmd: 'removeNode' as const, node: page }]),
+    ...(regionExisted ? [] : [{ cmd: 'removeNode' as const, node: region }]),
+  ];
   if (command.printOnFirstPage !== undefined) {
     writeFlag(region, 'PrintOnFirstPage', command.printOnFirstPage, inverse);
   }

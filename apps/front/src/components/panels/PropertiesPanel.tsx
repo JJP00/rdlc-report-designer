@@ -154,10 +154,17 @@ export function PropertiesPanel({
 
       <Separator />
       <div className="text-xs font-medium text-muted-foreground">Apariencia</div>
-      <BackgroundField item={item} onSetStyle={onSetStyle} />
+      {/* `key` por item: al cambiar de selección el borrador diferido de color
+          se entrega al item anterior (flush del desmontaje) en vez de pintar
+          el nuevo (BUG-38). */}
+      <BackgroundField key={`${item.id}-background`} item={item} onSetStyle={onSetStyle} />
       <PaddingSection padding={item.style?.padding} onSetStyle={onSetStyle} />
       {BORDER_KINDS.has(item.kind) ? (
-        <BorderField border={item.style?.border} onSetStyle={onSetStyle} />
+        <BorderField
+          key={`${item.id}-border`}
+          border={item.style?.border}
+          onSetStyle={onSetStyle}
+        />
       ) : null}
       <VisibilityField
         key={`${item.id}-visibility`}

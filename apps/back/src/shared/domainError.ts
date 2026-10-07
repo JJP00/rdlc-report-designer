@@ -72,6 +72,25 @@ export class IoError implements DomainError {
   }
 }
 
+/**
+ * El fichero cambió en disco (mtime/tamaño/contenido) desde la última
+ * referencia de la sesión y el guardado se rechaza para no pisotear la edición
+ * externa. El watcher también lo detecta, pero puede perder el evento
+ * (debounce, unidad de red): Guardar comprueba el disco antes de escribir.
+ */
+export class FileConflictError implements DomainError {
+  readonly code = 'E_CONFLICT' as const;
+
+  private constructor(readonly errorMessage: string) {}
+
+  static create(path: string): FileConflictError {
+    return new FileConflictError(
+      `El fichero cambió en disco desde la última lectura y no se guardó nada: ${path}. ` +
+        `Recarga el informe o usa «Guardar como…» para no perder la edición externa.`,
+    );
+  }
+}
+
 export class UnknownSessionError implements DomainError {
   readonly code = 'E_NOT_FOUND' as const;
 

@@ -96,6 +96,12 @@ export function useDocumentCore(): DocumentCore {
   const [recents, setRecents] = useState<string[]>([]);
   const [pendingIntent, setPendingIntent] = useState<PendingIntent | null>(null);
   const errorTimer = useRef<number | null>(null);
+  // Documento vivo: descarta respuestas de comandos en vuelo de una sesión ya
+  // cerrada (BUG-42: no deben parchear el documento nuevo con sus ids).
+  const docRef = useRef<OpenDocument | null>(null);
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
 
   /**
    * Muestra un aviso de error: se pinta sin el código (`apiErrorMessage`) y se
@@ -232,10 +238,30 @@ export function useDocumentCore(): DocumentCore {
     [],
   );
 
+  /**
+   * Adopta la proyección **vigente** del backend: deshace el optimismo que el
+   * front pintó para un comando que el backend rechazó (si no, el lienzo
+   * mostraría un cambio que el documento no tiene).
+   */
+  const resyncProjection = useCallback(async (sessionId: string): Promise<void> => {
+    // Preload antiguo en dev: sin canal, no hay nada que hacer.
+    if (typeof window.api.readProjection !== 'function') return;
+    const result = await window.api.readProjection(sessionId);
+    if (!result.ok) return;
+    const { projection } = result;
+    setDoc((current) =>
+      current && current.sessionId === sessionId ? { ...current, projection } : current,
+    );
+  }, []);
+
   const sendCommand = useCallback(
     async (command: RdlcCommand): Promise<CommandResult | undefined> => {
       if (!doc) return undefined;
-      const result = await window.api.executeCommand(doc.sessionId, command);
+      const sessionId = doc.sessionId;
+      const result = await window.api.executeCommand(sessionId, command);
+      // Respuesta de una sesión que ya se cerró (cambio de documento en
+      // vuelo): se descarta en bloque, sin reconciliar ni avisar (BUG-42).
+      if (docRef.current?.sessionId !== sessionId) return undefined;
       if (import.meta.env.DEV) {
         console.log(
           `[debug] cmd ${command.cmd} → ok=${result.ok}` +
@@ -246,12 +272,13 @@ export function useDocumentCore(): DocumentCore {
       }
       if (!result.ok) {
         setError(apiErrorMessage(result, 'comando rechazado'));
+        void resyncProjection(sessionId);
         return result;
       }
       setStatus(`Comando '${command.cmd}' aplicado (v${result.version ?? '?'})`);
       return result;
     },
-    [doc],
+    [doc, resyncProjection],
   );
 
   /* ------------------------------- recents -------------------------------- */
@@ -275,18 +302,21 @@ export function useDocumentCore(): DocumentCore {
 
   /* ------------------------------ fichero --------------------------------- */
 
-  /** Abre una ruta concreta: cierra la sesión anterior y adopta la nueva. */
+  /** Abre una ruta concreta: adopta la sesión nueva y cierra la anterior. */
   const openPath = useCallback(
     async (path: string): Promise<void> => {
       setError(null);
-      if (doc) {
-        // La sesión anterior (y su watcher) se cierra: no dejamos fugas.
-        await window.api.close(doc.sessionId, true);
-      }
+      // La sesión nueva se abre **antes** de cerrar la anterior: si la apertura
+      // falla, el documento actual sigue vivo (no se queda apuntando a una
+      // sesión cerrada y usable a medias).
       const result = await window.api.openFile(path);
       if (!result.ok) {
         setError(apiErrorMessage(result, 'error al abrir'));
         return;
+      }
+      if (doc) {
+        // La sesión anterior (y su watcher) se cierra: no dejamos fugas.
+        await window.api.close(doc.sessionId, true);
       }
       setDoc({ sessionId: result.sessionId, path, projection: result.projection });
       setDirty(false);
@@ -309,12 +339,14 @@ export function useDocumentCore(): DocumentCore {
     setError(null);
     const picked = await window.api.pickSavePath('Nuevo informe.rdlc');
     if (!picked.ok || !picked.path) return;
-    if (doc) await window.api.close(doc.sessionId, true);
+    // El informe nuevo se crea/abre **antes** de cerrar el actual: si falla,
+    // el documento anterior no se pierde.
     const result = await window.api.createNew(picked.path);
     if (!result.ok) {
       setError(apiErrorMessage(result, 'no se pudo crear el informe'));
       return;
     }
+    if (doc) await window.api.close(doc.sessionId, true);
     setDoc({ sessionId: result.sessionId, path: picked.path, projection: result.projection });
     setDirty(false);
     setConflict(null);

@@ -376,10 +376,12 @@ function TextboxContent({
   height: number;
 }): ReactNode {
   const padding = style?.padding;
-  const padLeft = padding?.left ? toPx(padding.left) : 2;
-  const padRight = padding?.right ? toPx(padding.right) : 2;
-  const padTop = padding?.top ? toPx(padding.top) : 1;
-  const padBottom = padding?.bottom ? toPx(padding.bottom) : 1;
+  // El RDL no define padding implícito: sin declararlo, 0 (no los 2px/1px que
+  // daba el editor, que desplazaban el texto respecto a BC) — BUG-46.
+  const padLeft = padding?.left ? toPx(padding.left) : 0;
+  const padRight = padding?.right ? toPx(padding.right) : 0;
+  const padTop = padding?.top ? toPx(padding.top) : 0;
+  const padBottom = padding?.bottom ? toPx(padding.bottom) : 0;
 
   // Un nodo por run: el estilo (fuente, tamaño, color, negrita…) y la
   // alineación del párrafo (`TextAlign` del párrafo, como en BC) se resuelven

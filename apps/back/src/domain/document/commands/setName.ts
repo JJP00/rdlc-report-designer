@@ -2,6 +2,7 @@ import type { RdlcCommand } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import type { CommandContext, CommandOutcome, DomainCommand } from './CommandContext.js';
+import { hasGroupNamed } from './scopeNames.js';
 
 export type SetNameCommand = Extract<RdlcCommand, { cmd: 'setName' }>;
 
@@ -28,8 +29,11 @@ export function applySetName(
   if (name === command.id) return right({ inverse: [] });
   // Cambiar solo la caja del propio nombre es el mismo item: permitido (RB
   // resuelve sin distinguir mayúsculas, pero el XML conserva la caja elegida).
-  if (ctx.index.has(name) && name.toLowerCase() !== command.id.toLowerCase()) {
-    return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${name}'`));
+  // Los grupos comparten namespace con los items (BUG-11): el nombre nuevo no
+  // puede ser el de un grupo existente.
+  const collision = ctx.index.has(name) || hasGroupNamed(ctx.root, name);
+  if (collision && name.toLowerCase() !== command.id.toLowerCase()) {
+    return left(CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${name}'`));
   }
 
   const inverse: DomainCommand[] = [];

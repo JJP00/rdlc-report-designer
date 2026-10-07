@@ -3,6 +3,7 @@ import {
   clipboardSourceRequestSchema,
   closeRequestSchema,
   createNewRequestSchema,
+  droppedFileRequestSchema,
   executeCommandRequestSchema,
   openFileRequestSchema,
   pasteRequestSchema,
@@ -17,10 +18,12 @@ import {
   type PendingOpenResult,
   type PickFileResult,
   type PickSavePathResult,
+  type ReadProjectionResult,
   type RecentFilesResult,
   type SaveResult,
 } from '@rdlc-designer/contracts';
 import { Inject, Injectable } from '@nestjs/common';
+import { resolve } from 'node:path';
 import {
   dialog,
   ipcMain,
@@ -56,6 +59,13 @@ import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
 export class IpcController {
   private getWindow: () => BrowserWindow | null = () => null;
   private pendingOpen: string | null = null;
+  /**
+   * Rutas que el usuario eligió explícitamente: diálogos nativos, fichero de
+   * arranque (CLI) o un fichero soltado sobre la ventana. `openFile`,
+   * `createNew` y `saveAs` solo aceptan rutas de aquí (o recientes, al abrir):
+   * un renderer comprometido no puede leer/escribir en cualquier ruta (BUG-50).
+   */
+  private readonly trustedPaths = new Set<string>();
 
   constructor(
     @Inject(SESSION_SERVICE) private readonly sessions: ISessionService,
@@ -67,6 +77,7 @@ export class IpcController {
   /** Fichero inicial (argumento de CLI) que el front consume al montar. */
   setPendingOpen(path: string | null): void {
     this.pendingOpen = path;
+    if (path) this.trustPath(path);
   }
 
   register(getWindow: () => BrowserWindow | null): void {
@@ -83,10 +94,27 @@ export class IpcController {
       ),
     );
 
-    ipcMain.handle(IPC_CHANNELS.pendingOpen, (): PendingOpenResult => ({
-      ok: true,
-      path: this.pendingOpen,
-    }));
+    // Consumo único (BUG-29): una recarga del renderer (HMR, reload) no debe
+    // volver a recibir el fichero de arranque y reabrirlo.
+    ipcMain.handle(IPC_CHANNELS.pendingOpen, (): PendingOpenResult => {
+      const path = this.pendingOpen;
+      this.pendingOpen = null;
+      return { ok: true, path };
+    });
+
+    // Drop de ficheros: lo llama el preload con la ruta real del `File`
+    // (`webUtils.getPathForFile`); el renderer no puede invocar este canal.
+    ipcMain.handle(IPC_CHANNELS.registerDroppedFile, (_event, payload) =>
+      this.handle(
+        droppedFileRequestSchema,
+        payload,
+        async (req) => {
+          this.trustPath(req.path);
+          return right(undefined);
+        },
+        (): { ok: true } => ({ ok: true }),
+      ),
+    );
 
     ipcMain.handle(IPC_CHANNELS.listFonts, async (): Promise<FontListResult> => ({
       ok: true,
@@ -98,6 +126,13 @@ export class IpcController {
         openFileRequestSchema,
         payload,
         async (req) => {
+          if (!(await this.isTrustedReadPath(req.path))) {
+            return left(
+              CommandRejectedError.create(
+                `Ruta no autorizada para abrir: ${req.path} (usa «Abrir…», los recientes o arrastra el fichero)`,
+              ),
+            );
+          }
           const result = await this.sessions.open(req.path);
           if (result.isRight()) await this.recents.add(req.path);
           return result;
@@ -118,6 +153,13 @@ export class IpcController {
         async (req) => {
           if (!req.path) {
             return left(CommandRejectedError.create('Falta la ruta del informe nuevo'));
+          }
+          if (!this.isTrustedWritePath(req.path)) {
+            return left(
+              CommandRejectedError.create(
+                `Ruta no autorizada para crear el informe: ${req.path} (usa el diálogo de guardado)`,
+              ),
+            );
           }
           const result = await this.sessions.createNew(req.path);
           if (result.isRight()) await this.recents.add(req.path);
@@ -150,6 +192,13 @@ export class IpcController {
         saveAsRequestSchema,
         payload,
         async (req) => {
+          if (!this.isTrustedWritePath(req.path)) {
+            return left(
+              CommandRejectedError.create(
+                `Ruta no autorizada para guardar: ${req.path} (usa el diálogo de guardado)`,
+              ),
+            );
+          }
           const result = await this.sessions.saveAs(req.sessionId, req.path);
           if (result.isRight()) await this.recents.add(req.path);
           return result;
@@ -173,6 +222,17 @@ export class IpcController {
           projection: value.projection,
           ...(value.warnings ? { warnings: value.warnings } : {}),
         }),
+      ),
+    );
+
+    // Proyección vigente sin recargar del disco: el front deshace con ella el
+    // optimismo de un comando rechazado (BUG-31).
+    ipcMain.handle(IPC_CHANNELS.readProjection, (_event, payload) =>
+      this.handle(
+        sessionRequestSchema,
+        payload,
+        async (req) => this.sessions.projectionOf(req.sessionId),
+        (value): ReadProjectionResult => ({ ok: true, projection: value }),
       ),
     );
 
@@ -252,6 +312,27 @@ export class IpcController {
 
   /* ------------------------------ helpers ------------------------------- */
 
+  /** Autoriza una ruta para operaciones de fichero (diálogo, CLI, drop). */
+  private trustPath(path: string): void {
+    this.trustedPaths.add(resolve(path));
+  }
+
+  /** Ruta para leer/escribir que salió de un diálogo nativo de esta ventana. */
+  private isTrustedWritePath(path: string): boolean {
+    return this.trustedPaths.has(resolve(path));
+  }
+
+  /**
+   * Para abrir también valen los recientes: son rutas que ya se abrieron con
+   * diálogo y las sirve el backend, no el renderer.
+   */
+  private async isTrustedReadPath(path: string): Promise<boolean> {
+    if (this.isTrustedWritePath(path)) return true;
+    const wanted = resolve(path);
+    const recents = await this.recents.list();
+    return recents.some((recent) => resolve(recent) === wanted);
+  }
+
   private async handle<Req, T, R>(
     schema: ZodType<Req>,
     payload: unknown,
@@ -288,6 +369,7 @@ export class IpcController {
       ? await dialog.showOpenDialog(window, options)
       : await dialog.showOpenDialog(options);
     const path = result.canceled ? undefined : result.filePaths[0];
+    if (path) this.trustPath(path);
     return { ok: true, path: path ?? null };
   }
 
@@ -301,6 +383,9 @@ export class IpcController {
     const result = window
       ? await dialog.showSaveDialog(window, options)
       : await dialog.showSaveDialog(options);
-    return { ok: true, path: result.canceled ? null : (result.filePath ?? null) };
+    // La ruta que devuelve el diálogo queda autorizada para `createNew`/`saveAs`.
+    const path = result.canceled ? null : (result.filePath ?? null);
+    if (path) this.trustPath(path);
+    return { ok: true, path };
   }
 }

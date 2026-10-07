@@ -15,6 +15,12 @@ export class ChokidarWatcherAdapter implements FileWatcherPort {
     });
     watcher.on('change', onChange);
     watcher.on('add', onChange);
+    // Sin listener, un error de chokidar (permisos, path inexistente) emite
+    // 'error' sin capturar y tumba el proceso (BUG-29): se registra y el
+    // watcher sigue vivo para el resto de sesiones.
+    watcher.on('error', (error) => {
+      console.error(`[watcher] error vigilando ${path}:`, error);
+    });
     this.watchers.set(path, watcher);
     return () => {
       void watcher.close();

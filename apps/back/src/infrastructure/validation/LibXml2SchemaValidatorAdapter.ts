@@ -21,15 +21,22 @@ export class LibXml2SchemaValidatorAdapter implements XmlSchemaValidatorPort {
   }
 
   validate(xml: string): SchemaValidationResult {
-    const validator = this.getValidator();
-    const document = XmlDocument.fromString(xml);
+    // `XmlDocument.fromString` lanza XmlParseError con XML que libxml2 no
+    // entiende (entidades sin declarar, codificaciones incoherentes…): la
+    // validación informa del problema, nunca lo propaga (BUG-23).
     try {
-      validator.validate(document);
-      return { valid: true, problems: [] };
+      const validator = this.getValidator();
+      const document = XmlDocument.fromString(xml);
+      try {
+        validator.validate(document);
+        return { valid: true, problems: [] };
+      } catch (error) {
+        return { valid: false, problems: toProblems(error) };
+      } finally {
+        document.dispose();
+      }
     } catch (error) {
-      return { valid: false, problems: toProblems(error) };
-    } finally {
-      document.dispose();
+      return { valid: false, problems: [problemText(error)] };
     }
   }
 
@@ -48,7 +55,7 @@ export class LibXml2SchemaValidatorAdapter implements XmlSchemaValidatorPort {
  * que permite localizar el problema sin abrir el XML a ojo.
  */
 function toProblems(error: unknown): string[] {
-  if (!(error instanceof XmlValidateError)) return [String(error)];
+  if (!(error instanceof XmlValidateError)) return [problemText(error)];
 
   const details: ErrorDetail[] = error.details ?? [];
   if (details.length > 0) return details.slice(0, 20).map(formatDetail);
@@ -70,4 +77,9 @@ function formatDetail(detail: ErrorDetail): string {
     detail.xpath ? detail.xpath : null,
   ].filter((part): part is string => part !== null);
   return where.length > 0 ? `${message} (${where.join(', ')})` : message;
+}
+
+/** Texto legible de un error arbitrario de libxml2 (parseo, esquema…). */
+function problemText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -1,5 +1,6 @@
 import { left, right, type Either } from '../../../shared/either.js';
 import type { DomainError } from '../../../shared/domainError.js';
+import { DocumentIndex } from '../index/DocumentIndex.js';
 import { applyCommand } from './applyCommand.js';
 import { inverseCommands } from './CommandContext.js';
 import type { CommandContext, CommandOutcome, DomainCommand } from './CommandContext.js';
@@ -23,15 +24,24 @@ export function applyBatch(
   const applied: NonNullable<CommandOutcome['applied']> = [];
   const createdIds: string[] = [];
 
-  for (const inner of command.commands) {
-    const result = applyCommand(ctx, inner);
+  // El índice se reconstruye entre comandos: si no, el siguiente comando del
+  // lote no ve lo que el anterior insertó/borró/renombró y, por ejemplo, dos
+  // `duplicateItem` elegirían el mismo `TextboxN`.
+  let current = ctx;
+
+  for (const [position, inner] of command.commands.entries()) {
+    const result = applyCommand(current, inner);
     if (result.isLeft()) {
-      for (const undo of [...inverse].reverse()) applyCommand(ctx, undo);
+      // Atómico: se deshacen los comandos ya aplicados con el índice al día.
+      const fresh = rebuild(current);
+      for (const undo of [...inverse].reverse()) applyCommand(fresh, undo);
       return left(result.value);
     }
     inverse.push(...inverseCommands(result.value));
     if (result.value.applied) applied.push(...result.value.applied);
     if (result.value.createdId) createdIds.push(result.value.createdId);
+    // Tras el último no hace falta: el llamador ya reconstruye por ser `batch`.
+    if (position < command.commands.length - 1) current = rebuild(current);
   }
 
   return right({
@@ -42,4 +52,8 @@ export function applyBatch(
     // front refresca con la proyección completa.
     snapshotOut: true,
   });
+}
+
+function rebuild(ctx: CommandContext): CommandContext {
+  return { root: ctx.root, index: DocumentIndex.build(ctx.root) };
 }

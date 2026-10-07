@@ -89,34 +89,43 @@ export function computeResize(input: ResizeInput): BoxCm {
   }
 
   const bounds = input.bounds;
+  const movesHorizontal = movesEast || movesWest;
+  const movesVertical = movesSouth || movesNorth;
   if (bounds) {
     // La caja no puede salirse de la región: se recorta por el lado que empuja.
-    const overflowRight = left + width - bounds.width;
-    if (overflowRight > 0) {
-      if (movesWest) left = Math.max(0, left - overflowRight);
-      width = Math.max(MIN_SIZE_CM, Math.min(width, bounds.width - left));
+    // Solo se toca el eje que el tirador mueve: un hijo que ya desborda su
+    // contenedor no se encoge al arrastrar únicamente el otro eje (BUG-36);
+    // arrastrar el tirador S no puede recortar el ancho.
+    if (movesHorizontal) {
+      const overflowRight = left + width - bounds.width;
+      if (overflowRight > 0) {
+        if (movesWest) left = Math.max(0, left - overflowRight);
+        width = Math.max(MIN_SIZE_CM, Math.min(width, bounds.width - left));
+      }
+      if (left < 0) {
+        if (movesWest) width = Math.max(MIN_SIZE_CM, width + left);
+        left = 0;
+      }
     }
-    const overflowBottom = top + height - bounds.height;
-    if (overflowBottom > 0) {
-      if (movesNorth) top = Math.max(0, top - overflowBottom);
-      height = Math.max(MIN_SIZE_CM, Math.min(height, bounds.height - top));
-    }
-    if (left < 0) {
-      if (movesWest) width = Math.max(MIN_SIZE_CM, width + left);
-      left = 0;
-    }
-    if (top < 0) {
-      if (movesNorth) height = Math.max(MIN_SIZE_CM, height + top);
-      top = 0;
+    if (movesVertical) {
+      const overflowBottom = top + height - bounds.height;
+      if (overflowBottom > 0) {
+        if (movesNorth) top = Math.max(0, top - overflowBottom);
+        height = Math.max(MIN_SIZE_CM, Math.min(height, bounds.height - top));
+      }
+      if (top < 0) {
+        if (movesNorth) height = Math.max(MIN_SIZE_CM, height + top);
+        top = 0;
+      }
     }
   } else {
     // Items anidados: el contenedor no es un límite duro, pero no puede salir
     // del papel por arriba/izquierda.
-    if (left < 0) {
+    if (movesHorizontal && left < 0) {
       if (movesWest) width = Math.max(MIN_SIZE_CM, width + left);
       left = 0;
     }
-    if (top < 0) {
+    if (movesVertical && top < 0) {
       if (movesNorth) height = Math.max(MIN_SIZE_CM, height + top);
       top = 0;
     }

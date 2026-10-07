@@ -2523,7 +2523,7 @@ test('el panel de propiedades renombra el elemento (con validación y undo)', as
   // Nombre duplicado: lo rechaza el dominio (aviso) y no cambia nada.
   await name.fill('Tablix2');
   await name.press('Enter');
-  await expect(page.getByText(/Ya existe un elemento con el nombre/)).toBeVisible();
+  await expect(page.getByText(/Ya existe un elemento o grupo con el nombre/)).toBeVisible();
   await expect.poll(selectedId).toBe('Textbox4Renombrado');
 
   // Un solo undo revierte el renombrado; el nombre original vuelve al informe.

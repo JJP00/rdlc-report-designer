@@ -47,6 +47,11 @@ export interface ISessionService {
    */
   reload(sessionId: string): Promise<Either<DomainError, OpenSessionResult>>;
   /**
+   * Proyección **vigente** del documento en memoria (no recarga del disco):
+   * el front la pide para deshacer el optimismo de un comando rechazado.
+   */
+  projectionOf(sessionId: string): Either<DomainError, ProjectionDto>;
+  /**
    * Cierra la sesión. Si hay cambios sin guardar y no se fuerza, **no cierra**:
    * devuelve `{ closed: false, reason: 'dirty' }` para que el front pregunte.
    */

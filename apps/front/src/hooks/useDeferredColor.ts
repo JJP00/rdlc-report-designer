@@ -14,7 +14,8 @@ export interface DeferredColor {
  * (feedback inmediato) y el comando se envía una sola vez al parar el arrastre
  * (~250 ms), así el selector no ralentiza la app y el undo tiene un solo paso.
  * Al desmontar (cambio de selección) se **entrega lo pendiente** para no perder
- * el último color.
+ * el último color, y el pendiente queda atado al item para el que se eligió
+ * aunque la selección cambie antes del commit (BUG-38).
  */
 export function useDeferredColor(
   value: string | undefined,
@@ -24,6 +25,13 @@ export function useDeferredColor(
 ): DeferredColor {
   const [draft, setDraft] = useState<string | null>(null);
   const commitRef = useRef(commit);
+  /**
+   * Commit **capturado al programar**: si la selección cambia antes de que el
+   * temporizador dispare, el color pendiente se entrega al item para el que se
+   * eligió, no al recién seleccionado (BUG-38). `commitRef` se refresca en cada
+   * render con el commit del item actual; el capturado no.
+   */
+  const scheduledCommitRef = useRef<((color: string) => void) | null>(null);
 
   useEffect(() => {
     commitRef.current = commit;
@@ -33,7 +41,9 @@ export function useDeferredColor(
     () =>
       createDeferredCommit(delay, (next) => {
         setDraft(null);
-        commitRef.current(next);
+        const target = scheduledCommitRef.current ?? commitRef.current;
+        scheduledCommitRef.current = null;
+        target(next);
       }),
     [delay],
   );
@@ -42,6 +52,7 @@ export function useDeferredColor(
 
   const change = useCallback(
     (next: string): void => {
+      scheduledCommitRef.current = commitRef.current;
       setDraft(next);
       scheduler.schedule(next.toUpperCase());
     },

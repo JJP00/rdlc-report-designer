@@ -18,7 +18,8 @@
     "build:e2e": "electron-vite build --mode e2e",
     "bench": "electron-vite build && node scripts/bench.mjs",
     "dist": "electron-vite build && electron-builder --win",
-    "dist:dir": "electron-vite build && electron-builder --win --dir"
+    "dist:dir": "electron-vite build && electron-builder --win --dir",
+    "dist:portable": "electron-vite build && electron-builder --win portable"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

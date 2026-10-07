@@ -37,6 +37,18 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'addRowInsideGroup',
   'addTotalRow',
   'addColumn',
+  // Borrar filas/columnas desprende sus textboxes: el índice no puede seguir
+  // resolviendo los nodos que ya no están en el documento (BUG-16).
+  'deleteRow',
+  'deleteColumn',
+  'deleteRows',
+  'deleteColumns',
+  // Los grupos reorganizan las filas/columnas (y sus items) en la jerarquía.
+  'addRowGroup',
+  'addColumnGroup',
+  'addRowToGroup',
+  'addColumnToGroup',
+  'deleteRowGroup',
   'setReportCode',
   'insertItem',
   'duplicateItem',
@@ -155,15 +167,27 @@ export class CommandService implements ICommandService {
     const entry = journal.undoStack.pop();
     if (!entry) return right({ ok: true, version: this.sessions.versionOf(sessionId) });
 
-    const ctx = { root: target.value.document.root, index: target.value.index };
+    const appliedInverses: CommandOutcome[] = [];
     for (const inverse of [...entry.inverse].reverse()) {
-      const applied = applyCommand(ctx, inverse);
+      const applied = this.applyOnSession(sessionId, inverse);
       if (applied.isLeft()) {
-        // No debería ocurrir (los inversos son siempre aplicables); si pasa,
-        // se devuelve el estado del journal a su sitio para no perder el paso.
+        // Todo-o-nada (BUG-28): se deshace lo ya revertido para que el
+        // documento quede exactamente como estaba antes del undo. Los inversos
+        // se aplicaron en orden inverso, así que la marcha atrás va al revés.
+        for (const outcome of [...appliedInverses].reverse()) {
+          for (const rollback of [...inverseCommands(outcome)].reverse()) {
+            this.applyOnSession(sessionId, rollback);
+          }
+        }
+        this.sessions.rebuildIndex(sessionId);
         journal.undoStack.push(entry);
         return left(applied.value);
       }
+      appliedInverses.push(applied.value);
+      // El índice se refresca entre inversos: un rename intermedio deja las
+      // búsquedas por nombre del siguiente inverso apuntando al nombre viejo
+      // (p. ej. un batch [mover, renombrar]).
+      this.sessions.rebuildIndex(sessionId);
     }
 
     journal.redoStack.push({ command: entry.command, inverse: [...entry.inverse] });
@@ -202,6 +226,23 @@ export class CommandService implements ICommandService {
   /** El journal se descarta al cerrar la sesión (la pila no sobrevive). */
   drop(sessionId: string): void {
     this.journals.delete(sessionId);
+  }
+
+  /**
+   * Aplica un comando interno leyendo el índice **vivo** de la sesión: los
+   * inversos pueden renombrar y la siguiente búsqueda por nombre debe ver el
+   * índice reconstruido entre paso y paso (BUG-28).
+   */
+  private applyOnSession(
+    sessionId: string,
+    command: DomainCommand,
+  ): Either<DomainError, CommandOutcome> {
+    const target = this.sessions.getEditTarget(sessionId);
+    if (target.isLeft()) return left(target.value);
+    return applyCommand(
+      { root: target.value.document.root, index: target.value.index },
+      command,
+    );
   }
 
   /** Aplica un comando al documento, lo apunta en el journal y toca la sesión. */

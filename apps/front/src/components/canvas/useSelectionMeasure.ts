@@ -53,7 +53,10 @@ export function useSelectionMeasure({
     const stage = stageRef.current;
     const measuredId = selectedId ?? selectedCell?.id ?? null;
     const rect = stage && measuredId ? measureSelection(stage, measuredId) : null;
-    setSelectionRect(rect);
+    // Sin guarda de igualdad este efecto (que depende de la proyección y del
+    // zoom) publica un objeto nuevo en cada pasada; con un bucle de drag de
+    // Konva podía encadenar renders («Maximum update depth exceeded», BUG-47).
+    setSelectionRect((previous) => (sameRect(previous, rect) ? previous : rect));
 
     // QA/diagnóstico: los guiones (Playwright) leen id + rect del elemento
     // seleccionado. Las cabeceras del Tablix las publica `SelectionFrame`.
@@ -67,6 +70,13 @@ export function useSelectionMeasure({
   }, [stageRef, selectedId, selectedCell, projection, zoom]);
 
   return selectionRect;
+}
+
+/** Comparación por valor: medidas repetidas no deben re-renderizar. */
+function sameRect(a: RectPx | null, b: RectPx | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
 /** Mide el nodo seleccionado; en un Tablix, su borde (la rejilla). */

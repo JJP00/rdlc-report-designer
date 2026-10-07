@@ -14,6 +14,7 @@ import {
   type PickSavePathResult,
   type RdlcApi,
   type RdlcCommand,
+  type ReadProjectionResult,
   type RecentFilesResult,
   type SaveResult,
   type ScopeRef,
@@ -35,10 +36,7 @@ const api: RdlcApi = {
   pickFile: (): Promise<PickFileResult> => ipcRenderer.invoke(IPC_CHANNELS.pickFile),
 
   pickSavePath: (defaultPath?: string): Promise<PickSavePathResult> =>
-    ipcRenderer.invoke(
-      IPC_CHANNELS.pickSavePath,
-      defaultPath ? { defaultPath } : {},
-    ),
+    ipcRenderer.invoke(IPC_CHANNELS.pickSavePath, defaultPath ? { defaultPath } : {}),
 
   consumePendingOpen: (): Promise<PendingOpenResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.pendingOpen),
@@ -59,6 +57,9 @@ const api: RdlcApi = {
 
   reloadFile: (sessionId: string): Promise<OpenFileResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.reloadFile, { sessionId }),
+
+  readProjection: (sessionId: string): Promise<ReadProjectionResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.readProjection, { sessionId }),
 
   recentFiles: (): Promise<RecentFilesResult> => ipcRenderer.invoke(IPC_CHANNELS.recentFiles),
 
@@ -86,7 +87,17 @@ const api: RdlcApi = {
   paste: (sessionId: string, scope: ScopeRef, index: number): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.paste, { sessionId, scope, index }),
 
-  pathForFile: (file: File): string => webUtils.getPathForFile(file),
+  pathForFile: (file: File): string => {
+    const path = webUtils.getPathForFile(file);
+    // Un fichero soltado es una elección del usuario como la del diálogo: main
+    // autoriza la ruta para que `openFile` la acepte (BUG-50). Solo un `File`
+    // real tiene ruta (uno sintético devuelve ''), y este canal no está en
+    // `window.api`: el renderer no puede registrarse rutas a sí mismo.
+    if (path) {
+      void ipcRenderer.invoke(IPC_CHANNELS.registerDroppedFile, { path }).catch(() => undefined);
+    }
+    return path;
+  },
 
   onDocumentChanged: (callback: (event: DocumentChangedEvent) => void): (() => void) =>
     subscribe(IPC_EVENTS.documentChanged, callback),

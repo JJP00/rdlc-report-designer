@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { BenchPage } from './BenchPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles.css';
 
 const container = document.getElementById('root');
@@ -12,11 +13,17 @@ const benchCount = new URLSearchParams(window.location.search).get('bench');
 
 if (benchCount !== null) {
   const count = Number.parseInt(benchCount, 10) || 972;
-  createRoot(container).render(<BenchPage count={count} />);
+  createRoot(container).render(
+    <ErrorBoundary>
+      <BenchPage count={count} />
+    </ErrorBoundary>,
+  );
 } else {
   createRoot(container).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>,
   );
 }

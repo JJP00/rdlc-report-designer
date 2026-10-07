@@ -10,6 +10,7 @@ import type {
   PendingOpenResult,
   PickFileResult,
   PickSavePathResult,
+  ReadProjectionResult,
   RecentFilesResult,
   SaveResult,
 } from './ipc.js';
@@ -35,6 +36,11 @@ export interface RdlcApi {
   saveAs(sessionId: string, path: string): Promise<SaveResult>;
   /** Recarga desde disco descartando los cambios locales (conflicto resuelto). */
   reloadFile(sessionId: string): Promise<OpenFileResult>;
+  /**
+   * Proyección vigente del backend (sin tocar el documento): el front la usa
+   * para deshacer el optimismo de un comando rechazado.
+   */
+  readProjection(sessionId: string): Promise<ReadProjectionResult>;
   /** Ficheros abiertos recientemente, más nuevos primero. */
   recentFiles(): Promise<RecentFilesResult>;
   /** `force` cierra aunque haya cambios sin guardar (tras confirmar). */

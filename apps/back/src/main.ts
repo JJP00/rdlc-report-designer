@@ -144,7 +144,22 @@ async function bootstrap(): Promise<void> {
 // Endurecimiento (T2) para toda ventana que cree la app.
 app.on('web-contents-created', (_event, contents) => hardenWebContents(contents));
 
-void app.whenReady().then(bootstrap);
+// Una sola instancia (BUG-29): dos procesos sobre el mismo fichero se pisan
+// (watchers y copias en memoria separadas). La segunda instancia se cierra y
+// trae al frente la ventana de la primera. El lock es por `user-data-dir`, así
+// que los e2e (con su propio directorio temporal) no se ven afectados.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+app.on('second-instance', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+});
+
+if (hasSingleInstanceLock) {
+  void app.whenReady().then(bootstrap);
+} else {
+  app.quit();
+}
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {

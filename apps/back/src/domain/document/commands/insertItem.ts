@@ -7,6 +7,7 @@ import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
 import { createReportItem } from './itemFactory.js';
 import { resolveScope } from './scope.js';
+import { hasGroupNamed } from './scopeNames.js';
 
 export type InsertItemCommand = Extract<RdlcCommand, { cmd: 'insertItem' }>;
 
@@ -55,8 +56,12 @@ export function applyInsertItem(
   }
 
   const name = command.item.name ?? nextItemName(ctx, command.item.kind);
-  if (ctx.index.has(name)) {
-    return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${name}'`));
+  // Grupos y items comparten namespace (BUG-11): el nombre no puede ser el de
+  // un grupo existente aunque el índice de items no lo vea.
+  if (ctx.index.has(name) || hasGroupNamed(ctx.root, name)) {
+    return left(
+      CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${name}'`),
+    );
   }
 
   const occupied = occupiedCell(container, command.scope);

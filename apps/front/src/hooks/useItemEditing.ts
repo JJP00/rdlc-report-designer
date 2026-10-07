@@ -14,6 +14,7 @@ import type {
   TextRunDto,
 } from '@rdlc-designer/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { topLevelIds } from '@/lib/align';
 import { apiErrorMessage } from '@/lib/errors';
 import type { CanvasHit } from '@/lib/hit';
 import { insertSpecAt } from '@/lib/insert';
@@ -343,14 +344,26 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [doc, selectedIds],
   );
 
-  // La celda seleccionada tampoco sobrevive si su Tablix desaparece.
-  const selectedCell = useMemo(
-    () =>
-      doc && selectedCellState && findItem(doc.projection, selectedCellState.id)
-        ? selectedCellState
-        : null,
-    [doc, selectedCellState],
-  );
+  // La celda seleccionada tampoco sobrevive si su Tablix desaparece o si la
+  // rejilla se encogió por debajo de ella (borrar/deshacer la última
+  // fila/columna): una celda fuera de rango dejaría el resaltado y el siguiente
+  // `insertItem` apuntando a una celda que ya no existe (BUG-40).
+  const selectedCell = useMemo(() => {
+    if (!doc || !selectedCellState) return null;
+    const tablix = findItem(doc.projection, selectedCellState.id);
+    if (tablix?.kind !== 'tablix') return null;
+
+    const rows = tablix.body.rows.length;
+    const columns = tablix.body.columns.length;
+    const inGrid = (row: number, col: number): boolean =>
+      row >= 0 && row < rows && col >= 0 && col < columns;
+    const endRow = selectedCellState.endRow ?? selectedCellState.row;
+    const endCol = selectedCellState.endCol ?? selectedCellState.col;
+    if (!inGrid(selectedCellState.row, selectedCellState.col)) return null;
+    if (!inGrid(endRow, endCol)) return null;
+    if ((selectedCellState.extra ?? []).some((entry) => !inGrid(entry.row, entry.col))) return null;
+    return selectedCellState;
+  }, [doc, selectedCellState]);
 
   /* -------------------------- click derecho ------------------------------- */
 
@@ -904,10 +917,34 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   }, [flushNudge, selectedIds, selectedItem, sendCommand, setSelectedId, setSelectedIds]);
 
   const deleteSelected = useCallback((): void => {
-    if (!selectedItem) return;
+    if (selectedItems.length === 0) return;
     flushNudge();
-    void sendCommand({ cmd: 'deleteItem', id: selectedItem.id }).then(() => setSelectedId(null));
-  }, [flushNudge, selectedItem, sendCommand]);
+    // Multiselección (y rectángulo + hijos) en un solo `batch`: un solo paso de
+    // undo y borrado atómico. La selección solo se limpia si el borrado fue
+    // bien (BUG-39). Los hijos de un contenedor seleccionado se omiten: viajan
+    // con él (BUG-35).
+    const ids = topLevelIds(selectedItems, selectedIds);
+    if (ids.length === 0) return;
+    if (ids.length === 1) {
+      void sendCommand({ cmd: 'deleteItem', id: ids[0]! }).then((result) => {
+        if (result?.ok) setSelectedId(null);
+      });
+      return;
+    }
+    void sendCommand({
+      cmd: 'batch',
+      commands: ids.map((id) => ({ cmd: 'deleteItem' as const, id })),
+    }).then((result) => {
+      if (result?.ok) setSelectedIds([]);
+    });
+  }, [
+    flushNudge,
+    selectedIds,
+    selectedItems,
+    sendCommand,
+    setSelectedId,
+    setSelectedIds,
+  ]);
 
   /* ------------------------------ portapapeles ---------------------------- */
 

@@ -8,8 +8,9 @@
 
 ## Decisión
 
-- **Targets**: `nsis` (instalador clásico, no one-click: permite elegir carpeta) y `msi`
-  (para despliegue corporativo). Salida en `apps/back/release/`.
+- **Targets**: `nsis` (instalador clásico, no one-click: permite elegir carpeta), `msi`
+  (para despliegue corporativo) y `portable` (un solo `.exe` sin instalación, se
+  autoextrae en `%TEMP%`). Salida en `apps/back/release/`.
 - **Sin auto-update**: fuera del MVP (el ejecutable se distribuye a mano / por política
   interna). `publish: null` evita publicaciones accidentales.
 - **asar**: activo. El **XSD oficial** se lee con `readFileSync` en runtime, así que viaja
@@ -31,7 +32,8 @@
 ```bash
 pnpm --filter @rdlc-designer/back build     # solo compila out/
 pnpm dist:dir                               # app desempaquetada en release/win-unpacked (smoke)
-pnpm dist                                   # NSIS + MSI en apps/back/release/
+pnpm dist                                   # NSIS + MSI + portable en apps/back/release/
+pnpm dist:portable                          # solo el portable en apps/back/release/
 ```
 
 ## CI

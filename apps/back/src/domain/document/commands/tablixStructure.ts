@@ -3,6 +3,7 @@ import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import { formatLength, type Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
+import { applyCommand } from './applyCommand.js';
 import {
   inverseCommands,
   type CommandContext,
@@ -24,6 +25,7 @@ import {
   memberChainAt,
   memberLeafRange,
   positionedCells,
+  rowSpanCoverage,
   tablixCells,
   tablixColumns,
   tablixRows,
@@ -489,14 +491,14 @@ export function applyDeleteRow(
 
   const rowRestore = detach(row);
   const memberRestore = detach(leaf.member);
-  const containerRestore = removeEmptyContainer(leaf.container);
+  const emptyContainers = removeEmptyContainers(leaf.container);
 
   return right({
     inverse: [
       ...changes.map(setNodeTextChange),
       restore(rowRestore, row),
       restore(memberRestore, leaf.member),
-      ...(containerRestore ? [restore(containerRestore, leaf.container)] : []),
+      ...emptyContainers.map(({ node, restore: position }) => restore(position, node)),
     ],
     snapshotOut: true,
   });
@@ -531,8 +533,11 @@ export function applyAddColumn(
   // el recuento de columnas viejo (doble inserción: `TextboxN` + relleno).
   const takenNames = new Set<string>();
   rows.forEach((row, rowIndex) => {
-    const slot = usesSlotCells(row, columnCount);
-    const containing = positionedCells(row, columnCount).find(
+    // Las columnas que un `RowSpan` de arriba cubre en esta fila son las que
+    // delatan la convención SSRS/BC aunque no haya `ColSpan` que desborde.
+    const covered = rowSpanCoverage(rows, rowIndex, columnCount);
+    const slot = usesSlotCells(row, columnCount, covered);
+    const containing = positionedCells(row, columnCount, covered).find(
       (entry) =>
         !entry.placeholder &&
         entry.colSpan > 1 &&
@@ -553,10 +558,22 @@ export function applyAddColumn(
       return;
     }
 
-    if (coveredAtColumn(rows, rowIndex, command.column, columnCount)) return;
+    if (coveredAtColumn(rows, rowIndex, command.column, columnCount)) {
+      // La columna nueva cae dentro de un `RowSpan` de arriba: en las filas
+      // SSRS/BC nace su celda de relleno (una `TablixCell` por columna).
+      if (slot) {
+        const cells = row.child('TablixCells');
+        if (cells) {
+          const placeholder = row.createElement('TablixCell');
+          cells.insertChildAt(placeholder, command.column);
+          created.push(placeholder);
+        }
+      }
+      return;
+    }
     const cells = row.child('TablixCells');
     if (!cells) return;
-    const position = insertCellPosition(row, command.column, columnCount);
+    const position = insertCellPosition(row, command.column, columnCount, slot);
     const cell = createCellWithTextbox(ctx, cells, takenNames);
     cells.insertChildAt(cell, position);
     created.push(cell);
@@ -661,7 +678,7 @@ export function applyDeleteColumn(
   const column = columns[command.column]!;
   const columnRestore = detach(column);
   const memberRestore = detach(leaf.member);
-  const containerRestore = removeEmptyContainer(leaf.container);
+  const emptyContainers = removeEmptyContainers(leaf.container);
 
   return right({
     inverse: [
@@ -669,7 +686,7 @@ export function applyDeleteColumn(
       ...removedCells.map(({ node, restore: position }) => restore(position, node)),
       restore(columnRestore, column),
       restore(memberRestore, leaf.member),
-      ...(containerRestore ? [restore(containerRestore, leaf.container)] : []),
+      ...emptyContainers.map(({ node, restore: position }) => restore(position, node)),
     ],
     snapshotOut: true,
   });
@@ -710,7 +727,12 @@ function deleteMany(
   const inverse: DomainCommand[] = [];
   for (const index of indexes) {
     const result = apply(ctx, index);
-    if (result.isLeft()) return left(result.value);
+    if (result.isLeft()) {
+      // Atómico: un rechazo deshace los borrados ya aplicados (mismo contrato
+      // que `applyBatch`/`insertClones`); el documento queda como estaba.
+      for (const undo of [...inverse].reverse()) applyCommand(ctx, undo);
+      return left(result.value);
+    }
     inverse.push(...inverseCommands(result.value));
   }
   return right({ inverse, snapshotOut: true });
@@ -776,7 +798,10 @@ export function applyMergeCells(
       if (entry.col + entry.colSpan > col1 || row + entry.rowSpan > row1) {
         return left(CommandRejectedError.create('La selección corta una celda fusionada'));
       }
-      if (entry !== anchor && (entry.colSpan > 1 || entry.rowSpan > 1)) {
+      // El ancla ya fusionada se reconoce por **nodo**, no por identidad del
+      // objeto `PositionedCell` (cada `positionedCells` devuelve objetos nuevos):
+      // ampliar una fusión existente es válido; otra celda fusionada no.
+      if (!entry.cell.equals(anchor.cell) && (entry.colSpan > 1 || entry.rowSpan > 1)) {
         return left(CommandRejectedError.create('La selección contiene celdas ya fusionadas'));
       }
     }
@@ -856,9 +881,14 @@ export function applyUnmergeCells(
   }
 
   const removed: { node: RdlcNode; restore: Detached }[] = [];
-  // Convención de la fila ancla **antes** de quitarle el span (después ya no
-  // habría rellenos que rellenar).
-  const anchorSlot = usesSlotCells(row, columnCount);
+  // Convención de cada fila del rango **antes** de quitar el span (después ya
+  // no habría rellenos que rellenar): la cobertura por `RowSpan` es la que
+  // delata las celdas de relleno de la convención SSRS/BC.
+  const coverage: boolean[][] = [];
+  for (let index = command.row; index < command.row + entry.rowSpan; index += 1) {
+    coverage[index] = rowSpanCoverage(rows, index, columnCount);
+  }
+  const anchorSlot = usesSlotCells(row, columnCount, coverage[command.row]);
   removeSpanNode(entry.cell, 'ColSpan', removed);
   removeSpanNode(entry.cell, 'RowSpan', removed);
 
@@ -869,7 +899,10 @@ export function applyUnmergeCells(
     if (!target) continue;
     const cells = target.child('TablixCells');
     if (!cells) continue;
-    const slot = index === command.row ? anchorSlot : usesSlotCells(target, columnCount);
+    const slot =
+      index === command.row
+        ? anchorSlot
+        : usesSlotCells(target, columnCount, coverage[index]);
     for (let column = command.col; column < command.col + entry.colSpan; column += 1) {
       if (index === command.row && column === command.col) continue;
       // SSRS/BC: la columna cubierta ya existe como celda de relleno; se rellena
@@ -881,7 +914,7 @@ export function applyUnmergeCells(
         }
         continue;
       }
-      const position = insertCellPosition(target, column, columnCount);
+      const position = insertCellPosition(target, column, columnCount, slot);
       const cell = createCellWithTextbox(ctx, cells, takenNames);
       cells.insertChildAt(cell, position);
       created.push(cell);
@@ -1004,9 +1037,15 @@ function cellCovering(
 }
 
 /** Índice donde insertar la celda de la columna nueva dentro de una fila. */
-function insertCellPosition(row: RdlcNode, column: number, columnCount: number): number {
+function insertCellPosition(
+  row: RdlcNode,
+  column: number,
+  columnCount: number,
+  /** Convención de la fila si el llamador ya la calculó (con cobertura de RowSpan). */
+  slot = usesSlotCells(row, columnCount),
+): number {
   // SSRS/BC: la celda i es la columna i, así que la celda nueva va en su índice.
-  if (usesSlotCells(row, columnCount)) return Math.min(column, tablixCells(row).length);
+  if (slot) return Math.min(column, tablixCells(row).length);
   const cells = positionedCells(row, columnCount);
   const index = cells.findIndex((entry) => entry.col >= column);
   return index === -1 ? tablixCells(row).length : cells[index]!.index;
@@ -1143,19 +1182,42 @@ function neighborText(nodes: RdlcNode[], index: number, tag: string, fallback: L
   return neighbor?.child(tag)?.text() ?? formatLength(fallback);
 }
 
+/** Nodo desprendido con la posición donde el undo debe restaurarlo. */
+interface RemovedNode {
+  node: RdlcNode;
+  restore: Detached;
+}
+
 /**
- * Un `TablixMembers` que se queda sin miembros es inválido: se quita también su
- * contenedor (el grupo se queda sin miembros, permitido por el esquema).
- * Devuelve la posición para restaurarlo, o `undefined` si no se quitó.
+ * Sube por la jerarquía quitando los contenedores que se quedaron vacíos y los
+ * grupos que, tras perder a su única hija, quedarían como hojas **sin fila o
+ * columna** del body (la jerarquía tendría más hojas que filas: informe
+ * inválido en Report Builder).
+ * Devuelve los nodos quitados del más interno al más externo (el journal los
+ * restaura en orden inverso).
  */
-function removeEmptyContainer(container: RdlcNode): Detached | undefined {
-  if (container.children('TablixMember').length > 0) return undefined;
-  // El contenedor raíz de la jerarquía debe existir siempre.
-  if (
-    container.parent?.tagName === 'TablixRowHierarchy' ||
-    container.parent?.tagName === 'TablixColumnHierarchy'
-  ) {
-    return undefined;
+function removeEmptyContainers(container: RdlcNode): RemovedNode[] {
+  const removed: RemovedNode[] = [];
+  let current: RdlcNode | null = container;
+
+  while (current) {
+    const parent: RdlcNode | null = current.parent;
+    if (!parent) break;
+    // El contenedor raíz de la jerarquía debe existir siempre.
+    if (parent.tagName === 'TablixRowHierarchy' || parent.tagName === 'TablixColumnHierarchy') {
+      break;
+    }
+    if (current.tagName === 'TablixMembers') {
+      if (current.children('TablixMember').length > 0) break;
+    } else if (current.tagName === 'TablixMember') {
+      // Un miembro con `TablixMembers` sigue siendo un contenedor: no se toca.
+      if (current.child('TablixMembers')) break;
+    } else {
+      break;
+    }
+    removed.push({ node: current, restore: detach(current) });
+    current = parent;
   }
-  return detach(container);
+
+  return removed;
 }

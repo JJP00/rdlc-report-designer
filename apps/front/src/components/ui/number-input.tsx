@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
+import { parseNumberDraft } from '@/lib/numberInput';
 import { cn } from '@/lib/utils';
 
 /** Paso por defecto de las flechas ↑/↓. */
@@ -88,18 +89,20 @@ export function NumberInput({
 
   const commitText = (): void => {
     if (draft === null) return;
-    const parsed = Number.parseFloat(draft.replace(',', '.'));
-    if (Number.isFinite(parsed)) {
+    const parsed = parseNumberDraft(draft);
+    if (parsed !== undefined) {
       const next = round(clamp(parsed, min, max), 4);
-      if (Math.abs(next - (value ?? 0)) > 1e-9) onCommit(next);
+      // En estado mixto (`value === null`) cualquier valor tecleado confirma,
+      // también 0; con valor solo si cambia de verdad.
+      if (value === null || Math.abs(next - value) > 1e-9) onCommit(next);
     }
     setDraft(null);
   };
 
   /** Flechas: ±step desde el borrador si lo hay (un commit por clic). */
   const stepBy = (direction: 1 | -1): void => {
-    const parsed = draft !== null ? Number.parseFloat(draft.replace(',', '.')) : NaN;
-    const base = Number.isFinite(parsed) ? parsed : (value ?? min ?? 0);
+    const parsed = draft !== null ? parseNumberDraft(draft) : undefined;
+    const base = parsed !== undefined ? parsed : (value ?? min ?? 0);
     const next = round(clamp(base + direction * step, min, max), 4);
     if (Math.abs(next - base) < 1e-9) return;
     setDraft(null);

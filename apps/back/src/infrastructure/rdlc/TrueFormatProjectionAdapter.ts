@@ -44,7 +44,8 @@ const DEFAULT_WIDTH: Length = { value: 21, unit: 'cm' };
 const DEFAULT_HEIGHT: Length = { value: 29.7, unit: 'cm' };
 const DEFAULT_MARGIN_V: Length = { value: 2.5, unit: 'cm' };
 const DEFAULT_MARGIN_H: Length = { value: 1.9, unit: 'cm' };
-const LENGTH_RE = /^(-?\d+(?:\.\d+)?)(cm|mm|in|pt)?$/;
+// Acepta `.5in` (sin cero inicial) y `pc` (pica = 12pt), ambos válidos en RDL.
+const LENGTH_RE = /^(-?(?:\d+(?:\.\d+)?|\.\d+))(cm|mm|in|pt|pc)?$/;
 const ZERO: Length = { value: 0, unit: 'cm' };
 
 /** Geometría base que comparten todas las variantes del contrato. */
@@ -593,7 +594,11 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
         if (!(field instanceof XmlElement) || field.tagName !== 'Field') continue;
         const name = field.getAttributeValue('Name');
         if (!name) continue;
-        const dataType = field.getAttributeValue('rd:TypeName');
+        // En RDLC el tipo va como atributo `rd:TypeName`; en los `.rdl` de SSRS
+        // es un elemento hijo `<rd:TypeName>` (BUG-25).
+        const dataType =
+          field.getAttributeValue('rd:TypeName') ??
+          textOf(field.getFirstElementByName('rd:TypeName'));
         fields.push(dataType ? { name, dataType } : { name });
       }
     }
@@ -637,10 +642,7 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
   /* --------------------------- value objects ---------------------------- */
 
   private length(raw: string | undefined, fallback: Length = ZERO): Length {
-    if (!raw) return fallback;
-    const match = LENGTH_RE.exec(raw.trim());
-    if (!match) return fallback;
-    return { value: Number(match[1]), unit: (match[2] as LengthUnit | undefined) ?? 'cm' };
+    return maybeLength(raw) ?? fallback;
   }
 
   private int(raw: string | undefined): number | undefined {
@@ -820,9 +822,11 @@ function maybeLength(raw: string | undefined): Length | undefined {
   if (raw === undefined) return undefined;
   const match = LENGTH_RE.exec(raw.trim());
   if (!match) return undefined;
-  const value = Number(match[1]);
+  // La pica no existe en el contrato (cm|mm|in|pt): 1pc = 12pt.
+  const picas = match[2] === 'pc';
+  const value = Number(match[1]) * (picas ? 12 : 1);
   if (!Number.isFinite(value)) return undefined;
-  return { value, unit: (match[2] as LengthUnit | undefined) ?? 'cm' };
+  return { value, unit: picas ? 'pt' : ((match[2] as LengthUnit | undefined) ?? 'cm') };
 }
 
 const CM_PER_UNIT: Record<LengthUnit, number> = {

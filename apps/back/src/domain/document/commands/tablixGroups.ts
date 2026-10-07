@@ -20,6 +20,7 @@ import {
   tablixHierarchy,
   tablixRows,
 } from './tablixParts.js';
+import { findGroupByName } from './scopeNames.js';
 
 export type SetGroupExpressionCommand = Extract<RdlcCommand, { cmd: 'setGroupExpression' }>;
 export type SetGroupNameCommand = Extract<RdlcCommand, { cmd: 'setGroupName' }>;
@@ -705,22 +706,6 @@ function createSortExpression(parent: RdlcNode, sort: GroupSort): RdlcNode {
   return node;
 }
 
-/** Grupo con ese nombre en cualquier Tablix (scope names: únicos, sin distinguir caja). */
-function findGroupByName(root: RdlcNode, name: string): RdlcNode | undefined {
-  const wanted = name.toLowerCase();
-  let found: RdlcNode | undefined;
-  const walk = (node: RdlcNode): void => {
-    if (found) return;
-    if (node.tagName === 'Group' && node.attribute('Name')?.toLowerCase() === wanted) {
-      found = node;
-      return;
-    }
-    for (const child of node.children()) walk(child);
-  };
-  walk(root);
-  return found;
-}
-
 /** Expresión lista para el XML: recortada y con `=` (lo que espera RDL). */
 function normalizedExpression(value: string): string | null {
   const trimmed = value.trim();
@@ -744,12 +729,14 @@ function isManagedBreak(location: string): location is TablixBreakLocation {
 
 /**
  * Nombre del grupo nuevo a partir de la expresión (`=Fields!X.Value` → `X`,
- * como RB) y **único** entre los nombres de ámbito del informe (`Group` y
- * `DataSet`: sus nombres se usan en expresiones de ámbito). Si ya existe,
- * añade 1, 2…
+ * como RB) y **único** entre los nombres de ámbito del informe (`Group`,
+ * `DataSet` y los **report items**: un grupo no puede llamarse como un textbox,
+ * test BUG-11). Si ya existe, añade 1, 2…
  */
 function nextGroupName(ctx: CommandContext, expression: string): string {
   const taken = collectScopeNames(ctx.root);
+  // Los items no están en `ctx.root` como `<Group>`: viven en el índice.
+  for (const name of ctx.index.names()) taken.add(name.toLowerCase());
   const base = groupNameBase(expression);
   let name = base;
   for (let index = 1; taken.has(name.toLowerCase()); index += 1) name = `${base}${index}`;

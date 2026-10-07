@@ -26,8 +26,10 @@ export interface SelectionFrameProps {
   /**
    * Rejilla del Tablix seleccionado: dibuja los **separadores internos** de
    * columnas/filas (redimensionado de una sola columna o fila, como en RB).
+   * `offset` es el hueco de las cabeceras de grupo (el marco medido las
+   * incluye; las tiras solo cubren la rejilla del cuerpo).
    */
-  grid?: { columns: Length[]; rows: Length[] } | null;
+  grid?: { columns: Length[]; rows: Length[]; offset?: { x: number; y: number } } | null;
   onResizeColumn?: (column: number, width: Length) => void;
   onResizeRow?: (row: number, height: Length) => void;
   /** Con una celda seleccionada no hay tiradores de mover/redimensionar. */
@@ -181,6 +183,7 @@ export function SelectionFrame({
           zoom={zoom}
           columns={grid.columns}
           rows={grid.rows}
+          offset={grid.offset}
           selection={selection ?? null}
           onSelectColumn={onSelectColumn}
           onSelectRow={onSelectRow}
@@ -271,6 +274,7 @@ function TablixHeaders({
   zoom,
   columns,
   rows,
+  offset,
   selection,
   onSelectColumn,
   onSelectRow,
@@ -281,12 +285,16 @@ function TablixHeaders({
   zoom: number;
   columns: Length[];
   rows: Length[];
+  /** Hueco de las cabeceras de grupo en px de papel: ahí empieza la rejilla. */
+  offset?: { x: number; y: number } | undefined;
   selection: SelectedCell | null;
   onSelectColumn?: (index: number, extend: boolean, toggle: boolean) => void;
   onSelectRow?: (index: number, extend: boolean, toggle: boolean) => void;
   onResizeColumn?: (column: number, width: Length) => void;
   onResizeRow?: (row: number, height: Length) => void;
 }): ReactNode {
+  const offsetX = offset?.x ?? 0;
+  const offsetY = offset?.y ?? 0;
   const columnEdges = cumulative(columns);
   const rowEdges = cumulative(rows);
   const selectedColumns = new Set(selection ? selectionCols(selection) : []);
@@ -316,15 +324,20 @@ function TablixHeaders({
       line.setAttrs({
         x: edgePx,
         y: 0,
-        points: [0, rect.y, 0, rect.y + (rowEdges[rowEdges.length - 1] ?? 0)],
+        points: [0, rect.y + offsetY, 0, rect.y + offsetY + (rowEdges[rowEdges.length - 1] ?? 0)],
       });
       const fitsRight =
-        edgePx + gap + badgeWidth <= rect.x + (columnEdges[columnEdges.length - 1] ?? 0);
+        edgePx + gap + badgeWidth <= rect.x + offsetX + (columnEdges[columnEdges.length - 1] ?? 0);
       const badgeX = fitsRight ? edgePx + gap : edgePx - gap - badgeWidth;
-      badge.setAttrs({ x: badgeX, y: rect.y + 2 / zoom, width: badgeWidth, height: badgeHeight });
+      badge.setAttrs({
+        x: badgeX,
+        y: rect.y + offsetY + 2 / zoom,
+        width: badgeWidth,
+        height: badgeHeight,
+      });
       text.setAttrs({
         x: badgeX,
-        y: rect.y + 2 / zoom,
+        y: rect.y + offsetY + 2 / zoom,
         width: badgeWidth,
         height: badgeHeight,
         text: label,
@@ -333,13 +346,24 @@ function TablixHeaders({
       line.setAttrs({
         x: 0,
         y: edgePx,
-        points: [rect.x, 0, rect.x + (columnEdges[columnEdges.length - 1] ?? 0), 0],
+        points: [
+          rect.x + offsetX,
+          0,
+          rect.x + offsetX + (columnEdges[columnEdges.length - 1] ?? 0),
+          0,
+        ],
       });
-      const fitsBelow = edgePx + gap + badgeHeight <= rect.y + (rowEdges[rowEdges.length - 1] ?? 0);
+      const fitsBelow =
+        edgePx + gap + badgeHeight <= rect.y + offsetY + (rowEdges[rowEdges.length - 1] ?? 0);
       const badgeY = fitsBelow ? edgePx + gap : edgePx - gap - badgeHeight;
-      badge.setAttrs({ x: rect.x + 2 / zoom, y: badgeY, width: badgeWidth, height: badgeHeight });
+      badge.setAttrs({
+        x: rect.x + offsetX + 2 / zoom,
+        y: badgeY,
+        width: badgeWidth,
+        height: badgeHeight,
+      });
       text.setAttrs({
-        x: rect.x + 2 / zoom,
+        x: rect.x + offsetX + 2 / zoom,
         y: badgeY,
         width: badgeWidth,
         height: badgeHeight,
@@ -359,13 +383,13 @@ function TablixHeaders({
     // Mismo cálculo que al soltar (resizeBoundary): la previsualización es exacta.
     const width = resizeBoundary(columns[index]!, deltaCm, 0.1);
     const left = index === 0 ? 0 : (columnEdges[index - 1] ?? 0);
-    showEdgePreview(true, rect.x + left + toPx(width), formatLength(width));
+    showEdgePreview(true, rect.x + offsetX + left + toPx(width), formatLength(width));
   };
 
   const showRowPreview = (index: number, deltaCm: number): void => {
     const height = resizeBoundary(rows[index]!, deltaCm, 0.1);
     const top = index === 0 ? 0 : (rowEdges[index - 1] ?? 0);
-    showEdgePreview(false, rect.y + top + toPx(height), formatLength(height));
+    showEdgePreview(false, rect.y + offsetY + top + toPx(height), formatLength(height));
   };
 
   return (
@@ -379,7 +403,7 @@ function TablixHeaders({
           <Group key={`column-header-${edge}`}>
             <Rect
               name="tablix-column-header"
-              x={rect.x + left}
+              x={rect.x + offsetX + left}
               y={rect.y - HEADER_PX}
               width={width}
               height={HEADER_PX}
@@ -395,7 +419,7 @@ function TablixHeaders({
             />
             <KonvaText
               text={String(index + 1)}
-              x={rect.x + left}
+              x={rect.x + offsetX + left}
               y={rect.y - HEADER_PX + 3}
               width={width}
               align="center"
@@ -417,7 +441,7 @@ function TablixHeaders({
             <Rect
               name="tablix-row-header"
               x={rect.x - HEADER_PX}
-              y={rect.y + top}
+              y={rect.y + offsetY + top}
               width={HEADER_PX}
               height={height}
               fill={inRows(index) ? '#bfdbfe' : '#d4d4d8'}
@@ -433,7 +457,7 @@ function TablixHeaders({
             <KonvaText
               text={String(index + 1)}
               x={rect.x - HEADER_PX}
-              y={rect.y + top + Math.max((height - 10) / 2, 1)}
+              y={rect.y + offsetY + top + Math.max((height - 10) / 2, 1)}
               width={HEADER_PX}
               align="center"
               fontSize={10}
@@ -488,7 +512,7 @@ function TablixHeaders({
             <HeaderResizeZone
               key={`column-resize-${edge}`}
               vertical
-              x={rect.x + edge}
+              x={rect.x + offsetX + edge}
               y={rect.y - HEADER_PX}
               length={HEADER_PX}
               zoom={zoom}
@@ -505,7 +529,7 @@ function TablixHeaders({
             <HeaderResizeZone
               key={`row-resize-${edge}`}
               x={rect.x - HEADER_PX}
-              y={rect.y + edge}
+              y={rect.y + offsetY + edge}
               length={HEADER_PX}
               zoom={zoom}
               onDragged={(deltaCm) =>
