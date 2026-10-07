@@ -116,6 +116,28 @@ describe('F1 · setName', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
+  it('la unicidad ignora mayúsculas (RB/VB) y la caja del propio nombre se puede cambiar', () => {
+    const { xml, doc, index } = open('SalesShipment.rdlc');
+
+    // `Textbox3` choca con `textbox3` para Report Builder.
+    expect(index.get('textbox3')).toBeDefined();
+    const duplicate = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setName', id: 'textbox5', name: 'Textbox3' },
+    );
+    expect(duplicate.isLeft()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+
+    // Cambiar solo la caja del mismo nombre sí vale (es el mismo item).
+    const cased = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setName', id: 'textbox3', name: 'TextBox3' },
+    );
+    expect(cased.isRight()).toBe(true);
+    if (!cased.isRight()) return;
+    expect(rebuild(doc).get('TextBox3')?.attribute('Name')).toBe('TextBox3');
+  });
+
   it('renombrar al mismo nombre no escribe nada', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
     const applied = applyCommand(

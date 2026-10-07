@@ -102,7 +102,7 @@ export function ExpressionEditor({
     <div
       ref={containerRef}
       aria-label={ariaLabel}
-      className="overflow-hidden rounded-md border bg-white"
+      className="overflow-hidden rounded-md border bg-white dark:bg-[#1e1e1e]"
       style={{ height: height ?? (mode === 'code' ? 380 : 58) }}
     />
   );

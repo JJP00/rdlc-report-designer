@@ -112,9 +112,9 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
         left: this.length(textOf(pageEl?.getFirstElementByName('LeftMargin')), DEFAULT_MARGIN_H),
         right: this.length(textOf(pageEl?.getFirstElementByName('RightMargin')), DEFAULT_MARGIN_H),
       },
-      header: this.region(headerEl, sectionWidth),
-      body: this.region(bodyEl, sectionWidth),
-      footer: this.region(footerEl, sectionWidth),
+      header: this.region(headerEl, sectionWidth, headerEl !== undefined),
+      body: this.region(bodyEl, sectionWidth, true),
+      footer: this.region(footerEl, sectionWidth, footerEl !== undefined),
     };
 
     return {
@@ -128,13 +128,14 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
 
   /* ------------------------------ región ------------------------------- */
 
-  private region(el: XmlElement | undefined, width: Length): RegionDto {
+  private region(el: XmlElement | undefined, width: Length, present: boolean): RegionDto {
     return {
       width,
       height: this.length(textOf(el?.getFirstElementByName('Height'))),
       items: this.items(el?.getFirstElementByName('ReportItems')),
       printOnFirstPage: this.bool(textOf(el?.getFirstElementByName('PrintOnFirstPage'))),
       printOnLastPage: this.bool(textOf(el?.getFirstElementByName('PrintOnLastPage'))),
+      present,
     };
   }
 
@@ -221,19 +222,27 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     if (!container) return [];
     return container.children
       .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'Paragraph')
-      .map((p) => ({
-        style: this.style(p.getFirstElementByName('Style')),
-        runs: (p.getFirstElementByName('TextRuns')?.children ?? [])
-          .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TextRun')
-          .map((run) => {
-            const label = textOf(run.getFirstElementByName('Label'));
-            return {
-              value: textOf(run.getFirstElementByName('Value')) ?? '',
-              ...(label !== undefined ? { label } : {}),
-              style: this.style(run.getFirstElementByName('Style')),
-            };
-          }),
-      }));
+      .map((p) => {
+        // `ListStyle` es hijo directo de `<Paragraph>` (no vive en `<Style>`).
+        const style: StyleDto = { ...(this.style(p.getFirstElementByName('Style')) ?? {}) };
+        const listStyle = textOf(p.getFirstElementByName('ListStyle'));
+        if (listStyle === 'None' || listStyle === 'Bulleted' || listStyle === 'Numbered') {
+          style.listStyle = listStyle;
+        }
+        return {
+          style: Object.keys(style).length > 0 ? style : undefined,
+          runs: (p.getFirstElementByName('TextRuns')?.children ?? [])
+            .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TextRun')
+            .map((run) => {
+              const label = textOf(run.getFirstElementByName('Label'));
+              return {
+                value: textOf(run.getFirstElementByName('Value')) ?? '',
+                ...(label !== undefined ? { label } : {}),
+                style: this.style(run.getFirstElementByName('Style')),
+              };
+            }),
+        };
+      });
   }
 
   private tablix(el: XmlElement, base: ItemBaseOut): TablixDto {
@@ -248,18 +257,33 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       this.length(textOf(row.getFirstElementByName('Height'))),
     );
 
-    // La columna de una celda es la **acumulada** de los `ColSpan` anteriores
-    // (no el índice del array: con celdas fusionadas, o tras fusionar, el índice
-    // y la columna real divergen y el contenido heredaría un tamaño erróneo).
+    // Columna de cada celda. Los ficheros de BC/SSRS escriben **una celda por
+    // columna**: la celda i vive en la columna i y las columnas que cubre un
+    // `ColSpan` van rellenas de celdas vacías (no son contenido). Los ficheros
+    // ya fusionados por versiones anteriores del editor solo listan las anclas:
+    // ahí la columna se acumula con los `ColSpan` anteriores.
     const rows = rowEls.map((rowEl, rowIndex) => {
+      const cellEls = elementChildren(rowEl.getFirstElementByName('TablixCells'), 'TablixCell');
+      const spans = cellEls.map((cellEl) => {
+        const contents = cellEl.getFirstElementByName('CellContents');
+        return this.int(textOf(contents?.getFirstElementByName('ColSpan'))) ?? 1;
+      });
+      const total = spans.reduce((acc, span) => acc + span, 0);
+      const bySlot = cellEls.length === columns.length && total !== columns.length;
+
+      const cells: TablixCellDto[] = [];
+      let coveredUntil = 0;
       let columnIndex = 0;
-      const cells = (rowEl.getFirstElementByName('TablixCells')?.children ?? [])
-        .filter((c): c is XmlElement => c instanceof XmlElement && c.tagName === 'TablixCell')
-        .map((cellEl) => {
-          const cell = this.tablixCell(cellEl, columnIndex, rowIndex, columns, rowHeights);
-          columnIndex += cell.colSpan ?? 1;
-          return cell;
-        });
+      cellEls.forEach((cellEl, index) => {
+        if (bySlot) {
+          // Relleno de una celda fusionada: no se proyecta.
+          if (index < coveredUntil) return;
+          columnIndex = index;
+          coveredUntil = index + spans[index]!;
+        }
+        cells.push(this.tablixCell(cellEl, columnIndex, rowIndex, columns, rowHeights));
+        if (!bySlot) columnIndex += spans[index]!;
+      });
       return { height: rowHeights[rowIndex] ?? ZERO, cells };
     });
 
@@ -689,11 +713,6 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       style.verticalAlign = verticalAlign;
     }
     if (format) style.format = format;
-
-    const listStyle = textOf(el.getFirstElementByName('ListStyle'));
-    if (listStyle === 'None' || listStyle === 'Bulleted' || listStyle === 'Numbered') {
-      style.listStyle = listStyle;
-    }
 
     const padding = {
       top: maybeLength(textOf(el.getFirstElementByName('PaddingTop'))),

@@ -250,8 +250,8 @@ function syncColumnContents(
   previousTexts: TrackedText[],
 ): void {
   for (const row of tablixRows(tablix)) {
-    for (const { cell, col, colSpan } of positionedCells(row)) {
-      if (column < col || col + colSpan <= column) continue;
+    for (const { cell, col, colSpan, placeholder } of positionedCells(row, columns.length)) {
+      if (placeholder || column < col || col + colSpan <= column) continue;
       syncContentLength(cell, 'Width', spanSum(columns, col, colSpan, 'Width'), previousTexts);
     }
   }
@@ -280,7 +280,11 @@ function syncAllCellContents(
   previousTexts: TrackedText[],
 ): void {
   tablixRows(tablix).forEach((rowNode, rowIndex) => {
-    for (const { cell, col, colSpan, rowSpan } of positionedCells(rowNode)) {
+    for (const { cell, col, colSpan, rowSpan, placeholder } of positionedCells(
+      rowNode,
+      columns.length,
+    )) {
+      if (placeholder) continue;
       syncContentLength(cell, 'Width', spanSum(columns, col, colSpan, 'Width'), previousTexts);
       syncContentLength(cell, 'Height', spanSum(rows, rowIndex, rowSpan, 'Height'), previousTexts);
     }

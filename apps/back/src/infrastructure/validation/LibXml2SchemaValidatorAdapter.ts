@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { XmlDocument, XmlValidateError, XsdValidator } from 'libxml2-wasm';
+import { XmlDocument, XmlValidateError, XsdValidator, type ErrorDetail } from 'libxml2-wasm';
 import type {
   SchemaValidationResult,
   XmlSchemaValidatorPort,
@@ -42,16 +42,32 @@ export class LibXml2SchemaValidatorAdapter implements XmlSchemaValidatorPort {
   }
 }
 
-/** Convierte el error de libxml2 en una lista corta y legible. */
+/**
+ * Convierte el error de libxml2 en una lista corta y legible: mensaje del
+ * validador + **línea/columna** (y XPath cuando libxml2 lo conoce), que es lo
+ * que permite localizar el problema sin abrir el XML a ojo.
+ */
 function toProblems(error: unknown): string[] {
   if (!(error instanceof XmlValidateError)) return [String(error)];
 
-  const lines = (error.message ?? '')
+  const details: ErrorDetail[] = error.details ?? [];
+  if (details.length > 0) return details.slice(0, 20).map(formatDetail);
+
+  // Respaldo: mensaje sin detalles estructurados.
+  return (error.message ?? '')
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+    .filter((line) => line.length > 0)
+    .slice(0, 20);
+}
 
-  // Quita la ruta del fichero y deja el mensaje del validador.
-  const problems = lines.map((line) => line.replace(/^[^:]*:\d+:\s*/, ''));
-  return problems.slice(0, 20);
+/** Un problema con su localización: «… (Línea 12, columna 7, /Report/…)». */
+function formatDetail(detail: ErrorDetail): string {
+  const message = detail.message.replace(/\s+/g, ' ').trim();
+  const where = [
+    detail.line > 0 ? `Línea ${detail.line}` : null,
+    detail.col > 0 ? `columna ${detail.col}` : null,
+    detail.xpath ? detail.xpath : null,
+  ].filter((part): part is string => part !== null);
+  return where.length > 0 ? `${message} (${where.join(', ')})` : message;
 }

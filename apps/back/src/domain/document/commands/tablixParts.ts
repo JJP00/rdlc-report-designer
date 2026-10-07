@@ -32,19 +32,60 @@ export function cellSpan(cell: RdlcNode, tag: 'ColSpan' | 'RowSpan'): number {
 /** Celdas de una fila con su columna inicial y sus espacios. */
 export interface PositionedCell {
   cell: RdlcNode;
+  /** Posición de la celda en `TablixCells` (para insertar/quitar nodos). */
+  index: number;
   col: number;
   colSpan: number;
   rowSpan: number;
+  /**
+   * Celda de **relleno**: una celda cubierta por el `ColSpan` de un ancla
+   * anterior. BC/SSRS escriben una `TablixCell` por columna y las columnas
+   * cubiertas van vacías; el editor no las pinta ni las selecciona.
+   */
+  placeholder: boolean;
 }
 
-export function positionedCells(row: RdlcNode): PositionedCell[] {
+/**
+ * true si la fila sigue la convención **SSRS/BC** de una celda por columna: su
+ * número de `TablixCell` coincide con el de columnas y hay algún `ColSpan` que
+ * desborda la cuenta (las columnas cubiertas están rellenas de celdas vacías).
+ * En ese caso la celda i vive en la columna i. El resto de filas usan la
+ * convención del editor, que acumula los `ColSpan` de las anclas.
+ */
+export function usesSlotCells(row: RdlcNode, columnCount: number): boolean {
+  const cells = tablixCells(row);
+  if (cells.length !== columnCount) return false;
+  let total = 0;
+  for (const cell of cells) total += cellSpan(cell, 'ColSpan');
+  return total !== columnCount;
+}
+
+/**
+ * Celdas de una fila con su columna de rejilla. Con `columnCount` se detecta la
+ * convención SSRS/BC (ver `usesSlotCells`); sin él se asume la del editor (la
+ * geometría coincide cuando no hay fusiones).
+ */
+export function positionedCells(row: RdlcNode, columnCount?: number): PositionedCell[] {
+  const cells = tablixCells(row);
+  const spans = cells.map((cell) => cellSpan(cell, 'ColSpan'));
+  const total = spans.reduce((acc, span) => acc + span, 0);
+  const bySlot = columnCount !== undefined && cells.length === columnCount && total !== columnCount;
+
   const result: PositionedCell[] = [];
+  let coveredUntil = 0;
   let col = 0;
-  for (const cell of tablixCells(row)) {
-    const colSpan = cellSpan(cell, 'ColSpan');
-    result.push({ cell, col, colSpan, rowSpan: cellSpan(cell, 'RowSpan') });
+  cells.forEach((cell, index) => {
+    const colSpan = spans[index]!;
+    const rowSpan = cellSpan(cell, 'RowSpan');
+    if (bySlot) {
+      const placeholder = index < coveredUntil;
+      result.push({ cell, index, col: index, colSpan, rowSpan, placeholder });
+      if (!placeholder) coveredUntil = index + colSpan;
+      return;
+    }
+    result.push({ cell, index, col, colSpan, rowSpan, placeholder: false });
     col += colSpan;
-  }
+  });
   return result;
 }
 

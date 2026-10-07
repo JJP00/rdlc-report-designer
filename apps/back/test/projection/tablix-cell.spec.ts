@@ -146,6 +146,42 @@ describe('proyección · geometría de celdas de Tablix', () => {
     expect(textbox70).toBeDefined();
     expect(textbox70!.width.value).toBeGreaterThan(0);
   });
+
+  it('las filas BC/SSRS sitúan cada ancla en su columna (los rellenos no cuentan)', () => {
+    const projection = project('SalesShipment.rdlc');
+    const tablix = allItems(projection).find(
+      (item): item is TablixDto => item.kind === 'tablix' && item.id === 'SalesLine',
+    );
+    expect(tablix).toBeDefined();
+    // Fila original: textbox30 | textbox32 (ColSpan 5) | 4 rellenos | Textbox55 | Textbox64.
+    const row = tablix!.body.rows[2]!;
+    expect(row.cells.map((cell) => cell.content?.id)).toEqual([
+      'textbox30',
+      'textbox32',
+      'Textbox55',
+      'Textbox64',
+    ]);
+    expect(row.cells[1]?.colSpan).toBe(5);
+
+    const widthOf = (id: string): number | undefined =>
+      row.cells.find((cell) => cell.content?.id === id)?.content?.width.value;
+    // Cada ancla hereda el ancho de SU columna (6 y 7), no el de la última.
+    expect(widthOf('Textbox55')).toBeCloseTo(2.1328, 4);
+    expect(widthOf('Textbox64')).toBeCloseTo(2.07988, 4);
+  });
+
+  it('LinesTable2: los rellenos tras un ColSpan no desplazan la celda siguiente', () => {
+    const projection = project('SalesInvoiceESP.rdlc');
+    const tablix = allItems(projection).find(
+      (item): item is TablixDto => item.kind === 'tablix' && item.id === 'LinesTable2',
+    );
+    expect(tablix).toBeDefined();
+    const row = tablix!.body.rows[2]!;
+    expect(row.cells.map((cell) => cell.content?.id)).toEqual(['Description_Line2', 'Textbox70']);
+    expect(row.cells[0]?.colSpan).toBe(3);
+    // `Textbox70` vive en la última columna, no fuera de la rejilla.
+    expect(row.cells[1]?.content?.width.value).toBeCloseTo(3.35146, 4);
+  });
 });
 
 describe('proyección · etiquetas de diseñador (`<Label>`) y estilos', () => {

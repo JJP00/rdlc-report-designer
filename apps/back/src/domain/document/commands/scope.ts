@@ -2,7 +2,7 @@ import type { ScopeRef } from '@rdlc-designer/contracts';
 import { childOrCreate } from '../geometry/geometry.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext } from './CommandContext.js';
-import { memberAt, tablixHierarchy } from './tablixParts.js';
+import { memberAt, positionedCells, tablixColumns, tablixHierarchy } from './tablixParts.js';
 
 /**
  * Resuelve el contenedor real de un scope: siempre devuelve el nodo donde se
@@ -72,12 +72,15 @@ function tablixCellAt(
   ctx: CommandContext,
   scope: Extract<ScopeRef, { kind: 'tablixCell' }>,
 ): RdlcNode | undefined {
-  const row = ctx.index
-    .get(scope.id)
-    ?.child('TablixBody')
-    ?.child('TablixRows')
-    ?.children('TablixRow')[scope.row];
-  return row?.child('TablixCells')?.children('TablixCell')[scope.col];
+  const tablix = ctx.index.get(scope.id);
+  const row = tablix?.child('TablixBody')?.child('TablixRows')?.children('TablixRow')[scope.row];
+  if (!tablix || !row) return undefined;
+  // `scope.col` es la **columna de rejilla** (con los `ColSpan` acumulados): el
+  // ancla que la cubre puede no estar en ese índice del array (BC/SSRS rellena
+  // las columnas cubiertas con celdas vacías).
+  return positionedCells(row, tablixColumns(tablix).length).find(
+    (entry) => entry.col === scope.col && !entry.placeholder,
+  )?.cell;
 }
 
 function section(ctx: CommandContext): RdlcNode | undefined {

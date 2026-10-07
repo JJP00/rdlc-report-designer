@@ -56,7 +56,7 @@ export function paperLayout(projection: ProjectionDto): PaperLayout {
       region: projection.page.header,
       x: marginLeft,
       y: marginTop,
-      visible: hasContent(projection.page.header),
+      visible: projection.page.header.present !== false && hasContent(projection.page.header),
     },
     {
       key: 'body',
@@ -70,7 +70,7 @@ export function paperLayout(projection: ProjectionDto): PaperLayout {
       region: projection.page.footer,
       x: marginLeft,
       y: Math.max(marginTop + headerHeight, sheetHeight - marginBottom - footerHeight),
-      visible: hasContent(projection.page.footer),
+      visible: projection.page.footer.present !== false && hasContent(projection.page.footer),
     },
   ];
 

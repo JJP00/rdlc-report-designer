@@ -1,6 +1,7 @@
 import { readLength } from '../geometry/geometry.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext } from './CommandContext.js';
+import { ensureBandGeometry } from './bandGeometry.js';
 import { nextItemName } from './insertItem.js';
 
 /**
@@ -31,6 +32,11 @@ export function insertCloneAt(
   renameDescendants(ctx, clone, taken);
 
   container.insertChildAt(clone, index);
+  // Si el destino es una banda, el clon necesita `Top/Left/Width/Height`
+  // explícitos (RB estira al tamaño de la banda los items sin tamaño y tapa el
+  // informe). El inverso de insertar es quitar el clon, así que no hace falta
+  // registrar estos nodos por separado.
+  ensureBandGeometry(clone, container);
   return { name, clone };
 }
 

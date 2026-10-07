@@ -5,6 +5,7 @@ import type {
   StyleDto,
   StylePatch,
 } from '@rdlc-designer/contracts';
+import { DEFAULT_FONT_FAMILY } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import {
   AlignCenterHorizontal,
@@ -26,7 +27,7 @@ import { NumberInput } from '@/components/ui/number-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BorderField } from '@/components/panels/BorderField';
 import { PaddingSection } from '@/components/panels/PaddingSection';
-import { useSystemFonts } from '@/hooks/useSystemFonts';
+import { useAvailableFonts } from '@/hooks/useAvailableFonts';
 import { alignBoxes, alignCommands, distributeCommands, type AlignBox } from '@/lib/align';
 import { effectiveTextStyle, sameStyleValue, toPt } from '@/lib/style';
 
@@ -132,8 +133,7 @@ export function MultiSelectionPanel({
 
 /* ------------------------------- secciones ------------------------------- */
 
-/** Fuente/tamaño por defecto del editor cuando ningún nivel declara valor. */
-const DEFAULT_FONT_FAMILY = 'Arial';
+/** Tamaño y colores por defecto del editor cuando ningún nivel declara valor. */
 const DEFAULT_FONT_SIZE_PT = 10;
 const DEFAULT_TEXT_COLOR = '#111827';
 const DEFAULT_BACKGROUND = '#ffffff';
@@ -150,7 +150,7 @@ function TextSection({
   items: ItemDto[];
   onStyle: (patch: StylePatch) => void;
 }): ReactNode {
-  const fonts = useSystemFonts();
+  const fonts = useAvailableFonts();
   const disabled = items.length === 0;
   const familyOptions = useMemo(() => {
     const all = new Set([DEFAULT_FONT_FAMILY, ...fonts]);
@@ -177,7 +177,10 @@ function TextSection({
   const underlined =
     !disabled && items.every((item) => textStyleOf(item)?.textDecoration === 'Underline');
   const color = common(items, (item) => textStyleOf(item)?.color ?? DEFAULT_TEXT_COLOR);
-  const background = common(items, (item) => textStyleOf(item)?.backgroundColor ?? DEFAULT_BACKGROUND);
+  const background = common(
+    items,
+    (item) => textStyleOf(item)?.backgroundColor ?? DEFAULT_BACKGROUND,
+  );
 
   return (
     <section className="flex flex-col gap-2">
@@ -206,8 +209,11 @@ function TextSection({
           max={200}
           suffix="pt"
           label="Tamaño de la selección (pt)"
+          step={1}
+          perPx={0.1}
+          decimals={0}
           disabled={disabled}
-          onCommit={(value) => onStyle({ fontSize: { value, unit: 'pt' } })}
+          onCommit={(value) => onStyle({ fontSize: { value: Math.round(value), unit: 'pt' } })}
           className="h-8 w-20 text-sm"
         />
       </div>
@@ -292,11 +298,7 @@ function BoxSection({
 
   return (
     <section className="flex flex-col gap-2">
-      <BorderField
-        border={items[0]?.style?.border}
-        mixedSides={mixedSides}
-        onSetStyle={onStyle}
-      />
+      <BorderField border={items[0]?.style?.border} mixedSides={mixedSides} onSetStyle={onStyle} />
       <PaddingSection padding={common(items, (item) => item.style?.padding)} onSetStyle={onStyle} />
     </section>
   );

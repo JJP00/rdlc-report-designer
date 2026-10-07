@@ -43,6 +43,20 @@ const BODY_WITHOUT_HEIGHT_XML = `<?xml version="1.0" encoding="utf-8"?>
   </ReportSections>
 </Report>`;
 
+/** Documento mínimo sin `Page` (quitar una banda no debe crear uno vacío). */
+const SECTION_WITHOUT_PAGE_XML = `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems />
+        <Height>2cm</Height>
+      </Body>
+      <Width>15cm</Width>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
+
 function open(name: string): {
   xml: string;
   doc: ReturnType<TrueFormatXmlAdapter['parse']>;
@@ -177,6 +191,97 @@ describe('G6 · bandas de página', () => {
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
     expect(xmlAdapter.serialize(doc)).toBe(xml);
+  });
+
+  it('setRegionPresent inserta la banda con un alto por defecto y el undo es byte-exacto', () => {
+    const { xml, doc, index } = open('PalletOutput.rdlc');
+    const project = () =>
+      projectionAdapter.project({
+        sessionId: 'test',
+        filePath: 'PalletOutput.rdlc',
+        document: doc,
+        version: 2,
+      });
+
+    // Sin banda: `present` es false en la proyección.
+    expect(project().page.header.present).toBe(false);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setRegionPresent', region: 'pageHeader', present: true },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    expect(applied.value.snapshotOut).toBe(true);
+
+    const output = xmlAdapter.serialize(doc);
+    expect(output).toContain('<PageHeader>');
+    expect(output).toContain('<Height>1.25cm</Height>');
+    expect(validator.validate(output).problems).toEqual([]);
+    const projected = project();
+    expect(projected.page.header.present).toBe(true);
+    expect(projected.page.header.height).toEqual({ value: 1.25, unit: 'cm' });
+
+    // Insertar de nuevo es un no-op real.
+    const again = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setRegionPresent', region: 'pageHeader', present: true },
+    );
+    expect(again.isRight()).toBe(true);
+    expect(xmlAdapter.serialize(doc)).toBe(output);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(xmlAdapter.serialize(doc)).toBe(xml);
+    expect(project().page.header.present).toBe(false);
+  });
+
+  it('setRegionPresent quita el pie con su contenido y el undo lo restaura byte a byte', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setRegionPresent', region: 'pageFooter', present: false },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    expect(applied.value.snapshotOut).toBe(true);
+
+    const output = xmlAdapter.serialize(doc);
+    expect(output).not.toContain('<PageFooter>');
+    const projected = projectionAdapter.project({
+      sessionId: 'test',
+      filePath: 'SalesCreditMemoESP.rdlc',
+      document: doc,
+      version: 2,
+    });
+    expect(projected.page.footer.present).toBe(false);
+    expect(projected.page.footer.items).toEqual([]);
+
+    // Quitar algo que ya no está es un no-op real.
+    const again = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setRegionPresent', region: 'pageFooter', present: false },
+    );
+    expect(again.isRight()).toBe(true);
+    expect(xmlAdapter.serialize(doc)).toBe(output);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(xmlAdapter.serialize(doc)).toBe(xml);
+  });
+
+  it('quitar una banda sin `Page` no crea un Page vacío (no-op byte-exacto)', () => {
+    const { doc, index } = openXml(SECTION_WITHOUT_PAGE_XML);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setRegionPresent', region: 'pageFooter', present: false },
+    );
+    expect(applied.isRight()).toBe(true);
+    const output = xmlAdapter.serialize(doc);
+    expect(output).not.toContain('<Page');
+    expect(output).toBe(SECTION_WITHOUT_PAGE_XML);
   });
 
   it('la proyección lee los flags (y los deja ausentes si no existen)', () => {

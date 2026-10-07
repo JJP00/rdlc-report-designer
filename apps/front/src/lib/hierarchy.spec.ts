@@ -113,6 +113,36 @@ describe('breadcrumbEntries', () => {
     expect(entries.map((entry) => entry.label)).toEqual(['Informe', 'Cuerpo', 'Tablix1', 'Celda 1,1']);
   });
 
+  it('con celdas fusionadas usa la columna de rejilla del ancla', () => {
+    const p = projection();
+    const tablixNode = p.page.body.items.find(
+      (item): item is TablixDto => item.kind === 'tablix',
+    )!;
+    tablixNode.body.columns = [
+      { value: 2, unit: 'cm' },
+      { value: 2, unit: 'cm' },
+      { value: 2, unit: 'cm' },
+    ];
+    tablixNode.body.rows[0] = {
+      height: { value: 1, unit: 'cm' },
+      cells: [
+        { colSpan: 2, content: textbox('TextboxDentro') },
+        { content: textbox('TextboxTercero') },
+      ],
+    };
+
+    // El 2.º ancla vive en la **columna 3** (el índice del array sería 1).
+    const entries = breadcrumbEntries(p, { itemId: 'TextboxTercero' });
+    expect(entries.map((entry) => entry.label)).toEqual([
+      'Informe',
+      'Cuerpo',
+      'Tablix1',
+      'Celda 1,3',
+      'TextboxTercero',
+    ]);
+    expect(entries[3]?.target).toEqual({ kind: 'cell', id: 'Tablix1', row: 0, col: 2 });
+  });
+
   it('encuentra items del encabezado', () => {
     const entries = breadcrumbEntries(projection(), { itemId: 'TextboxCabecera' });
     expect(entries.map((entry) => entry.label)).toEqual(['Informe', 'Encabezado', 'TextboxCabecera']);

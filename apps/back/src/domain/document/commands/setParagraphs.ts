@@ -43,6 +43,7 @@ export function applySetParagraphs(
   const index = container.children().findIndex((child) => child.equals(original));
   original.remove();
   const created = buildParagraphs(textbox, command.paragraphs);
+  inheritItemTextStyle(textbox, created);
   container.insertChildAt(created, index);
 
   return right({
@@ -73,6 +74,12 @@ function buildParagraphs(container: RdlcNode, paragraphs: ParagraphDto[]): RdlcN
     paragraphNode.appendChild(runs);
     const style = styleNode(paragraphNode, paragraph.style);
     if (style) paragraphNode.appendChild(style);
+    // `ListStyle` es hijo directo de `<Paragraph>` (no vive en `<Style>`).
+    if (paragraph.style?.listStyle !== undefined) {
+      paragraphNode.appendChild(
+        paragraphNode.createElement('ListStyle', paragraph.style.listStyle),
+      );
+    }
     element.appendChild(paragraphNode);
   }
   return element;
@@ -84,4 +91,41 @@ function styleNode(node: RdlcNode, style: StyleDto | undefined): RdlcNode | unde
   const element = node.createElement('Style');
   writeStylePatch(element, style);
   return element.children().length > 0 ? element : undefined;
+}
+
+/**
+ * Tags de texto que BC escribe en el **run** (y RB resuelve ahí). Al reemplazar
+ * los párrafos, los runs nuevos nacen sin estilo: se copian las fuentes del
+ * item para que RB no caiga al Arial 10 por defecto (el `<Paragraphs>` entero
+ * se reemplaza, así que el undo no necesita más inversos).
+ */
+const INHERITED_TEXT_TAGS = [
+  'FontFamily',
+  'FontSize',
+  'FontWeight',
+  'FontStyle',
+  'TextDecoration',
+  'Color',
+] as const;
+
+function inheritItemTextStyle(textbox: RdlcNode, paragraphs: RdlcNode): void {
+  const itemStyle = textbox.child('Style');
+  if (!itemStyle) return;
+  for (const paragraph of paragraphs.children('Paragraph')) {
+    for (const run of paragraph.child('TextRuns')?.children('TextRun') ?? []) {
+      let style: RdlcNode | undefined;
+      for (const tag of INHERITED_TEXT_TAGS) {
+        const value = itemStyle.child(tag)?.text();
+        if (value === undefined) continue;
+        style ??= run.child('Style') ?? appendStyle(run);
+        if (!style.child(tag)) style.appendChild(style.createElement(tag, value));
+      }
+    }
+  }
+}
+
+function appendStyle(run: RdlcNode): RdlcNode {
+  const style = run.createElement('Style');
+  run.appendChild(style);
+  return style;
 }

@@ -1,6 +1,7 @@
 import type { ProjectionDto, TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { InspectorPanel } from '@/components/InspectorPanel';
+import { ReportPropertiesPanel } from '@/components/panels/ReportPropertiesPanel';
 import type { BatchSelection } from '@/hooks/useBatchSelection';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 import type { SelectedCell } from '@/lib/tablix';
@@ -37,6 +38,22 @@ export function InspectorColumn({
   onOpenTablixFilters,
   onEditText,
 }: InspectorColumnProps): ReactNode {
+  // Sin nada seleccionado el inspector muestra las propiedades del informe,
+  // igual que la ventana de propiedades de Report Builder.
+  const reportProperties =
+    projection !== null && items.selectedItem === undefined && selectedCell === null ? (
+      <ReportPropertiesPanel
+        projection={projection}
+        onSetPageSize={items.setPageSize}
+        onSetPageMargins={items.setPageMargins}
+        onSetRegionHeight={items.setRegionHeight}
+        onSetSectionWidth={items.setSectionWidth}
+        onSetHeaderFooterOptions={items.setHeaderFooterOptions}
+        onSetRegionPresent={items.setRegionPresent}
+        onSetReportCode={items.setReportCode}
+      />
+    ) : undefined;
+
   return (
     <InspectorPanel
       tablix={tablix}
@@ -74,6 +91,7 @@ export function InspectorColumn({
       onSetImageOptions={items.setImageOptions}
       embeddedImages={projection?.meta.embeddedImages ?? []}
       onEditText={onEditText}
+      reportProperties={reportProperties}
     />
   );
 }

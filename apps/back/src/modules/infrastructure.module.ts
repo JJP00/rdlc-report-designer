@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { app } from 'electron';
 import { join } from 'node:path';
+import { AVAILABLE_FONTS_PORT } from '../application/ports/out/AvailableFontsPort.js';
 import { EVENT_BUS_PORT } from '../application/ports/out/EventBusPort.js';
 import { FILE_SYSTEM_PORT } from '../application/ports/out/FileSystemPort.js';
 import { FILE_WATCHER_PORT } from '../application/ports/out/FileWatcherPort.js';
@@ -8,10 +9,9 @@ import { RECENT_FILES_PORT } from '../application/ports/out/RecentFilesPort.js';
 import { RDLC_PROJECTION_PORT } from '../application/ports/out/RdlcProjectionPort.js';
 import { RDLC_PARSER_PORT } from '../application/ports/out/RdlcParserPort.js';
 import { RDLC_SERIALIZER_PORT } from '../application/ports/out/RdlcSerializerPort.js';
-import { SYSTEM_FONTS_PORT } from '../application/ports/out/SystemFontsPort.js';
 import { XML_SCHEMA_VALIDATOR_PORT } from '../application/ports/out/XmlSchemaValidatorPort.js';
 import { ElectronEventBusAdapter } from '../infrastructure/events/ElectronEventBusAdapter.js';
-import { WindowsSystemFontsAdapter } from '../infrastructure/fonts/WindowsSystemFontsAdapter.js';
+import { BusinessCentralFontsAdapter } from '../infrastructure/fonts/BusinessCentralFontsAdapter.js';
 import { ChokidarWatcherAdapter } from '../infrastructure/fs/ChokidarWatcherAdapter.js';
 import { NodeFileSystemAdapter } from '../infrastructure/fs/NodeFileSystemAdapter.js';
 import { JsonRecentFilesAdapter } from '../infrastructure/recent/JsonRecentFilesAdapter.js';
@@ -43,7 +43,7 @@ const RDL_SCHEMA_PATH = app.isPackaged
       provide: XML_SCHEMA_VALIDATOR_PORT,
       useFactory: () => new LibXml2SchemaValidatorAdapter(RDL_SCHEMA_PATH),
     },
-    { provide: SYSTEM_FONTS_PORT, useClass: WindowsSystemFontsAdapter },
+    { provide: AVAILABLE_FONTS_PORT, useClass: BusinessCentralFontsAdapter },
     {
       provide: RECENT_FILES_PORT,
       useFactory: () =>
@@ -59,7 +59,7 @@ const RDL_SCHEMA_PATH = app.isPackaged
     RDLC_SERIALIZER_PORT,
     RDLC_PROJECTION_PORT,
     XML_SCHEMA_VALIDATOR_PORT,
-    SYSTEM_FONTS_PORT,
+    AVAILABLE_FONTS_PORT,
     RECENT_FILES_PORT,
     EVENT_BUS_PORT,
     ElectronEventBusAdapter,

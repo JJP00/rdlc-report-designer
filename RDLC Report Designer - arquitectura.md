@@ -249,6 +249,8 @@ apps/front/src/
 
 El lienzo nunca llama a `window.api` directamente: los componentes emiten intenciones → la store genera el comando → `api.executeCommand`. Así el undo/redo de UI (zundo) y el del documento (backend) no se pisan.
 
+El **workspace de pestañas** (cada pestaña es un informe) se detalla en la § «Fase MVP — Pestañas»: modelo de `TabState`/`TabUiState`, componentes y flujos.
+
 ## Cableado NestJS
 
 ```
@@ -282,8 +284,176 @@ Los módulos NestJS son **solo el cableado de DI** (binding por tokens: `provide
 1. **Zod en el borde, no en el dominio**: los DTOs se validan en el adaptador IPC (entrada) y en `ProjectionService` (salida). El dominio mantiene sus invariantes propias (ej: un tablix siempre tiene `columnas ≥ jerarquía de columnas`).
 2. **El journal de undo** es estado de sesión (aplicación), pero **cómo invertir un comando es dominio** (`command.inverse()`).
 3. **La Fase 0 es un experimento de adaptadores**: `TrueFormatXmlAdapter` y `FastXmlAdapter` implementan el mismo `RdlcParserPort`; los golden tests corren contra ambos y se elige. El dominio no cambia.
-4. **Pestañas múltiples desde el MVP**: `SessionService` mantiene `Map<sessionId, Session>` con `{ document, filePath, watcher, dirty, lastMtime, journal }`. El watcher filtra la propia escritura por `mtime` para evitar bucles. Política de conflicto: diálogo explícito (Recargar / Sobrescribir / Guardar como), nunca decisión automática.
+4. **Pestañas múltiples desde el MVP**: `SessionService` mantiene `Map<sessionId, Session>` con `{ document, filePath, watcher, dirty, lastMtime, journal }`. El watcher filtra la propia escritura por `mtime` para evitar bucles. Política de conflicto: diálogo explícito (Recargar / Sobrescribir / Guardar como), nunca decisión automática. **En el front**, llevar esa capacidad a la UI es la fase § «Fase MVP — Pestañas».
 5. **Evolutivos encajan solos**: `PreviewModule` consumiría una sesión; la IA emitiría comandos a una sesión como si fuera el usuario (otro adaptador de entrada, o un CLI/HTTP implementando `ReportEditorApi`).
+
+# Fase MVP — Pestañas: una pestaña por informe
+
+> **Estado (2026-10-05): planificada; sin código todavía.** El uso diario con BC
+> pide varios informes abiertos a la vez. El **backend ya soporta N sesiones**; hoy
+> el front mantiene un único documento (`useDocumentCore`) y abrir otro cierra la
+> sesión anterior. Esta fase lleva esa capacidad a la UI. Los bloques de trabajo y
+> su punto de retomada viven en `RDLC Report Designer - Pendientes.md`.
+
+## Lo que ya está listo (no se toca)
+
+| Pieza       | Detalle                                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sesiones    | `SessionService.sessions: Map<sessionId, Session>`; cada sesión tiene documento, índice, bytes originales, versión, `dirty`, mtime, portapapeles y unwatch propios |
+| Journal     | `CommandService.journals: Map<sessionId, SessionJournal>`; undo/redo por sesión                                                                                    |
+| Vigilancia  | Un watcher por sesión; el conflicto (`dirty` + cambio externo) también es por sesión                                                                               |
+| Eventos IPC | `documentChanged`, `dirtyChanged`, `conflictDetected`, `saved` y `sessionClosed` llevan `sessionId`; el front los ignora si no son de su documento                 |
+| Superficie  | `openFile`/`createNew` crean sesión nueva; `save`, `saveAs`, `reload`, `close`, `executeCommand`, `undo`, `redo`, `copy`, `cut` y `paste` ya reciben `sessionId`   |
+
+Conclusión: **el hexágono (dominio y aplicación) no cambia**. El trabajo es el
+estado de workspace del front, el chrome y las guardas de la ventana.
+
+## Modelo del workspace (front)
+
+```ts
+type TabState = {
+  sessionId: string;
+  path: string;                  // ruta abierta (clave del anti-duplicados)
+  projection: ProjectionDto;
+  dirty: boolean;
+  conflict: string | null;
+  status: string;                // línea de estado de ESA pestaña
+  error: string | null;
+  reloads: number;               // recargas externas de ESA pestaña
+  ui: TabUiState;                // sobrevive al cambio de pestaña
+};
+
+type TabUiState = {
+  selectedId: string | null;
+  selectedIds: string[];
+  selectedCell: SelectedCell | null;
+  zoom: number;
+  showVariables: boolean;
+  showHierarchy: boolean;
+};
+
+// workspaceStore
+{
+  tabs: Map<string, TabState>;
+  order: string[];               // orden de las pestañas
+  activeSessionId: string | null;
+}
+```
+
+- El store es la **única autoridad del front** sobre qué hay abierto y qué pestaña
+  está activa; los hooks leen/escriben en él en vez de guardar `doc` local.
+- **Tecnología**: este documento preveía `zustand` (hoy el front no usa ninguna
+  store externa). La fase puede mantenerse **sin dependencias** con un hook
+  `useWorkspace` de estado elevado, o estrenar `zustand`; el diseño de datos es el
+  mismo. Decisión al empezar el bloque A.
+- La proyección de cada pestaña se actualiza con los eventos enrutados por
+  `sessionId`, manteniendo la guarda de versión actual (un snapshot viejo no pisa
+  uno nuevo).
+- `saveAs` actualiza el `path` de la pestaña (clave del anti-duplicados).
+
+## Componentes
+
+```
+App
+├── TabStrip                           (siempre visible)
+├── ReportTab  key={activeSessionId}   ← SOLO la pestaña activa se monta
+│   ├── EditorToolbar / FormatToolbar
+│   ├── EditorBanners (error / conflicto / sin backend)
+│   ├── LeftPanels · CanvasColumn (stage Konva) · InspectorColumn
+│   └── StatusBar de la pestaña
+└── CommandPalette / WorkspaceDialogs  (operan sobre la activa)
+```
+
+- **Solo la pestaña activa monta el editor**: un único stage Konva, un único juego
+  de paneles y un único Monaco. Es la condición que T3 dejó como N/A («solo la
+  pestaña activa monta el stage») y con pestañas vuelve a aplicar.
+- `ReportTab` se monta con `key={sessionId}`: al cambiar de pestaña, React desmonta
+  la anterior y monta la nueva. El estado que debe sobrevivir (selección, celdas,
+  zoom, paneles) vive en `tab.ui`, no dentro de los componentes; `useItemEditing`
+  arranca de `tab.ui` y persiste cada cambio.
+- `TabStrip`: una pestaña por sesión — nombre del fichero (`basename`, tooltip con
+  la ruta completa), `*` si hay `dirty`, marca de conflicto y botón de cerrar; menú
+  `+` con Nuevo… / Abrir… / recientes; la activa se resalta. Con muchas pestañas,
+  scroll horizontal.
+- Diálogos y paleta pertenecen a la pestaña activa: cambiar de pestaña los cierra
+  (no viajan entre documentos).
+
+## Flujos
+
+**Abrir / Nuevo** (`open`, `openPath`, `createNew`, recientes y drag&drop):
+
+1. Si la ruta pedida ya está en `order` → `activate(sessionId)` (anti-duplicados;
+   comparación normalizada, case-insensitive en Windows).
+2. Si no → `api.openFile(path)` / `api.createNew(path)` → se añade el `TabState` y
+   se activa.
+3. Nunca se cierra la sesión anterior. Si se sueltan varios ficheros, cada uno abre
+   su pestaña.
+
+**Cerrar pestaña** (botón o `Ctrl+W`):
+
+1. Si está sucia → diálogo de guardas existente (guardar / descartar / cancelar),
+   ahora por sesión.
+2. Al resolver: `api.close(sessionId, force)` + `commands.drop` en el backend (ya
+   lo hace el IPC); el `sessionClosed` resultante limpia la pestaña del workspace.
+3. La nueva activa es la vecina de la derecha; si no la hay, la de la izquierda.
+
+**Eventos** (siempre enrutados por `event.sessionId`):
+
+| Evento             | Efecto en su pestaña                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `documentChanged`  | Actualiza la proyección si la versión no es anterior; cuenta `reloads` solo si `reason === 'external'`           |
+| `dirtyChanged`     | Actualiza el `*` de la pestaña                                                                                   |
+| `conflictDetected` | Marca conflicto (banner + aviso) en esa pestaña                                                                  |
+| `saved`            | Limpia el conflicto de esa pestaña (hoy el front ya lo hace con la respuesta de `save`; suscribirse es robustez) |
+| `sessionClosed`    | Elimina la pestaña si el cierre lo inició el backend                                                             |
+
+**Cierre de ventana** (`closeRequested` del main):
+
+1. Recoger las pestañas sucias. Sin ninguna → `confirmWindowClose(true)`.
+2. Con una → diálogo actual (guardar / descartar / cancelar).
+3. Con varias → diálogo **«Guardar todas / Descartar todas / Cancelar»**; se guarda
+   en orden y **al primer fallo** (p. ej. `E_VALIDATION`) se cancela el cierre, esa
+   pestaña queda **activa** y su error visible.
+4. `confirmWindowClose(true)` una sola vez, cuando ya no queda trabajo sin guardar.
+
+**Título de ventana** (opcional): `nombre * — RDLC Report Designer` con la pestaña
+activa.
+
+## Cambios en el backend (menores)
+
+- **Ninguno** en dominio, comandos ni sesiones: la fase se apoya en lo existente.
+- `preload` / `RdlcApi`: exponer `onSessionClosed` (y, opcionalmente, `onSaved`);
+  los eventos ya existen y se emiten.
+- Opcional (endurecimiento): `open` idempotente por ruta en `SessionService` (hoy
+  dos aperturas del mismo fichero crean dos sesiones y dos watchers); el
+  anti-duplicados del front cubre el caso normal.
+- `confirmWindowClose` no cambia: el front resuelve todas las pestañas y llama una
+  sola vez.
+
+## Pruebas
+
+- **Unit (front)**: store del workspace — abrir añade, activar, cerrar elige
+  vecina, anti-duplicado por ruta, eventos enrutados por `sessionId`, snapshot
+  viejo ignorado por pestaña y `TabUiState` por pestaña.
+- **E2E**: dos informes abiertos con `dirty`/undo independientes; cambio de pestaña
+  que conserva selección y zoom; cerrar pestaña sucia (guardar / descartar /
+  cancelar); `Ctrl+W` y `Ctrl+Tab`; cierre de ventana con dos sucias («Guardar
+  todas» y cancelación por fallo de validación).
+- **Regresión**: la suite actual asume **una** pestaña; el reset entre tests pasa a
+  cerrar todas las pestañas abiertas.
+
+## Riesgos y notas
+
+- `useItemEditing` es un hook grande con estado interno: lo más delicado es el
+  aislamiento por pestaña (evitar ciclos `setState` ↔ store al persistir
+  selección/zoom).
+- El bug abierto de `Maximum update depth exceeded` (Tablix anidados) puede
+  reaparecer al desmontar/montar el editor con un Tablix seleccionado: cubrir el
+  cambio de pestaña en E2E.
+- Memoria: cada pestaña mantiene su proyección y su watcher; abrir muchos informes
+  grandes pesa (sin límite duro en el MVP; a vigilar).
+- «Cerrar la última pestaña» deja el **estado vacío** del editor, no cierra la
+  ventana.
 
 # Dominios
 
@@ -302,8 +472,9 @@ Dos dominios reales; el resto son servicios de aplicación.
 >
 > * **`XmlSchemaValidatorPort`** → validación con el XSD oficial RDL 2016/01
 >   (`libxml2-wasm`): al importar avisa, al guardar bloquea la escritura.
-> * **`SystemFontsPort`** → fuentes instaladas (registro de Windows) para la barra de
->   formato (canal IPC `listFonts`).
+> * **`AvailableFontsPort`** → fuentes disponibles en Business Central (la lista oficial
+>   de la documentación, compartida en `packages/contracts`): la única que pueden usar
+>   los informes. Alimenta la barra de formato (canal IPC `listFonts`).
 >
 > Además de los comandos públicos, la API del editor tiene **`copy`/`cut`/`paste`**
 > (portapapeles de sesión con el XML exacto del subárbol, como `undo`/`redo`: no son

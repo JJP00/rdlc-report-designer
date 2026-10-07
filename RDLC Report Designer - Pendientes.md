@@ -1,5 +1,82 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Planificación 2026-10-05 · nueva fase del MVP: pestañas (una pestaña = un informe)** —
+> decisión de producto: el editor pasa a abrir **varios informes a la vez**, cada uno
+> en su pestaña. Hoy `useDocumentCore` mantiene **un único** `doc` y abrir otro
+> fichero cierra la sesión anterior (`api.close(...)`); es el mayor límite del uso
+> diario con BC (comparar layouts, copiar contenido entre informes, tener una copia
+> de trabajo y el original).
+>
+> El **backend ya está listo** para N sesiones: `SessionService` mantiene
+> `Map<sessionId, Session>` (documento, índice, watcher, `dirty`, mtime y
+> portapapeles por sesión) y `CommandService` tiene **journal por sesión**; los
+> eventos IPC (`documentChanged`, `dirtyChanged`, `conflictDetected`, `saved`,
+> `sessionClosed`) llevan `sessionId`. La fase es **casi toda front** más el ciclo
+> de vida de la ventana; el detalle técnico (modelo del workspace, componentes y
+> flujos) está en `RDLC Report Designer - arquitectura.md` § «Fase MVP — Pestañas».
+>
+> **Contrato de la fase**:
+>
+> - Una pestaña = una sesión del backend, con proyección, `dirty`, undo/redo,
+>   conflicto y watcher **independientes**; cambiar de pestaña no recarga ni cierra.
+> - Abrir/Nuevo/recientes/drag&drop **añaden pestaña**; si la ruta ya está abierta
+>   se activa la existente (sin duplicados).
+> - Cada pestaña conserva **su estado de UI** (selección, celdas, zoom, paneles) al
+>   volver a ella y **solo la pestaña activa monta el stage Konva** (el criterio de
+>   T3, que hoy era N/A, vuelve a aplicar).
+> - Cerrar pestaña con cambios usa el diálogo de guardas actual (por sesión); cerrar
+>   la ventana con varias sucias ofrece **Guardar todas / Descartar todas / Cancelar**
+>   y una guarda que falle deja su pestaña activa con el error (nunca se pierde
+>   trabajo en silencio).
+> - Teclado: `Ctrl+W` cierra la activa y `Ctrl+Tab` / `Ctrl+Shift+Tab` rotan; el
+>   resto de atajos (Ctrl+S, Ctrl+Z, Ctrl+K…) operan sobre la activa.
+>
+> **Bloques de trabajo** (S < 1 sesión · M = 1 sesión · L = varias):
+>
+> | Bloque | Tarea                                                                                                                                                                                                                                                                                               | Tam. |
+> | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+> | A      | **Workspace**: store de pestañas (sesión + proyección + dirty + conflicto + estado por pestaña), enrutado de eventos por `sessionId` (incluido `sessionClosed`) y abrir/Nuevo que **no** cierran la anterior; anti-duplicados por ruta                                                              | M    |
+> | B      | **Chrome**: `TabStrip` (título con `*` de dirty, marca de conflicto, cerrar con guarda, menú `+` con Nuevo/Abrir/recientes) y atajos de pestañas                                                                                                                                                    | M    |
+> | C      | **Ciclo de vida**: cierre con guarda **por sesión**, cierre de ventana con varias sucias («Guardar todas / Descartar todas / Cancelar») y estado/error por pestaña en vez de globales                                                                                                               | M    |
+> | D      | **Aislamiento de edición**: `ReportTab` con `key={sessionId}` (solo la activa monta el editor), `useItemEditing` arranca y persiste selección/zoom/paneles en la pestaña, paleta y diálogos sobre la activa                                                                                         | M    |
+> | E      | **QA**: unit del store (abrir/activar/cerrar, eventos enrutados, guarda de versión, anti-duplicado) + E2E de dos informes (dirty/undo independientes, cambio de pestaña conserva selección y zoom, cierre con guardas, cierre de ventana) y regresión de la suite actual, que asume **una** pestaña | M    |
+>
+> **Fuera de la fase (evolutivo)**: restaurar las pestañas al arrancar, reordenarlas
+> por arrastre, split view de la misma sesión y comparación de informes.
+>
+> **Punto de retomada**: hacer **A–B** primero (pestañas visibles y usables), seguir
+> con **C–D** (guardas y aislamiento) y cerrar con **E**. Es independiente de F2.c/F3
+> (cerradas) y de **T4/T5**; se sugiere antes que la deuda de UX P2/P3 de
+> `docs/ux/0002` por ser funcionalidad de uso diario. Sigue abierto el bug de
+> `Maximum update depth exceeded` al mover Tablix anidados.
+
+> **Sesión 2026-10-02 (5.ª parte) · informe «en blanco» en Report Builder tras un
+> split+merge (dos bugs de compatibilidad RB)** — el fichero editado (split de una
+> celda + merge con la vecina) se veía bien en la app pero RB mostraba el cuerpo
+> vacío. Diagnóstico usando **RB 15 como oráculo** (capturas de la ventana): el
+> `list1` se dibuja **debajo de dos textboxes que la edición dejó en el cuerpo sin
+> `Top/Left/Width/Height`**; RB estira esos items al tamaño de la banda y su fondo
+> blanco tapa la tabla entera (la app los pinta pequeños). Además, el flujo de
+> split/merge/duplicado creaba nombres duplicados **solo por caja**
+> (`Textbox3/6/8/9` vs `textbox3/6/8`), inválidos para RB (VB case-insensitive).
+>
+> - **Fix 1 · geometría de banda** (`bandGeometry.ts`): `moveItem` y
+>   `insertCloneAt` (pegar/duplicar) materializan `Top/Left/Width/Height` cuando
+>   el destino es `Body`/`PageHeader`/`PageFooter`; defaults = los de insertar en
+>   el lienzo (textbox 5×1, rectangle 5×1, line 4×0, image 3×2, tablix 7,5×1,2 cm).
+>   Undo byte-exacto (el clon se va entero; los tags creados se quitan).
+> - **Fix 2 · unicidad sin caja**: `DocumentIndex.has` compara en minúsculas;
+>   `nextItemName`/`freeName` reservan los nombres que solo difieren en caja;
+>   `setName` admite cambiar la caja del propio nombre y rechaza el resto;
+>   `setGroupName`/`nextGroupName`/`findGroupByName` también ignoran caja.
+> - **Tests**: +4 (mover/pegar un textbox de celda al cuerpo materializa
+>   longitudes; insertar con `textbox1` ocupado da `Textbox2`; `setName` rechaza
+>   `Textbox3` si existe `textbox3` y admite `textbox3 → TextBox3`).
+>   **327 back** verdes y `typecheck` limpio.
+> - **Reparar ficheros ya rotos**: borrar en la app los textboxes sueltos del
+>   cuerpo (o darles X/Y/Ancho/Alto); RB vuelve a dibujar la tabla (verificado con
+>   el `VendorPrePaymentJournal.rdl` del usuario).
+
 > **Sesión 2026-10-02 (2.ª parte) · soporte `.rdl` (RDL 2016)** — la app solo
 > abría `.rdlc`; los RDL de SSRS se quedaban fuera de los diálogos y del
 > drag&drop.
@@ -825,23 +902,63 @@ de fila]`) y un `headers.offset` que desplaza el body. En `Tablix7` de
 > del hit); antes solo se ofrecía si el ancla estaba en la selección.
 > **Esc con una celda seleccionada**: `hasSelection` no contaba las celdas, así
 > que el atajo no subía al Tablix (documentado como "Esc sube un nivel").
-> Al fusionar, las celdas cubiertas se eliminan y su contenido se descarta (como
-> en RB); el ancla conserva el suyo y hereda el ancho fusionado.
+> Al fusionar, el contenido de las celdas cubiertas se descarta; el ancla
+> conserva el suyo y hereda el ancho fusionado. **BC/SSRS exigen una
+> `TablixCell` por columna**: la celda cubierta se queda como relleno vacío
+> (quitar celdas hacía que Report Builder fallara al abrir el informe con «El
+> índice estaba fuera del intervalo»); separar rellena ese hueco en su sitio y
+> añadir/quitar columna crea/elimina su relleno. Las filas ya fusionadas por
+> versiones antiguas (solo anclas) conservan su forma hasta que se vuelvan a
+> fusionar.
+> **Añadir columna**: la decisión (crecer un `ColSpan` con relleno vs. insertar
+> celda con textbox) se toma por fila **antes** de mutarla; leerla después con el
+> recuento de columnas viejo duplicaba la celda (`TextboxN` + relleno) y dejaba
+> la fila con más celdas que columnas (RB: «índice fuera de intervalo»).
+> **`ListStyle`**: RDL 2016 solo lo admite como **hijo directo de
+> `<Paragraph>`** (no dentro de `<Style>`). El editor lo escribía en el `<Style>`
+> del item y el guardado fallaba con `E_VALIDATION` («`ListStyle`: This element
+> is not expected»); ahora `setStyle`/`setParagraphs` lo escriben y el
+> adaptador lo lee en el párrafo, y el comando limpia los nodos legados.
 > **Separar crea textbox**: la celda recreada nace con un **Textbox vacío** (sin
 > longitudes: el tamaño lo pone la celda) en vez de quedar muerta, y el
 > documento sigue validando el XSD.
 > **Insertar en una celda**: el item nace con el **tamaño de la celda** y en su
 > origen (antes: tamaño por defecto en el punto del cursor).
-> **Proyección de celdas con fusiones**: el ancho/alto heredado usa la **columna
-> acumulada** (suma de `ColSpan`), no el índice del array — al fusionar, las
-> celdas de la derecha conservaban mal su tamaño (bug detectado con
-> `SalesInvoiceESP`: la celda de un textbox pasaba de 3.35 a 3.53 cm). Las filas
-> que desbordan las columnas declaradas (ficheros tolerantes de BC) usan la
-> última columna como referencia en vez de dibujarse 0×0.
+> **Proyección de celdas con fusiones**: BC/SSRS numeran las celdas por
+> **columna** (la i-ésima celda es la columna i; las cubiertas por un `ColSpan`
+> son rellenos vacíos que no se proyectan) y las filas ya fusionadas por el
+> editor (solo anclas) acumulan los `ColSpan`. Al fusionar, las celdas de la
+> derecha conservan el ancho de SU columna (bug detectado con
+> `SalesInvoiceESP`: la celda de un textbox pasaba de 3.35 a 3.53 cm); antes los
+> rellenos se contaban como celdas y todo lo posterior a una fusión se
+> desplazaba (`VendorPrePaymentJournal.rdl`). Las filas que desbordan las
+> columnas declaradas (ficheros tolerantes de BC) usan la última columna como
+> referencia en vez de dibujarse 0×0.
+> **Colisión de nombres item/campo**: el `DocumentIndex` ya solo indexa los
+> items de informe (el `choice` de `ReportItems` del XSD). BC reutiliza `Name`
+> en los campos de DataSet (y estos van **después** de `ReportSections`), así
+> que un campo llamado como un textbox pisaba su entrada: al editar el borde o
+> el color, el comando escribía el `<Style>` en el `<Field>` y el front
+> reconciliaba el estilo del item sin el padding (se «reseteaba»). Renombrar
+> grupos sigue rechazando nombres de item (`setGroupName` consulta grupos aparte).
 > **Rejilla segmentada**: las fronteras que cruza una celda fusionada ya no se
 > dibujan (`lib/grid.ts`): una celda con `ColSpan`/`RowSpan` se ve como una caja
 > continua en vez de parecer partida (caso `TextboxVATClauseDesc` en
 > `SalesCreditMemoESP`: una celda con `ColSpan 2` mostraba la línea en medio).
+> **Edición en lote de celdas**: el panel de multiselección mapea cada celda del
+> rango por su **columna de rejilla** (`selectedCellContents` + `tablixLayout`),
+> no por el índice del array: con filas fusionadas (sin rellenos en la
+> proyección) el índice y la columna difieren y el lote editaba **otros**
+> textboxes (p. ej. seleccionar 4 celdas nuevas cambiaba la columna de
+> descripción). El breadcrumb/jerarquía usan el mismo mapeo.
+> **Fuentes en el run**: BC escribe `FontFamily`/`FontSize`/`FontWeight`… **solo
+> en el `<Style>` de cada `TextRun`** (los 10 RDLC del corpus: 100 % en el run) y
+> RB las resuelve ahí: un textbox nuevo con la fuente solo en el `<Style>` del
+> item se ve a Arial 10. `setStyle` replica ahora los tags de texto del parche en
+> todos los runs y materializa los que el item declare y el run herede (con el
+> valor efectivo del párrafo); `setParagraphs` hereda las fuentes del item en los
+> runs nuevos para no perderlas al editar el texto. Así el formato de un textbox
+> recién insertado también sobrevive en Report Builder.
 > **`react-doctor` 100/100** tras el refactor de la sesión: `App` (335 → 291
 > líneas) delega el click derecho en `useItemEditing`, los diálogos en
 > `DocumentDialogs` y los ganchos de QA en `useQaHooks`; la rejilla usa claves
@@ -861,7 +978,7 @@ de fila]`) y un `headers.offset` que desplaza el body. En `Tablix7` de
 > Todo se aplica en **un comando** (`setParagraphs`, nuevo en el dominio:
 > reemplaza el nodo `<Paragraphs>`, undo byte-exacto y XSD válido).
 > **Rendimiento**: con textboxes grandes (10 párrafos, 20+ runs) el diálogo
-> bloqueaba porque montaba un Monaco por run y pedía las fuentes del sistema por
+> bloqueaba porque montaba un Monaco por run y pedía la lista de fuentes por
 > run; ahora los valores son inputs, el Monaco se monta solo al pedirlo y las
 > fuentes se cargan una vez (`datalist`).
 > **Teclado con diálogos abiertos**: `useGlobalKeys` no actúa mientras hay un
@@ -1103,26 +1220,26 @@ Trade-offs documentados:
 
 ## ✅ Hecho en la sesión (2026-09-14)
 
-| Área                                                                                                   | Estado        |
-| ------------------------------------------------------------------------------------------------------ | ------------- |
-| Monorepo pnpm + turbo, TS estricto, prettier                                                           | ✅            |
-| `packages/contracts` (comandos, proyección, IPC, errores, `RdlcApi`)                                   | ✅            |
-| Golden round-trip **byte a byte** sobre el corpus (10/10) + ADR 0001                                   | ✅            |
-| Shell Electron + NestJS en el main (`createApplicationContext`) + preload tipado                       | ✅ (ADR 0002) |
-| File watching → re-parseo → recarga en vivo (filtra el eco por mtime)                                  | ✅            |
-| Lienzo Konva: papel + márgenes + bandas, reglas en mm/cm, zoom Ctrl+rueda, placeholder de imagen       | ✅            |
-| Selección (marco + tiradores), drag con imán (Shift lo ignora), flechas 1pt/10pt                       | ✅            |
-| Edición de anidados (drag determinista por delta del puntero; `dragend` que burbujea)                  | ✅            |
-| **Validación XSD oficial RDL 2016/01** (libxml2-wasm): avisa al importar, **bloquea al guardar**       | ✅            |
-| Panel de propiedades (geometría), panel de texto/expresión por runs                                    | ✅            |
-| **Barra de formato** (fuente del sistema, tamaño, N/I/S, color, resaltado, alineación, listas, valign) | ✅            |
-| Variables (Fields/Parameters/Code./Globals/User) con búsqueda y grupos colapsables                     | ✅            |
-| Propiedades del informe (Configurar página + Código VB en Monaco-like textarea)                        | ✅            |
-| Panel de imagen: origen, campo/expresión (fx), MIME desplegable (fx), tamaño (radios), padding         | ✅            |
-| Insertar / duplicar / eliminar items (botones, Ctrl+D, Supr) con undo byte-exacto                      | ✅            |
-| Auto-crecimiento del contenedor al sacar un hijo fuera (solo rectángulos con tamaño explícito)         | ✅            |
-| Undo/redo con journal (inversos múltiples por comando)                                                 | ✅            |
-| Tests: 94 back + 10 front (golden, comandos, invariantes, integración, fuentes, XSD)                   | ✅            |
+| Área                                                                                                            | Estado        |
+| --------------------------------------------------------------------------------------------------------------- | ------------- |
+| Monorepo pnpm + turbo, TS estricto, prettier                                                                    | ✅            |
+| `packages/contracts` (comandos, proyección, IPC, errores, `RdlcApi`)                                            | ✅            |
+| Golden round-trip **byte a byte** sobre el corpus (10/10) + ADR 0001                                            | ✅            |
+| Shell Electron + NestJS en el main (`createApplicationContext`) + preload tipado                                | ✅ (ADR 0002) |
+| File watching → re-parseo → recarga en vivo (filtra el eco por mtime)                                           | ✅            |
+| Lienzo Konva: papel + márgenes + bandas, reglas en mm/cm, zoom Ctrl+rueda, placeholder de imagen                | ✅            |
+| Selección (marco + tiradores), drag con imán (Shift lo ignora), flechas 1pt/10pt                                | ✅            |
+| Edición de anidados (drag determinista por delta del puntero; `dragend` que burbujea)                           | ✅            |
+| **Validación XSD oficial RDL 2016/01** (libxml2-wasm): avisa al importar, **bloquea al guardar**                | ✅            |
+| Panel de propiedades (geometría), panel de texto/expresión por runs                                             | ✅            |
+| **Barra de formato** (fuentes de Business Central, tamaño, N/I/S, color, resaltado, alineación, listas, valign) | ✅            |
+| Variables (Fields/Parameters/Code./Globals/User) con búsqueda y grupos colapsables                              | ✅            |
+| Propiedades del informe (Configurar página + Código VB en Monaco-like textarea)                                 | ✅            |
+| Panel de imagen: origen, campo/expresión (fx), MIME desplegable (fx), tamaño (radios), padding                  | ✅            |
+| Insertar / duplicar / eliminar items (botones, Ctrl+D, Supr) con undo byte-exacto                               | ✅            |
+| Auto-crecimiento del contenedor al sacar un hijo fuera (solo rectángulos con tamaño explícito)                  | ✅            |
+| Undo/redo con journal (inversos múltiples por comando)                                                          | ✅            |
+| Tests: 94 back + 10 front (golden, comandos, invariantes, integración, fuentes, XSD)                            | ✅            |
 
 ## 🔎 Auditoría de gaps (2026-09-29) — backlog antes de F3
 
@@ -1199,7 +1316,9 @@ Trade-offs documentados:
 
 **Progreso**: ① **G1–G13 ✅** (2026-09-29), ② **U1–U9 ✅** (pase `intent`, 2026-09-30) y
 **T1–T3 ✅** (2026-10-02). Quedan **T4** (property tests) y **T5** (flujo BC documentado),
-la deuda de UX P2/P3 de 0002 y el bug de los Tablix anidados.
+la deuda de UX P2/P3 de 0002 y el bug de los Tablix anidados. **Fase nueva del MVP**
+(2026-10-05): **pestañas, una por informe** (bloque de planificación al inicio de este
+documento y plan técnico en `RDLC Report Designer - arquitectura.md` § «Fase MVP — Pestañas»).
 
 ## 🔴 Gaps funcionales (MVP)
 

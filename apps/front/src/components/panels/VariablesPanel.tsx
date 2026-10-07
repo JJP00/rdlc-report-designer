@@ -4,7 +4,6 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { VARIABLE_GROUPS, variableEntries, type VariableEntry } from '@/lib/variables';
 
 interface VariablesPanelProps {
@@ -97,7 +96,8 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
         />
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
+      {/* Scroll nativo con el estilo global de barras. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-0.5 p-1">
           {groups.map(([group, list]) => {
             // Al buscar, los grupos con resultados se muestran siempre abiertos.
@@ -147,7 +147,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
             <p className="text-xs text-muted-foreground">Sin resultados.</p>
           ) : null}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

@@ -49,7 +49,6 @@ const SIMPLE_TAGS: Record<string, string> = {
   backgroundColor: 'BackgroundColor',
   textAlign: 'TextAlign',
   verticalAlign: 'VerticalAlign',
-  listStyle: 'ListStyle',
   format: 'Format',
 };
 
@@ -59,6 +58,8 @@ const SUPPORTED_KEYS = new Set<string>([
   'fontSize',
   'padding',
   'border',
+  // `ListStyle` no vive en `<Style>`: es hijo directo de `<Paragraph>`.
+  'listStyle',
 ]);
 
 /**
@@ -87,9 +88,15 @@ export function applySetStyle(
 
   const styleExisted = node.child('Style') !== undefined;
   const style = childOrCreate(node, 'Style');
-  const { previous, removed, changes } = writeStylePatch(style, command.style);
+  // `ListStyle` no es una propiedad de `<Style>`: se escribe como hijo directo
+  // de cada `<Paragraph>` (donde lo espera el XSD).
+  const { listStyle, ...stylePatch } = command.style as StylePatch & {
+    listStyle?: 'None' | 'Bulleted' | 'Numbered' | null;
+  };
+  const { previous, removed, changes } = writeStylePatch(style, stylePatch as StylePatch);
+  if (listStyle !== undefined) writeListStyle(node, listStyle, changes, removed);
 
-  const restored = syncShadowingStyles(node, command.style);
+  const restored = syncShadowingStyles(node, stylePatch as StylePatch);
 
   // Los nodos quitados se reinsertan en su índice exacto (el orden canónico no
   // tiene por qué coincidir con el del fichero original). Se listan de mayor a
@@ -116,9 +123,9 @@ export function applySetStyle(
       ...changes,
     ],
     applied: [{ id: command.id, values: { style: readStyle(style) } }],
-    // Con overrides tocados el front necesita la proyección nueva (párrafos y
-    // runs no viajan en `applied`).
-    ...(restored.length > 0 ? { snapshotOut: true } : {}),
+    // Con overrides o `ListStyle` tocados el front necesita la proyección nueva
+    // (párrafos y runs no viajan en `applied`).
+    ...(restored.length > 0 || listStyle !== undefined ? { snapshotOut: true } : {}),
   });
 }
 
@@ -310,15 +317,40 @@ function syncShadowingStyles(item: RdlcNode, patch: StylePatch): DomainCommand[]
 
   const inverse: DomainCommand[] = [];
 
+  // Párrafos: se reescriben los overrides existentes de los tags del parche.
   for (const tag of tags) {
     const value = itemStyle.child(tag)?.text();
     if (value === undefined) continue;
+    for (const style of paragraphStyles(item)) {
+      inverse.push(...rewriteTag(style, tag, value));
+    }
+  }
 
-    for (const style of paragraphAndRunStyles(item)) {
-      const child = style.child(tag);
-      if (!child) continue;
-      inverse.push({ cmd: 'setNodeText', node: child, value: child.text() ?? '' });
-      child.setText(value);
+  // Runs: los tags del parche se escriben/crean; además se materializan los
+  // tags de texto que el item declara y el run hereda. RDL los hereda
+  // (run > párrafo > item), pero BC los escribe en el run y RB los resuelve
+  // ahí: sin esto, un textbox con la fuente solo en el item se ve a Arial 10.
+  // Solo se rellenan los que falten, con el valor **efectivo** del párrafo, así
+  // que lo que declara el run (formato mixto) no se toca.
+  const patched = new Set(tags);
+  for (const paragraph of item.child('Paragraphs')?.children('Paragraph') ?? []) {
+    const paragraphStyle = paragraph.child('Style');
+    for (const run of paragraph.child('TextRuns')?.children('TextRun') ?? []) {
+      for (const tag of RUN_TEXT_TAGS) {
+        const overridden = patched.has(tag);
+        const inherited = !overridden && itemStyle.child(tag)?.text() !== undefined;
+        if (!overridden && !inherited) continue;
+
+        const value = overridden
+          ? itemStyle.child(tag)?.text()
+          : (paragraphStyle?.child(tag)?.text() ?? itemStyle.child(tag)?.text());
+        if (value === undefined) continue;
+
+        const existing = run.child('Style')?.child(tag);
+        if (existing && !overridden) continue;
+        const style = run.child('Style') ?? ensureStyle(run, inverse);
+        inverse.push(...writeTag(style, tag, value));
+      }
     }
   }
 
@@ -346,21 +378,121 @@ function shadowedTags(patch: StylePatch): string[] {
   return [...tags];
 }
 
-/** `<Style>` de los párrafos del textbox y de sus runs. */
-function paragraphAndRunStyles(item: RdlcNode): RdlcNode[] {
-  const styles: RdlcNode[] = [];
+/**
+ * Tags de texto que BC escribe en el **run** (y RB resuelve ahí, no en el
+ * `<Style>` del item): un textbox con la fuente solo en el item se ve a Arial
+ * 10 en Report Builder. Se replican en cada run al aplicar el estilo.
+ */
+const RUN_TEXT_TAGS = new Set([
+  'FontFamily',
+  'FontSize',
+  'FontWeight',
+  'FontStyle',
+  'TextDecoration',
+  'Color',
+]);
 
+/** `<Style>` de los párrafos del textbox. */
+function paragraphStyles(item: RdlcNode): RdlcNode[] {
+  const styles: RdlcNode[] = [];
   for (const paragraph of item.child('Paragraphs')?.children('Paragraph') ?? []) {
     const paragraphStyle = paragraph.child('Style');
     if (paragraphStyle) styles.push(paragraphStyle);
+  }
+  return styles;
+}
 
+/** Reescribe el tag si existe (no crea); devuelve los inversos. */
+function rewriteTag(style: RdlcNode, tag: string, value: string): DomainCommand[] {
+  const child = style.child(tag);
+  if (!child || child.text() === value) return [];
+  const inverse: DomainCommand[] = [
+    { cmd: 'setNodeText', node: child, value: child.text() ?? '' },
+  ];
+  child.setText(value);
+  return inverse;
+}
+
+/** Escribe el tag creándolo si falta (inverso: quitarlo). */
+function writeTag(style: RdlcNode, tag: string, value: string): DomainCommand[] {
+  const child = style.child(tag);
+  if (child) return rewriteTag(style, tag, value);
+  const created = style.createElement(tag, value);
+  insertCanonical(style, tag, created);
+  return [{ cmd: 'removeNode', node: created }];
+}
+
+/** `<Style>` del run, creándolo si falta (inverso: quitarlo). */
+function ensureStyle(run: RdlcNode, inverse: DomainCommand[]): RdlcNode {
+  const existing = run.child('Style');
+  if (existing) return existing;
+  const style = run.createElement('Style');
+  insertCanonical(run, 'Style', style);
+  inverse.push({ cmd: 'removeNode', node: style });
+  return style;
+}
+
+/* ------------------------------ ListStyle -------------------------------- */
+
+/** `<Style>` de los párrafos del textbox y de sus runs (limpieza de legados). */
+function paragraphAndRunStyles(item: RdlcNode): RdlcNode[] {
+  const styles: RdlcNode[] = [];
+  for (const paragraph of item.child('Paragraphs')?.children('Paragraph') ?? []) {
+    const paragraphStyle = paragraph.child('Style');
+    if (paragraphStyle) styles.push(paragraphStyle);
     for (const run of paragraph.child('TextRuns')?.children('TextRun') ?? []) {
       const runStyle = run.child('Style');
       if (runStyle) styles.push(runStyle);
     }
   }
-
   return styles;
+}
+
+/**
+ * `ListStyle` de los párrafos (RDL 2016): es un **hijo directo de
+ * `<Paragraph>`**, no una propiedad de `<Style>`. Un `null` quita la lista de
+ * todos los párrafos. De paso limpia los `<ListStyle>` que una versión anterior
+ * escribía dentro de un `<Style>`: no existen en el XSD y bloqueaban el
+ * guardado (`RB`: «índice fuera de intervalo» / validación fallida).
+ */
+function writeListStyle(
+  item: RdlcNode,
+  value: 'None' | 'Bulleted' | 'Numbered' | null,
+  changes: DomainCommand[],
+  removed: RemovedStyleNode[],
+): void {
+  const itemStyle = item.child('Style');
+  for (const style of [...(itemStyle ? [itemStyle] : []), ...paragraphAndRunStyles(item)]) {
+    const legacy = style.child('ListStyle');
+    if (legacy) removeStyleChild(legacy, removed);
+  }
+
+  for (const paragraph of item.child('Paragraphs')?.children('Paragraph') ?? []) {
+    const existing = paragraph.child('ListStyle');
+    if (value === null) {
+      if (existing) removeStyleChild(existing, removed);
+      continue;
+    }
+    if (existing) {
+      const previous = existing.text() ?? '';
+      if (previous === value) continue;
+      changes.push({ cmd: 'setNodeText', node: existing, value: previous });
+      existing.setText(value);
+      continue;
+    }
+    const created = paragraph.createElement('ListStyle', value);
+    insertCanonical(paragraph, 'ListStyle', created);
+    changes.push({ cmd: 'removeNode', node: created });
+  }
+}
+
+/** Quita un nodo guardando el contenedor y el índice para el undo. */
+function removeStyleChild(node: RdlcNode, removed: RemovedStyleNode[]): void {
+  const container = node.parent;
+  if (!container) return;
+  const index = container.children().findIndex((child) => child.equals(node));
+  removed.push({ style: container, node, index: index < 0 ? 0 : index });
+  node.remove();
 }
 
 /* --------------------------- lectura ------------------------------------ */

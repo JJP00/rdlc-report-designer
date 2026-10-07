@@ -71,6 +71,13 @@ describe('F1 · DocumentIndex', () => {
     expect(index.get('Tablix4')).toBeDefined();
     expect(index.get('no-existe')).toBeUndefined();
   });
+
+  it('no pisa un item con un campo de DataSet del mismo nombre', () => {
+    const { index } = open('SalesInvoiceESP.rdlc');
+    // `Description_Line` es a la vez un Textbox y un campo del DataSet (los
+    // `DataSets` van al final del documento y el campo pisaba la entrada).
+    expect(index.get('Description_Line')?.tagName).toBe('Textbox');
+  });
 });
 
 describe('F1 · setLocation', () => {

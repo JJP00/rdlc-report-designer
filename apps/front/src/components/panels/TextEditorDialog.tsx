@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useSystemFonts } from '@/hooks/useSystemFonts';
+import { useAvailableFonts } from '@/hooks/useAvailableFonts';
 import {
   EXPRESSION_CLOSE,
   EXPRESSION_OPEN,
@@ -64,7 +64,10 @@ export function TextEditorDialog({
 }: TextEditorDialogProps): ReactNode {
   return (
     <Dialog open={item !== undefined} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] w-full max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+      <DialogContent
+        className="flex max-h-[85vh] w-full max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        resizable
+      >
         {item ? (
           <TextEditorBody
             key={item.id}
@@ -96,7 +99,7 @@ function TextEditorBody({
   /** Párrafo en el que está el cursor (el bloque de abajo). */
   const [active, setActive] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const fonts = useSystemFonts();
+  const fonts = useAvailableFonts();
 
   const runCount = paragraphs.reduce((acc, paragraph) => acc + paragraph.runs.length, 0);
   const activeParagraph = paragraphs[active];

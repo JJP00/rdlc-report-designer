@@ -1,22 +1,21 @@
-import type { NewItemSpec } from '@rdlc-designer/contracts';
 import {
   Check,
   ChevronDown,
   Copy,
   FilePlus,
+  FileText,
   FolderOpen,
-  Image,
+  History,
   ListTree,
   Minus,
+  Moon,
   Plus,
   Redo2,
   Save,
   SaveAll,
   Settings2,
-  Square,
-  Table,
+  Sun,
   Trash2,
-  Type,
   Undo2,
   Variable,
   X,
@@ -31,10 +30,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
-import { ITEM_DRAG_TYPE } from '@/lib/dragTypes';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { clampZoom, ZOOM_PRESETS } from '@/lib/zoom';
 
@@ -46,6 +47,8 @@ export interface EditorToolbarProps {
   showVariables: boolean;
   /** Panel de jerarquía visible (U4). */
   showHierarchy: boolean;
+  /** Tema claro/oscuro del editor (el toggle vive en la toolbar). */
+  theme: 'light' | 'dark';
   /** Ficheros recientes (desplegable del botón Abrir). */
   recents: string[];
   onNew: () => void;
@@ -57,7 +60,7 @@ export interface EditorToolbarProps {
   onOpenProperties: () => void;
   onToggleVariables: () => void;
   onToggleHierarchy: () => void;
-  onInsert: (kind: NewItemSpec['kind']) => void;
+  onToggleTheme: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onUndo: () => void;
@@ -68,9 +71,11 @@ export interface EditorToolbarProps {
 }
 
 /**
- * Toolbar superior: fichero, informe, insertar (arrastrable), edición y zoom.
- * En anchos estrechos se puede desplazar en horizontal y las etiquetas largas
- * se pliegan a icono (con `aria-label` y tooltip).
+ * Toolbar superior: menú **Fichero** (Nuevo/Abrir/Guardar/Cerrar), informe y
+ * edición (duplicar/eliminar/deshacer) más el zoom. Los botones de insertar
+ * viven en la barra de formato (`FormatToolbar`). En anchos estrechos se puede
+ * desplazar en horizontal y las etiquetas largas se pliegan a icono (con
+ * `aria-label` y tooltip).
  */
 export function EditorToolbar(props: EditorToolbarProps): ReactNode {
   return (
@@ -99,8 +104,6 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
           onToggleHierarchy={props.onToggleHierarchy}
         />
         <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
-        <InsertGroup disabled={!props.hasDocument} onInsert={props.onInsert} />
-        <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
         <EditGroup
           hasDocument={props.hasDocument}
           hasSelection={props.hasSelection}
@@ -116,6 +119,23 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
           </Badge>
         ) : null}
         <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
+              onClick={props.onToggleTheme}
+              aria-label={props.theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+            >
+              {props.theme === 'dark' ? <Sun /> : <Moon />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {props.theme === 'dark' ? 'Modo claro' : 'Modo oscuro (blanco y negro)'}
+          </TooltipContent>
+        </Tooltip>
+        <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
         <ZoomGroup
           zoom={props.zoom}
           onZoomChange={props.onZoomChange}
@@ -126,7 +146,7 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
   );
 }
 
-/** Nuevo / Abrir / recientes / Guardar / Guardar como / Cerrar. */
+/** Menú «Fichero»: Nuevo / Abrir … / recientes / Guardar / Cerrar. */
 function FileGroup({
   hasDocument,
   recents,
@@ -148,76 +168,58 @@ function FileGroup({
   | 'onClose'
 >): ReactNode {
   return (
-    <>
-      <Button variant="outline" size="sm" className="shrink-0" onClick={onNew}>
-        <FilePlus data-icon="inline-start" />
-        Nuevo
-      </Button>
-      <Button variant="outline" size="sm" className="shrink-0" onClick={onOpen}>
-        <FolderOpen data-icon="inline-start" />
-        Abrir…
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="shrink-0"
-            disabled={recents.length === 0}
-            aria-label="Abrir un fichero reciente"
-            title="Recientes"
-          >
-            <ChevronDown />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-w-96">
-          <DropdownMenuLabel>Recientes</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {recents.map((path) => (
-            <DropdownMenuItem
-              key={path}
-              onSelect={() => onOpenRecent(path)}
-              title={path}
-              className="font-mono text-xs"
-            >
-              <span className="truncate">{path}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Button
-        variant="outline"
-        size="sm"
-        className="shrink-0"
-        onClick={onSave}
-        disabled={!hasDocument}
-      >
-        <Save data-icon="inline-start" />
-        Guardar
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        className="shrink-0"
-        onClick={onSaveAs}
-        disabled={!hasDocument}
-        aria-label="Guardar como…"
-      >
-        <SaveAll data-icon="inline-start" />
-        <span className="hidden 2xl:inline">Guardar como…</span>
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="shrink-0"
-        onClick={onClose}
-        disabled={!hasDocument}
-        aria-label="Cerrar"
-      >
-        <X data-icon="inline-start" />
-        <span className="hidden xl:inline">Cerrar</span>
-      </Button>
-    </>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="shrink-0" aria-label="Fichero">
+          <FileText data-icon="inline-start" />
+          Fichero
+          <ChevronDown className="size-3 opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-60">
+        <DropdownMenuItem onSelect={onNew}>
+          <FilePlus />
+          Nuevo
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onOpen}>
+          <FolderOpen />
+          Abrir…
+        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger disabled={recents.length === 0}>
+            <History />
+            Recientes
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="max-w-96">
+            {recents.map((path) => (
+              <DropdownMenuItem
+                key={path}
+                onSelect={() => onOpenRecent(path)}
+                title={path}
+                className="font-mono text-xs"
+              >
+                <span className="truncate">{path}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!hasDocument} onSelect={onSave}>
+          <Save />
+          Guardar
+          <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!hasDocument} onSelect={onSaveAs}>
+          <SaveAll />
+          Guardar como…
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!hasDocument} onSelect={onClose}>
+          <X />
+          Cerrar
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -243,85 +245,36 @@ function ReportGroup({
       <Button
         variant="ghost"
         size="sm"
-        className="shrink-0"
+        className="shrink-0 px-[7px] xl:pl-1.5 xl:pr-2.5"
         onClick={onOpenProperties}
         disabled={!hasDocument}
         aria-label="Informe…"
       >
-        <Settings2 data-icon="inline-start" />
+        <Settings2 />
         <span className="hidden xl:inline">Informe…</span>
       </Button>
       <Button
         variant={showVariables ? 'secondary' : 'ghost'}
         size="sm"
-        className="shrink-0"
+        className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
         onClick={onToggleVariables}
         disabled={!hasDocument}
         aria-label="Variables"
       >
-        <Variable data-icon="inline-start" />
+        <Variable />
         <span className="hidden 2xl:inline">Variables</span>
       </Button>
       <Button
         variant={showHierarchy ? 'secondary' : 'ghost'}
         size="sm"
-        className="shrink-0"
+        className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
         onClick={onToggleHierarchy}
         disabled={!hasDocument}
         aria-label="Jerarquía"
       >
-        <ListTree data-icon="inline-start" />
+        <ListTree />
         <span className="hidden 2xl:inline">Jerarquía</span>
       </Button>
-    </>
-  );
-}
-
-/** Los cinco botones de insertar (click o arrastrar al lienzo). */
-function InsertGroup({
-  disabled,
-  onInsert,
-}: {
-  disabled: boolean;
-  onInsert: (kind: NewItemSpec['kind']) => void;
-}): ReactNode {
-  return (
-    <>
-      <InsertButton
-        kind="textbox"
-        label="Insertar textbox"
-        icon={<Type />}
-        disabled={disabled}
-        onInsert={onInsert}
-      />
-      <InsertButton
-        kind="rectangle"
-        label="Insertar rectángulo"
-        icon={<Square />}
-        disabled={disabled}
-        onInsert={onInsert}
-      />
-      <InsertButton
-        kind="line"
-        label="Insertar línea"
-        icon={<Minus />}
-        disabled={disabled}
-        onInsert={onInsert}
-      />
-      <InsertButton
-        kind="image"
-        label="Insertar imagen"
-        icon={<Image />}
-        disabled={disabled}
-        onInsert={onInsert}
-      />
-      <InsertButton
-        kind="tablix"
-        label="Insertar tabla (Tablix)"
-        icon={<Table />}
-        disabled={disabled}
-        onInsert={onInsert}
-      />
     </>
   );
 }
@@ -376,12 +329,12 @@ function EditGroup({
           <Button
             variant="ghost"
             size="sm"
-            className="shrink-0"
+            className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
             onClick={onUndo}
             disabled={!hasDocument}
             aria-label="Deshacer"
           >
-            <Undo2 data-icon="inline-start" />
+            <Undo2 />
             <span className="hidden 2xl:inline">Deshacer</span>
           </Button>
         </TooltipTrigger>
@@ -392,12 +345,12 @@ function EditGroup({
           <Button
             variant="ghost"
             size="sm"
-            className="shrink-0"
+            className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
             onClick={onRedo}
             disabled={!hasDocument}
             aria-label="Rehacer"
           >
-            <Redo2 data-icon="inline-start" />
+            <Redo2 />
             <span className="hidden 2xl:inline">Rehacer</span>
           </Button>
         </TooltipTrigger>
@@ -476,42 +429,5 @@ function ZoomGroup({
         <TooltipContent>Aumentar zoom</TooltipContent>
       </Tooltip>
     </div>
-  );
-}
-
-/** Botón de la toolbox: click inserta y **arrastrar** suelta el item en el lienzo. */
-function InsertButton({
-  kind,
-  label,
-  icon,
-  disabled,
-  onInsert,
-}: {
-  kind: NewItemSpec['kind'];
-  label: string;
-  icon: ReactNode;
-  disabled: boolean;
-  onInsert: (kind: NewItemSpec['kind']) => void;
-}): ReactNode {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={disabled}
-          draggable={!disabled}
-          onDragStart={(event) => {
-            event.dataTransfer.setData(ITEM_DRAG_TYPE, kind);
-            event.dataTransfer.effectAllowed = 'copy';
-          }}
-          onClick={() => onInsert(kind)}
-          aria-label={label}
-        >
-          {icon}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label} (o arrástralo al lienzo)</TooltipContent>
-    </Tooltip>
   );
 }

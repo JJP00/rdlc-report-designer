@@ -19,6 +19,7 @@ import {
   selectionCells,
   selectionCols,
   selectionRows,
+  selectedCellContents,
   tablixLayout,
   tablixRowsTree,
   tablixTree,
@@ -106,6 +107,37 @@ describe('tablix · layout y celdas', () => {
     expect(findCellAt(TABLIX, 2.5, 0.2)?.content?.id).toBe('B');
     expect(findCellAt(TABLIX, 5.5, 0.6)?.content?.id).toBe('E');
     expect(findCellAt(TABLIX, 9, 9)).toBeUndefined();
+  });
+
+  it('mapea un rango de celdas por columna de rejilla (fusiones incluidas)', () => {
+    // Fila 0: A@0, B(c2)@1-2 (2 celdas para 3 columnas); fila 1: C, D, E.
+    expect(selectedCellContents(TABLIX, { id: 'T', row: 0, col: 0 }).map((i) => i.id)).toEqual([
+      'A',
+    ]);
+    // La columna cubierta por B devuelve su ancla (no el array[2], que no existe).
+    expect(selectedCellContents(TABLIX, { id: 'T', row: 0, col: 2 }).map((i) => i.id)).toEqual([
+      'B',
+    ]);
+    // Rango completo de la fila fusionada: B no se duplica.
+    expect(
+      selectedCellContents(TABLIX, {
+        id: 'T',
+        row: 0,
+        col: 0,
+        endRow: 0,
+        endCol: 2,
+      }).map((i) => i.id),
+    ).toEqual(['A', 'B']);
+    // Rango de dos filas (orden fila a fila).
+    expect(
+      selectedCellContents(TABLIX, {
+        id: 'T',
+        row: 0,
+        col: 0,
+        endRow: 1,
+        endCol: 2,
+      }).map((i) => i.id),
+    ).toEqual(['A', 'B', 'C', 'D', 'E']);
   });
 
   it('localiza la celda por su ancla (fila, columna)', () => {

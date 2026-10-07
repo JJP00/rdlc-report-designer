@@ -26,6 +26,8 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   'setPageMargins',
   // El alto de banda entra en los límites del índice (clamp de inserción).
   'setRegionHeight',
+  // Insertar/quitar una banda entera añade/desaparece items del índice.
+  'setRegionPresent',
   // El ancho de sección es el de las tres bandas: cambian los límites.
   'setSectionWidth',
   // Crean celdas con textbox **nuevos con nombre**: el índice debe verlos para

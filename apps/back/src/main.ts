@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { app, BrowserWindow, ipcMain, session, type WebContents } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, session, type WebContents } from 'electron';
 import log from 'electron-log/main';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -58,6 +58,7 @@ async function createWindow(): Promise<BrowserWindow> {
     height: 950,
     show: false,
     title: 'RDLC Report Designer',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/preload.cjs'),
       contextIsolation: true,
@@ -103,6 +104,10 @@ async function createWindow(): Promise<BrowserWindow> {
 }
 
 async function bootstrap(): Promise<void> {
+  // Sin menú de aplicación nativo (File/Edit/View/Window): las acciones viven
+  // en la toolbar del renderer.
+  Menu.setApplicationMenu(null);
+
   // Permisos (T2): todo denegado salvo escribir en el portapapeles.
   session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => {
     callback(isPermissionAllowed(permission));

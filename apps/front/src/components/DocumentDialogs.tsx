@@ -38,6 +38,8 @@ export interface DocumentDialogsProps {
     region: 'pageHeader' | 'pageFooter',
     options: { printOnFirstPage?: boolean; printOnLastPage?: boolean },
   ) => void;
+  /** Inserta (`true`) o quita (`false`) la banda de página. */
+  onSetRegionPresent: (region: 'pageHeader' | 'pageFooter', present: boolean) => void;
   onSetReportCode: (code: string) => void;
   /** Textbox en edición (editor de texto); `undefined` = cerrado. */
   editingText: TextboxDto | undefined;
@@ -73,6 +75,7 @@ export function DocumentDialogs({
   onSetRegionHeight,
   onSetSectionWidth,
   onSetHeaderFooterOptions,
+  onSetRegionPresent,
   onSetReportCode,
   editingText,
   onEditingTextOpenChange,
@@ -104,6 +107,7 @@ export function DocumentDialogs({
           onSetRegionHeight={onSetRegionHeight}
           onSetSectionWidth={onSetSectionWidth}
           onSetHeaderFooterOptions={onSetHeaderFooterOptions}
+          onSetRegionPresent={onSetRegionPresent}
           onSetReportCode={onSetReportCode}
         />
       ) : null}

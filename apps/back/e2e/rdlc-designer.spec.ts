@@ -2330,6 +2330,43 @@ test('arrastrar un textbox a otro contenedor lo reparenta (con undo)', async () 
     .toBe(true);
 });
 
+test('un hijo de un rectángulo no se escapa al arrastrarlo fuera (como la página)', async () => {
+  // Textbox4 vive en Rectangle1 (encabezado): arrastrarlo mucho más allá de
+  // la caja no debe sacarlo del rectángulo (el drag clama a su contenedor).
+  await selectItemViaPalette('Textbox4');
+  const before = await projection();
+  const rect = findItem(before.page.header.items, 'Rectangle1')!;
+  const rectWidth = lengthToCm(rect.width);
+  const rectHeight = lengthToCm(rect.height);
+
+  const from = await nodeCenter('Textbox4');
+  expect(from).not.toBeNull();
+  await page.mouse.move(from!.x, from!.y);
+  await page.mouse.down();
+  await page.mouse.move(from!.x + 500, from!.y + 400, { steps: 15 });
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => {
+      const proj = await projection();
+      const moved = findItem(proj.page.header.items, 'Textbox4');
+      const r1 = findItem(proj.page.header.items, 'Rectangle1');
+      return {
+        nested: Boolean(r1?.children?.some((child) => child.id === 'Textbox4')),
+        right: moved?.left && moved?.width ? lengthToCm(moved.left) + lengthToCm(moved.width) : 99,
+        bottom: moved?.top && moved?.height ? lengthToCm(moved.top) + lengthToCm(moved.height) : 99,
+      };
+    })
+    .toEqual(
+      expect.objectContaining({
+        nested: true,
+      }),
+    );
+  const moved = findItem((await projection()).page.header.items, 'Textbox4')!;
+  expect(lengthToCm(moved.left) + lengthToCm(moved.width)).toBeLessThanOrEqual(rectWidth + 0.05);
+  expect(lengthToCm(moved.top) + lengthToCm(moved.height)).toBeLessThanOrEqual(rectHeight + 0.05);
+});
+
 test('«Informe…» edita el alto y la impresión del encabezado y el pie', async () => {
   await page.getByRole('button', { name: 'Informe…' }).click();
   const dialog = page.getByRole('dialog');
@@ -2369,6 +2406,106 @@ test('«Informe…» edita el alto y la impresión del encabezado y el pie', asy
   const afterWidth = await projection();
   expect(lengthToCm(afterWidth.page.header.width)).toBeCloseTo(expectedWidth, 2);
   expect(lengthToCm(afterWidth.page.footer.width)).toBeCloseTo(expectedWidth, 2);
+});
+
+test('no hay scroll de página al seleccionar un elemento (el panel no desborda)', async () => {
+  await selectItemViaPalette('Textbox93');
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1),
+    )
+    .toBe(true);
+});
+
+test('«Informe…» quita y vuelve a insertar el encabezado', async () => {
+  await page.getByRole('button', { name: 'Informe…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
+  await dialog.getByRole('button', { name: 'Quitar el encabezado' }).click();
+  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  await expect.poll(async () => (await projection()).page.header.present).toBe(false);
+  // «Aplicar» no cierra: se cierra a mano para reabrir con la banda ya ausente.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  // Se puede volver a insertar; nace con el alto por defecto (1,25 cm).
+  await page.getByRole('button', { name: 'Informe…' }).click();
+  const reopened = page.getByRole('dialog', { name: 'Propiedades del informe' });
+  await expect(reopened.getByRole('button', { name: 'Insertar el encabezado' })).toBeVisible();
+  await reopened.getByRole('button', { name: 'Insertar el encabezado' }).click();
+  await reopened.getByRole('button', { name: 'Aplicar' }).click();
+  await expect.poll(async () => (await projection()).page.header.present).toBe(true);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.header.height))
+    .toBeCloseTo(1.25, 2);
+});
+
+test('los diálogos de edición se redimensionan con la agarradera', async () => {
+  await page.getByRole('button', { name: 'Informe…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
+  await expect(dialog).toBeVisible();
+  await page.waitForTimeout(400); // la animación de entrada reposa
+
+  const grip = page.locator('[data-rdlc-dialog-grip]');
+  await expect(grip).toBeVisible();
+  const before = (await dialog.boundingBox())!;
+  const handle = (await grip.boundingBox())!;
+
+  // Arrastrar la esquina: el diálogo crece (y no se cierra por la interacción).
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2 + 140, handle.y + handle.height / 2 + 40, {
+    steps: 10,
+  });
+  await page.mouse.up();
+  await expect(dialog).toBeVisible();
+  const after = (await dialog.boundingBox())!;
+  expect(after.width).toBeGreaterThan(before.width + 100);
+
+  // Doble clic: vuelve al tamaño original.
+  const handle2 = (await grip.boundingBox())!;
+  await page.mouse.dblclick(handle2.x + handle2.width / 2, handle2.y + handle2.height / 2);
+  await page.waitForTimeout(250);
+  const reset = (await dialog.boundingBox())!;
+  expect(Math.abs(reset.width - before.width)).toBeLessThan(8);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+});
+
+test('sin selección, el inspector muestra las propiedades del informe y aplica', async () => {
+  // Sin nada seleccionado, el panel derecho enseña las propiedades del informe
+  // (en vez del aviso de seleccionar) y refleja el documento abierto.
+  const panel = page.getByRole('region', { name: 'Propiedades del informe' });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
+
+  const before = await projection();
+  await expect(panel.getByLabel('Ancho (cm)', { exact: true })).toHaveValue(
+    lengthToCm(before.page.width).toFixed(2),
+  );
+  await expect(panel.getByLabel('Alto (cm)', { exact: true })).toHaveValue(
+    lengthToCm(before.page.height).toFixed(2),
+  );
+  await expect(panel.getByLabel('Alto del encabezado (cm)', { exact: true })).toHaveValue(
+    Math.max(lengthToCm(before.page.header.height), 1.25).toFixed(2),
+  );
+
+  // «Aplicar» desde el propio panel: sube el encabezado por encima de su contenido.
+  const contentBottom = Math.max(
+    0,
+    ...before.page.header.items.map((item) => lengthToCm(item.top) + lengthToCm(item.height)),
+  );
+  const target = Math.round((contentBottom + 1) * 100) / 100;
+  await panel.getByLabel('Alto del encabezado (cm)', { exact: true }).fill(String(target));
+  await panel.getByRole('button', { name: 'Aplicar' }).click();
+  await expect.poll(() => regionHeight('header')).toBeCloseTo(target, 2);
+
+  // Con selección manda el panel del elemento; al deseleccionar vuelve el informe.
+  await selectItemViaPalette('Textbox4');
+  await expect(panel).toBeHidden();
+  await page.keyboard.press('Escape'); // Textbox4 → Rectangle1
+  await page.keyboard.press('Escape'); // Rectangle1 → sin selección
+  await expect(panel).toBeVisible();
 });
 
 test('el panel de propiedades renombra el elemento (con validación y undo)', async () => {
@@ -3324,7 +3461,8 @@ test('la regla marca el área imprimible y las bandas de encabezado y pie', asyn
   await expect(page.getByTitle('Área imprimible')).toHaveCount(2);
 
   // La banda del encabezado (regla vertical) mide su alto real en pantalla.
-  const header = page.getByTitle('Encabezado');
+  // Título exacto: los tooltips del panel de propiedades contienen la palabra.
+  const header = page.getByTitle('Encabezado', { exact: true });
   await expect(header).toHaveCount(1);
   const box = (await header.boundingBox())!;
   expect(box).not.toBeNull();
@@ -3332,7 +3470,7 @@ test('la regla marca el área imprimible y las bandas de encabezado y pie', asyn
   expect(Math.abs(box.height - expectedPx)).toBeLessThan(2);
 
   // El pie también está delimitado (la proyección lo trae con alto > 0).
-  await expect(page.getByTitle('Pie')).toHaveCount(1);
+  await expect(page.getByTitle('Pie', { exact: true })).toHaveCount(1);
 });
 
 /* ----------------------- U6 · zoom: presets y atajos ---------------------- */
@@ -3383,6 +3521,28 @@ test('el zoom tiene presets, «ajustar al ancho» y atajos', async () => {
     await page.getByRole('button', { name: 'Reducir zoom' }).click();
   }
   await expect.poll(stageWidth).toBeCloseTo(a4Px * 0.6, 0);
+});
+
+/* ------------------------ U11 · tema claro/oscuro -------------------------- */
+
+test('la toolbar alterna el modo oscuro (blanco y negro)', async () => {
+  const html = page.locator('html');
+  await expect(html).not.toHaveClass(/dark/);
+
+  await page.getByRole('button', { name: 'Modo oscuro' }).click();
+  await expect(html).toHaveClass(/dark/);
+  // El lienzo también cambia: el fondo de puntos se vuelve casi negro.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => getComputedStyle(document.querySelector('.canvas-dots')!).backgroundColor,
+      ),
+    )
+    .toBe('rgb(23, 23, 27)');
+
+  // Y se puede volver al modo claro (el botón cambia de icono y etiqueta).
+  await page.getByRole('button', { name: 'Modo claro' }).click();
+  await expect(html).not.toHaveClass(/dark/);
 });
 
 /* ------------------ U7 · paleta: acciones nuevas del editor ---------------- */
@@ -3474,6 +3634,34 @@ test('Ctrl+S guarda y Ctrl+K no se cuela dentro de un diálogo', async () => {
   await expect(dialog).toBeHidden();
 });
 
+test('el diálogo de cambios sin guardar deja aire alrededor de los botones', async () => {
+  // Ensucia el documento y pide cerrar: antes los tres botones desbordaban el
+  // pie y «Guardar y cerrar» quedaba pegado (2 px) al borde del diálogo.
+  await selectItemViaPalette('Textbox4');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(600);
+  await page.getByRole('button', { name: 'Fichero' }).click();
+  await page.getByRole('menuitem', { name: 'Cerrar' }).click();
+
+  const dialog = page.getByTestId('unsaved-changes-dialog');
+  await expect(dialog.getByRole('button', { name: 'Guardar y cerrar' })).toBeVisible();
+  const gaps = await page.evaluate(() => {
+    const dialogElement = document.querySelector('[data-testid="unsaved-changes-dialog"]')!;
+    const buttons = [...dialogElement.querySelectorAll('button')];
+    const last = buttons[buttons.length - 1]!;
+    const d = dialogElement.getBoundingClientRect();
+    const b = last.getBoundingClientRect();
+    return { right: d.right - b.right, bottom: d.bottom - b.bottom };
+  });
+  // El pie respeta su `p-4`: ni se pega al borde ni se sale del diálogo.
+  expect(gaps.right).toBeGreaterThanOrEqual(12);
+  expect(gaps.bottom).toBeGreaterThanOrEqual(12);
+
+  // Cancelar conserva el documento (el undo del reset lo deja como estaba).
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test('Jerarquía y breadcrumb navegan por los contenedores', async () => {
   await selectItemViaPalette('Textbox4'); // encabezado, dentro de Rectangle1
 
@@ -3519,7 +3707,7 @@ test('el lote compara el estilo efectivo (Arial/Visible/8pt) sin declararlo en e
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('2 elementos');
   await expect(page.getByLabel('Fuente de la selección')).toHaveValue('Arial');
-  await expect(page.getByLabel('Tamaño de la selección (pt)', { exact: true })).toHaveValue('8.00');
+  await expect(page.getByLabel('Tamaño de la selección (pt)', { exact: true })).toHaveValue('8');
   await expect(page.getByLabel('Visibilidad de la selección')).toHaveValue('visible');
 
   // Borde izquierdo mezclado (93 Sólido, 95 Sin borde): se marca «—» y se edita.

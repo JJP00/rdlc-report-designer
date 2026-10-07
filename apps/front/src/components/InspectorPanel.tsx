@@ -83,6 +83,11 @@ export interface InspectorPanelProps {
   embeddedImages?: EmbeddedImageDto[];
   /** Abre el editor de texto del textbox (párrafos → runs). */
   onEditText: (id: string) => void;
+  /**
+   * Propiedades del informe ya montadas: sin selección sustituyen al panel de
+   * item (lo decide la columna, que conoce selección y proyección).
+   */
+  reportProperties?: ReactNode;
 }
 
 /** Columna derecha: estructura del Tablix + propiedades del item seleccionado. */
@@ -122,9 +127,14 @@ export function InspectorPanel({
   onSetImageOptions,
   embeddedImages,
   onEditText,
+  reportProperties,
 }: InspectorPanelProps): ReactNode {
+  // `relative`: los controles `sr-only` (p. ej. `input[type=color]`) son
+  // absolutos; sin un ancestro posicionado aquí su bloque contenedor sería
+  // `#root` (relative) y su posición estática hincharía el scroll de la
+  // **página** al seleccionar un elemento (el panel se podía desplazar).
   return (
-    <aside className="flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
+    <aside className="relative flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
       {selectedItems.length > 1 ? (
         <MultiSelectionPanel
           items={selectedItems}
@@ -158,24 +168,26 @@ export function InspectorPanel({
           onOpenFilters={() => onOpenTablixFilters(tablix.id)}
         />
       ) : null}
-      {selectedItems.length > 1 ? null : (
-        <ItemPanels
-          item={item}
-          cellContent={cellContent}
-          onSetLocation={onSetLocation}
-          onSetSize={onSetSize}
-          onSetStyle={onSetStyle}
-          onSetName={onSetName}
-          onSetVisibility={onSetVisibility}
-          onSetItemOptions={onSetItemOptions}
-          onSetPageBreak={onSetPageBreak}
-          onSetText={onSetText}
-          onSetLabel={onSetLabel}
-          onSetImageOptions={onSetImageOptions}
-          embeddedImages={embeddedImages}
-          onEditText={onEditText}
-        />
-      )}
+      {selectedItems.length > 1
+        ? null
+        : (reportProperties ?? (
+            <ItemPanels
+              item={item}
+              cellContent={cellContent}
+              onSetLocation={onSetLocation}
+              onSetSize={onSetSize}
+              onSetStyle={onSetStyle}
+              onSetName={onSetName}
+              onSetVisibility={onSetVisibility}
+              onSetItemOptions={onSetItemOptions}
+              onSetPageBreak={onSetPageBreak}
+              onSetText={onSetText}
+              onSetLabel={onSetLabel}
+              onSetImageOptions={onSetImageOptions}
+              embeddedImages={embeddedImages}
+              onEditText={onEditText}
+            />
+          ))}
     </aside>
   );
 }

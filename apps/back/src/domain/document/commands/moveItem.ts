@@ -5,6 +5,7 @@ import { insertCanonical } from '../geometry/geometry.js';
 import { formatLength, type Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome, DomainCommand } from './CommandContext.js';
+import { ensureBandGeometry } from './bandGeometry.js';
 import { growContainerToFit } from './growContainer.js';
 import { detach, moveNode, restore, setNodeTextChange, type Detached } from './nodeChanges.js';
 import { findScope, resolveScope } from './scope.js';
@@ -56,6 +57,10 @@ export function applyMoveItem(
   } else {
     if (command.top) writePosition(node, 'Top', command.top, inverse);
     if (command.left) writePosition(node, 'Left', command.left, inverse);
+    // Una banda (cuerpo/cabecera/pie) exige `Width`/`Height` explícitos: RB
+    // estira al tamaño de la banda el item que no los declara y lo pinta
+    // encima (su fondo blanco tapa la tabla → el informe parece vacío).
+    inverse.push(...ensureBandGeometry(node, container, command.top, command.left));
   }
 
   // Mover: mismo contenedor con índice posterior se corre una posición (el

@@ -1,4 +1,5 @@
 import type { ItemDto, ProjectionDto } from '@rdlc-designer/contracts';
+import { tablixLayout } from './tablix';
 
 /**
  * Jerarquía del informe (U4): la ruta de contenedores de un elemento (para el
@@ -72,16 +73,17 @@ function pathInItems(items: ItemDto[], id: string): BreadcrumbEntry[] | undefine
     if (inChildren) return [itemEntry(item), ...inChildren];
 
     if (item.kind === 'tablix') {
-      const rows = item.body?.rows ?? [];
-      for (let row = 0; row < rows.length; row += 1) {
-        const cells = rows[row]?.cells ?? [];
-        for (let col = 0; col < cells.length; col += 1) {
-          const content = cells[col]?.content;
-          if (!content) continue;
-          if (content.id === id) return [itemEntry(item), cellEntry(item.id, row, col), itemEntry(content)];
-          const inCell = pathInItems([content], id);
-          if (inCell) return [itemEntry(item), cellEntry(item.id, row, col), ...inCell];
+      // Las cajas del layout dan la **columna de rejilla** de cada ancla: con
+      // celdas fusionadas el índice del array no coincide (los rellenos no se
+      // proyectan) y la celda del breadcrumb saldría mal.
+      for (const box of tablixLayout(item).cells) {
+        const content = box.content;
+        if (!content) continue;
+        if (content.id === id) {
+          return [itemEntry(item), cellEntry(item.id, box.row, box.col), itemEntry(content)];
         }
+        const inCell = pathInItems([content], id);
+        if (inCell) return [itemEntry(item), cellEntry(item.id, box.row, box.col), ...inCell];
       }
     }
   }
@@ -131,19 +133,16 @@ export function breadcrumbEntries(
 function itemNode(item: ItemDto): HierarchyNode {
   const children: HierarchyNode[] = childItems(item).map(itemNode);
   if (item.kind === 'tablix') {
-    const rows = item.body?.rows ?? [];
-    for (let row = 0; row < rows.length; row += 1) {
-      const cells = rows[row]?.cells ?? [];
-      for (let col = 0; col < cells.length; col += 1) {
-        const content = cells[col]?.content;
-        children.push({
-          key: `${item.id}-${row}-${col}`,
-          label: `Celda ${row + 1},${col + 1}`,
-          kind: 'cell',
-          target: { kind: 'cell', id: item.id, row, col },
-          children: content ? [itemNode(content)] : [],
-        });
-      }
+    // Una entrada por celda **ancla** (rejilla), no por índice del array: en las
+    // filas con fusiones el índice y la columna difieren.
+    for (const box of tablixLayout(item).cells) {
+      children.push({
+        key: `${item.id}-${box.row}-${box.col}`,
+        label: `Celda ${box.row + 1},${box.col + 1}`,
+        kind: 'cell',
+        target: { kind: 'cell', id: item.id, row: box.row, col: box.col },
+        children: box.content ? [itemNode(box.content)] : [],
+      });
     }
   }
   return {

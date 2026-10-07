@@ -489,7 +489,7 @@ describe('F2 · addColumn / deleteColumn', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('respeto del ColSpan: insertar dentro lo alarga; la fila no gana celda y las demás sí', () => {
+  it('respeto del ColSpan: insertar dentro lo alarga con un relleno en la fila SSRS', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
     const tablix = index.get('LinesTable');
     const row = rows(tablix)[2]!;
@@ -507,8 +507,15 @@ describe('F2 · addColumn / deleteColumn', () => {
     if (!applied.isRight()) return;
 
     expect(spanned.child('CellContents')?.child('ColSpan')?.text()).toBe('7');
-    // La fila del span mantiene sus celdas; una fila normal gana una.
-    expect(rowCells(rows(index.get('LinesTable'))[2])).toHaveLength(spanCellsBefore);
+    // BC/SSRS: una celda por columna; la fila del span gana una celda de relleno
+    // (vacía) para la columna nueva y las demás ganan una celda con textbox.
+    expect(rowCells(rows(index.get('LinesTable'))[2])).toHaveLength(spanCellsBefore + 1);
+    expect(
+      rows(index.get('LinesTable'))[2]
+        ?.child('TablixCells')
+        ?.children('TablixCell')[3]
+        ?.child('CellContents'),
+    ).toBeUndefined();
     expect(rowCells(rows(index.get('LinesTable'))[0])).toHaveLength(normalCellsBefore + 1);
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
@@ -516,10 +523,11 @@ describe('F2 · addColumn / deleteColumn', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('respeto del ColSpan al eliminar: la celda fusionada se acorta', () => {
+  it('respeto del ColSpan al eliminar: la celda fusionada se acorta y la fila SSRS pierde su relleno', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
     const row = rows(index.get('LinesTable'))[2]!;
     const spanned = row.child('TablixCells')?.children('TablixCell')[1]!;
+    const cellsBefore = rowCells(row).length;
 
     const applied = applyCommand(
       { root: doc.root, index },
@@ -528,6 +536,11 @@ describe('F2 · addColumn / deleteColumn', () => {
     expect(applied.isRight()).toBe(true);
     if (!applied.isRight()) return;
     expect(spanned.child('CellContents')?.child('ColSpan')?.text()).toBe('5');
+    // Una celda por columna: al quitar la columna desaparece también su relleno.
+    expect(rowCells(rows(index.get('LinesTable'))[2])).toHaveLength(cellsBefore - 1);
+    expect(rowCells(rows(index.get('LinesTable'))[2])).toHaveLength(
+      columns(index.get('LinesTable')).length,
+    );
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
@@ -653,8 +666,12 @@ describe('F2 · borrado en lote y fusión de celdas', () => {
 
     const anchor = rowCells(rows(index.get('LinesTable2'))[0])[0];
     expect(anchor?.child('CellContents')?.child('ColSpan')?.text()).toBe('2');
-    // La celda cubierta desaparece de su fila; las demás filas no se tocan.
-    expect(rowCells(rows(index.get('LinesTable2'))[0])).toHaveLength(row0Before - 1);
+    // La celda cubierta se queda como relleno vacío (BC/SSRS exigen una celda
+    // por columna: RB lanza «índice fuera de intervalo» si desaparece); las
+    // demás filas no se tocan.
+    const row0After = rowCells(rows(index.get('LinesTable2'))[0]);
+    expect(row0After).toHaveLength(row0Before);
+    expect(row0After[1]?.child('CellContents')).toBeUndefined();
     expect(rowCells(rows(index.get('LinesTable2'))[1])).toHaveLength(row1Before);
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
@@ -727,8 +744,97 @@ describe('F2 · borrado en lote y fusión de celdas', () => {
   });
 });
 
+describe('F2 · convención SSRS/BC (una celda por columna)', () => {
+  it('mergeCells vacía la celda cubierta sin quitarla (fila de BC)', () => {
+    const { xml, doc, index } = open('SalesShipment.rdlc');
+    const row = rows(index.get('SalesLine'))[2]!;
+    const cellsBefore = rowCells(row).length;
+
+    // `Textbox55` (columna 6) y `Textbox64` (columna 7): detrás de un `ColSpan`
+    // con celdas de relleno.
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'mergeCells', id: 'SalesLine', row: 2, col: 6, rowSpan: 1, colSpan: 2 },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const after = rows(index.get('SalesLine'))[2]!;
+    // Una celda por columna: la cubierta se queda como relleno vacío.
+    expect(rowCells(after)).toHaveLength(cellsBefore);
+    expect(rowCells(after)).toHaveLength(columns(index.get('SalesLine')).length);
+    expect(rowCells(after)[6]?.child('CellContents')?.child('ColSpan')?.text()).toBe('2');
+    expect(rowCells(after)[7]?.child('CellContents')).toBeUndefined();
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('unmergeCells rellena el hueco existente en vez de insertar una celda', () => {
+    const { doc, index } = open('SalesShipment.rdlc');
+    const merged = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'mergeCells', id: 'SalesLine', row: 2, col: 6, rowSpan: 1, colSpan: 2 },
+    );
+    expect(merged.isRight()).toBe(true);
+    if (!merged.isRight()) return;
+    const afterMerge = adapter.serialize(doc);
+    const cellsAfterMerge = rowCells(rows(index.get('SalesLine'))[2]).length;
+
+    const split = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'unmergeCells', id: 'SalesLine', row: 2, col: 6 },
+    );
+    expect(split.isRight()).toBe(true);
+    if (!split.isRight()) return;
+
+    expect(rowCells(rows(index.get('SalesLine'))[2])).toHaveLength(cellsAfterMerge);
+    const filled = rowCells(rows(index.get('SalesLine'))[2])[7];
+    expect(cellTextbox(filled)?.attribute('Name')).toMatch(/^Textbox\d+$/);
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, split.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(afterMerge);
+  });
+
+  it('insertar en una celda usa la columna de rejilla (detrás de un ColSpan)', () => {
+    const { doc, index } = open('SalesShipment.rdlc');
+    const ctx = { root: doc.root, index };
+    const scope = { kind: 'tablixCell' as const, id: 'SalesLine', row: 2, col: 6 };
+    const item = {
+      kind: 'textbox' as const,
+      name: 'TxtColumnaRejilla',
+      top: { value: 0, unit: 'cm' as const },
+      left: { value: 0, unit: 'cm' as const },
+      width: { value: 1, unit: 'cm' as const },
+      height: { value: 0.4, unit: 'cm' as const },
+      text: '',
+    };
+
+    // La columna 6 es `Textbox55`, detrás de un `ColSpan` de 5 y sus rellenos.
+    const applied = applyCommand(ctx, { cmd: 'insertItem', scope, index: 0, item });
+    expect(applied.isRight()).toBe(true);
+    const cell = rows(index.get('SalesLine'))[2]?.child('TablixCells')?.children('TablixCell')[6];
+    expect(cell?.child('CellContents')?.children('Textbox')[0]?.attribute('Name')).toBe(
+      'TxtColumnaRejilla',
+    );
+
+    // Una columna cubierta por el `ColSpan` es relleno: no admite contenido.
+    const covered = applyCommand(ctx, {
+      cmd: 'insertItem',
+      scope: { kind: 'tablixCell', id: 'SalesLine', row: 2, col: 3 },
+      index: 0,
+      item: { ...item, name: 'TxtRelleno' },
+    });
+    expect(covered.isLeft()).toBe(true);
+  });
+});
+
 describe('F2 · celdas fusionadas verticales', () => {
-  it('insertar en medio de un RowSpan lo alarga y la fila nueva nace sin esa celda', () => {
+  it('insertar en medio de un RowSpan lo alarga y la fila nueva nace con un relleno', () => {
     const { doc, index } = openXml(ROWSPAN_XML);
     const applied = applyCommand({ root: doc.root, index }, { cmd: 'addRow', id: 'T', row: 1 });
     expect(applied.isRight()).toBe(true);
@@ -744,9 +850,11 @@ describe('F2 · celdas fusionadas verticales', () => {
         ?.child('RowSpan')
         ?.text(),
     ).toBe('3');
-    // La fila nueva solo tiene la celda de la columna no cubierta.
-    expect(rowCells(rowsAfter[1])).toHaveLength(1);
-    expect(cellTextbox(rowCells(rowsAfter[1])[0])?.attribute('Name')).toMatch(/^Textbox\d+$/);
+    // La fila nueva nace con una celda por columna: relleno vacío en la columna
+    // cubierta por el RowSpan y textbox en la libre.
+    expect(rowCells(rowsAfter[1])).toHaveLength(2);
+    expect(rowCells(rowsAfter[1])[0]?.child('CellContents')).toBeUndefined();
+    expect(cellTextbox(rowCells(rowsAfter[1])[1])?.attribute('Name')).toMatch(/^Textbox\d+$/);
   });
 
   it('eliminar una fila cubierta por un RowSpan lo acorta y el undo es exacto', () => {

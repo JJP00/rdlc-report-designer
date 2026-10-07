@@ -14,7 +14,7 @@ export interface RunEditorProps {
   /** Posición 1-based para la etiqueta. */
   position: number;
   run: TextRunDto;
-  /** Id del `<datalist>` compartido con las fuentes del sistema. */
+  /** Id del `<datalist>` compartido con las fuentes disponibles en Business Central. */
   fontListId: string;
   canRemove: boolean;
   canMoveUp: boolean;
@@ -160,16 +160,17 @@ export function RunEditor({
 
         <NumberInput
           className="h-6 w-14 shrink-0"
-          value={style?.fontSize ? Math.round(toPt(style.fontSize) * 10) / 10 : null}
+          value={style?.fontSize ? Math.round(toPt(style.fontSize)) : null}
           label={`Tamaño del run ${position}`}
-          title="Tamaño (pt): flechas o arrastre"
+          title="Tamaño (pt): flechas o arrastre (enteros)"
           axis="x"
           min={4}
           max={72}
           step={1}
           perPx={0.1}
+          decimals={0}
           placeholder="pt"
-          onCommit={(pt) => onStyle({ fontSize: { value: pt, unit: 'pt' } })}
+          onCommit={(pt) => onStyle({ fontSize: { value: Math.round(pt), unit: 'pt' } })}
         />
 
         <Button

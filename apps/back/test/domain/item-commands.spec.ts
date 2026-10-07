@@ -115,6 +115,32 @@ describe('F1 · insertItem', () => {
     expect(result.isLeft()).toBe(true);
   });
 
+  it('un nombre libre no choca solo por mayúsculas (RB resuelve con VB)', () => {
+    const doc = adapter.parse(TEXTBOX_LOWERCASE_XML);
+    const index = DocumentIndex.build(doc.root);
+    expect(index.get('textbox1')).toBeDefined();
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'insertItem',
+        scope: { kind: 'body' },
+        index: 0,
+        item: {
+          kind: 'textbox',
+          top: { value: 1, unit: 'cm' },
+          left: { value: 1, unit: 'cm' },
+          width: { value: 2, unit: 'cm' },
+          height: { value: 1, unit: 'cm' },
+        },
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+    // `Textbox1` chocaría con `textbox1` en Report Builder: coge el siguiente.
+    expect(applied.value.createdId).toBe('Textbox2');
+  });
+
   it('inserta dentro de un rectángulo (scope rectangle)', () => {
     const { doc, index } = open('SalesInvoiceESP.rdlc');
     const inside = applyCommand(
@@ -335,6 +361,36 @@ function isDescendantOf(node: RdlcNode, ancestor: RdlcNode): boolean {
   }
   return false;
 }
+
+/** Informe mínimo con un textbox en minúscula (`textbox1`) en el cuerpo. */
+const TEXTBOX_LOWERCASE_XML = `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Textbox Name="textbox1">
+            <Top>0.5cm</Top>
+            <Left>0.5cm</Left>
+            <Height>0.6cm</Height>
+            <Width>3cm</Width>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>x</Value>
+                  </TextRun>
+                </TextRuns>
+              </Paragraph>
+            </Paragraphs>
+          </Textbox>
+        </ReportItems>
+        <Height>5cm</Height>
+      </Body>
+      <Width>18cm</Width>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
 
 describe('F1 · deleteItem', () => {
   it('elimina el elemento y el undo lo restaura byte a byte', () => {

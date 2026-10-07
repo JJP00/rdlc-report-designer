@@ -167,16 +167,17 @@ function freeName(container: RdlcNode, kind: string): string {
   let root = container;
   while (root.parent) root = root.parent;
 
+  // RB/VB resuelven nombres sin distinguir mayúsculas: `textbox3` ocupa `Textbox3`.
   const used = new Set<string>();
   const visit = (node: RdlcNode): void => {
     const name = node.attribute('Name');
-    if (name) used.add(name);
+    if (name) used.add(name.toLowerCase());
     for (const child of node.children()) visit(child);
   };
   visit(root);
 
   for (let index = 1; ; index += 1) {
     const candidate = `${prefix}${index}`;
-    if (!used.has(candidate)) return candidate;
+    if (!used.has(candidate.toLowerCase())) return candidate;
   }
 }

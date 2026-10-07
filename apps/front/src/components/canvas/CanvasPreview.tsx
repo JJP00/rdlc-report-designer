@@ -15,8 +15,10 @@ import { hitTestItems } from '@/lib/hit';
 import { pageRulerSegments } from '@/lib/pageResize';
 import {
   cm,
+  findItem,
   findItemInList,
   findItemScope,
+  findParentItemId,
   isCellContent,
   scopeInsideItem,
   toCm,
@@ -233,11 +235,21 @@ export function CanvasPreview({
     if (drop && stage && onMoveItemToScope) {
       const hit = hitAtEvent(stage, zoom, layout, drop);
       const current = findItemScope(projection, id);
+      // Un hijo de un rectángulo no se «escapa» al fondo de la banda (el
+      // contenedor es un límite duro, como la página); a otro contenedor sí
+      // se puede reparentar (soltándolo encima de él).
+      const dropsOnBand =
+        hit !== undefined &&
+        (hit.scope.kind === 'body' ||
+          hit.scope.kind === 'pageHeader' ||
+          hit.scope.kind === 'pageFooter');
+      const rectangleKeepsChild = current?.kind !== 'rectangle' || !dropsOnBand;
       if (
         hit &&
         current &&
         !sameScope(current, hit.scope) &&
-        !scopeInsideItem(projection, hit.scope, id)
+        !scopeInsideItem(projection, hit.scope, id) &&
+        rectangleKeepsChild
       ) {
         onMoveItemToScope(
           id,
@@ -282,7 +294,7 @@ export function CanvasPreview({
   return (
     <div
       ref={scrollRef}
-      className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
+      className="canvas-dots flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
       onContextMenu={(event) => {
         const stage = stageRef.current;
         const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
@@ -322,7 +334,7 @@ export function CanvasPreview({
             height={stageHeight}
             scaleX={zoom}
             scaleY={zoom}
-            style={{ background: '#e5e7eb' }}
+            style={{ background: '#dcdce2' }}
             onMouseDown={marqueeHandlers.onMouseDown}
             onMouseMove={marqueeHandlers.onMouseMove}
             onMouseUp={marqueeHandlers.onMouseUp}
@@ -548,9 +560,18 @@ function computeSelectedFrame(
     const item = findItemInList(band.region.items, frameId);
     if (!item) continue;
     const isDirectChild = band.region.items.some((candidate) => candidate.id === frameId);
-    const bounds = isDirectChild
+    // Límite del contenedor: la banda si es hijo directo; si no, el rectángulo
+    // padre (para que los tiradores tampoco lo saquen de la caja).
+    let bounds = isDirectChild
       ? { width: toCm(band.region.width), height: toCm(band.region.height) }
       : undefined;
+    if (!bounds) {
+      const parentId = findParentItemId(projection, frameId);
+      const parent = parentId ? findItem(projection, parentId) : undefined;
+      if (parent?.kind === 'rectangle') {
+        bounds = { width: toCm(parent.width), height: toCm(parent.height) };
+      }
+    }
 
     if (item.kind === 'unknown') return { ...(bounds ? { bounds } : {}) };
     if (item.kind === 'tablix') {

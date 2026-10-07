@@ -169,4 +169,52 @@ describe('F1 · journal de comandos', () => {
     expect(saved.isRight()).toBe(true);
     if (saved.isRight()) expect(saved.value.bytesIdentical).toBe(true);
   });
+
+  it('quitar/insertar una banda reindexa tras el undo (los items del header vuelven al índice)', async () => {
+    const { service, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'SalesCreditMemoESP.rdlc');
+    const opened = await service.open(path);
+    expect(opened.isRight()).toBe(true);
+    if (!opened.isRight()) return;
+    const commands = new CommandService(service);
+    const sessionId = opened.value.sessionId;
+
+    // `Textbox4` vive en el PageHeader: quitar la banda, insertar una vacía y
+    // fijar su alto (estructural ⇒ reindexa con la banda nueva vacía).
+    expect(
+      commands
+        .execute(sessionId, { cmd: 'setRegionPresent', region: 'pageHeader', present: false })
+        .isRight(),
+    ).toBe(true);
+    expect(
+      commands
+        .execute(sessionId, { cmd: 'setRegionPresent', region: 'pageHeader', present: true })
+        .isRight(),
+    ).toBe(true);
+    expect(
+      commands
+        .execute(sessionId, {
+          cmd: 'setRegionHeight',
+          region: 'pageHeader',
+          height: { value: 1.25, unit: 'cm' },
+        })
+        .isRight(),
+    ).toBe(true);
+
+    // Deshacer los tres: al restaurar la banda original el índice debe volver a
+    // conocer sus items (sin el rebuild, `setName` diría «no existe»).
+    for (let step = 0; step < 3; step += 1) {
+      expect(commands.undo(sessionId).isRight()).toBe(true);
+    }
+
+    const target = service.getEditTarget(sessionId);
+    expect(target.isRight()).toBe(true);
+    if (!target.isRight()) return;
+    expect(target.value.index.get('Textbox4')).toBeDefined();
+    expect(
+      commands
+        .execute(sessionId, { cmd: 'setName', id: 'Textbox4', name: 'Textbox4Renombrado' })
+        .isRight(),
+    ).toBe(true);
+  });
 });

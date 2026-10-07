@@ -155,6 +155,36 @@ describe('lib/projection', () => {
     expect(findSiblings(withRectangle, 'A1')?.map((item) => item.id)).toEqual(['A1', 'A2']);
   });
 
+  it('el scope de una celda usa la columna de rejilla (ColSpan acumulado)', () => {
+    const projection = makeProjection();
+    const tablix = findItem(projection, 'Tablix1');
+    if (tablix?.kind !== 'tablix') throw new Error('sin tablix');
+    const merged: TextboxDto = textbox('TextboxMerged');
+    const after: TextboxDto = textbox('TextboxAfter');
+    tablix.body.columns = [
+      { value: 2, unit: 'cm' },
+      { value: 3, unit: 'cm' },
+      { value: 4, unit: 'cm' },
+    ];
+    tablix.body.rows[0] = {
+      height: { value: 3, unit: 'cm' },
+      cells: [{ colSpan: 2, content: merged }, { content: after }],
+    };
+
+    expect(findItemScope(projection, 'TextboxMerged')).toEqual({
+      kind: 'tablixCell',
+      id: 'Tablix1',
+      row: 0,
+      col: 0,
+    });
+    expect(findItemScope(projection, 'TextboxAfter')).toEqual({
+      kind: 'tablixCell',
+      id: 'Tablix1',
+      row: 0,
+      col: 2,
+    });
+  });
+
   it('detecta scopes dentro del propio item (nada de reparentar en ciclo)', () => {
     const projection = makeProjection();
     expect(scopeInsideItem(projection, { kind: 'rectangle', id: 'Rectangle1' }, 'Rectangle1')).toBe(

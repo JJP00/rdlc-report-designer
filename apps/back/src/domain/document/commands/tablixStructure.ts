@@ -24,8 +24,10 @@ import {
   memberChainAt,
   memberLeafRange,
   positionedCells,
+  tablixCells,
   tablixColumns,
   tablixRows,
+  usesSlotCells,
   type PositionedCell,
 } from './tablixParts.js';
 
@@ -37,10 +39,17 @@ import {
  *   `TablixRowHierarchy` (y cada columna de `TablixColumnHierarchy`); los
  *   comandos insertan/eliminan **ambos** a la vez.
  * - Las celdas fusionadas se respetan: insertar en medio de un `RowSpan`/
- *   `ColSpan` lo alarga y la fila/columna nueva nace sin celda en las
- *   posiciones cubiertas; al eliminar, los spans que pasan por encima se
- *   acortan. Si la operación dejaría filas huérfanas (una celda con `RowSpan`
- *   que se elimina) o la rejilla sin filas/columnas, se rechaza con un motivo.
+ *   `ColSpan` lo alarga y la fila/columna nueva nace con celdas de relleno
+ *   (vacías) en las posiciones cubiertas; al eliminar, los spans que pasan por
+ *   encima se acortan. Si la operación dejaría filas huérfanas (una celda con
+ *   `RowSpan` que se elimina) o la rejilla sin filas/columnas, se rechaza con un
+ *   motivo.
+ * - Convención de fusión: BC/SSRS escriben **una `TablixCell` por columna** y
+ *   dejan celdas de relleno vacías bajo cada `ColSpan`; esas filas se mantienen
+ *   así al fusionar (la celda cubierta se vacía, no se quita), separar (se
+ *   rellena el hueco existente) y al añadir/quitar columnas (el relleno nace o
+ *   desaparece con la columna). Las filas ya fusionadas por versiones anteriores
+ *   del editor (solo anclas) conservan su forma.
  * - Las celdas nuevas nacen con un **Textbox vacío** dentro (como Report
  *   Builder y como al separar celdas): listas para escribir y seleccionables,
  *   sin celdas muertas. Sin `Width/Height`: el tamaño lo pone la celda.
@@ -301,7 +310,7 @@ function totalExpressions(
   const byColumn: (string | undefined)[] = [];
 
   for (let column = 0; column < columnCount; column += 1) {
-    const field = detailFieldAt(rows, range, column);
+    const field = detailFieldAt(rows, range, column, columnCount);
     if (field === undefined) {
       byColumn.push(undefined);
       continue;
@@ -324,12 +333,13 @@ function detailFieldAt(
   rows: RdlcNode[],
   range: { start: number; end: number },
   column: number,
+  columnCount: number,
 ): string | undefined {
   for (let index = range.end; index >= range.start; index -= 1) {
     const row = rows[index];
     if (!row) continue;
-    const entry = positionedCells(row).find(
-      (cell) => column >= cell.col && column < cell.col + cell.colSpan,
+    const entry = positionedCells(row, columnCount).find(
+      (cell) => !cell.placeholder && column >= cell.col && column < cell.col + cell.colSpan,
     );
     if (!entry) continue;
     const content = entry.cell
@@ -408,8 +418,10 @@ function performAddRow(
   const cells = row.createElement('TablixCells');
   const takenNames = new Set<string>();
   for (let column = 0; column < columns.length; column += 1) {
-    if (!covered[column])
-      cells.appendChild(createCellWithTextbox(ctx, row, takenNames, textFor?.(column)));
+    // La columna cubierta por un `RowSpan` de arriba nace como celda de relleno:
+    // la fila mantiene una celda por columna (convención SSRS/BC).
+    if (covered[column]) cells.appendChild(row.createElement('TablixCell'));
+    else cells.appendChild(createCellWithTextbox(ctx, row, takenNames, textFor?.(column)));
   }
   row.appendChild(cells);
   rowsContainer.insertChildAt(row, plan.row);
@@ -436,7 +448,7 @@ export function applyDeleteRow(
 ): Either<DomainError, CommandOutcome> {
   const parts = tablixParts(ctx, command.id);
   if (parts.isLeft()) return left(parts.value);
-  const { hierarchy, rows } = parts.value;
+  const { columns, hierarchy, rows } = parts.value;
 
   if (rows.length <= 1) {
     return left(CommandRejectedError.create('No se puede dejar el Tablix sin filas'));
@@ -448,7 +460,7 @@ export function applyDeleteRow(
   }
 
   const row = rows[command.row]!;
-  for (const entry of positionedCells(row)) {
+  for (const entry of positionedCells(row, columns.length)) {
     if (entry.rowSpan > 1) {
       return left(
         CommandRejectedError.create(
@@ -469,7 +481,7 @@ export function applyDeleteRow(
 
   const changes: TextChange[] = [];
   for (let index = 0; index < command.row; index += 1) {
-    for (const entry of positionedCells(rows[index]!)) {
+    for (const entry of positionedCells(rows[index]!, columns.length)) {
       if (entry.rowSpan <= 1 || index + entry.rowSpan <= command.row) continue;
       writeSpan(entry.cell, 'RowSpan', entry.rowSpan - 1, changes);
     }
@@ -508,34 +520,43 @@ export function applyAddColumn(
     );
   }
 
+  const columnCount = columns.length;
   const changes: TextChange[] = [];
-  // Los `ColSpan` que contienen la columna nueva crecen.
-  for (const row of rows) {
-    for (const entry of positionedCells(row)) {
-      if (entry.colSpan <= 1) continue;
-      if (entry.col < command.column && command.column < entry.col + entry.colSpan) {
-        writeSpan(entry.cell, 'ColSpan', entry.colSpan + 1, changes);
-      }
-    }
-  }
-
   const created: RdlcNode[] = [];
 
-  // Una celda (con su textbox) por fila donde la columna nueva no quede
-  // cubierta por un `ColSpan` de la propia fila (que crece) ni por un `RowSpan`
-  // de una fila anterior (que la incluye).
+  // Una decisión por fila, **antes** de tocarla: si la columna nueva cae dentro
+  // de un `ColSpan`, el ancla crece y —en las filas SSRS/BC (una celda por
+  // columna)— nace una celda de relleno en el hueco; si no, la fila gana una
+  // celda con textbox. Leer la fila otra vez tras mutarla la interpretaría con
+  // el recuento de columnas viejo (doble inserción: `TextboxN` + relleno).
   const takenNames = new Set<string>();
   rows.forEach((row, rowIndex) => {
-    const inSpan = positionedCells(row).some(
+    const slot = usesSlotCells(row, columnCount);
+    const containing = positionedCells(row, columnCount).find(
       (entry) =>
+        !entry.placeholder &&
         entry.colSpan > 1 &&
         entry.col < command.column &&
         command.column < entry.col + entry.colSpan,
     );
-    if (inSpan || coveredAtColumn(rows, rowIndex, command.column)) return;
+
+    if (containing) {
+      writeSpan(containing.cell, 'ColSpan', containing.colSpan + 1, changes);
+      if (slot) {
+        const cells = row.child('TablixCells');
+        if (cells) {
+          const placeholder = row.createElement('TablixCell');
+          cells.insertChildAt(placeholder, command.column);
+          created.push(placeholder);
+        }
+      }
+      return;
+    }
+
+    if (coveredAtColumn(rows, rowIndex, command.column, columnCount)) return;
     const cells = row.child('TablixCells');
     if (!cells) return;
-    const position = insertCellPosition(row, command.column);
+    const position = insertCellPosition(row, command.column, columnCount);
     const cell = createCellWithTextbox(ctx, cells, takenNames);
     cells.insertChildAt(cell, position);
     created.push(cell);
@@ -598,10 +619,12 @@ export function applyDeleteColumn(
     );
   }
 
+  const columnCount = columns.length;
   const changes: TextChange[] = [];
   const removedCells: { node: RdlcNode; restore: Detached }[] = [];
   for (const row of rows) {
-    const entry = cellCovering(row, command.column);
+    const slot = usesSlotCells(row, columnCount);
+    const entry = cellCovering(row, command.column, columnCount);
     if (!entry) {
       return left(
         CommandRejectedError.create(
@@ -619,8 +642,19 @@ export function applyDeleteColumn(
         );
       }
       removedCells.push({ node: entry.cell, restore: detach(entry.cell) });
-    } else {
-      writeSpan(entry.cell, 'ColSpan', entry.colSpan - 1, changes);
+      continue;
+    }
+
+    // La columna cae dentro de un `ColSpan`: el ancla se acorta y, en las filas
+    // SSRS/BC (una celda por columna), desaparece la celda de relleno que la
+    // representaba (la última si la columna es el propio ancla).
+    writeSpan(entry.cell, 'ColSpan', entry.colSpan - 1, changes);
+    if (slot) {
+      const cell =
+        tablixCells(row)[
+          entry.col === command.column ? entry.col + entry.colSpan - 1 : command.column
+        ];
+      if (cell) removedCells.push({ node: cell, restore: detach(cell) });
     }
   }
 
@@ -691,6 +725,7 @@ export function applyMergeCells(
   const parts = tablixParts(ctx, command.id);
   if (parts.isLeft()) return left(parts.value);
   const { rows, columns } = parts.value;
+  const columnCount = columns.length;
 
   const { rowSpan, colSpan } = command;
   // Solo tramos horizontales: una fusión que se come celdas de otras filas
@@ -712,7 +747,9 @@ export function applyMergeCells(
     );
   }
 
-  const anchor = positionedCells(rows[command.row]!).find((entry) => entry.col === command.col);
+  const anchor = positionedCells(rows[command.row]!, columnCount).find(
+    (entry) => entry.col === command.col && !entry.placeholder,
+  );
   if (!anchor) {
     return left(
       CommandRejectedError.create(
@@ -724,7 +761,7 @@ export function applyMergeCells(
   // La selección debe ser un rectángulo de celdas simples (sin fusiones previas
   // dentro ni celdas que la crucen) para que el resultado sea predecible.
   for (let row = command.row; row < row1; row += 1) {
-    for (const entry of positionedCells(rows[row]!)) {
+    for (const entry of positionedCells(rows[row]!, columnCount)) {
       const inside = entry.col >= command.col && entry.col < col1;
       if (!inside) {
         if (
@@ -745,7 +782,7 @@ export function applyMergeCells(
     }
   }
   for (let row = 0; row < command.row; row += 1) {
-    for (const entry of positionedCells(rows[row]!)) {
+    for (const entry of positionedCells(rows[row]!, columnCount)) {
       const reachesRow = row + entry.rowSpan > command.row;
       const overlapsCols = entry.col + entry.colSpan > command.col && entry.col < col1;
       if (reachesRow && overlapsCols) {
@@ -760,17 +797,19 @@ export function applyMergeCells(
   const removed: { node: RdlcNode; restore: Detached }[] = [];
   const created: RdlcNode[] = [];
 
-  // Primero se desconectan las celdas cubiertas (posiciones originales): si se
-  // escribiera antes el span del ancla, el `ColSpan` desplazaría sus columnas.
-  const covered: RdlcNode[] = [];
+  // Las celdas cubiertas se vacían antes de escribir el span del ancla (si se
+  // escribiera antes, el `ColSpan` desplazaría sus columnas). BC/SSRS exigen
+  // **una celda por columna**: las cubiertas **se quedan** como relleno (solo
+  // pierden su `CellContents`); si se quitaran, Report Builder lanza «El índice
+  // estaba fuera del intervalo» al abrir el informe. El undo lo restaura.
   for (let row = command.row; row < row1; row += 1) {
-    for (const entry of positionedCells(rows[row]!)) {
+    for (const entry of positionedCells(rows[row]!, columnCount)) {
       if (row === command.row && entry.cell.equals(anchor.cell)) continue;
-      if (entry.col >= command.col && entry.col < col1) covered.push(entry.cell);
+      if (entry.col < command.col || entry.col >= col1) continue;
+      if (entry.placeholder) continue;
+      const contents = entry.cell.child('CellContents');
+      if (contents) removed.push({ node: contents, restore: detach(contents) });
     }
-  }
-  for (const cell of covered) {
-    removed.push({ node: cell, restore: detach(cell) });
   }
 
   writeMergeSpan(anchor.cell, 'ColSpan', colSpan, changes, removed, created);
@@ -792,7 +831,8 @@ export function applyUnmergeCells(
 ): Either<DomainError, CommandOutcome> {
   const parts = tablixParts(ctx, command.id);
   if (parts.isLeft()) return left(parts.value);
-  const { rows } = parts.value;
+  const { rows, columns } = parts.value;
+  const columnCount = columns.length;
 
   const row = rows[command.row];
   if (!row) {
@@ -801,7 +841,9 @@ export function applyUnmergeCells(
     );
   }
 
-  const entry = positionedCells(row).find((candidate) => candidate.col === command.col);
+  const entry = positionedCells(row, columnCount).find(
+    (candidate) => candidate.col === command.col && !candidate.placeholder,
+  );
   if (!entry) {
     return left(
       CommandRejectedError.create(
@@ -814,6 +856,9 @@ export function applyUnmergeCells(
   }
 
   const removed: { node: RdlcNode; restore: Detached }[] = [];
+  // Convención de la fila ancla **antes** de quitarle el span (después ya no
+  // habría rellenos que rellenar).
+  const anchorSlot = usesSlotCells(row, columnCount);
   removeSpanNode(entry.cell, 'ColSpan', removed);
   removeSpanNode(entry.cell, 'RowSpan', removed);
 
@@ -824,9 +869,19 @@ export function applyUnmergeCells(
     if (!target) continue;
     const cells = target.child('TablixCells');
     if (!cells) continue;
+    const slot = index === command.row ? anchorSlot : usesSlotCells(target, columnCount);
     for (let column = command.col; column < command.col + entry.colSpan; column += 1) {
       if (index === command.row && column === command.col) continue;
-      const position = insertCellPosition(target, column);
+      // SSRS/BC: la columna cubierta ya existe como celda de relleno; se rellena
+      // en su sitio. Editor: se inserta una celda nueva (nace con textbox).
+      if (slot) {
+        const placeholder = tablixCells(target)[column];
+        if (placeholder && !placeholder.child('CellContents')) {
+          fillCellWithTextbox(ctx, placeholder, takenNames, created);
+        }
+        continue;
+      }
+      const position = insertCellPosition(target, column, columnCount);
       const cell = createCellWithTextbox(ctx, cells, takenNames);
       cells.insertChildAt(cell, position);
       created.push(cell);
@@ -908,8 +963,8 @@ function coverByRowSpan(
 ): boolean[] {
   const covered = new Array<boolean>(columnCount).fill(false);
   for (let index = 0; index < row; index += 1) {
-    for (const entry of positionedCells(rows[index]!)) {
-      if (entry.rowSpan <= 1 || index + entry.rowSpan <= row) continue;
+    for (const entry of positionedCells(rows[index]!, columnCount)) {
+      if (entry.placeholder || entry.rowSpan <= 1 || index + entry.rowSpan <= row) continue;
       for (let column = entry.col; column < entry.col + entry.colSpan; column += 1) {
         covered[column] = true;
       }
@@ -920,10 +975,15 @@ function coverByRowSpan(
 }
 
 /** true si un `RowSpan` de una fila anterior cubre esa columna en la fila dada. */
-function coveredAtColumn(rows: RdlcNode[], row: number, column: number): boolean {
+function coveredAtColumn(
+  rows: RdlcNode[],
+  row: number,
+  column: number,
+  columnCount: number,
+): boolean {
   for (let index = 0; index < row; index += 1) {
-    for (const entry of positionedCells(rows[index]!)) {
-      if (entry.rowSpan <= 1 || index + entry.rowSpan <= row) continue;
+    for (const entry of positionedCells(rows[index]!, columnCount)) {
+      if (entry.placeholder || entry.rowSpan <= 1 || index + entry.rowSpan <= row) continue;
       // La columna nueva queda dentro del `ColSpan` solo si está estrictamente
       // dentro: en los bordes, la celda se corre y no la cubre.
       if (entry.col < column && column < entry.col + entry.colSpan) return true;
@@ -932,27 +992,24 @@ function coveredAtColumn(rows: RdlcNode[], row: number, column: number): boolean
   return false;
 }
 
-/** Celda que cubre la columna (la que empieza en ella o un `ColSpan` que la pisa). */
-function cellCovering(row: RdlcNode, column: number): PositionedCell | undefined {
-  return positionedCells(row).find(
-    (entry) => entry.col <= column && column < entry.col + entry.colSpan,
+/** Celda ancla que cubre la columna (la que empieza en ella o un `ColSpan` que la pisa). */
+function cellCovering(
+  row: RdlcNode,
+  column: number,
+  columnCount: number,
+): PositionedCell | undefined {
+  return positionedCells(row, columnCount).find(
+    (entry) => !entry.placeholder && entry.col <= column && column < entry.col + entry.colSpan,
   );
 }
 
 /** Índice donde insertar la celda de la columna nueva dentro de una fila. */
-function insertCellPosition(row: RdlcNode, column: number): number {
-  const cells = positionedCells(row);
+function insertCellPosition(row: RdlcNode, column: number, columnCount: number): number {
+  // SSRS/BC: la celda i es la columna i, así que la celda nueva va en su índice.
+  if (usesSlotCells(row, columnCount)) return Math.min(column, tablixCells(row).length);
+  const cells = positionedCells(row, columnCount);
   const index = cells.findIndex((entry) => entry.col >= column);
-  return index === -1 ? cells.length : index;
-}
-
-/** Número de columnas de la rejilla (a partir de la primera fila). */
-function tablixColumnsOf(rows: RdlcNode[]): number {
-  const first = rows[0];
-  if (!first) return 0;
-  let total = 0;
-  for (const entry of positionedCells(first)) total += entry.colSpan;
-  return total;
+  return index === -1 ? tablixCells(row).length : cells[index]!.index;
 }
 
 function writeSpan(
@@ -1029,12 +1086,37 @@ function createCellWithTextbox(
   value?: string,
 ): RdlcNode {
   const cell = parent.createElement('TablixCell');
-  const contents = cell.createElement('CellContents');
+  cell.appendChild(contentsWithTextbox(ctx, cell, taken, value));
+  return cell;
+}
+
+/**
+ * Rellena una celda existente (un hueco de una fusión SSRS/BC) con un
+ * `CellContents` + textbox vacío. El nodo creado se registra para el undo.
+ */
+function fillCellWithTextbox(
+  ctx: CommandContext,
+  cell: RdlcNode,
+  taken: Set<string>,
+  created: RdlcNode[],
+): void {
+  const contents = contentsWithTextbox(ctx, cell, taken);
+  cell.appendChild(contents);
+  created.push(contents);
+}
+
+/** `CellContents` con un Textbox vacío (sin longitudes: las pone la celda). */
+function contentsWithTextbox(
+  ctx: CommandContext,
+  parent: RdlcNode,
+  taken: Set<string>,
+  value?: string,
+): RdlcNode {
+  const contents = parent.createElement('CellContents');
   const name = nextItemName(ctx, 'textbox', taken);
   taken.add(name);
   contents.appendChild(emptyTextbox(contents, name, value));
-  cell.appendChild(contents);
-  return cell;
+  return contents;
 }
 
 /** Textbox vacío con el orden canónico del XSD y sin longitudes. */

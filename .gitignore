@@ -4,6 +4,8 @@ node_modules/
 # builds
 dist/
 out/
+# excepción: el árbol de puertos de salida es código fuente, no build
+!apps/back/src/application/ports/out/
 apps/back/release/
 *.tsbuildinfo
 

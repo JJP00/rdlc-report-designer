@@ -42,7 +42,10 @@ export function ExpressionDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-3 sm:max-w-2xl">
+      <DialogContent
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-3 sm:max-w-2xl"
+        resizable
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>

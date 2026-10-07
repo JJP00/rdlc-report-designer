@@ -10,6 +10,10 @@ import { setNodeTextChange } from './nodeChanges.js';
 export type SetRegionHeightCommand = Extract<RdlcCommand, { cmd: 'setRegionHeight' }>;
 export type SetSectionWidthCommand = Extract<RdlcCommand, { cmd: 'setSectionWidth' }>;
 export type SetHeaderFooterOptionsCommand = Extract<RdlcCommand, { cmd: 'setHeaderFooterOptions' }>;
+export type SetRegionPresentCommand = Extract<RdlcCommand, { cmd: 'setRegionPresent' }>;
+
+/** Alto por defecto de una banda recién insertada (como Report Builder). */
+const DEFAULT_BAND_HEIGHT_CM = 1.25;
 
 /**
  * Bandas de página (`PageHeader`/`PageFooter`) y **cuerpo** (`Body`): alto,
@@ -145,6 +149,57 @@ function writeHeight(container: RdlcNode, height: Length): CommandOutcome {
   const created = container.createElement('Height', formatLength(height));
   insertCanonical(container, 'Height', created);
   return { inverse: [{ cmd: 'removeNode', node: created }] };
+}
+
+/**
+ * Inserta o quita una banda de página (`PageHeader`/`PageFooter`). Al insertar
+ * nace con un alto por defecto (`Height`); al quitar se elimina el nodo entero
+ * (con su contenido) y el undo lo restaura tal cual.
+ */
+export function applySetRegionPresent(
+  ctx: CommandContext,
+  command: SetRegionPresentCommand,
+): Either<DomainError, CommandOutcome> {
+  const section = reportSection(ctx);
+  if (!section) {
+    return left(CommandRejectedError.create('El documento no tiene ReportSection'));
+  }
+
+  const tag = regionTag(command.region);
+  // Al **quitar** no se crea un `Page` vacío: si no existe la banda, es no-op.
+  const page = command.present ? childOrCreate(section, 'Page') : section.child('Page');
+  if (!page) return right({ inverse: [], snapshotOut: true });
+  const existing = page.child(tag);
+
+  if (command.present) {
+    if (existing) return right({ inverse: [], snapshotOut: true });
+    const created = page.createElement(tag);
+    created.appendChild(
+      created.createElement('Height', formatLength(fromCm(DEFAULT_BAND_HEIGHT_CM))),
+    );
+    insertCanonical(page, tag, created);
+    return right({ inverse: [{ cmd: 'removeNode', node: created }], snapshotOut: true });
+  }
+
+  if (!existing || !existing.parent) {
+    return right({ inverse: [], snapshotOut: true });
+  }
+
+  const parent = existing.parent;
+  const index = parent.children().findIndex((node) => node.equals(existing));
+  existing.remove();
+  return right({
+    inverse: [
+      {
+        cmd: 'restoreNode',
+        node: existing,
+        container: parent,
+        index: Math.max(index, 0),
+        name: tag,
+      },
+    ],
+    snapshotOut: true,
+  });
 }
 
 /** `PrintOnFirstPage` / `PrintOnLastPage` de la banda (literales booleanos). */

@@ -1,7 +1,7 @@
 import type { ItemDto, ProjectionDto } from '@rdlc-designer/contracts';
 import { useMemo } from 'react';
 import { findItem } from '@/lib/projection';
-import { selectionCells, type SelectedCell } from '@/lib/tablix';
+import { selectedCellContents, type SelectedCell } from '@/lib/tablix';
 
 /**
  * Qué edita el panel de lote (U3): la multiselección de items o, si lo que hay
@@ -31,12 +31,9 @@ export function useBatchSelection(options: {
     if (!projection || !selectedCell || selectedIds.length > 0) return [];
     const tablix = findItem(projection, selectedCell.id);
     if (tablix?.kind !== 'tablix') return [];
-    const contents = [];
-    for (const { row, col } of selectionCells(selectedCell)) {
-      const content = tablix.body?.rows[row]?.cells[col]?.content;
-      if (content) contents.push(content);
-    }
-    return contents;
+    // `selectionCells` da columnas de **rejilla**: con fusiones el índice del
+    // array de celdas no coincide (antes se editaban otros textboxes).
+    return selectedCellContents(tablix, selectedCell);
   }, [projection, selectedCell, selectedIds]);
 
   if (selectedItems.length > 1) return { items: selectedItems, movableIds, fromCells: false };

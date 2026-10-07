@@ -177,6 +177,8 @@ export interface ItemEditing {
     region: 'pageHeader' | 'pageFooter',
     options: { printOnFirstPage?: boolean; printOnLastPage?: boolean },
   ) => void;
+  /** Inserta (`true`) o quita (`false`) la banda de página entera. */
+  setRegionPresent: (region: 'pageHeader' | 'pageFooter', present: boolean) => void;
   setReportCode: (code: string) => void;
 }
 
@@ -190,6 +192,38 @@ function withLabel(run: TextRunDto, label: string | null): TextRunDto {
   if (label === null || label === '') delete next.label;
   else next.label = label;
   return next;
+}
+
+/**
+ * Fusiona un `StylePatch` en un estilo: `null` quita la propiedad y `padding`/
+ * `border` (anidados) se fusionan lado a lado sin borrar los demás. Se usa en
+ * el camino optimista de `setStyle` (un item y el lote de la multiselección).
+ */
+function mergeStylePatch(style: StyleDto | undefined, patch: StylePatch): StyleDto {
+  const nextStyle: StyleDto = { ...(style ?? {}) };
+  const target = nextStyle as Record<string, unknown>;
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete target[key];
+    else if (value === undefined) continue;
+    else if (key === 'padding') {
+      target[key] = {
+        ...((target[key] as Record<string, unknown> | undefined) ?? {}),
+        ...(value as Record<string, unknown>),
+      };
+    } else if (key === 'border') {
+      // Parche por lado: un lado a `null` quita su override.
+      const next: Record<string, unknown> = {
+        ...((target[key] as Record<string, unknown> | undefined) ?? {}),
+      };
+      for (const [side, sideValue] of Object.entries(value as Record<string, unknown>)) {
+        if (sideValue === null) delete next[side];
+        else if (sideValue !== undefined) next[side] = sideValue;
+      }
+      if (Object.keys(next).length > 0) target[key] = next;
+      else delete target[key];
+    } else target[key] = value;
+  }
+  return nextStyle;
 }
 
 export function useItemEditing(core: DocumentCore): ItemEditing {
@@ -506,46 +540,6 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [doc, reconcile, sendCommand, updateProjection],
   );
 
-  const setItemStyle = useCallback(
-    (patch: StylePatch): void => {
-      if (!selectedItem) return;
-      const id = selectedItem.id;
-
-      // Optimista: aplica el parche; `null` = quitar la propiedad.
-      // `padding` es anidado, así que se fusiona lado a lado (el parche de un
-      // lado no debe borrar los demás).
-      const nextStyle: StyleDto = { ...(selectedItem.style ?? {}) };
-      const target = nextStyle as Record<string, unknown>;
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === null) delete target[key];
-        else if (value === undefined) continue;
-        else if (key === 'padding') {
-          target[key] = {
-            ...((target[key] as Record<string, unknown> | undefined) ?? {}),
-            ...(value as Record<string, unknown>),
-          };
-        } else if (key === 'border') {
-          // Parche por lado: un lado a `null` quita su override.
-          const next: Record<string, unknown> = {
-            ...((target[key] as Record<string, unknown> | undefined) ?? {}),
-          };
-          for (const [side, sideValue] of Object.entries(value as Record<string, unknown>)) {
-            if (sideValue === null) delete next[side];
-            else if (sideValue !== undefined) next[side] = sideValue;
-          }
-          if (Object.keys(next).length > 0) target[key] = next;
-          else delete target[key];
-        } else target[key] = value;
-      }
-
-      updateProjection((projection) => patchItem(projection, id, { style: nextStyle }));
-      void sendCommand({ cmd: 'setStyle', id, style: patch }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
-    },
-    [reconcile, selectedItem, sendCommand, updateProjection],
-  );
-
   /**
    * Edición en lote de la multiselección: los comandos van juntos en `batch` y
    * el backend los aplica como **un solo paso de undo**.
@@ -558,6 +552,38 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       );
     },
     [reconcile, sendCommand],
+  );
+
+  const setItemStyle = useCallback(
+    (patch: StylePatch): void => {
+      // Multiselección: se aplica a **todos** los seleccionados (igual que el
+      // panel de selección múltiple), no solo al último, en un solo `batch`.
+      if (selectedIds.length > 1) {
+        updateProjection((projection) => {
+          let next = projection;
+          for (const id of selectedIds) {
+            const item = findItem(next, id);
+            if (!item) continue;
+            next = patchItem(next, id, { style: mergeStylePatch(item.style, patch) });
+          }
+          return next;
+        });
+        batchEdit(selectedIds.map((id) => ({ cmd: 'setStyle' as const, id, style: patch })));
+        return;
+      }
+
+      if (!selectedItem) return;
+      const id = selectedItem.id;
+
+      // Optimista: aplica el parche; `null` = quitar la propiedad.
+      const nextStyle = mergeStylePatch(selectedItem.style, patch);
+
+      updateProjection((projection) => patchItem(projection, id, { style: nextStyle }));
+      void sendCommand({ cmd: 'setStyle', id, style: patch }).then((result) =>
+        reconcile(result?.ok ? result.applied : undefined),
+      );
+    },
+    [batchEdit, reconcile, selectedIds, selectedItem, sendCommand, updateProjection],
   );
 
   /**
@@ -985,6 +1011,14 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     [sendCommand],
   );
 
+  /** Inserta o quita la banda de página (el snapshot refresca el lienzo). */
+  const setRegionPresent = useCallback(
+    (region: 'pageHeader' | 'pageFooter', present: boolean): void => {
+      void sendCommand({ cmd: 'setRegionPresent', region, present });
+    },
+    [sendCommand],
+  );
+
   const setReportCode = useCallback(
     (code: string): void => {
       if (!doc) return;
@@ -1165,6 +1199,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     setRegionHeight,
     setSectionWidth,
     setHeaderFooterOptions,
+    setRegionPresent,
     setReportCode,
     batchEdit,
   };

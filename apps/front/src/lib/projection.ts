@@ -109,11 +109,16 @@ export function findItemScope(projection: ProjectionDto, id: string): ScopeRef |
       if (item.kind === 'tablix') {
         for (let row = 0; row < item.body.rows.length; row += 1) {
           const entry = item.body.rows[row]!;
-          for (let col = 0; col < entry.cells.length; col += 1) {
-            const content = entry.cells[col]?.content;
-            if (!content) continue;
-            const found = search([content], { kind: 'tablixCell', id: item.id, row, col });
-            if (found) return found;
+          // La columna del scope es la de la **rejilla** (los `ColSpan`
+          // acumulados), no el índice en el array de celdas.
+          let col = 0;
+          for (const cell of entry.cells) {
+            const content = cell?.content;
+            if (content) {
+              const found = search([content], { kind: 'tablixCell', id: item.id, row, col });
+              if (found) return found;
+            }
+            col += cell?.colSpan ?? 1;
           }
         }
       }

@@ -39,8 +39,8 @@ import type {
   SaveSessionResult,
 } from '../../application/services/ISessionService.js';
 import { SESSION_SERVICE } from '../../application/services/ISessionService.js';
-import type { SystemFontsPort } from '../../application/ports/out/SystemFontsPort.js';
-import { SYSTEM_FONTS_PORT } from '../../application/ports/out/SystemFontsPort.js';
+import type { AvailableFontsPort } from '../../application/ports/out/AvailableFontsPort.js';
+import { AVAILABLE_FONTS_PORT } from '../../application/ports/out/AvailableFontsPort.js';
 import type { CloseSessionResult } from '../../application/services/ISessionService.js';
 import type { RecentFilesPort } from '../../application/ports/out/RecentFilesPort.js';
 import { RECENT_FILES_PORT } from '../../application/ports/out/RecentFilesPort.js';
@@ -60,7 +60,7 @@ export class IpcController {
   constructor(
     @Inject(SESSION_SERVICE) private readonly sessions: ISessionService,
     @Inject(COMMAND_SERVICE) private readonly commands: ICommandService,
-    @Inject(SYSTEM_FONTS_PORT) private readonly fonts: SystemFontsPort,
+    @Inject(AVAILABLE_FONTS_PORT) private readonly fonts: AvailableFontsPort,
     @Inject(RECENT_FILES_PORT) private readonly recents: RecentFilesPort,
   ) {}
 

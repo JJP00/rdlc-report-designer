@@ -47,10 +47,10 @@ export function Paper({
         width={layout.sheetWidth}
         height={layout.sheetHeight}
         fill="#ffffff"
-        stroke="#d1d5db"
+        stroke="#a1a1aa"
         strokeScaleEnabled={false}
-        shadowColor="rgba(0,0,0,0.15)"
-        shadowBlur={6}
+        shadowColor="rgba(0,0,0,0.25)"
+        shadowBlur={10}
         shadowOffsetY={2}
         listening={false}
       />
@@ -60,7 +60,7 @@ export function Paper({
         y={layout.marginTop}
         width={Math.max(layout.sheetWidth - layout.marginLeft - layout.marginRight, 0)}
         height={Math.max(layout.sheetHeight - layout.marginTop - layout.marginBottom, 0)}
-        stroke="#e5e7eb"
+        stroke="#a1a1aa"
         dash={[6, 4]}
         strokeScaleEnabled={false}
         fillEnabled={false}
@@ -74,7 +74,7 @@ export function Paper({
             <Rect
               width={layout.reportWidth}
               height={toPx(band.region.height)}
-              stroke="#e5e7eb"
+              stroke="#d4d4d8"
               strokeScaleEnabled={false}
               fillEnabled={false}
               listening={false}

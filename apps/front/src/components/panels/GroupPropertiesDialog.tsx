@@ -74,7 +74,8 @@ export function GroupPropertiesDialog({
       }}
     >
       <DialogContent
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 sm:max-w-3xl"
+        className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 overflow-hidden sm:max-w-3xl"
+        resizable
         onKeyDown={(event) => {
           // Ctrl+Intro = Aplicar (teclado completo en el diálogo).
           if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && valid) {

@@ -85,6 +85,71 @@ describe('setParagraphs · texto mixto', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
+  it('escribe ListStyle como hijo del Paragraph (no en su Style)', () => {
+    const { doc, index } = open('SalesCreditMemoESP.rdlc');
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setParagraphs',
+        id: 'TextboxVATClauseDesc',
+        paragraphs: [{ style: { listStyle: 'Bulleted' }, runs: [{ value: 'Primera' }] }],
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const paragraph = index
+      .get('TextboxVATClauseDesc')
+      ?.child('Paragraphs')
+      ?.children('Paragraph')[0];
+    expect(paragraph?.child('ListStyle')?.text()).toBe('Bulleted');
+    expect(paragraph?.child('Style')?.child('ListStyle')).toBeUndefined();
+
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+  });
+
+  it('hereda las fuentes del item en los runs nuevos (RB las resuelve ahí)', () => {
+    const source = `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Textbox Name="T">
+            <Paragraphs>
+              <Paragraph><TextRuns><TextRun><Value>x</Value></TextRun></TextRuns></Paragraph>
+            </Paragraphs>
+            <Style><FontSize>9pt</FontSize><FontWeight>Bold</FontWeight></Style>
+          </Textbox>
+        </ReportItems>
+      </Body>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
+    const doc = adapter.parse(source);
+    const index = DocumentIndex.build(doc.root);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setParagraphs', id: 'T', paragraphs: [{ runs: [{ value: 'nuevo' }] }] },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const output = adapter.serialize(doc);
+    // El run nuevo hereda la fuente del item (BC la escribe en el run).
+    expect(output).toMatch(
+      /<TextRun><Value>nuevo<\/Value><Style><FontSize>9pt<\/FontSize><FontWeight>Bold<\/FontWeight><\/Style><\/TextRun>/,
+    );
+    const problems = validator.validate(output).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(source);
+  });
+
   it('rechaza elementos que no son Textbox y párrafos sin runs', () => {
     const { doc, index } = open('SalesCreditMemoESP.rdlc');
 

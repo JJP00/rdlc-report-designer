@@ -1,13 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
+import { LibXml2SchemaValidatorAdapter } from '../../src/infrastructure/validation/LibXml2SchemaValidatorAdapter.js';
 import { corpusByName } from '../golden/fixtures.js';
 import { appliedOf, undoAll } from './command-test-utils.js';
 
 /** F1 — estilo del item (`setStyle`): fuente, colores, alineación, viñetas. */
 
 const adapter = new TrueFormatXmlAdapter();
+const validator = new LibXml2SchemaValidatorAdapter(
+  resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../resources/rdl2016/ReportDefinition2016.xsd',
+  ),
+);
 
 function open(name: string): {
   xml: string;
@@ -85,6 +94,48 @@ describe('F1 · setStyle', () => {
     expect(output).toContain('<FontStyle>Italic</FontStyle>');
     expect(output).toContain('<VerticalAlign>Bottom</VerticalAlign>');
     expect(output).toContain('<PaddingLeft>2pt</PaddingLeft>');
+  });
+
+  it('no escribe en un campo de DataSet con el mismo nombre (colisión)', () => {
+    const { xml, doc, index } = open('SalesInvoiceESP.rdlc');
+
+    // `Description_Line` es a la vez un Textbox (con padding 5pt) y un campo del
+    // DataSet, que va al final del documento. El índice no debe dejar que el
+    // campo pise al item: el parche de estilo tiene que ir al Textbox.
+    expect(index.get('Description_Line')?.tagName).toBe('Textbox');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setStyle',
+        id: 'Description_Line',
+        style: { border: { top: { style: 'Solid', color: '#123456' } } },
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const output = adapter.serialize(doc);
+    const textbox = itemSlice(output, 'Description_Line');
+    expect(textbox).toContain('<Color>#123456</Color>');
+    // El padding del textbox no se toca…
+    expect(textbox).toContain('<PaddingLeft>5pt</PaddingLeft>');
+    expect(textbox).toContain('<PaddingRight>5pt</PaddingRight>');
+    // …y el campo homónimo del DataSet se queda sin `<Style>`.
+    const field = output.slice(output.indexOf('<Field Name="Description_Line">'));
+    expect(field.slice(0, field.indexOf('</Field>'))).not.toContain('<Style>');
+
+    // `applied` lleva el estilo real del item (con el padding) para el front.
+    expect(appliedOf(applied.value, 'Description_Line')).toMatchObject({
+      style: {
+        padding: { left: { value: 5, unit: 'pt' }, right: { value: 5, unit: 'pt' } },
+        border: { top: { style: 'Solid', color: '#123456' } },
+      },
+    });
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
   });
 
   it('aplica y revierte viñetas (ListStyle)', () => {
@@ -221,6 +272,117 @@ describe('F1 · setStyle', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
+  it('escribe ListStyle como hijo de Paragraph (no de Style) y valida el XSD', () => {
+    const { xml, doc, index } = open('PalletOutput.rdlc');
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'Textbox25', style: { listStyle: 'Bulleted' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const output = adapter.serialize(doc);
+    const textbox = itemSlice(output, 'Textbox25');
+    expect(textbox).toContain('<ListStyle>Bulleted</ListStyle>');
+    // Nunca dentro de un `<Style>`: el XSD no lo admite y el guardado se bloquea.
+    expect(textbox).not.toMatch(/<Style>\s*<ListStyle>/);
+    // El front necesita la proyección nueva (los párrafos no viajan en `applied`).
+    expect(applied.value.snapshotOut).toBe(true);
+
+    const problems = validator.validate(output).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('replica las fuentes en los runs (BC/RB las resuelven ahí)', () => {
+    const source = `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Textbox Name="T">
+            <Paragraphs>
+              <Paragraph><TextRuns><TextRun><Value>x</Value></TextRun></TextRuns></Paragraph>
+            </Paragraphs>
+          </Textbox>
+        </ReportItems>
+      </Body>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
+    const doc = adapter.parse(source);
+    const index = DocumentIndex.build(doc.root);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setStyle',
+        id: 'T',
+        style: { fontSize: { value: 7, unit: 'pt' }, fontWeight: 'Bold' },
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const output = adapter.serialize(doc);
+    // Item + run: BC escribe la fuente en el run; solo con la del item, RB
+    // muestra el Arial 10 por defecto.
+    expect(output.match(/<FontSize>7pt<\/FontSize>/g)).toHaveLength(2);
+    expect(output.match(/<FontWeight>Bold<\/FontWeight>/g)).toHaveLength(2);
+    const problems = validator.validate(output).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(source);
+  });
+
+  it('limpia un ListStyle legado dentro de <Style> (fichero de versiones anteriores)', () => {
+    const source = `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Textbox Name="T">
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns><TextRun><Value>x</Value></TextRun></TextRuns>
+                <Style><ListStyle>None</ListStyle></Style>
+              </Paragraph>
+            </Paragraphs>
+          </Textbox>
+        </ReportItems>
+      </Body>
+      </ReportSection>
+  </ReportSections>
+</Report>`;
+    const doc = adapter.parse(source);
+    const index = DocumentIndex.build(doc.root);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'T', style: { listStyle: 'Numbered' } },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const output = adapter.serialize(doc);
+    expect(output).not.toMatch(/<Style>\s*<ListStyle>/);
+    expect(output).toContain('<ListStyle>Numbered</ListStyle>');
+    const problems = validator.validate(output).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(source);
+  });
+
   // Los bordes por lado (G2) viven en `border-commands.spec.ts`.
 });
 
@@ -286,7 +448,10 @@ describe('F1 · setStyle · precedencia run > párrafo > item', () => {
     if (!applied.isRight()) return;
 
     const textbox = itemSlice(adapter.serialize(doc), 'Textbox28');
+    // El tamaño de los runs no se toca…
     expect(textbox.match(/<FontSize>12pt<\/FontSize>/g)).toHaveLength(3);
-    expect(applied.value.snapshotOut).toBeUndefined();
+    // …pero el color sí se replica en los runs (RB lo resuelve ahí) → snapshot.
+    expect(textbox.match(/<Color>#FF0000<\/Color>/g)).toHaveLength(4);
+    expect(applied.value.snapshotOut).toBe(true);
   });
 });

@@ -31,6 +31,7 @@ import { applySetPageSize } from './setPageSize.js';
 import {
   applySetHeaderFooterOptions,
   applySetRegionHeight,
+  applySetRegionPresent,
   applySetSectionWidth,
 } from './pageRegions.js';
 import { applySetParagraphs } from './setParagraphs.js';
@@ -156,6 +157,8 @@ export function applyCommand(
       return applySetSectionWidth(ctx, command);
     case 'setHeaderFooterOptions':
       return applySetHeaderFooterOptions(ctx, command);
+    case 'setRegionPresent':
+      return applySetRegionPresent(ctx, command);
     case 'setReportCode':
       return applySetReportCode(ctx, command);
     case 'setImageOptions':

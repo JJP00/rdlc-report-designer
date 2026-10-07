@@ -315,6 +315,11 @@ export interface RegionDto {
   items: ItemDto[];
   printOnFirstPage?: boolean;
   printOnLastPage?: boolean;
+  /**
+   * La banda **existe** en el documento (`<PageHeader>`/`<PageFooter>`); false
+   * = ausente (se puede insertar). El cuerpo siempre está presente.
+   */
+  present?: boolean;
 }
 
 export const regionSchema: z.ZodType<RegionDto> = z.object({
@@ -323,6 +328,7 @@ export const regionSchema: z.ZodType<RegionDto> = z.object({
   items: z.array(itemSchema),
   printOnFirstPage: z.boolean().optional(),
   printOnLastPage: z.boolean().optional(),
+  present: z.boolean().optional(),
 });
 
 export const pageMarginsSchema = z.object({

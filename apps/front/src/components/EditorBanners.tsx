@@ -1,5 +1,5 @@
-import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Check, Copy, X } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 
 export interface EditorBannersProps {
   error: string | null;
@@ -24,12 +24,16 @@ export function EditorBanners({
       {error ? (
         <div
           role="alert"
-          className="flex items-center gap-3 border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive"
+          className="flex items-start gap-3 border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive"
         >
-          <span className="min-w-0 flex-1">{error}</span>
+          <span className="max-h-40 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-xs">
+            {error}
+          </span>
+          <CopyErrorButton error={error} />
           <button
             type="button"
             aria-label="Cerrar el aviso"
+            title="Cerrar el aviso"
             className="shrink-0 rounded p-0.5 transition-colors hover:bg-destructive/15"
             onClick={onDismissError}
           >
@@ -59,5 +63,31 @@ export function EditorBanners({
         </div>
       ) : null}
     </>
+  );
+}
+
+/** Copia el error completo (con sus detalles de validación) al portapapeles. */
+function CopyErrorButton({ error }: { error: string }): ReactNode {
+  const [copied, setCopied] = useState(false);
+
+  const copy = (): void => {
+    const clipboard = navigator.clipboard;
+    if (!clipboard) return;
+    void clipboard.writeText(error).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label="Copiar el error"
+      title="Copiar el error"
+      className="shrink-0 rounded p-0.5 transition-colors hover:bg-destructive/15"
+      onClick={copy}
+    >
+      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+    </button>
   );
 }

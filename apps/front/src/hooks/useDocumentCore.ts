@@ -1,7 +1,7 @@
 import type { CommandResult, ItemDto, ProjectionDto, RdlcCommand } from '@rdlc-designer/contracts';
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { setCompletionMeta } from '@/lib/completionMeta';
-import { apiErrorMessage } from '@/lib/errors';
+import { apiErrorMessage, hasErrorDetails } from '@/lib/errors';
 import { patchItem } from '@/lib/projection';
 
 /**
@@ -107,7 +107,9 @@ export function useDocumentCore(): DocumentCore {
       errorTimer.current = null;
     }
     setErrorState(message);
-    if (message) {
+    // Los errores con detalle (validación XSD) se quedan: hay que poder
+    // leerlos y copiarlos; el resto se borra solo.
+    if (message && !hasErrorDetails(message)) {
       errorTimer.current = window.setTimeout(() => {
         errorTimer.current = null;
         setErrorState(null);

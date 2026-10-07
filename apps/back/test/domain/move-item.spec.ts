@@ -35,6 +35,18 @@ function childNames(node: ReturnType<DocumentIndex['get']>): string[] {
     .filter((name): name is string => name !== undefined);
 }
 
+/** Primer textbox dentro de una celda de Tablix que no declara longitudes. */
+function findCellTextbox(index: DocumentIndex): string | undefined {
+  for (const name of index.names()) {
+    const node = index.get(name);
+    if (!node || node.tagName !== 'Textbox' || node.child('Width')) continue;
+    let current = node.parent;
+    while (current && current.tagName !== 'TablixCell') current = current.parent;
+    if (current) return name;
+  }
+  return undefined;
+}
+
 describe('G3 · moveItem', () => {
   it('saca un textbox de un rectángulo al cuerpo, con su posición nueva', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
@@ -64,6 +76,40 @@ describe('G3 · moveItem', () => {
     expect(moved?.parent?.parent?.tagName).toBe('Body');
     // Y ya no cuelga de Rectangle1.
     expect(childNames(rebuilt.get('Rectangle1'))).not.toContain('Textbox4');
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('al entrar en el cuerpo materializa Width/Height (RB estira los items sin tamaño)', () => {
+    const { xml, doc, index } = open('SalesShipment.rdlc');
+    // Un textbox dentro de una celda no declara longitudes (las pone la celda).
+    const cellTextbox = findCellTextbox(index);
+    expect(cellTextbox).toBeDefined();
+    if (!cellTextbox) return;
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'moveItem',
+        id: cellTextbox,
+        toScope: { kind: 'body' },
+        toIndex: 0,
+        top: { value: 2, unit: 'cm' },
+        left: { value: 3, unit: 'cm' },
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const moved = DocumentIndex.build(doc.root).get(cellTextbox);
+    expect(moved?.parent?.parent?.tagName).toBe('Body');
+    expect(moved?.child('Top')?.text()).toBe('2cm');
+    expect(moved?.child('Left')?.text()).toBe('3cm');
+    // Sin tamaño, Report Builder lo estira a toda la banda y tapa la tabla.
+    expect(moved?.child('Width')?.text()).toBe('5cm');
+    expect(moved?.child('Height')?.text()).toBe('1cm');
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);

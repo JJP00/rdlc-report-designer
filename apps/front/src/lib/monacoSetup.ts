@@ -25,6 +25,22 @@ window.MonacoEnvironment = {
 
 export const RDLC_LANGUAGE_ID = 'rdlc-expr';
 
+/* ------------------------------ tema ------------------------------------- */
+
+/** Tema de Monaco que toca según la clase `dark` de `<html>`. */
+function currentThemeName(): 'rdlc-light' | 'rdlc-dark' {
+  return document.documentElement.classList.contains('dark') ? 'rdlc-dark' : 'rdlc-light';
+}
+
+let themeObserver: MutationObserver | null = null;
+
+/** Un único observador: al alternar el tema, Monaco cambia en caliente. */
+function watchDocumentTheme(): void {
+  if (themeObserver) return;
+  themeObserver = new MutationObserver(() => monaco.editor.setTheme(currentThemeName()));
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+}
+
 /**
  * Host de los widgets que desbordan el editor (sugerencias, hover, firmas).
  *
@@ -125,6 +141,25 @@ function registerRdlcLanguage(): void {
     },
   });
 
+  // Tema oscuro («blanco y negro» invertido): contraste alto sobre casi negro.
+  monaco.editor.defineTheme('rdlc-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'namespace', foreground: 'c4b5fd', fontStyle: 'bold' },
+      { token: 'predefined', foreground: '5eead4' },
+      { token: 'keyword', foreground: '93c5fd' },
+      { token: 'string', foreground: 'fcd34d' },
+      { token: 'comment', foreground: '9ca3af', fontStyle: 'italic' },
+      { token: 'number', foreground: 'fdba74' },
+    ],
+    colors: {
+      'editor.background': '#1e1e1e',
+    },
+  });
+
+  watchDocumentTheme();
+
   monaco.languages.registerCompletionItemProvider(RDLC_LANGUAGE_ID, {
     triggerCharacters: ['!', '.'],
     provideCompletionItems: (model, position) => {
@@ -205,12 +240,13 @@ export function createExpressionEditor(
   callbacks: { onCommit(): void; onFocus(): void; onSubmit?(): void },
 ): ExpressionEditorHandles {
   registerRdlcLanguage();
+  watchDocumentTheme();
 
   const mode = options.mode;
   const editor = monaco.editor.create(container, {
     value: options.value,
     language: RDLC_LANGUAGE_ID,
-    theme: 'rdlc-light',
+    theme: currentThemeName(),
     automaticLayout: true,
     fontSize: 12,
     fontFamily: 'Consolas, "Cascadia Mono", monospace',

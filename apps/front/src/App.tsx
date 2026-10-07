@@ -18,6 +18,7 @@ import { useFileDrop } from '@/hooks/useFileDrop';
 import { useItemEditing } from '@/hooks/useItemEditing';
 import { usePaletteActions } from '@/hooks/usePaletteActions';
 import { useQaHooks } from '@/hooks/useQaHooks';
+import { useTheme } from '@/hooks/useTheme';
 import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
 import { countItems, findItem, formatKinds } from '@/lib/projection';
 import { findOwnerTablix } from '@/lib/tablix';
@@ -36,6 +37,8 @@ export function App(): ReactNode {
   const [zoom, setZoom] = useState(0.6);
   /** Zoom «ajustar al ancho» que publica el lienzo al medir (Ctrl+1 lo aplica). */
   const [fitZoom, setFitZoom] = useState<number | null>(null);
+  /** Tema claro/oscuro (persistido en `localStorage`). */
+  const { theme, toggleTheme } = useTheme();
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
   /** Panel de Jerarquía (árbol de items) visible. */
@@ -182,6 +185,7 @@ export function App(): ReactNode {
           zoom={zoom}
           showVariables={showVariables}
           showHierarchy={showHierarchy}
+          theme={theme}
           recents={recents}
           onNew={createNew}
           onOpen={open}
@@ -192,7 +196,7 @@ export function App(): ReactNode {
           onOpenProperties={() => setPropertiesOpen(true)}
           onToggleVariables={() => setShowVariables((value) => !value)}
           onToggleHierarchy={() => setShowHierarchy((value) => !value)}
-          onInsert={items.insertItem}
+          onToggleTheme={toggleTheme}
           onDuplicate={items.duplicateSelected}
           onDelete={items.deleteSelected}
           onUndo={() => void undo()}
@@ -201,11 +205,19 @@ export function App(): ReactNode {
           onZoomFitWidth={zoomFitWidth}
         />
 
-        {/* Barra de formato de texto (ribbon), bajo la toolbar principal. */}
+        {/* Barra de formato de texto + insertar (una sola línea), bajo la toolbar principal. */}
         <FormatToolbar
-          style={selectedItem?.kind === 'textbox' ? effectiveTextStyle(selectedItem) : undefined}
+          style={
+            selectedItem
+              ? selectedItem.kind === 'textbox'
+                ? effectiveTextStyle(selectedItem)
+                : selectedItem.style
+              : undefined
+          }
           onSetStyle={items.setItemStyle}
-          disabled={selectedItem?.kind !== 'textbox'}
+          disabled={selectedItem === undefined}
+          onInsert={items.insertItem}
+          insertDisabled={doc === null}
         />
 
         <EditorBanners

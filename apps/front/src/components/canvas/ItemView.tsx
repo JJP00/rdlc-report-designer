@@ -404,8 +404,9 @@ function TextboxContent({
           width={width}
           height={height}
           fill={paintColor(style?.backgroundColor, '#ffffff')}
-          stroke="#e5e7eb"
-          strokeWidth={0.5}
+          stroke="#d4d4d8"
+          strokeWidth={0.75}
+          strokeScaleEnabled={false}
           perfectDrawEnabled={false}
         />
         <ItemBorder border={style?.border} width={width} height={height} />
@@ -484,7 +485,9 @@ function RectangleContent({
           originX={originX}
           originY={originY}
           cull={cull}
-          /* Sin bounds: el contenedor no es un límite duro en RDL. */
+          /* Como en las bandas de página: el rectángulo tampoco deja salir a
+             sus hijos (el drag y el redimensionado los claman dentro). */
+          bounds={{ width, height }}
         />
       ))}
     </>
@@ -834,8 +837,9 @@ function TablixContent({
           segment.fixed * PX_PER_CM,
           segment.to * PX_PER_CM,
         ]}
-        stroke="#d1d5db"
-        strokeWidth={0.5}
+        stroke="#a1a1aa"
+        strokeWidth={0.75}
+        strokeScaleEnabled={false}
         perfectDrawEnabled={false}
         listening={false}
       />
@@ -850,8 +854,9 @@ function TablixContent({
           segment.to * PX_PER_CM,
           segment.fixed * PX_PER_CM,
         ]}
-        stroke="#d1d5db"
-        strokeWidth={0.5}
+        stroke="#a1a1aa"
+        strokeWidth={0.75}
+        strokeScaleEnabled={false}
         perfectDrawEnabled={false}
         listening={false}
       />

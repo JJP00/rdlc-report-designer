@@ -31,8 +31,18 @@ export function nextItemName(
   const prefix = KIND_PREFIX[kind] ?? 'Item';
   for (let index = 1; ; index += 1) {
     const candidate = `${prefix}${index}`;
-    if (!ctx.index.has(candidate) && !taken?.has(candidate)) return candidate;
+    if (!ctx.index.has(candidate) && !isTakenIgnoringCase(taken, candidate)) return candidate;
   }
+}
+
+/** `taken` guarda nombres exactos; la reserva del mismo comando también ignora caja. */
+function isTakenIgnoringCase(taken: ReadonlySet<string> | undefined, candidate: string): boolean {
+  if (!taken) return false;
+  const lower = candidate.toLowerCase();
+  for (const name of taken) {
+    if (name.toLowerCase() === lower) return true;
+  }
+  return false;
 }
 
 export function applyInsertItem(

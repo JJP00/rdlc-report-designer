@@ -65,10 +65,7 @@ function copyForIntent(intent: PendingIntent): IntentCopy {
  * `window.confirm` nativo para hablar el mismo lenguaje que el resto de
  * diálogos y ofrecer la salida segura (guardar) además de descartar.
  */
-export function UnsavedChangesDialog({
-  intent,
-  onResolve,
-}: UnsavedChangesDialogProps): ReactNode {
+export function UnsavedChangesDialog({ intent, onResolve }: UnsavedChangesDialogProps): ReactNode {
   if (!intent) return null;
   const copy = copyForIntent(intent);
   return (
@@ -79,7 +76,11 @@ export function UnsavedChangesDialog({
         if (!open) onResolve('cancel');
       }}
     >
-      <DialogContent showCloseButton={false} data-testid="unsaved-changes-dialog">
+      <DialogContent
+        showCloseButton={false}
+        data-testid="unsaved-changes-dialog"
+        className="sm:max-w-md"
+      >
         <DialogHeader>
           <DialogTitle>Cambios sin guardar</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>

@@ -375,9 +375,14 @@ export function applySetGroupName(
   const previous = group.attribute('Name');
   if (previous === name) return right({ inverse: [] });
 
-  const existing = ctx.index.get(name);
-  if (existing && !existing.equals(group)) {
-    return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${name}'`));
+  // Los nombres de item y de grupo comparten espacio (ToggleItem, scopes); los
+  // campos de DataSet, no: renombrar a un nombre de campo es legítimo. La
+  // colisión es **sin distinguir mayúsculas** (RB resuelve con VB).
+  const groupWithName = findGroupByName(ctx.root, name);
+  if (ctx.index.has(name) || (groupWithName && !groupWithName.equals(group))) {
+    return left(
+      CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${name}'`),
+    );
   }
 
   group.setAttribute('Name', name);
@@ -700,6 +705,22 @@ function createSortExpression(parent: RdlcNode, sort: GroupSort): RdlcNode {
   return node;
 }
 
+/** Grupo con ese nombre en cualquier Tablix (scope names: únicos, sin distinguir caja). */
+function findGroupByName(root: RdlcNode, name: string): RdlcNode | undefined {
+  const wanted = name.toLowerCase();
+  let found: RdlcNode | undefined;
+  const walk = (node: RdlcNode): void => {
+    if (found) return;
+    if (node.tagName === 'Group' && node.attribute('Name')?.toLowerCase() === wanted) {
+      found = node;
+      return;
+    }
+    for (const child of node.children()) walk(child);
+  };
+  walk(root);
+  return found;
+}
+
 /** Expresión lista para el XML: recortada y con `=` (lo que espera RDL). */
 function normalizedExpression(value: string): string | null {
   const trimmed = value.trim();
@@ -731,7 +752,7 @@ function nextGroupName(ctx: CommandContext, expression: string): string {
   const taken = collectScopeNames(ctx.root);
   const base = groupNameBase(expression);
   let name = base;
-  for (let index = 1; taken.has(name); index += 1) name = `${base}${index}`;
+  for (let index = 1; taken.has(name.toLowerCase()); index += 1) name = `${base}${index}`;
   return name;
 }
 
@@ -740,7 +761,7 @@ function collectScopeNames(root: RdlcNode): Set<string> {
   const walk = (node: RdlcNode): void => {
     if (node.tagName === 'Group' || node.tagName === 'DataSet') {
       const name = node.attribute('Name');
-      if (name) names.add(name);
+      if (name) names.add(name.toLowerCase());
     }
     for (const child of node.children()) walk(child);
   };

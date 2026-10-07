@@ -75,6 +75,8 @@ describe('validación XSD RDL 2016/01', () => {
     expect(result.valid).toBe(false);
     expect(result.problems.length).toBeGreaterThan(0);
     expect(result.problems.join(' ')).toContain('BogusElement');
+    // El problema dice en qué línea está (más informativo y localizable).
+    expect(result.problems.join(' ')).toMatch(/Línea \d+/);
   });
 
   it('reutiliza el esquema compilado (validaciones consecutivas rápidas)', () => {

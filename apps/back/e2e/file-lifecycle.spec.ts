@@ -100,9 +100,10 @@ test('con cambios sin guardar, abrir un reciente pide confirmación', async () =
   await insertTextbox();
   await expect.poll(itemCount).toBe(before + 1);
 
-  // Desplegable de recientes → el propio fichero en edición (ruta exacta: con
-  // userData aislado solo hay un reciente, pero se ata al fichero del test).
-  await page.getByRole('button', { name: 'Abrir un fichero reciente' }).click();
+  // Desplegable «Fichero» → Recientes → el propio fichero en edición (ruta
+  // exacta: con userData aislado solo hay un reciente, pero se ata al fichero).
+  await page.getByRole('button', { name: 'Fichero' }).click();
+  await page.getByRole('menuitem', { name: 'Recientes' }).click();
   await page.getByRole('menuitem', { name: file, exact: true }).click();
 
   // Guarda de cambios: Cancelar conserva el documento intacto.
@@ -113,7 +114,8 @@ test('con cambios sin guardar, abrir un reciente pide confirmación', async () =
   await expect.poll(itemCount).toBe(before + 1);
 
   // Repetir y descartar: el informe se reabre desde disco (sin el textbox).
-  await page.getByRole('button', { name: 'Abrir un fichero reciente' }).click();
+  await page.getByRole('button', { name: 'Fichero' }).click();
+  await page.getByRole('menuitem', { name: 'Recientes' }).click();
   await page.getByRole('menuitem', { name: file, exact: true }).click();
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Abrir sin guardar' }).click();
@@ -175,7 +177,8 @@ test('Guardar como… escribe en la ruta nueva y la sesión sigue ahí', async (
   const before = await itemCount();
   await insertTextbox();
 
-  await page.getByRole('button', { name: 'Guardar como…' }).click();
+  await page.getByRole('button', { name: 'Fichero' }).click();
+  await page.getByRole('menuitem', { name: 'Guardar como…' }).click();
   await expect.poll(() => existsSync(target)).toBe(true);
   await expect.poll(statusText).toContain('Guardado como');
 

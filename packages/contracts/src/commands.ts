@@ -265,6 +265,17 @@ const setHeaderFooterOptions = z.object({
   printOnLastPage: z.boolean().optional(),
 });
 
+/**
+ * Inserta o quita una banda de página (`PageHeader`/`PageFooter`). Al insertar
+ * nace con un alto por defecto; al quitarse desaparece del XML (el undo la
+ * restaura byte a byte).
+ */
+const setRegionPresent = z.object({
+  cmd: z.literal('setRegionPresent'),
+  region: z.enum(['pageHeader', 'pageFooter']),
+  present: z.boolean(),
+});
+
 const setReportCode = z.object({
   cmd: z.literal('setReportCode'),
   /** Bloque `<Code>` VB completo (atómico; inverso = texto anterior). */
@@ -664,6 +675,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   setRegionHeight,
   setSectionWidth,
   setHeaderFooterOptions,
+  setRegionPresent,
   setReportCode,
   setImageOptions,
   batch,

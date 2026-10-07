@@ -25,6 +25,26 @@ function regionFor(tagName: string): RegionName | undefined {
 }
 
 /**
+ * Items de informe (el `choice` de `ReportItems` del XSD). Solo estos nodos
+ * entran en el índice: el RDL reutiliza `Name` en campos de DataSet, parámetros
+ * y orígenes de datos, y los `DataSets` van **después** de `ReportSections`, así
+ * que un campo llamado como un textbox pisaría su entrada y los comandos
+ * (estilo, bordes, color…) escribirían en el nodo equivocado.
+ */
+const REPORT_ITEM_TAGS = new Set([
+  'Line',
+  'Rectangle',
+  'Textbox',
+  'Image',
+  'Subreport',
+  'Chart',
+  'GaugePanel',
+  'Map',
+  'Tablix',
+  'CustomReportItem',
+]);
+
+/**
  * Índice `Name → nodo` del documento. Es la clave de los comandos: resolver un
  * `id` es O(1) y las operaciones del backend no recorren el árbol.
  * Además sabe en qué región vive cada elemento y los límites de cada región
@@ -32,6 +52,8 @@ function regionFor(tagName: string): RegionName | undefined {
  */
 export class DocumentIndex {
   private readonly byName = new Map<string, RdlcNode>();
+  /** Nombres en minúsculas: la unicidad de RB/VB ignora mayúsculas. */
+  private readonly lowerNames = new Set<string>();
   private readonly regionByName = new Map<string, RegionName>();
   /** Items que viven dentro de otro item (ReportItems o celda de Tablix). */
   private readonly nestedNames = new Set<string>();
@@ -41,9 +63,10 @@ export class DocumentIndex {
     this.boundsValue = readBounds(root);
     const walk = (node: RdlcNode, region: RegionName | undefined, insideItem: boolean): void => {
       const effective = regionFor(node.tagName) ?? region;
-      const name = node.attribute('Name');
+      const name = REPORT_ITEM_TAGS.has(node.tagName) ? node.attribute('Name') : undefined;
       if (name) {
         this.byName.set(name, node);
+        this.lowerNames.add(name.toLowerCase());
         if (effective) this.regionByName.set(name, effective);
         if (insideItem) this.nestedNames.add(name);
       }
@@ -61,8 +84,14 @@ export class DocumentIndex {
     return this.byName.get(name);
   }
 
+  /**
+   * `true` si algún item de informe usa ese nombre **sin distinguir
+   * mayúsculas**: Report Builder resuelve los nombres con el motor VB
+   * (`Textbox3` y `textbox3` chocan aunque el XML valide). `get` sigue siendo
+   * exacto: los ids de la proyección conservan su caja.
+   */
   has(name: string): boolean {
-    return this.byName.has(name);
+    return this.lowerNames.has(name.toLowerCase());
   }
 
   names(): string[] {

@@ -383,7 +383,7 @@ function TablixHeaders({
               y={rect.y - HEADER_PX}
               width={width}
               height={HEADER_PX}
-              fill={inColumns(index) ? '#bfdbfe' : '#e5e7eb'}
+              fill={inColumns(index) ? '#bfdbfe' : '#d4d4d8'}
               stroke="#9ca3af"
               strokeWidth={0.5}
               strokeScaleEnabled={false}
@@ -420,7 +420,7 @@ function TablixHeaders({
               y={rect.y + top}
               width={HEADER_PX}
               height={height}
-              fill={inRows(index) ? '#bfdbfe' : '#e5e7eb'}
+              fill={inRows(index) ? '#bfdbfe' : '#d4d4d8'}
               stroke="#9ca3af"
               strokeWidth={0.5}
               strokeScaleEnabled={false}
@@ -451,7 +451,7 @@ function TablixHeaders({
         y={rect.y - HEADER_PX}
         width={HEADER_PX}
         height={HEADER_PX}
-        fill="#e5e7eb"
+        fill="#d4d4d8"
         stroke="#9ca3af"
         strokeWidth={0.5}
         strokeScaleEnabled={false}

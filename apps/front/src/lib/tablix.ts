@@ -349,6 +349,31 @@ export function cellBoxAt(tablix: TablixDto, row: number, col: number): TablixCe
   return tablixLayout(tablix).cells.find((cell) => cell.row === row && cell.col === col);
 }
 
+/**
+ * Contenidos **únicos** de las celdas de un rango (columnas de rejilla). Con
+ * celdas fusionadas el índice del array no coincide con la columna (los rellenos
+ * no se proyectan), así que cada punto del rango se mapea por la caja del
+ * layout: una columna cubierta devuelve el contenido de su ancla, sin duplicarlo.
+ */
+export function selectedCellContents(tablix: TablixDto, selection: SelectedCell): ItemDto[] {
+  const layout = tablixLayout(tablix);
+  const contents: ItemDto[] = [];
+  const seen = new Set<string>();
+  for (const { row, col } of selectionCells(selection)) {
+    const box = layout.cells.find(
+      (cell) =>
+        cell.row <= row &&
+        row < cell.row + cell.rowSpan &&
+        cell.col <= col &&
+        col < cell.col + cell.colSpan,
+    );
+    if (!box?.content || seen.has(box.content.id)) continue;
+    seen.add(box.content.id);
+    contents.push(box.content);
+  }
+  return contents;
+}
+
 export interface TablixTreeEntry {
   /**
    * `group` = miembro dinámico (con `expression`) o contenedor con hijos;

@@ -64,6 +64,7 @@ export function WorkspaceDialogs({
       onSetRegionHeight={items.setRegionHeight}
       onSetSectionWidth={items.setSectionWidth}
       onSetHeaderFooterOptions={items.setHeaderFooterOptions}
+      onSetRegionPresent={items.setRegionPresent}
       onSetReportCode={items.setReportCode}
       editingText={editingText}
       onEditingTextOpenChange={onEditingTextOpenChange}

@@ -84,6 +84,40 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
     expect(commands.paste(sessionId, { kind: 'body' }, 0).isRight()).toBe(true);
   });
 
+  it('pegar en el cuerpo un item de celda materializa Width/Height (RB estira sin tamaño)', async () => {
+    const { commands, service, sessionId, index } = await openFixture();
+
+    // Un textbox dentro de una celda no declara longitudes (las pone la celda).
+    let cellTextbox: string | undefined;
+    for (const name of index().names()) {
+      const node = index().get(name);
+      if (!node || node.tagName !== 'Textbox' || node.child('Width')) continue;
+      let current = node.parent;
+      while (current && current.tagName !== 'TablixCell') current = current.parent;
+      if (current) {
+        cellTextbox = name;
+        break;
+      }
+    }
+    expect(cellTextbox).toBeDefined();
+    if (!cellTextbox) return;
+
+    expect(commands.copy(sessionId, [cellTextbox]).isRight()).toBe(true);
+    const pasted = commands.paste(sessionId, { kind: 'body' }, 0);
+    expect(pasted.isRight()).toBe(true);
+    if (!pasted.isRight() || !pasted.value.ok || !pasted.value.id) return;
+
+    const clone = index().get(pasted.value.id);
+    expect(clone?.child('Top')?.text()).toBe('0cm');
+    expect(clone?.child('Left')?.text()).toBe('0cm');
+    expect(clone?.child('Width')?.text()).toBe('5cm');
+    expect(clone?.child('Height')?.text()).toBe('1cm');
+
+    // El original sigue sin longitudes (dentro de su celda).
+    expect(index().get(cellTextbox)?.child('Width')).toBeUndefined();
+    expect(service.versionOf(sessionId)).toBeGreaterThan(0);
+  });
+
   it('pegar varias veces da nombres distintos', async () => {
     const { commands, sessionId, index } = await openFixture();
 

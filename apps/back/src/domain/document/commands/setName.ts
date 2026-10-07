@@ -26,7 +26,9 @@ export function applySetName(
     return left(CommandRejectedError.create('El nombre no puede estar vacío'));
   }
   if (name === command.id) return right({ inverse: [] });
-  if (ctx.index.has(name)) {
+  // Cambiar solo la caja del propio nombre es el mismo item: permitido (RB
+  // resuelve sin distinguir mayúsculas, pero el XML conserva la caja elegida).
+  if (ctx.index.has(name) && name.toLowerCase() !== command.id.toLowerCase()) {
     return left(CommandRejectedError.create(`Ya existe un elemento con el nombre '${name}'`));
   }
 

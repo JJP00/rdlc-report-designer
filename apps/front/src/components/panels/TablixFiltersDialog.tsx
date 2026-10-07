@@ -97,7 +97,8 @@ export function TablixFiltersDialog({
       }}
     >
       <DialogContent
-        className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-3 sm:max-w-2xl"
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-3 overflow-hidden sm:max-w-2xl"
+        resizable
         onKeyDown={(event) => {
           // Ctrl+Intro = Aplicar (teclado completo en el diálogo).
           if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && valid) {

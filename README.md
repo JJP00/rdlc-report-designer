@@ -130,7 +130,8 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       `run > párrafo > item` (fuente, tamaño, color, negrita/cursiva/subrayado) y la
       **alineación del párrafo**; el texto de diseño muestra la **etiqueta** `[X]`, el nombre
       del campo, `[exp]` o el texto. Marco y tiradores miden la caja del item.
-- [x] Barra de formato con **fuentes del sistema** (registro de Windows vía IPC).
+- [x] Barra de formato con las **fuentes disponibles en Business Central** (lista oficial
+      vía IPC).
 - [x] **Paleta de comandos Ctrl+K** (elementos por nombre y contenido, variables, acciones)
       y **Monaco** para expresiones y bloque `<Code>` (resaltado + autocompletado;
       las variables se insertan en el cursor).
@@ -274,5 +275,51 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       (misma edición y round-trip) y un RDL anterior a 2016 se rechaza al abrir con un
       motivo accionable (`E_UNSUPPORTED_SCHEMA`). **309 back + 189 front** unit y
       **80 E2E** verdes.
+
+- [x] **Sesión 2026-10-02 (3.ª parte) · fusión SSRS/BC**: BC/SSRS escriben **una
+      celda por columna** y dejan celdas de relleno vacías bajo cada `ColSpan`;
+      la proyección y el lienzo las contaban como columnas y todo lo posterior a
+      una fusión se desplazaba (p. ej. `Cust_Vend_Name` de
+      `VendorPrePaymentJournal.rdl` caía en la columna 9 en vez de la 8, y el
+      `TextBox` de 4 columnas desbordaba la rejilla). Ahora `positionedCells`
+      detecta la convención (índice = columna; sin rellenos → acumulación) y el
+      adaptador proyecta solo las anclas. Los comandos mantienen la convención
+      (fusionar vacía el relleno sin quitarlo, separar lo rellena, añadir/quitar
+      columna crea/elimina su relleno) y el scope de una celda usa la columna de
+      rejilla. Además, el `DocumentIndex` solo indexa **items de informe**: BC
+      reutiliza `Name` en campos de DataSet y un campo llamado como un textbox
+      pisaba su entrada (al editar borde/color el `<Style>` acababa en el
+      `<Field>` y el padding del item se «reseteaba» en el lienzo).
+      **316 back + 190 front** unit y **80 E2E** verdes.
+
+- [x] **Sesión 2026-10-02 (4.ª parte) · compatibilidad con Report Builder**: RB
+      exige **una `TablixCell` por columna**; si una fila tiene menos (o más),
+      lanza «El índice estaba fuera del intervalo» al abrir el `.rdl`. Ahora
+      `mergeCells` **vacía** las celdas cubiertas en vez de quitarlas, y
+      `addColumn` decide el destino de cada fila **antes** de tocarla (antes leía
+      la fila mutada con el recuento de columnas viejo y duplicaba celda:
+      `TextboxN` + relleno). `ListStyle` (viñetas/numeración) se escribe y lee
+      como **hijo directo de `<Paragraph>`** (el XSD no lo admite en `<Style>`:
+      el guardado fallaba con `E_VALIDATION`); el comando limpia además los
+      nodos legados de versiones anteriores. La edición en lote de **celdas**
+      mapea el rango por columna de rejilla (`selectedCellContents`), no por el
+      índice del array: con fusiones editaba otros textboxes. Y las fuentes se
+      replican en los **runs** (BC/RB las resuelven ahí; con solo el `<Style>`
+      del item, un textbox nuevo se veía a Arial 10 en Report Builder), también
+      al reemplazar párrafos. **323 back + 192 front** unit y **80 E2E** verdes.
+
+- [x] **Sesión 2026-10-02 (5.ª parte) · informes «en blanco» en Report Builder
+      (split+merge)**: dos bugs de compatibilidad RB. (1) Los items que entran en
+      una banda (cuerpo/cabecera/pie) ya **materializan `Top/Left/Width/Height`**
+      (`bandGeometry.ts` en `moveItem`/pegar/duplicar): RB estiraba al tamaño de
+      la banda el item sin longitudes (contenido de celda movido o pegado al
+      cuerpo) y su fondo blanco tapaba el `list1` entero → parecía vacío.
+      (2) La unicidad de nombres es **sin distinguir mayúsculas** (RB resuelve con
+      VB): `Textbox3`/`textbox3`, `Textbox6`/`textbox6`… invalidaban el informe.
+      Fix en `DocumentIndex.has`, `nextItemName`/`freeName`, `setName` (permite
+      cambiar solo la caja del propio nombre) y nombres de grupo. **+4 tests**:
+      **327 back** unit y `typecheck` limpios. Diagnóstico con **Report Builder 15**
+      y capturas de ventana; reparación de ficheros ya rotos documentada en
+      Pendientes.
 
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

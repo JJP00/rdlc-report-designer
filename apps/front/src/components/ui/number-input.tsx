@@ -1,10 +1,5 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import {
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from 'react';
+import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -200,16 +195,14 @@ export function NumberInput({
           }
         }}
       />
-      <span
-        className={cn('flex shrink-0 flex-col', disabled && 'pointer-events-none opacity-40')}
-      >
+      <span className={cn('flex shrink-0 flex-col', disabled && 'pointer-events-none opacity-40')}>
         <button
           type="button"
           aria-label={`${label}: aumentar`}
           title="Aumentar (↑)"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => stepBy(1)}
-          className="flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+          className="flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <ChevronUp className="size-2.5" />
         </button>
@@ -219,7 +212,7 @@ export function NumberInput({
           title="Reducir (↓)"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => stepBy(-1)}
-          className="flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+          className="flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <ChevronDown className="size-2.5" />
         </button>
