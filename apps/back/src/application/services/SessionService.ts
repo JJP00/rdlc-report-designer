@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { IPC_EVENTS } from '@rdlc-designer/contracts';
-import type { ProjectionDto } from '@rdlc-designer/contracts';
+import type { ListedSession, ProjectionDto } from '@rdlc-designer/contracts';
 import { Injectable, Inject } from '@nestjs/common';
 import { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
 import { BLANK_REPORT_XML } from '../../domain/document/templates/blankReport.js';
@@ -60,6 +60,8 @@ interface Session {
   lastWriteSize: number;
   /** true mientras escribimos: el watcher ignora esos eventos. */
   writing: boolean;
+  /** true si el fichero desapareció del disco (borrado/movido externo, BUG-55). */
+  missing: boolean;
   /** Subárboles desprendidos copiados/cortados (portapapeles de la sesión). */
   clipboard?: RdlcNode[];
   unwatch?: Unwatch;
@@ -68,6 +70,8 @@ interface Session {
 @Injectable()
 export class SessionService implements ISessionService {
   private readonly sessions = new Map<string, Session>();
+  /** Colas de operaciones por sesión (save/saveAs/reload serializados, BUG-54). */
+  private readonly sessionLocks = new Map<string, Promise<unknown>>();
 
   constructor(
     @Inject(FILE_SYSTEM_PORT) private readonly fileSystem: FileSystemPort,
@@ -78,6 +82,16 @@ export class SessionService implements ISessionService {
     @Inject(XML_SCHEMA_VALIDATOR_PORT) private readonly schema: XmlSchemaValidatorPort,
     @Inject(EVENT_BUS_PORT) private readonly events: EventBusPort,
   ) {}
+
+  /** Sesiones vivas en orden de apertura (re-adopción del front, BUG-51). */
+  listSessions(): ListedSession[] {
+    return [...this.sessions.values()].map((session) => ({
+      sessionId: session.sessionId,
+      filePath: session.filePath,
+      dirty: session.dirty,
+      projection: this.project(session),
+    }));
+  }
 
   async open(filePath: string): Promise<Either<DomainError, OpenSessionResult>> {
     if (!(await this.fileSystem.exists(filePath))) {
@@ -124,6 +138,7 @@ export class SessionService implements ISessionService {
       lastWriteMs: diskStat.mtimeMs,
       lastWriteSize: diskStat.size,
       writing: false,
+      missing: false,
     };
 
     // El watcher se arranca **antes** de registrar la sesión: si falla
@@ -131,9 +146,15 @@ export class SessionService implements ISessionService {
     // en el mapa (BUG-24).
     let unwatch: Unwatch;
     try {
-      unwatch = await this.fileWatcher.watch(filePath, () => {
-        void this.onExternalChange(sessionId);
-      });
+      unwatch = await this.fileWatcher.watch(
+        filePath,
+        () => {
+          void this.onExternalChange(sessionId);
+        },
+        () => {
+          void this.onFileUnlinked(sessionId);
+        },
+      );
     } catch (error) {
       return left(IoError.create('vigilar', filePath, error));
     }
@@ -160,7 +181,14 @@ export class SessionService implements ISessionService {
     return this.open(filePath);
   }
 
+  /** Serializado con las demás operaciones de fichero de la sesión (BUG-54). */
   async save(sessionId: string): Promise<Either<DomainError, SaveSessionResult>> {
+    return this.enqueue(sessionId, () => this.saveLocked(sessionId));
+  }
+
+  private async saveLocked(
+    sessionId: string,
+  ): Promise<Either<DomainError, SaveSessionResult>> {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
 
@@ -168,6 +196,17 @@ export class SessionService implements ISessionService {
     // (debounce, unidad de red): Guardar comprueba el disco para no pisar una
     // edición externa en silencio (BUG-20).
     if (!(await this.referenceStillOnDisk(session))) {
+      // La referencia avanza al estado externo actual (BUG-52): un «Guardar y
+      // sobrescribir» posterior no vuelve a rechazarse por **este mismo**
+      // cambio; otro cambio distinto sí se detectará (mtime/tamaño distintos o
+      // bytes distintos de `originalBytes`, que solo avanza en `writeTo`).
+      try {
+        const diskStat = await this.fileSystem.stat(session.filePath);
+        session.lastWriteMs = diskStat.mtimeMs;
+        session.lastWriteSize = diskStat.size;
+      } catch {
+        // No se pudo leer el estado: el siguiente intento lo comprobará igual.
+      }
       return left(FileConflictError.create(session.filePath));
     }
 
@@ -184,7 +223,15 @@ export class SessionService implements ISessionService {
     });
   }
 
+  /** Serializado con las demás operaciones de fichero de la sesión (BUG-54). */
   async saveAs(
+    sessionId: string,
+    filePath: string,
+  ): Promise<Either<DomainError, SaveSessionResult>> {
+    return this.enqueue(sessionId, () => this.saveAsLocked(sessionId, filePath));
+  }
+
+  private async saveAsLocked(
     sessionId: string,
     filePath: string,
   ): Promise<Either<DomainError, SaveSessionResult>> {
@@ -197,18 +244,47 @@ export class SessionService implements ISessionService {
     const written = await this.writeTo(session, filePath, serialized.value.bytes);
     if (written.isLeft()) return left(written.value);
 
-    // La sesión pasa a apuntar (y vigilar) el fichero nuevo.
+    // El watcher nuevo se crea **antes** de soltar el viejo (BUG-56): si falla
+    // (permisos, límite de descriptores…), el guardado ya está consumado y la
+    // sesión sigue siendo consistente; solo se avisa de que no hay vigilancia.
+    let unwatch: Unwatch | undefined;
+    let warning: string | undefined;
+    try {
+      unwatch = await this.fileWatcher.watch(
+        filePath,
+        () => {
+          void this.onExternalChange(sessionId);
+        },
+        () => {
+          void this.onFileUnlinked(sessionId);
+        },
+      );
+    } catch {
+      warning = 'Guardado, pero no se vigilan cambios externos en el fichero nuevo.';
+    }
+
+    // La sesión pasa a apuntar al fichero nuevo; el watcher viejo (ruta
+    // antigua) se suelta en cualquier caso.
     session.unwatch?.();
+    session.unwatch = unwatch;
     session.filePath = filePath;
-    session.unwatch = await this.fileWatcher.watch(filePath, () => {
-      void this.onExternalChange(sessionId);
-    });
 
     this.markSaved(session, filePath);
-    return right({ path: filePath, bytesIdentical: serialized.value.bytesIdentical });
+    return right({
+      path: filePath,
+      bytesIdentical: serialized.value.bytesIdentical,
+      ...(warning ? { warning } : {}),
+    });
   }
 
+  /** Serializado con las demás operaciones de fichero de la sesión (BUG-54). */
   async reload(sessionId: string): Promise<Either<DomainError, OpenSessionResult>> {
+    return this.enqueue(sessionId, () => this.reloadLocked(sessionId));
+  }
+
+  private async reloadLocked(
+    sessionId: string,
+  ): Promise<Either<DomainError, OpenSessionResult>> {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
 
@@ -248,6 +324,8 @@ export class SessionService implements ISessionService {
     session.lastWriteMs = diskStat.mtimeMs;
     session.lastWriteSize = diskStat.size;
     session.clipboard = undefined;
+    // La recarga leyó del disco: el fichero existe (si estaba «missing», vuelve).
+    this.clearMissing(session);
     if (session.dirty) {
       session.dirty = false;
       this.events.send(IPC_EVENTS.dirtyChanged, { sessionId, dirty: false });
@@ -369,12 +447,36 @@ export class SessionService implements ISessionService {
 
   /* --------------------------- interno -------------------------------- */
 
+  /**
+   * Serializa las operaciones que escriben o releen el fichero de una sesión
+   * (save/saveAs/reload, BUG-54): un segundo Ctrl+S espera al primero y nunca
+   * ve una referencia a medias (falso E_CONFLICT). La cola absorbe los errores
+   * para no envenenar al siguiente eslabón y se retira al quedar vacía.
+   * `open`/`createNew` no pasan por aquí: crean sesiones nuevas.
+   */
+  private enqueue<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.sessionLocks.get(sessionId) ?? Promise.resolve();
+    const task = previous.then(operation, operation);
+    const tail = task.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.sessionLocks.set(sessionId, tail);
+    void tail.then(() => {
+      if (this.sessionLocks.get(sessionId) === tail) this.sessionLocks.delete(sessionId);
+    });
+    return task;
+  }
+
   private async onExternalChange(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session || session.writing) return;
 
     try {
       const stat = await this.fileSystem.stat(session.filePath);
+      // El fichero está en disco: si se había dado por perdido, ha vuelto
+      // (BUG-55). Se emite solo en la transición.
+      this.clearMissing(session);
 
       // Camino rápido: mtime y tamaño idénticos a la referencia (eco de
       // nuestra propia escritura o fichero intacto). Nada que hacer.
@@ -411,15 +513,21 @@ export class SessionService implements ISessionService {
         return;
       }
 
-      const doc = this.parser.parse(bytes.toString('utf8'));
+      // Sesión limpia: el cambio externo se recarga o, si no se puede, se avisa
+      // suave (BUG-53). Sin ediciones locales no hay nada que proteger: hablar
+      // de «conflicto» dejaría banner/diálogo pegados sobre un fichero bueno.
+      let doc: RdlcDocument;
+      try {
+        doc = this.parser.parse(bytes.toString('utf8'));
+      } catch {
+        this.sendExternalReloadFailed(session, 'unreadable');
+        return;
+      }
 
       // El cambio externo pasa por la misma comprobación de esquema que open
-      // (BUG-27): un RDL de otra versión no se carga y se avisa como conflicto.
+      // (BUG-27): un RDL de otra versión no se carga en silencio.
       if (checkSupportedSchema(session.filePath, doc.root)) {
-        this.events.send(IPC_EVENTS.conflictDetected, {
-          sessionId,
-          filePath: session.filePath,
-        });
+        this.sendExternalReloadFailed(session, 'unsupportedSchema');
         return;
       }
 
@@ -438,9 +546,69 @@ export class SessionService implements ISessionService {
         reason: 'external',
       });
     } catch {
-      // Fichero corrupto o ilegible: se deja la sesión como está y se avisa.
-      this.events.send(IPC_EVENTS.conflictDetected, { sessionId, filePath: session.filePath });
+      // stat/read fallaron (fichero a medias, permisos): la sesión se deja como
+      // está. Con ediciones locales se conserva el diálogo de conflicto; limpia,
+      // basta el aviso suave (BUG-53).
+      if (session.dirty) {
+        this.events.send(IPC_EVENTS.conflictDetected, {
+          sessionId,
+          filePath: session.filePath,
+        });
+      } else {
+        this.sendExternalReloadFailed(session, 'unreadable');
+      }
     }
+  }
+
+  /**
+   * El fichero de la sesión desapareció del disco (chokidar `unlink`, BUG-55).
+   * Un `unlink` puede ser la mitad de un `rename` atómico (Explorer, robocopy):
+   * si el fichero sigue ahí, no ha pasado nada. Las escrituras propias también
+   * renombran encima, así que mientras `writing` el evento se ignora. Se emite
+   * solo en la transición a «no está».
+   */
+  private async onFileUnlinked(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.writing) return;
+
+    try {
+      await this.fileSystem.stat(session.filePath);
+      // Sigue existiendo: era el lado de un reemplazo atómico.
+      return;
+    } catch {
+      // Ya no está: se avisa (una sola vez por transición).
+    }
+
+    if (session.missing) return;
+    session.missing = true;
+    this.events.send(IPC_EVENTS.fileMissingChanged, {
+      sessionId,
+      filePath: session.filePath,
+      missing: true,
+    });
+  }
+
+  /** El fichero vuelve a estar en disco: se limpia `missing` solo en la transición. */
+  private clearMissing(session: Session, filePath = session.filePath): void {
+    if (!session.missing) return;
+    session.missing = false;
+    this.events.send(IPC_EVENTS.fileMissingChanged, {
+      sessionId: session.sessionId,
+      filePath,
+      missing: false,
+    });
+  }
+
+  /** Cambio externo no recargable en una sesión limpia: aviso suave, sin diálogo. */
+  private sendExternalReloadFailed(
+    session: Session,
+    reason: 'unreadable' | 'unsupportedSchema',
+  ): void {
+    this.events.send(IPC_EVENTS.externalReloadFailed, {
+      sessionId: session.sessionId,
+      filePath: session.filePath,
+      reason,
+    });
   }
 
   private project(session: Session): ProjectionDto {
@@ -522,6 +690,9 @@ export class SessionService implements ISessionService {
       session.lastWriteMs = stat.mtimeMs;
       session.lastWriteSize = stat.size;
       session.originalBytes = bytes;
+      // El guardado (re)creó el fichero: si se había dado por perdido, vuelve
+      // (BUG-55). En `saveAs` se pasó la ruta nueva.
+      this.clearMissing(session, filePath);
       return right(undefined);
     } catch (error) {
       return left(IoError.create('escribir', filePath, error));

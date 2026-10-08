@@ -7,7 +7,10 @@ import {
   type ConflictDetectedEvent,
   type DirtyChangedEvent,
   type DocumentChangedEvent,
+  type ExternalReloadFailedEvent,
+  type FileMissingChangedEvent,
   type FontListResult,
+  type ListedSessionsResult,
   type OpenFileResult,
   type PendingOpenResult,
   type PickFileResult,
@@ -17,7 +20,9 @@ import {
   type ReadProjectionResult,
   type RecentFilesResult,
   type SaveResult,
+  type SavedEvent,
   type ScopeRef,
+  type SessionClosedEvent,
 } from '@rdlc-designer/contracts';
 
 /**
@@ -69,6 +74,12 @@ const api: RdlcApi = {
   confirmWindowClose: (proceed: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.confirmWindowClose, { proceed }),
 
+  acknowledgeCloseRequest: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.acknowledgeCloseRequest),
+
+  listSessions: (): Promise<ListedSessionsResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.listSessions),
+
   executeCommand: (sessionId: string, command: RdlcCommand): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.executeCommand, { sessionId, command }),
 
@@ -110,6 +121,18 @@ const api: RdlcApi = {
 
   onCloseRequested: (callback: () => void): (() => void) =>
     subscribe(IPC_EVENTS.closeRequested, callback),
+
+  onFileMissingChanged: (callback: (event: FileMissingChangedEvent) => void): (() => void) =>
+    subscribe(IPC_EVENTS.fileMissingChanged, callback),
+
+  onExternalReloadFailed: (callback: (event: ExternalReloadFailedEvent) => void): (() => void) =>
+    subscribe(IPC_EVENTS.externalReloadFailed, callback),
+
+  onSessionClosed: (callback: (event: SessionClosedEvent) => void): (() => void) =>
+    subscribe(IPC_EVENTS.sessionClosed, callback),
+
+  onSaved: (callback: (event: SavedEvent) => void): (() => void) =>
+    subscribe(IPC_EVENTS.saved, callback),
 };
 
 contextBridge.exposeInMainWorld('api', api);

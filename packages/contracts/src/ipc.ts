@@ -32,6 +32,13 @@ export const IPC_CHANNELS = {
   recentFiles: 'rdlc:recentFiles',
   /** El renderer confirma (o cancela) el cierre de la ventana pedido por el SO. */
   confirmWindowClose: 'rdlc:confirmWindowClose',
+  /**
+   * El renderer está **vivo** y atendiendo la petición de cierre (P0.1): el
+   * main cancela su vigilante; si no llega a tiempo, ofrece cerrar sin guardar.
+   */
+  acknowledgeCloseRequest: 'rdlc:acknowledgeCloseRequest',
+  /** Sesiones vivas del backend (re-adopción tras recargar la interfaz, P0.1). */
+  listSessions: 'rdlc:listSessions',
   close: 'rdlc:close',
   executeCommand: 'rdlc:executeCommand',
   undo: 'rdlc:undo',
@@ -52,6 +59,10 @@ export const IPC_EVENTS = {
   sessionClosed: 'rdlc:evt:sessionClosed',
   /** El SO quiere cerrar la ventana: el front decide (guardas de cambios). */
   closeRequested: 'rdlc:evt:closeRequested',
+  /** El fichero de la sesión desapareció o volvió al disco (BUG-55). */
+  fileMissingChanged: 'rdlc:evt:fileMissingChanged',
+  /** Cambio externo que no se pudo recargar y la sesión no tenía cambios (BUG-53). */
+  externalReloadFailed: 'rdlc:evt:externalReloadFailed',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];
 
@@ -213,6 +224,11 @@ export const saveResultSchema = z.discriminatedUnion('ok', [
     path: z.string(),
     /** true si el fichero no se tocó y se re-escribieron los mismos bytes. */
     bytesIdentical: z.boolean(),
+    /**
+     * Aviso no bloqueante tras un guardado correcto (p. ej. «guardado, pero no
+     * se vigilan cambios externos», BUG-56).
+     */
+    warning: z.string().optional(),
   }),
   ipcErrorSchema,
 ]);
@@ -266,3 +282,36 @@ export const sessionClosedEventSchema = z.object({
   sessionId: z.string(),
 });
 export type SessionClosedEvent = z.infer<typeof sessionClosedEventSchema>;
+
+/** El fichero de la sesión desapareció (`true`) o volvió al disco (`false`). */
+export const fileMissingChangedEventSchema = z.object({
+  sessionId: z.string(),
+  filePath: z.string(),
+  missing: z.boolean(),
+});
+export type FileMissingChangedEvent = z.infer<typeof fileMissingChangedEventSchema>;
+
+/** Cambio externo no recargable (sin cambios locales): aviso suave, sin diálogo. */
+export const externalReloadFailedEventSchema = z.object({
+  sessionId: z.string(),
+  filePath: z.string(),
+  /** `unreadable`: XML corrupto/medias; `unsupportedSchema`: RDL anterior a 2016. */
+  reason: z.enum(['unreadable', 'unsupportedSchema']),
+});
+export type ExternalReloadFailedEvent = z.infer<typeof externalReloadFailedEventSchema>;
+
+/** Sesión viva del backend (re-adopción del front tras recargar la interfaz). */
+export const listedSessionSchema = z.object({
+  sessionId: z.string(),
+  filePath: z.string(),
+  dirty: z.boolean(),
+  projection: projectionSchema,
+});
+export type ListedSession = z.infer<typeof listedSessionSchema>;
+
+export const listedSessionsResultSchema = z.object({
+  ok: z.literal(true),
+  /** Orden de apertura; el front adopta la última si hay varias. */
+  sessions: z.array(listedSessionSchema),
+});
+export type ListedSessionsResult = z.infer<typeof listedSessionsResultSchema>;

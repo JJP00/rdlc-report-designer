@@ -430,9 +430,9 @@ describe('BUG-26 longitudes `.5in` y `pc` colapsan a 0', () => {
 // Fuentes: apps/back/src/application/services/SessionService.ts:180-216 (reload)
 // y :319-360 (onExternalChange)
 // Esperado: reload devuelve Left con el mismo código que open
-// (E_UNSUPPORTED_SCHEMA / E_INVALID_XML); el cambio externo no recarga y avisa
-// con conflictDetected (el mismo evento que para un fichero corrupto).
-// Remove `.fails` when fixing; the test must then pass.
+// (E_UNSUPPORTED_SCHEMA / E_INVALID_XML); el cambio externo no recarga y avisa.
+// En una sesión **limpia** el aviso es `externalReloadFailed` (aviso suave,
+// BUG-53); `conflictDetected` queda para sesiones con cambios sin guardar.
 describe('BUG-27 reload / cambio externo aceptan esquemas no soportados', () => {
   it('reload a un RDL 2010 devuelve E_UNSUPPORTED_SCHEMA', async () => {
     const { service, tmp } = await makeService();
@@ -460,7 +460,7 @@ describe('BUG-27 reload / cambio externo aceptan esquemas no soportados', () => 
     if (reloaded.isLeft()) expect(reloaded.value.code).toBe('E_INVALID_XML');
   });
 
-  it('un cambio externo a RDL 2010 no se carga y emite conflictDetected', async () => {
+  it('un cambio externo a RDL 2010 no se carga y emite externalReloadFailed (sesión limpia)', async () => {
     const { service, watcher, events, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');
     const opened = await service.open(path);
@@ -476,10 +476,15 @@ describe('BUG-27 reload / cambio externo aceptan esquemas no soportados', () => 
           .payloads<{ reason?: string }>(IPC_EVENTS.documentChanged)
           .some((e) => e.reason === 'external');
         expect(external).toBe(false);
-        expect(events.sent.some((e) => e.channel === IPC_EVENTS.conflictDetected)).toBe(true);
+        const failed = events
+          .payloads<{ reason?: string }>(IPC_EVENTS.externalReloadFailed)
+          .at(-1);
+        expect(failed?.reason).toBe('unsupportedSchema');
       },
       { timeout: 1000 },
     );
+    // Sin ediciones locales no hay conflicto que resolver.
+    expect(events.sent.some((e) => e.channel === IPC_EVENTS.conflictDetected)).toBe(false);
   });
 });
 

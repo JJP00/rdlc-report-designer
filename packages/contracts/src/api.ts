@@ -5,7 +5,10 @@ import type {
   ConflictDetectedEvent,
   DirtyChangedEvent,
   DocumentChangedEvent,
+  ExternalReloadFailedEvent,
+  FileMissingChangedEvent,
   FontListResult,
+  ListedSessionsResult,
   OpenFileResult,
   PendingOpenResult,
   PickFileResult,
@@ -13,6 +16,8 @@ import type {
   ReadProjectionResult,
   RecentFilesResult,
   SaveResult,
+  SavedEvent,
+  SessionClosedEvent,
 } from './ipc.js';
 
 /**
@@ -47,6 +52,14 @@ export interface RdlcApi {
   close(sessionId: string, force?: boolean): Promise<CloseResult>;
   /** Responde al cierre de ventana pedido por el SO (tras decidir el usuario). */
   confirmWindowClose(proceed: boolean): Promise<void>;
+  /**
+   * El renderer está vivo y atendiendo la petición de cierre: cancela el
+   * vigilante del main (si no responde a tiempo, avisará para cerrar sin
+   * guardar). Se llama al recibir `onCloseRequested`, antes de decidir (P0.1).
+   */
+  acknowledgeCloseRequest(): Promise<void>;
+  /** Sesiones vivas del backend (re-adopción tras recargar la interfaz, P0.1). */
+  listSessions(): Promise<ListedSessionsResult>;
 
   /** Ejecuta un comando de edición (el backend queda sincronizado al momento). */
   executeCommand(sessionId: string, command: RdlcCommand): Promise<CommandResult>;
@@ -77,4 +90,15 @@ export interface RdlcApi {
   onConflictDetected(callback: (event: ConflictDetectedEvent) => void): () => void;
   /** El SO quiere cerrar la ventana: el front decide y responde. */
   onCloseRequested(callback: () => void): () => void;
+  /** El fichero de la sesión desapareció (`missing: true`) o volvió (BUG-55). */
+  onFileMissingChanged(callback: (event: FileMissingChangedEvent) => void): () => void;
+  /**
+   * Un cambio externo no se pudo recargar (fichero a medias u otra versión del
+   * esquema) y la sesión no tenía cambios: aviso suave, sin diálogo (BUG-53).
+   */
+  onExternalReloadFailed(callback: (event: ExternalReloadFailedEvent) => void): () => void;
+  /** La sesión se cerró en el backend: el workspace retira su pestaña (fase A). */
+  onSessionClosed(callback: (event: SessionClosedEvent) => void): () => void;
+  /** Guardado consumado en el backend (robustez del estado por pestaña, fase A). */
+  onSaved(callback: (event: SavedEvent) => void): () => void;
 }

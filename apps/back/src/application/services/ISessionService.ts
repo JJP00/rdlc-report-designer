@@ -1,4 +1,4 @@
-import type { ProjectionDto } from '@rdlc-designer/contracts';
+import type { ListedSession, ProjectionDto } from '@rdlc-designer/contracts';
 import type { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
 import type { RdlcDocument, RdlcNode } from '../../domain/document/tree/RdlcNode.js';
 import type { Either } from '../../shared/either.js';
@@ -17,6 +17,8 @@ export interface SaveSessionResult {
   path: string;
   /** true si el documento no se tocó: se re-escribieron exactamente los mismos bytes. */
   bytesIdentical: boolean;
+  /** Aviso no bloqueante tras un guardado correcto (p. ej. watcher que no arrancó, BUG-56). */
+  warning?: string;
 }
 
 /** Resultado de cerrar: puede pedir confirmación si hay cambios sin guardar. */
@@ -35,6 +37,11 @@ export interface TouchOptions {
 
 /** Caso de uso: ciclo de vida de pestañas (abrir/guardar/cerrar/vigilar). */
 export interface ISessionService {
+  /**
+   * Sesiones vivas en orden de apertura (con `dirty` y la proyección vigente):
+   * el front las re-adopta tras recargar la interfaz (P0.1, BUG-51).
+   */
+  listSessions(): ListedSession[];
   open(filePath: string): Promise<Either<DomainError, OpenSessionResult>>;
   /** Escribe la plantilla en blanco en `filePath` y la abre como sesión nueva. */
   createNew(filePath: string): Promise<Either<DomainError, OpenSessionResult>>;

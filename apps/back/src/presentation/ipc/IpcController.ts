@@ -14,6 +14,7 @@ import {
   type CommandResult,
   type FontListResult,
   type IpcErrorDto,
+  type ListedSessionsResult,
   type OpenFileResult,
   type PendingOpenResult,
   type PickFileResult,
@@ -102,6 +103,13 @@ export class IpcController {
       return { ok: true, path };
     });
 
+    // Sesiones vivas del backend: el front las re-adopta tras recargar la
+    // interfaz (recuperación del ErrorBoundary, P0.1/BUG-51).
+    ipcMain.handle(
+      IPC_CHANNELS.listSessions,
+      (): ListedSessionsResult => ({ ok: true, sessions: this.sessions.listSessions() }),
+    );
+
     // Drop de ficheros: lo llama el preload con la ruta real del `File`
     // (`webUtils.getPathForFile`); el renderer no puede invocar este canal.
     ipcMain.handle(IPC_CHANNELS.registerDroppedFile, (_event, payload) =>
@@ -183,6 +191,7 @@ export class IpcController {
           ok: true,
           path: value.path,
           bytesIdentical: value.bytesIdentical,
+          ...(value.warning ? { warning: value.warning } : {}),
         }),
       ),
     );
@@ -207,6 +216,7 @@ export class IpcController {
           ok: true,
           path: value.path,
           bytesIdentical: value.bytesIdentical,
+          ...(value.warning ? { warning: value.warning } : {}),
         }),
       ),
     );

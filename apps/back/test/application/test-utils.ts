@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { EventBusPort } from '../../src/application/ports/out/EventBusPort.js';
+import type { FileSystemPort } from '../../src/application/ports/out/FileSystemPort.js';
 import type { FileWatcherPort, Unwatch } from '../../src/application/ports/out/FileWatcherPort.js';
 import type {
   SchemaValidationResult,
@@ -16,15 +17,30 @@ import { corpusByName } from '../golden/fixtures.js';
 /** Fakes compartidos por los tests de la capa de aplicación (sin Electron). */
 
 export class FakeWatcher implements FileWatcherPort {
-  private readonly callbacks = new Map<string, () => void>();
+  private readonly callbacks = new Map<
+    string,
+    { onChange: () => void; onUnlink?: () => void }
+  >();
 
-  async watch(path: string, onChange: () => void): Promise<Unwatch> {
-    this.callbacks.set(path, onChange);
+  /** El siguiente `watch` rechaza (simula permisos/límite de descriptores, BUG-56). */
+  failNextWatch = false;
+
+  async watch(path: string, onChange: () => void, onUnlink?: () => void): Promise<Unwatch> {
+    if (this.failNextWatch) {
+      this.failNextWatch = false;
+      throw new Error('EMFILE: too many open files, watch');
+    }
+    this.callbacks.set(path, { onChange, ...(onUnlink ? { onUnlink } : {}) });
     return () => this.callbacks.delete(path);
   }
 
   trigger(path: string): void {
-    this.callbacks.get(path)?.();
+    this.callbacks.get(path)?.onChange();
+  }
+
+  /** Simula un `unlink` de chokidar (borrado/movido externo, BUG-55). */
+  triggerUnlink(path: string): void {
+    this.callbacks.get(path)?.onUnlink?.();
   }
 
   get watchingPaths(): string[] {
@@ -71,7 +87,15 @@ export interface ServiceHarness {
   tmp: string;
 }
 
-export async function makeService(): Promise<ServiceHarness> {
+export interface MakeServiceOptions {
+  /**
+   * Sustituye el adaptador de ficheros (tests de concurrencia/fallos, BUG-54):
+   * el fake suele envolver `NodeFileSystemAdapter` y registrar sus escrituras.
+   */
+  fileSystem?: FileSystemPort;
+}
+
+export async function makeService(options: MakeServiceOptions = {}): Promise<ServiceHarness> {
   const tmp = await mkdtemp(join(tmpdir(), 'rdlc-test-'));
   tempDirs.push(tmp);
 
@@ -80,7 +104,7 @@ export async function makeService(): Promise<ServiceHarness> {
   const schema = new FakeSchemaValidator();
   const xml = new TrueFormatXmlAdapter();
   const service = new SessionService(
-    new NodeFileSystemAdapter(),
+    options.fileSystem ?? new NodeFileSystemAdapter(),
     watcher,
     xml,
     xml,
