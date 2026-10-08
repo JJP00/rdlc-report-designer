@@ -27,15 +27,16 @@ let app: ElectronApplication;
 let page: Page;
 let workspace: string;
 let file: string;
-/** Copia de seguridad de la fixture original (para restaurar tras el conflicto). */
-let originalBytes: Buffer;
+/** Segundo informe para las pruebas de pestañas (fixture distinta). */
+let secondFile: string;
 
 test.beforeAll(async () => {
   workspace = join(tmpdir(), `rdlc-e2e-lifecycle-${Date.now()}`);
   mkdirSync(workspace, { recursive: true });
   file = join(workspace, 'PalletOutput.rdlc');
   copyFileSync(fixture, file);
-  originalBytes = readFileSync(file);
+  secondFile = join(workspace, 'Segundo.rdlc');
+  copyFileSync(join(here, '..', '..', '..', 'fixtures', 'corpus', 'SalesCreditMemoESP.rdlc'), secondFile);
 
   app = await electron.launch({
     args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
@@ -86,8 +87,39 @@ async function isDirty(): Promise<boolean> {
 
 /** Inserta un textbox desde la toolbar (deja el documento con cambios). */
 async function insertTextbox(): Promise<void> {
+  const before = await itemCount();
   await page.getByRole('button', { name: 'Insertar textbox' }).click();
-  await expect.poll(() => page.locator('footer').first().innerText()).toContain('insertItem');
+  // BUG-58: los comandos rutinarios ya no escriben nada en el pie; la señal
+  // estable de que el comando se aplicó es la proyección.
+  await expect
+    .poll(itemCount, { message: 'el textbox debe aparecer en la proyección' })
+    .toBe(before + 1);
+}
+
+/** Id del elemento seleccionado en el lienzo (según `__rdlcSelection`). */
+async function selectedId(): Promise<string | null> {
+  return page.evaluate(
+    () =>
+      ((window as never as Record<string, unknown>)['__rdlcSelection'] as { id?: string } | null)
+        ?.id ?? null,
+  );
+}
+
+/** Selecciona un elemento del informe por nombre desde la paleta (Ctrl+K). */
+async function selectItemViaPalette(id: string): Promise<void> {
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+k');
+  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill(id);
+  await page.waitForTimeout(250);
+  await page.getByRole('option', { name: new RegExp(`^${id}\\b`) }).click();
+  await expect.poll(selectedId).toBe(id);
+}
+
+/** Pide al SO cerrar la ventana (el main lo intercepta y avisa al renderer). */
+async function requestWindowClose(): Promise<void> {
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.close();
+  });
 }
 
 test('Ctrl+S guarda (bytes idénticos) sin cambios', async () => {
@@ -95,43 +127,43 @@ test('Ctrl+S guarda (bytes idénticos) sin cambios', async () => {
   await expect.poll(statusText).toContain('Guardado');
 });
 
-test('con cambios sin guardar, abrir un reciente pide confirmación', async () => {
+test('con cambios sin guardar, abrir el mismo reciente activa su pestaña sin preguntar', async () => {
   const before = await itemCount();
   await insertTextbox();
   await expect.poll(itemCount).toBe(before + 1);
+  const versionAfterEdit = await projectionVersion();
 
-  // Desplegable «Fichero» → Recientes → el propio fichero en edición (ruta
-  // exacta: con userData aislado solo hay un reciente, pero se ata al fichero).
+  // Fase de pestañas: la ruta ya está abierta. El reciente **activa su
+  // pestaña** (anti-duplicados) y no pregunta nada: nada se pierde, el
+  // textbox sigue en su pestaña y el documento no se recarga.
   await page.getByRole('button', { name: 'Fichero' }).click();
   await page.getByRole('menuitem', { name: 'Recientes' }).click();
   await page.getByRole('menuitem', { name: file, exact: true }).click();
 
-  // Guarda de cambios: Cancelar conserva el documento intacto.
   const dialog = page.getByTestId('unsaved-changes-dialog');
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Cancelar' }).click();
-  await expect(dialog).toBeHidden();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId('tab-strip').getByTestId('tab-item')).toHaveCount(1);
+  await expect(page.getByTestId('tab-item')).toHaveAttribute('aria-selected', 'true');
   await expect.poll(itemCount).toBe(before + 1);
+  expect(await projectionVersion(), 'el reciente no recarga ni reabre').toBe(versionAfterEdit);
+  await expect.poll(isDirty).toBe(true);
 
-  // Repetir y descartar: el informe se reabre desde disco (sin el textbox).
-  await page.getByRole('button', { name: 'Fichero' }).click();
-  await page.getByRole('menuitem', { name: 'Recientes' }).click();
-  await page.getByRole('menuitem', { name: file, exact: true }).click();
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Abrir sin guardar' }).click();
-  await expect(dialog).toBeHidden();
-  await expect.poll(itemCount).toBe(before);
-  await expect.poll(projectionVersion).toBe(1);
+  // Los tests siguientes comparten instancia: se guarda para que disco y
+  // memoria queden en sintonía (el textbox forma parte del fichero).
+  await page.keyboard.press('Control+s');
+  await expect.poll(statusText).toContain('Guardado');
 });
 
 test('el conflicto ofrece recargar / sobrescribir / guardar como', async () => {
   const before = await itemCount();
   await insertTextbox();
 
-  // Edición externa (como haría otro editor) → conflicto.
+  // Edición externa (como haría otro editor) sobre el contenido **actual** del
+  // disco (el test anterior dejó un textbox guardado) → conflicto.
+  const currentBytes = readFileSync(file);
   writeFileSync(
     file,
-    originalBytes.toString('utf8').replace('<Value>(</Value>', '<Value>[EXTERNO]</Value>'),
+    currentBytes.toString('utf8').replace('<Value>(</Value>', '<Value>[EXTERNO]</Value>'),
     'utf8',
   );
 
@@ -140,7 +172,7 @@ test('el conflicto ofrece recargar / sobrescribir / guardar como', async () => {
   await dialog.getByRole('button', { name: /Recargar desde disco/ }).click();
   await expect(dialog).toBeHidden();
 
-  // El documento local se descartó: quedan los items originales y el texto externo.
+  // El documento local se descartó: quedan los items de disco y el texto externo.
   await expect.poll(itemCount).toBe(before);
   await expect.poll(statusText).toContain('Recargado');
   await expect
@@ -154,7 +186,7 @@ test('el conflicto ofrece recargar / sobrescribir / guardar como', async () => {
     .toBe(true);
 
   // Restaurar el fichero: como la sesión quedó limpia, se recarga solo.
-  writeFileSync(file, originalBytes);
+  writeFileSync(file, currentBytes);
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -197,9 +229,7 @@ test('cerrar la ventana con cambios sin guardar pide confirmación', async () =>
   await insertTextbox();
 
   // El SO pide cerrar: el main lo intercepta y el front muestra el diálogo.
-  await app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()[0]?.close();
-  });
+  await requestWindowClose();
 
   const dialog = page.getByTestId('unsaved-changes-dialog');
   await expect(dialog).toBeVisible();
@@ -211,4 +241,98 @@ test('cerrar la ventana con cambios sin guardar pide confirmación', async () =>
   await expect.poll(isDirty).toBe(true);
   await page.keyboard.press('Control+s');
   await expect.poll(isDirty).toBe(false);
+});
+
+/* ---------------- pestañas (bloque D): aislamiento por pestaña -------------- */
+
+test('pestañas: «guardar como» a una ruta abierta se aborta y la UI no viaja', async () => {
+  // Abrir Segundo.rdlc en una pestaña nueva (diálogo nativo simulado).
+  await app.evaluate(({ dialog }, filePath) => {
+    dialog.showOpenDialog = (async () => ({
+      canceled: false,
+      filePaths: [filePath],
+    })) as typeof dialog.showOpenDialog;
+  }, secondFile);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+o');
+
+  const tabs = page.getByTestId('tab-strip').getByTestId('tab-item');
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(tabs.nth(1)).toContainText('Segundo.rdlc');
+
+  // Guardar como… hacia la ruta de la OTRA pestaña: se aborta con un aviso
+  // persistente y no se crea una segunda pestaña sobre el mismo fichero.
+  await app.evaluate(({ dialog }, filePath) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath });
+  }, join(workspace, 'Copia.rdlc'));
+  await page.getByRole('button', { name: 'Fichero' }).click();
+  await page.getByRole('menuitem', { name: 'Guardar como…' }).click();
+  await expect(page.getByRole('alert').first()).toContainText(
+    'Esa ruta ya está abierta en otra pestaña',
+  );
+  await page.getByRole('button', { name: 'Cerrar el aviso' }).click();
+  await expect(tabs).toHaveCount(2);
+
+  // Selección de cada pestaña: Tablix7 en la segunda, Textbox25 en la primera.
+  // (Se elige un Tablix a propósito: es el caso que monta/desmonta el lienzo.)
+  await selectItemViaPalette('Tablix7');
+  await tabs.nth(0).click();
+  await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+  await selectItemViaPalette('Textbox25');
+  await page.getByRole('button', { name: /^Zoom:/ }).click();
+  await page.getByRole('menuitem', { name: '50 %', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Zoom: 50 %' })).toBeVisible();
+
+  // Volver a la segunda: conserva SU selección y SU zoom (no los de la otra).
+  await tabs.nth(1).click();
+  await expect
+    .poll(selectedId, { message: 'la segunda pestaña recupera su Tablix' })
+    .toBe('Tablix7');
+  await expect(page.getByRole('button', { name: 'Zoom: 60 %' })).toBeVisible();
+
+  // Y de vuelta a la primera: su selección y su zoom siguen ahí.
+  await tabs.nth(0).click();
+  await expect
+    .poll(selectedId, { message: 'la primera pestaña recupera su selección' })
+    .toBe('Textbox25');
+  await expect(page.getByRole('button', { name: 'Zoom: 50 %' })).toBeVisible();
+});
+
+/* ------------- pestañas (bloque C): cierre con varias sucias ----------------- */
+
+test('cerrar la ventana con dos pestañas sucias: Guardar todas o Cancelar', async () => {
+  const tabs = page.getByTestId('tab-strip').getByTestId('tab-item');
+
+  // La pestaña activa (Copia) queda sucia con un textbox; la otra, también.
+  await insertTextbox();
+  await tabs.nth(1).click();
+  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await insertTextbox();
+
+  // El SO pide cerrar: con varias sucias, «Guardar todas / Descartar todas /
+  // Cancelar» y la lista de los informes en juego.
+  await requestWindowClose();
+  const dialog = page.getByTestId('save-all-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Copia.rdlc');
+  await expect(dialog).toContainText('Segundo.rdlc');
+
+  // Cancelar: no se cierra nada y la ventana sigue viva.
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(dialog).toBeHidden();
+  expect(await app.windows().length).toBe(1);
+
+  // Guardar todas: escribe ambas y confirma el cierre una sola vez.
+  const copiaFile = join(workspace, 'Copia.rdlc');
+  const copiaBefore = readFileSync(copiaFile);
+  const segundoBefore = readFileSync(secondFile);
+  await requestWindowClose();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Guardar todas' }).click();
+  await expect
+    .poll(() => page.isClosed(), { message: 'la ventana se cierra tras guardar' })
+    .toBe(true);
+  expect(readFileSync(copiaFile)).not.toEqual(copiaBefore);
+  expect(readFileSync(secondFile)).not.toEqual(segundoBefore);
 });

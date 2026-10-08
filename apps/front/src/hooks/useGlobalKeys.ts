@@ -25,6 +25,10 @@ export interface GlobalKeysOptions {
   onNew: () => void;
   /** Ctrl+O: abrir. */
   onOpen: () => void;
+  /** Ctrl+W: cerrar la pestaña activa (con guarda de cambios). */
+  onCloseTab: () => void;
+  /** Ctrl+Tab / Ctrl+Shift+Tab: rota entre las pestañas abiertas. */
+  onCycleTab: (direction: 1 | -1) => void;
   onUndo: () => void;
   onRedo: () => void;
   /** Ctrl+1: ajusta el zoom al ancho del lienzo. */
@@ -107,6 +111,21 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
       if (dialogOpen) return;
       event.preventDefault();
       options.onNew();
+      return;
+    }
+
+    // Ctrl+W / Ctrl+Tab: pestañas (órdenes de ventana: valen también con el
+    // foco en un campo del panel; nunca encima de un diálogo).
+    if (accel && key === 'w') {
+      if (dialogOpen || !options.hasDocument) return;
+      event.preventDefault();
+      options.onCloseTab();
+      return;
+    }
+    if (accel && key === 'tab') {
+      if (dialogOpen || !options.hasDocument) return;
+      event.preventDefault();
+      options.onCycleTab(event.shiftKey ? -1 : 1);
       return;
     }
 

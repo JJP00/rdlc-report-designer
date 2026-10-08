@@ -1,11 +1,11 @@
 import type { TablixDto, TextboxDto } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { DocumentDialogs, type GroupPropertiesRequest } from '@/components/DocumentDialogs';
-import type { DocumentCore } from '@/hooks/useDocumentCore';
+import type { WorkspaceCore } from '@/hooks/useWorkspace';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 
 export interface WorkspaceDialogsProps {
-  core: DocumentCore;
+  core: WorkspaceCore;
   items: ItemEditing;
   /** Propiedades del informe abiertas. */
   propertiesOpen: boolean;

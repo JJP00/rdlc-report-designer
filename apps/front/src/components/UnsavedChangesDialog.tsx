@@ -8,13 +8,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import type { PendingIntent } from '@/hooks/useDocumentCore';
+import type { PendingIntent } from '@/lib/windowClose';
+import { fileBasename } from '@/lib/windowTitle';
 
 export interface UnsavedChangesDialogProps {
   /** Intención que perdería cambios; `null` = diálogo cerrado. */
-  intent: PendingIntent | null;
+  intent: SingleTabIntent | null;
   onResolve: (resolution: 'save' | 'discard' | 'cancel') => void;
 }
+
+/** Guardas de una sola pestaña; el cierre con varias usa `SaveAllDialog`. */
+export type SingleTabIntent = Extract<PendingIntent, { kind: 'close' | 'windowClose' }>;
 
 interface IntentCopy {
   /** Qué va a pasar (segunda frase, tras «tiene cambios sin guardar»). */
@@ -28,32 +32,21 @@ interface IntentCopy {
 /**
  * Copia por intención: cada salida nombra exactamente qué se pierde y qué
  * ocurre después. El botón de guardar nunca se llama solo «Guardar»: encadena
- * la acción que el usuario pidió («Guardar y abrir»).
+ * la acción que el usuario pidió («Guardar y cerrar»). Con pestañas, la guarda
+ * solo existe al **cerrar** una pestaña o la ventana: abrir/nuevo ya no pierde
+ * nada (el documento anterior se queda en su pestaña).
  */
-function copyForIntent(intent: PendingIntent): IntentCopy {
+function copyForIntent(intent: SingleTabIntent): IntentCopy {
   switch (intent.kind) {
-    case 'open':
-    case 'openPath':
-      return {
-        description: 'El informe abierto tiene cambios sin guardar y vas a abrir otro.',
-        discard: 'Abrir sin guardar',
-        save: 'Guardar y abrir',
-      };
-    case 'new':
-      return {
-        description: 'El informe abierto tiene cambios sin guardar y vas a crear uno nuevo.',
-        discard: 'Crear sin guardar',
-        save: 'Guardar y crear',
-      };
     case 'close':
       return {
-        description: 'Vas a cerrar el informe y hay cambios sin guardar.',
+        description: `«${fileBasename(intent.path)}» tiene cambios sin guardar y vas a cerrar su pestaña.`,
         discard: 'Cerrar sin guardar',
         save: 'Guardar y cerrar',
       };
     case 'windowClose':
       return {
-        description: 'Vas a salir de la aplicación y hay cambios sin guardar.',
+        description: `Vas a salir de la aplicación y «${fileBasename(intent.path)}» tiene cambios sin guardar.`,
         discard: 'Salir sin guardar',
         save: 'Guardar y salir',
       };

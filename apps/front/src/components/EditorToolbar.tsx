@@ -49,6 +49,8 @@ export interface EditorToolbarProps {
   showHierarchy: boolean;
   /** Tema claro/oscuro del editor (el toggle vive en la toolbar). */
   theme: 'light' | 'dark';
+  /** Hay una operación de fichero en curso (BUG-54): grupo Fichero deshabilitado. */
+  busy?: boolean;
   /** Ficheros recientes (desplegable del botón Abrir). */
   recents: string[];
   onNew: () => void;
@@ -86,6 +88,7 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
         </span>
         <FileGroup
           hasDocument={props.hasDocument}
+          busy={props.busy}
           recents={props.recents}
           onNew={props.onNew}
           onOpen={props.onOpen}
@@ -149,6 +152,7 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
 /** Menú «Fichero»: Nuevo / Abrir … / recientes / Guardar / Cerrar. */
 function FileGroup({
   hasDocument,
+  busy = false,
   recents,
   onNew,
   onOpen,
@@ -159,6 +163,7 @@ function FileGroup({
 }: Pick<
   EditorToolbarProps,
   | 'hasDocument'
+  | 'busy'
   | 'recents'
   | 'onNew'
   | 'onOpen'
@@ -177,16 +182,16 @@ function FileGroup({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuItem onSelect={onNew}>
+        <DropdownMenuItem disabled={busy} onSelect={onNew}>
           <FilePlus />
           Nuevo
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onOpen}>
+        <DropdownMenuItem disabled={busy} onSelect={onOpen}>
           <FolderOpen />
           Abrir…
         </DropdownMenuItem>
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger disabled={recents.length === 0}>
+          <DropdownMenuSubTrigger disabled={busy || recents.length === 0}>
             <History />
             Recientes
           </DropdownMenuSubTrigger>
@@ -204,12 +209,12 @@ function FileGroup({
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!hasDocument} onSelect={onSave}>
+        <DropdownMenuItem disabled={!hasDocument || busy} onSelect={onSave}>
           <Save />
           Guardar
           <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={!hasDocument} onSelect={onSaveAs}>
+        <DropdownMenuItem disabled={!hasDocument || busy} onSelect={onSaveAs}>
           <SaveAll />
           Guardar como…
         </DropdownMenuItem>

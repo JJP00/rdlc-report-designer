@@ -35,13 +35,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         className="flex h-screen flex-col items-center justify-center gap-3 bg-background p-6 text-center text-foreground"
       >
         <h1 className="text-sm font-semibold">La interfaz ha fallado</h1>
-        <p className="max-w-md text-xs text-muted-foreground">{error.message}</p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          Tus cambios sin guardar siguen en memoria del editor: «Recargar la interfaz» reconecta
+          con ellos.
+        </p>
+        <p className="max-w-md text-xs text-muted-foreground/80">{error.message}</p>
         <button
           type="button"
           onClick={() => window.location.reload()}
           className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted"
         >
-          Recargar
+          Recargar la interfaz
         </button>
       </div>
     );

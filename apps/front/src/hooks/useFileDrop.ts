@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 
 /**
  * Drag&drop de `.rdlc`/`.rdl` sobre la ventana (U1): mantiene el overlay activo
- * mientras se arrastra y abre el primer fichero válido con las guardas del
- * núcleo. Vive en un hook para no engordar el shell de `App`.
+ * mientras se arrastra y abre cada fichero válido en su pestaña (bloque A:
+ * soltar varios abre cada uno). Vive en un hook para no engordar el shell.
  */
 
 export interface FileDropHandlers {
@@ -16,8 +16,8 @@ export interface FileDropHandlers {
 export interface FileDropOptions {
   /** false sin backend (modo navegador): no hay `pathForFile`. */
   enabled: boolean;
-  /** Abre la ruta soltada (pasa por las guardas de cambios sin guardar). */
-  onOpenPath: (path: string) => void;
+  /** Abre las rutas soltadas, cada una en su pestaña (anti-duplicados incluido). */
+  onOpenPaths: (paths: string[]) => void;
   /** Lo soltado no era un `.rdlc`/`.rdl`. */
   onInvalid: (message: string) => void;
 }
@@ -57,7 +57,7 @@ export function useFileDrop(options: FileDropOptions): {
   }, []);
 
   const onDrop = useCallback((event: DragEvent): void => {
-    const { enabled, onOpenPath, onInvalid } = optionsRef.current;
+    const { enabled, onOpenPaths, onInvalid } = optionsRef.current;
     if (!enabled) return;
     event.preventDefault();
     depth.current = 0;
@@ -66,8 +66,7 @@ export function useFileDrop(options: FileDropOptions): {
     const paths = files
       .map((file) => window.api.pathForFile(file))
       .filter((path) => /\.(rdlc|rdl)$/i.test(path));
-    const first = paths[0];
-    if (first) onOpenPath(first);
+    if (paths.length > 0) onOpenPaths(paths);
     else if (files.length > 0) onInvalid('Solo se pueden abrir ficheros .rdlc o .rdl');
   }, []);
 

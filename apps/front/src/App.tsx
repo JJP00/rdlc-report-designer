@@ -1,48 +1,39 @@
-import type { ProjectionDto } from '@rdlc-designer/contracts';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { CanvasColumn } from '@/components/CanvasColumn';
 import { type GroupPropertiesRequest } from '@/components/DocumentDialogs';
-import { EditorBanners } from '@/components/EditorBanners';
-import { EditorToolbar } from '@/components/EditorToolbar';
-import { InspectorColumn } from '@/components/InspectorColumn';
-import { LeftPanels } from '@/components/LeftPanels';
-import { StatusBar } from '@/components/StatusBar';
+import { ReportTab } from '@/components/ReportTab';
+import { TabStrip } from '@/components/TabStrip';
 import { WorkspaceDialogs } from '@/components/WorkspaceDialogs';
 import { CommandPalette } from '@/components/panels/CommandPalette';
-import { FormatToolbar } from '@/components/panels/FormatToolbar';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { useDocumentCore } from '@/hooks/useDocumentCore';
-import { useBatchSelection } from '@/hooks/useBatchSelection';
 import { useEditorKeys } from '@/hooks/useEditorKeys';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { useItemEditing } from '@/hooks/useItemEditing';
 import { usePaletteActions } from '@/hooks/usePaletteActions';
 import { useQaHooks } from '@/hooks/useQaHooks';
 import { useTheme } from '@/hooks/useTheme';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
-import { countItems, findItem, formatKinds } from '@/lib/projection';
+import { findItem } from '@/lib/projection';
 import { findOwnerTablix } from '@/lib/tablix';
-import { effectiveTextStyle } from '@/lib/style';
 
 /**
- * Shell del editor: composición de hooks (`useDocumentCore` para el ciclo de
- * vida del fichero, `useItemEditing` para la edición y `useGlobalKeys` para los
- * atajos) y del chrome (toolbar, barra de formato, lienzo y paneles).
+ * Shell del editor: composición de hooks (`useWorkspace` para el workspace de
+ * pestañas, `useItemEditing` para la edición de la activa y `useEditorKeys`
+ * para los atajos) y del chrome (tira de pestañas + cuerpo de la pestaña
+ * activa). Los diálogos de trabajo y la paleta viven **fuera** del cuerpo
+ * (`ReportTab` con `key={activeSessionId}`): al cambiar de pestaña se monta un
+ * cuerpo nuevo y los diálogos de la anterior se cierran.
  */
 export function App(): ReactNode {
-  const core = useDocumentCore();
+  const core = useWorkspace();
   const items = useItemEditing(core);
 
-  // Estado de UI (no del documento).
-  const [zoom, setZoom] = useState(0.6);
-  /** Zoom «ajustar al ancho» que publica el lienzo al medir (Ctrl+1 lo aplica). */
+  // Estado de UI del shell; el de la pestaña (selección, zoom, paneles) vive en
+  // `tab.ui` (bloque D) y sobrevive al cambio de pestaña.
   const [fitZoom, setFitZoom] = useState<number | null>(null);
   /** Tema claro/oscuro (persistido en `localStorage`). */
   const { theme, toggleTheme } = useTheme();
   const [propertiesOpen, setPropertiesOpen] = useState(false);
-  const [showVariables, setShowVariables] = useState(false);
-  /** Panel de Jerarquía (árbol de items) visible. */
-  const [showHierarchy, setShowHierarchy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** Textbox cuyo editor de texto está abierto (párrafos → runs). */
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -50,39 +41,68 @@ export function App(): ReactNode {
   const [groupProperties, setGroupProperties] = useState<GroupPropertiesRequest | null>(null);
   /** Tablix cuyos «Filtros…» están abiertos (null = cerrado). */
   const [filtersTablixId, setFiltersTablixId] = useState<string | null>(null);
+  /** Conflicto: el diálogo se reabre al detectarse (y con el botón del aviso). */
+  const [conflictOpen, setConflictOpen] = useState(false);
 
   const {
     doc,
-    status,
-    error,
-    dirty,
-    conflict,
-    reloads,
+    tabs,
+    activeSessionId,
+    ui,
+    updateUi,
     hasBackend,
+    busy,
+    conflict,
     recents,
     open,
-    save,
-    saveAs,
-    createNew,
     openPath,
-    close,
-    undo,
-    redo,
-    setError,
+    createNew,
+    closeTab,
+    activateTab,
   } = core;
-  const { selectedId, selectedIds, selectedItems, movableIds, selectedItem, selectedCell } = items;
-  const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
+  const { selectedIds, selectedItem, selectedCell, menuHit } = items;
 
-  /** Conflicto: el diálogo se reabre al detectarse (y con el botón del aviso). */
-  const [conflictOpen, setConflictOpen] = useState(false);
+  /** Zoom presets: escriben el zoom de la pestaña activa (menú, paleta, atajos). */
+  const setZoom = useCallback((value: number): void => updateUi({ zoom: value }), [updateUi]);
+  const zoomFitWidth = useCallback((): void => {
+    if (fitZoom !== null) setZoom(fitZoom);
+  }, [fitZoom, setZoom]);
+  const zoomReset = useCallback((): void => setZoom(1), [setZoom]);
+
+  /** Paneles de la pestaña activa (viven en su `ui`, bloque D). */
+  const showVariables = ui.showVariables;
+  const showHierarchy = ui.showHierarchy;
+  const toggleVariables = useCallback((): void => {
+    updateUi({ showVariables: !showVariables });
+  }, [showVariables, updateUi]);
+  const toggleHierarchy = useCallback((): void => {
+    updateUi({ showHierarchy: !showHierarchy });
+  }, [showHierarchy, updateUi]);
+
+  // Diálogos y paleta pertenecen a la pestaña activa: cambiar de pestaña los
+  // cierra para que no viajen al documento nuevo (bloque D).
+  useEffect(() => {
+    setPropertiesOpen(false);
+    setPaletteOpen(false);
+    setEditingTextId(null);
+    setGroupProperties(null);
+    setFiltersTablixId(null);
+    setConflictOpen(false);
+    // El «ajustar al ancho» medido es del lienzo anterior: el nuevo lo publica
+    // al montar (y así Ctrl+1 no aplica una medida de otra pestaña).
+    setFitZoom(null);
+  }, [activeSessionId]);
+
+  // El conflicto es de la pestaña activa: el diálogo sigue su valor (tras el
+  // cierre del cambio de pestaña, este efecto decide si el nuevo lo tiene).
   useEffect(() => {
     setConflictOpen(conflict !== null);
   }, [conflict]);
 
-  /** Drag&drop de `.rdlc`/`.rdl` sobre la ventana (overlay + apertura con guardas). */
+  /** Drag&drop de `.rdlc`/`.rdl` sobre la ventana (overlay + apertura en pestañas). */
   const { dropActive, dropHandlers } = useFileDrop({
     enabled: hasBackend,
-    onOpenPath: core.openPath,
+    onOpenPaths: core.openPaths,
     onInvalid: core.setError,
   });
 
@@ -105,18 +125,6 @@ export function App(): ReactNode {
     return item?.kind === 'tablix' ? item : null;
   }, [doc, filtersTablixId]);
 
-  /**
-   * Qué edita el panel de lote: multiselección de items o contenidos de las
-   * celdas seleccionadas (rango/extras).
-   */
-  const batchSelection = useBatchSelection({
-    projection: doc?.projection ?? null,
-    selectedIds,
-    selectedItems,
-    movableIds,
-    selectedCell,
-  });
-
   /** Textbox en edición (el editor se monta al abrirlo y no se resincroniza). */
   const editingText = useMemo(() => {
     if (!doc || editingTextId === null) return undefined;
@@ -125,7 +133,7 @@ export function App(): ReactNode {
   }, [doc, editingTextId]);
 
   // QA/diagnóstico: proyección viva y último hit del click derecho (E2E).
-  useQaHooks(doc?.projection ?? null, items.menuHit, selectedIds);
+  useQaHooks(doc?.projection ?? null, menuHit, selectedIds);
 
   const pickExpression = useCallback(
     (expression: string, name: string): void => {
@@ -140,12 +148,6 @@ export function App(): ReactNode {
     },
     [core],
   );
-
-  /** Zoom presets (menú de la toolbar, paleta y atajos Ctrl+1/Ctrl+0). */
-  const zoomFitWidth = useCallback((): void => {
-    if (fitZoom !== null) setZoom(fitZoom);
-  }, [fitZoom]);
-  const zoomReset = useCallback((): void => setZoom(1), []);
 
   useEditorKeys({
     core,
@@ -164,7 +166,7 @@ export function App(): ReactNode {
     structureTablix,
     zoomFitWidth,
     zoomReset,
-    setShowVariables,
+    setShowVariables: (updater) => updateUi({ showVariables: updater(showVariables) }),
     setPropertiesOpen,
     setEditingTextId,
     setFiltersTablixId,
@@ -178,106 +180,44 @@ export function App(): ReactNode {
             Suelta el fichero .rdlc o .rdl para abrirlo
           </div>
         ) : null}
-        <EditorToolbar
-          hasDocument={doc !== null}
-          hasSelection={selectedItem !== undefined}
-          selectedId={selectedId}
-          zoom={zoom}
-          showVariables={showVariables}
-          showHierarchy={showHierarchy}
-          theme={theme}
+
+        {/* Una pestaña por informe (fase MVP de pestañas): siempre visible. */}
+        <TabStrip
+          tabs={tabs}
+          activeSessionId={activeSessionId}
+          busy={busy}
           recents={recents}
+          onActivate={activateTab}
+          onClose={closeTab}
           onNew={createNew}
           onOpen={open}
           onOpenRecent={openPath}
-          onSave={() => void save()}
-          onSaveAs={() => void saveAs()}
-          onClose={close}
-          onOpenProperties={() => setPropertiesOpen(true)}
-          onToggleVariables={() => setShowVariables((value) => !value)}
-          onToggleHierarchy={() => setShowHierarchy((value) => !value)}
+        />
+
+        {/* Solo la pestaña activa monta el editor; al cambiar, se remonta. */}
+        <ReportTab
+          key={activeSessionId ?? 'empty'}
+          core={core}
+          items={items}
+          structureTablix={structureTablix}
+          theme={theme}
           onToggleTheme={toggleTheme}
-          onDuplicate={items.duplicateSelected}
-          onDelete={items.deleteSelected}
-          onUndo={() => void undo()}
-          onRedo={() => void redo()}
+          zoom={ui.zoom}
           onZoomChange={setZoom}
           onZoomFitWidth={zoomFitWidth}
-        />
-
-        {/* Barra de formato de texto + insertar (una sola línea), bajo la toolbar principal. */}
-        <FormatToolbar
-          style={
-            selectedItem
-              ? selectedItem.kind === 'textbox'
-                ? effectiveTextStyle(selectedItem)
-                : selectedItem.style
-              : undefined
+          onFitZoomChange={setFitZoom}
+          showVariables={showVariables}
+          onToggleVariables={toggleVariables}
+          showHierarchy={showHierarchy}
+          onToggleHierarchy={toggleHierarchy}
+          onOpenProperties={() => setPropertiesOpen(true)}
+          onEditText={setEditingTextId}
+          onOpenGroupProperties={(tablixId, axis, member) =>
+            setGroupProperties({ tablixId, axis, member })
           }
-          onSetStyle={items.setItemStyle}
-          disabled={selectedItem === undefined}
-          onInsert={items.insertItem}
-          insertDisabled={doc === null}
-        />
-
-        <EditorBanners
-          error={error}
-          conflict={conflict}
-          hasBackend={hasBackend}
-          onDismissError={() => setError(null)}
+          onOpenTablixFilters={setFiltersTablixId}
           onResolveConflict={() => setConflictOpen(true)}
-        />
-
-        <main className="flex min-h-0 flex-1">
-          <LeftPanels
-            projection={doc?.projection ?? null}
-            showHierarchy={showHierarchy}
-            showVariables={showVariables}
-            selectedId={selectedId}
-            selectedCell={selectedCell}
-            onSelectItem={items.selectAndReveal}
-            onSelectCell={items.selectCell}
-            onPickExpression={pickExpression}
-          />
-
-          <CanvasColumn
-            projection={doc?.projection ?? null}
-            zoom={zoom}
-            selectedId={selectedId}
-            selectedIds={selectedIds}
-            selectedCell={selectedCell}
-            menuHit={items.menuHit}
-            hasClipboard={items.hasClipboard}
-            reveal={items.reveal}
-            editing={items}
-            onZoomChange={setZoom}
-            onFitZoomChange={setFitZoom}
-            onOpenGroupProperties={(tablixId, axis, member) =>
-              setGroupProperties({ tablixId, axis, member })
-            }
-            onEditText={setEditingTextId}
-          />
-
-          <InspectorColumn
-            tablix={structureTablix}
-            selectedCell={selectedCell}
-            items={items}
-            batchSelection={batchSelection}
-            projection={doc?.projection ?? null}
-            onOpenGroupProperties={(tablixId, axis, member) =>
-              setGroupProperties({ tablixId, axis, member })
-            }
-            onOpenTablixFilters={setFiltersTablixId}
-            onEditText={setEditingTextId}
-          />
-        </main>
-
-        <StatusBar
-          status={status}
-          path={doc?.path ?? null}
-          dirty={dirty}
-          stats={stats ? `${stats.total} elementos · ${formatKinds(stats.byKind)}` : null}
-          reloads={reloads}
+          onPickExpression={pickExpression}
         />
       </div>
 

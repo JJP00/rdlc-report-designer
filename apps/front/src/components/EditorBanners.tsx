@@ -4,6 +4,8 @@ import { useState, type ReactNode } from 'react';
 export interface EditorBannersProps {
   error: string | null;
   conflict: string | null;
+  /** Ruta de la sesión que ya no existe en disco (BUG-55). */
+  fileMissing: string | null;
   hasBackend: boolean;
   /** Cierra el aviso de error a mano (además del cierre automático). */
   onDismissError?: () => void;
@@ -11,10 +13,14 @@ export interface EditorBannersProps {
   onResolveConflict?: () => void;
 }
 
-/** Avisos del editor: error del último comando, conflicto de fichero y modo navegador. */
+/**
+ * Avisos del editor: error del último comando, conflicto de fichero, fichero
+ * desaparecido y modo navegador.
+ */
 export function EditorBanners({
   error,
   conflict,
+  fileMissing,
   hasBackend,
   onDismissError,
   onResolveConflict,
@@ -54,6 +60,17 @@ export function EditorBanners({
           >
             Resolver…
           </button>
+        </div>
+      ) : null}
+      {fileMissing ? (
+        <div
+          data-testid="file-missing-banner"
+          className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-700"
+        >
+          <span className="min-w-0 flex-1">
+            El fichero <span className="font-mono">{fileMissing}</span> ya no existe en disco.
+            Guardar lo recreará, o usa «Guardar como…».
+          </span>
         </div>
       ) : null}
       {!hasBackend ? (

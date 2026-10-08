@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apiErrorMessage } from './errors';
+import { apiErrorMessage, isPersistentErrorCode } from './errors';
 
 /** El banner no debe mostrar el código: solo el motivo (o el texto por defecto). */
 describe('apiErrorMessage', () => {
@@ -35,5 +35,23 @@ describe('apiErrorMessage', () => {
       'Error de E/S',
     );
     expect(apiErrorMessage({ message: 'Error', data: ['', '  '] }, 'x')).toBe('Error');
+  });
+});
+
+/** El banner no debe borrarse solo si el usuario tiene algo que hacer (BUG-57). */
+describe('isPersistentErrorCode', () => {
+  it('mantiene visibles los errores que exigen una acción', () => {
+    expect(isPersistentErrorCode('E_UNSUPPORTED_SCHEMA')).toBe(true);
+    expect(isPersistentErrorCode('E_CONFLICT')).toBe(true);
+    expect(isPersistentErrorCode('E_IO')).toBe(true);
+  });
+
+  it('deja que el resto de errores se borren solos', () => {
+    expect(isPersistentErrorCode('E_VALIDATION')).toBe(false);
+    expect(isPersistentErrorCode('E_NOT_FOUND')).toBe(false);
+    expect(isPersistentErrorCode('E_INVALID_XML')).toBe(false);
+    expect(isPersistentErrorCode('E_INVALID_COMMAND')).toBe(false);
+    expect(isPersistentErrorCode('E_UNEXPECTED')).toBe(false);
+    expect(isPersistentErrorCode('')).toBe(false);
   });
 });

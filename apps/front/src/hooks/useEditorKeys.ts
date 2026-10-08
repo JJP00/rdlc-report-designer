@@ -1,9 +1,9 @@
 import { useGlobalKeys } from './useGlobalKeys';
-import type { DocumentCore } from './useDocumentCore';
+import type { WorkspaceCore } from './useWorkspace';
 import type { ItemEditing } from './useItemEditing';
 
 export interface EditorKeysOptions {
-  core: DocumentCore;
+  core: WorkspaceCore;
   items: ItemEditing;
   /** Multiselección actual (Supr borra en lote con un solo undo). */
   selectedIds: string[];
@@ -34,6 +34,8 @@ export function useEditorKeys({
     onSaveAs: () => void core.saveAs(),
     onNew: core.createNew,
     onOpen: core.open,
+    onCloseTab: core.close,
+    onCycleTab: core.cycleTab,
     onUndo: () => void core.undo(),
     onRedo: () => void core.redo(),
     onZoomFitWidth: zoomFitWidth,

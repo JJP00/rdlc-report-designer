@@ -28,7 +28,8 @@ import {
   toCm,
 } from '@/lib/projection';
 import { hitSelectionCell, isCellInRange, isCellSelected, type SelectedCell } from '@/lib/tablix';
-import type { DocumentCore } from './useDocumentCore';
+import type { TabUiPatch } from '@/lib/workspace';
+import type { WorkspaceCore } from './useWorkspace';
 
 /**
  * Edición de items: selección, mover/redimensionar/estilar, insertar, duplicar,
@@ -227,92 +228,173 @@ function mergeStylePatch(style: StyleDto | undefined, patch: StylePatch): StyleD
   return nextStyle;
 }
 
-export function useItemEditing(core: DocumentCore): ItemEditing {
-  const { doc, sendCommand, reconcile, updateProjection, setStatus, setError } = core;
+export function useItemEditing(core: WorkspaceCore): ItemEditing {
+  const {
+    doc,
+    sendCommand,
+    updateProjection,
+    setStatus,
+    setError,
+    ui: tabUi,
+    updateTabUi,
+    hasClipboard: tabHasClipboard,
+    markClipboard,
+  } = core;
 
-  /** Multiselección de items: el **último** id hace de ancla (paneles/tiradores). */
-  const [selectedIdsState, setSelectedIdsState] = useState<string[]>([]);
-  const [selectedCellState, setSelectedCellState] = useState<SelectedCell | null>(null);
-  const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
-  const [hasClipboard, setHasClipboard] = useState(false);
+  /** Sesión de la pestaña activa (las respuestas diferidas escriben en la suya). */
+  const sessionId = doc?.sessionId ?? null;
+
+  /**
+   * Selección de la pestaña activa: vive en su `ui` (bloque D) y sobrevive al
+   * cambio de pestaña. No hay copia local que sincronizar —se lee al renderizar
+   * y se escribe con `writeTabUi` en callbacks—, así que no puede haber bucle
+   * `setState` ↔ store (el riesgo documentado de la fase).
+   */
+  const selectedIdsState = tabUi.selectedIds;
+  const selectedCellState = tabUi.selectedCell;
+
+  /**
+   * Escribe un parche de UI en la sesión **capturada** al crear el callback, no
+   * en la activa: una respuesta diferida (insertar, pegar, duplicar…) no debe
+   * tocar la pestaña que el usuario tenga delante. El parche que no cambia nada
+   * se descarta en el store y no re-renderiza.
+   */
+  const writeTabUi = useCallback(
+    (patch: TabUiPatch): void => {
+      if (sessionId === null) return;
+      updateTabUi(sessionId, patch);
+    },
+    [sessionId, updateTabUi],
+  );
+
+  const [revealState, setReveal] = useState<{ id: string; nonce: number; sessionId: string } | null>(
+    null,
+  );
 
   /** Item y celda son excluyentes: seleccionar uno limpia el otro. */
-  const setSelectedId = useCallback((id: string | null): void => {
-    setSelectedCellState(null);
-    setSelectedIdsState(id ? [id] : []);
-  }, []);
+  const setSelectedId = useCallback(
+    (id: string | null): void => {
+      writeTabUi({ selectedId: id, selectedIds: id ? [id] : [], selectedCell: null });
+    },
+    [writeTabUi],
+  );
 
   /** Fija la multiselección completa (marco, «seleccionar todo», etc.). */
-  const setSelectedIds = useCallback((ids: string[]): void => {
-    setSelectedCellState(null);
-    setSelectedIdsState(ids);
-  }, []);
+  const setSelectedIds = useCallback(
+    (ids: string[]): void => {
+      writeTabUi({
+        selectedId: ids[ids.length - 1] ?? null,
+        selectedIds: ids,
+        selectedCell: null,
+      });
+    },
+    [writeTabUi],
+  );
 
   /** Ctrl/Shift+click: añade o quita el item de la multiselección. */
-  const toggleItemSelection = useCallback((id: string): void => {
-    setSelectedCellState(null);
-    setSelectedIdsState((ids) =>
-      ids.includes(id) ? ids.filter((candidate) => candidate !== id) : [...ids, id],
-    );
-  }, []);
+  const toggleItemSelection = useCallback(
+    (id: string): void => {
+      writeTabUi((ui) => {
+        const next = ui.selectedIds.includes(id)
+          ? ui.selectedIds.filter((candidate) => candidate !== id)
+          : [...ui.selectedIds, id];
+        return {
+          selectedId: next[next.length - 1] ?? null,
+          selectedIds: next,
+          selectedCell: null,
+        };
+      });
+    },
+    [writeTabUi],
+  );
 
-  const setSelectedCell = useCallback((cell: SelectedCell | null): void => {
-    setSelectedIdsState([]);
-    setSelectedCellState(cell);
-  }, []);
+  const setSelectedCell = useCallback(
+    (cell: SelectedCell | null): void => {
+      writeTabUi({ selectedId: null, selectedIds: [], selectedCell: cell });
+    },
+    [writeTabUi],
+  );
 
   /** Shift amplía el rango desde el ancla; Ctrl añade/quita celdas sueltas. */
-  const selectCell = useCallback((cell: SelectedCell, extend = false, toggle = false): void => {
-    setSelectedIdsState([]);
-    setSelectedCellState((current) => {
-      if (!current || current.id !== cell.id) {
-        return {
-          id: cell.id,
-          row: cell.row,
-          col: cell.col,
-          ...(cell.endRow !== undefined ? { endRow: cell.endRow } : {}),
-          ...(cell.endCol !== undefined ? { endCol: cell.endCol } : {}),
-        };
-      }
-
-      if (toggle) {
-        const extras = current.extra ?? [];
-        const isExtra = extras.some((entry) => entry.row === cell.row && entry.col === cell.col);
-        if (isExtra) {
-          const next = extras.filter((entry) => entry.row !== cell.row || entry.col !== cell.col);
-          return next.length > 0 ? { ...current, extra: next } : { ...current, extra: [] };
+  const selectCell = useCallback(
+    (cell: SelectedCell, extend = false, toggle = false): void => {
+      writeTabUi((ui) => {
+        const current = ui.selectedCell;
+        const clearItems = { selectedId: null, selectedIds: [] as string[] };
+        if (!current || current.id !== cell.id) {
+          return {
+            ...clearItems,
+            selectedCell: {
+              id: cell.id,
+              row: cell.row,
+              col: cell.col,
+              ...(cell.endRow !== undefined ? { endRow: cell.endRow } : {}),
+              ...(cell.endCol !== undefined ? { endCol: cell.endCol } : {}),
+            },
+          };
         }
-        if (isCellInRange(cell, current)) return current;
-        return { ...current, extra: [...extras, { row: cell.row, col: cell.col }] };
-      }
 
-      if (extend) {
+        if (toggle) {
+          const extras = current.extra ?? [];
+          const isExtra = extras.some((entry) => entry.row === cell.row && entry.col === cell.col);
+          if (isExtra) {
+            const next = extras.filter(
+              (entry) => entry.row !== cell.row || entry.col !== cell.col,
+            );
+            return {
+              ...clearItems,
+              selectedCell:
+                next.length > 0 ? { ...current, extra: next } : { ...current, extra: [] },
+            };
+          }
+          if (isCellInRange(cell, current)) return {};
+          return {
+            ...clearItems,
+            selectedCell: { ...current, extra: [...extras, { row: cell.row, col: cell.col }] },
+          };
+        }
+
+        if (extend) {
+          return {
+            ...clearItems,
+            selectedCell: {
+              ...current,
+              endRow: cell.endRow ?? cell.row,
+              endCol: cell.endCol ?? cell.col,
+            },
+          };
+        }
+
         return {
-          ...current,
-          endRow: cell.endRow ?? cell.row,
-          endCol: cell.endCol ?? cell.col,
+          ...clearItems,
+          selectedCell: {
+            id: cell.id,
+            row: cell.row,
+            col: cell.col,
+            ...(cell.endRow !== undefined ? { endRow: cell.endRow } : {}),
+            ...(cell.endCol !== undefined ? { endCol: cell.endCol } : {}),
+          },
         };
-      }
-
-      return {
-        id: cell.id,
-        row: cell.row,
-        col: cell.col,
-        ...(cell.endRow !== undefined ? { endRow: cell.endRow } : {}),
-        ...(cell.endCol !== undefined ? { endCol: cell.endCol } : {}),
-      };
-    });
-  }, []);
+      });
+    },
+    [writeTabUi],
+  );
 
   /** Click derecho: si la celda ya forma parte de la selección, no la pierde. */
-  const selectCellForContext = useCallback((cell: SelectedCell): void => {
-    setSelectedIdsState([]);
-    setSelectedCellState((current) =>
-      current && current.id === cell.id && isCellSelected(cell, current)
-        ? current
-        : { id: cell.id, row: cell.row, col: cell.col },
-    );
-  }, []);
+  const selectCellForContext = useCallback(
+    (cell: SelectedCell): void => {
+      writeTabUi((ui) => {
+        const current = ui.selectedCell;
+        if (current && current.id === cell.id && isCellSelected(cell, current)) return {};
+        return {
+          selectedId: null,
+          selectedIds: [],
+          selectedCell: { id: cell.id, row: cell.row, col: cell.col },
+        };
+      });
+    },
+    [writeTabUi],
+  );
 
   // La selección solo vale si los items siguen existiendo (undo/redo, recarga,
   // borrado): se **deriva** en vez de sincronizarse con un efecto.
@@ -400,6 +482,8 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
 
   interface PendingMove {
     id: string;
+    /** Sesión que originó el movimiento: el flush diferido no viaja a otra pestaña. */
+    sessionId: string;
     topCm: number;
     leftCm: number;
     timer: number;
@@ -412,13 +496,18 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     if (!pending) return;
     pendingMove.current = null;
     window.clearTimeout(pending.timer);
-    void sendCommand({
-      cmd: 'setLocation',
-      id: pending.id,
-      top: cm(pending.topCm),
-      left: cm(pending.leftCm),
-    }).then((result) => reconcile(result?.ok ? result.applied : undefined));
-  }, [reconcile, sendCommand]);
+    // La reconciliación de los valores normalizados la hace `sendCommand` en
+    // la sesión que originó el movimiento (aunque la activa haya cambiado).
+    void sendCommand(
+      {
+        cmd: 'setLocation',
+        id: pending.id,
+        top: cm(pending.topCm),
+        left: cm(pending.leftCm),
+      },
+      pending.sessionId,
+    );
+  }, [sendCommand]);
 
   // El flush se invoca desde efectos/limpiezas: usa un ref para no depender
   // de su identidad (que cambia con cada mutación del documento).
@@ -432,22 +521,30 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
 
   const nudge = useCallback(
     (dxCm: number, dyCm: number): void => {
-      if (!selectedItem) return;
+      if (!doc || !selectedItem) return;
 
       // El contenido directo de una celda está anclado: la celda fija su
       // posición (Report Builder tampoco deja moverlo).
-      if (doc && isCellContent(doc.projection, selectedItem.id)) {
+      if (isCellContent(doc.projection, selectedItem.id)) {
         setStatus('La celda fija el contenido: no se puede mover');
         return;
       }
 
       const id = selectedItem.id;
+      const sessionId = doc.sessionId;
       const current = pendingMove.current;
+      // Ráfaga de otra selección u otra sesión: se cierra contra su pestaña
+      // antes de empezar la nueva (el flush fija su `sessionId`).
+      if (current && (current.id !== id || current.sessionId !== sessionId)) {
+        flushRef.current();
+      }
+      const previous = pendingMove.current;
       const pending: PendingMove =
-        current && current.id === id
-          ? current
+        previous && previous.id === id && previous.sessionId === sessionId
+          ? previous
           : {
               id,
+              sessionId,
               topCm: toCm(selectedItem.top),
               leftCm: toCm(selectedItem.left),
               timer: 0,
@@ -491,11 +588,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       }
       // Optimista: el lienzo ya movió el nodo; aquí se refleja en la proyección.
       updateProjection((projection) => patchItem(projection, id, { top, left }));
-      void sendCommand({ cmd: 'setLocation', id, top, left }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'setLocation', id, top, left });
     },
-    [doc, reconcile, sendCommand, setStatus, updateProjection],
+    [doc, sendCommand, setStatus, updateProjection],
   );
 
   /**
@@ -522,11 +617,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       if (!selectedItem) return;
       const id = selectedItem.id;
       updateProjection((projection) => patchItem(projection, id, { width, height }));
-      void sendCommand({ cmd: 'setSize', id, width, height }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'setSize', id, width, height });
     },
-    [reconcile, selectedItem, sendCommand, updateProjection],
+    [selectedItem, sendCommand, updateProjection],
   );
 
   /**
@@ -546,11 +639,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       }
 
       updateProjection((projection) => patchItem(projection, id, box));
-      void sendCommand({ cmd: 'setBounds', id, ...box }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'setBounds', id, ...box });
     },
-    [doc, reconcile, sendCommand, updateProjection],
+    [doc, sendCommand, updateProjection],
   );
 
   /**
@@ -560,11 +651,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
   const batchEdit = useCallback(
     (commands: BatchableCommand[]): void => {
       if (commands.length === 0) return;
-      void sendCommand({ cmd: 'batch', commands }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'batch', commands });
     },
-    [reconcile, sendCommand],
+    [sendCommand],
   );
 
   const setItemStyle = useCallback(
@@ -592,11 +681,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       const nextStyle = mergeStylePatch(selectedItem.style, patch);
 
       updateProjection((projection) => patchItem(projection, id, { style: nextStyle }));
-      void sendCommand({ cmd: 'setStyle', id, style: patch }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'setStyle', id, style: patch });
     },
-    [batchEdit, reconcile, selectedIds, selectedItem, sendCommand, updateProjection],
+    [batchEdit, selectedIds, selectedItem, sendCommand, updateProjection],
   );
 
   /**
@@ -618,11 +705,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       const zIndex = direction === 'front' ? max + 1 : min > 0 ? min - 1 : -1;
       // Al frente: el dominio devuelve el `ZIndex` aplicado y se reconcilia.
       // Atrás (negativo): el dominio corre a los hermanos y pide snapshot.
-      void sendCommand({ cmd: 'setZIndex', id: selectedItem.id, zIndex }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'setZIndex', id: selectedItem.id, zIndex });
     },
-    [doc, reconcile, selectedItem, sendCommand],
+    [doc, selectedItem, sendCommand],
   );
 
   const setItemOptions = useCallback(
@@ -645,11 +730,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
           pageBreak: breakLocation === 'None' ? undefined : breakLocation,
         }),
       );
-      void sendCommand({ cmd: 'setItemPageBreak', id, breakLocation }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'setItemPageBreak', id, breakLocation });
     },
-    [reconcile, selectedItem, sendCommand, updateProjection],
+    [selectedItem, sendCommand, updateProjection],
   );
 
   const setItemName = useCallback(
@@ -767,11 +850,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       updateProjection((projection) =>
         patchItem(projection, id, hidden === null ? { hidden: undefined } : { hidden }),
       );
-      void sendCommand({ cmd: 'setVisibility', id, hidden }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'setVisibility', id, hidden });
     },
-    [reconcile, selectedItem, sendCommand, updateProjection],
+    [selectedItem, sendCommand, updateProjection],
   );
 
   const setImageOptions = useCallback(
@@ -786,11 +867,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
       }
 
       updateProjection((projection) => patchItem(projection, id, next));
-      void sendCommand({ cmd: 'setImageOptions', id, ...patch }).then((result) =>
-        reconcile(result?.ok ? result.applied : undefined),
-      );
+      void sendCommand({ cmd: 'setImageOptions', id, ...patch });
     },
-    [reconcile, selectedItem, sendCommand, updateProjection],
+    [selectedItem, sendCommand, updateProjection],
   );
 
   const setRunText = useCallback(
@@ -956,10 +1035,10 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
         setError(apiErrorMessage(result, 'no se pudo copiar'));
         return;
       }
-      setHasClipboard(true);
+      markClipboard(doc.sessionId);
       setStatus(ids.length === 1 ? `Copiado: ${ids[0]}` : `Copiados ${ids.length} elementos`);
     });
-  }, [doc, selectedIds, selectedItem, setError, setStatus]);
+  }, [doc, markClipboard, selectedIds, selectedItem, setError, setStatus]);
 
   const cutSelected = useCallback((): void => {
     const ids = selectedIds.length > 0 ? selectedIds : selectedItem ? [selectedItem.id] : [];
@@ -970,11 +1049,11 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
         setError(apiErrorMessage(result, 'no se pudo cortar'));
         return;
       }
-      setHasClipboard(true);
+      markClipboard(doc.sessionId);
       setSelectedIds([]);
       setStatus(ids.length === 1 ? `Cortado: ${ids[0]}` : `Cortados ${ids.length} elementos`);
     });
-  }, [doc, flushNudge, selectedIds, selectedItem, setError, setSelectedIds, setStatus]);
+  }, [doc, flushNudge, markClipboard, selectedIds, selectedItem, setError, setSelectedIds, setStatus]);
 
   const pasteAt = useCallback(
     (scope: ScopeRef, index: number): void => {
@@ -1147,10 +1226,13 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
 
   /* -------------------------------- paleta -------------------------------- */
 
-  const selectAndReveal = useCallback((id: string): void => {
-    setSelectedId(id);
-    setReveal({ id, nonce: Date.now() });
-  }, []);
+  const selectAndReveal = useCallback(
+    (id: string): void => {
+      setSelectedId(id);
+      if (doc) setReveal({ id, nonce: Date.now(), sessionId: doc.sessionId });
+    },
+    [doc, setSelectedId],
+  );
 
   /** Esc: sube al contenedor (rectángulo o tabla) del item seleccionado. */
   const selectParent = useCallback((): void => {
@@ -1163,7 +1245,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     if (!selectedId) return;
     const parent = findParentItemId(doc.projection, selectedId);
     setSelectedId(parent ?? null);
-    if (parent) setReveal({ id: parent, nonce: Date.now() });
+    if (parent) setReveal({ id: parent, nonce: Date.now(), sessionId: doc.sessionId });
   }, [doc, selectedCell, selectedId, setSelectedId]);
 
   return {
@@ -1184,7 +1266,9 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     showContextMenu,
     selectAndReveal,
     selectParent,
-    reveal,
+    // El pedido de "traer a la vista" no viaja entre pestañas: si es de otra
+    // sesión (aún no consumido), se oculta a la que está delante.
+    reveal: revealState && revealState.sessionId === sessionId ? revealState : null,
     flushNudge: () => flushRef.current(),
     nudge,
     moveTo,
@@ -1230,7 +1314,7 @@ export function useItemEditing(core: DocumentCore): ItemEditing {
     copySelected,
     cutSelected,
     pasteAt,
-    hasClipboard,
+    hasClipboard: tabHasClipboard,
     setPageSize,
     setPageMargins,
     setRegionHeight,

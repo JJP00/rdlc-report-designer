@@ -2264,9 +2264,10 @@ test('mover un rectángulo un poco no intenta reparentarlo (sin error)', async (
   await page.mouse.move(from!.x + 14, from!.y + 10, { steps: 6 });
   await page.mouse.up();
 
-  await expect(page.getByRole('contentinfo')).toContainText('setLocation');
   await expect(page.getByText(/dentro de sí mismo/)).toHaveCount(0);
   await expect.poll(() => itemLocation('Rectangle2')).not.toEqual(before);
+  // BUG-58: mover es un comando rutinario; su nombre interno no va al pie.
+  await expect(page.getByRole('contentinfo')).not.toContainText('setLocation');
 });
 
 test('un Tablix seleccionado se elimina desde el menú contextual', async () => {
@@ -2439,6 +2440,39 @@ test('«Informe…» quita y vuelve a insertar el encabezado', async () => {
     .toBeCloseTo(1.25, 2);
 });
 
+/**
+ * Bounding box estable: tras arrastrar, el renderer sigue procesando el input
+ * encolado y los reflujos, y la agarradera puede desplazarse unos frames. Se
+ * espera a que la caja deje de moverse antes de medir/clicar; si no, el doble
+ * clic puede caer donde la agarradera ya no está (sobre el overlay → cierra el
+ * diálogo).
+ */
+async function stableBox(locator: Locator): Promise<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}> {
+  let box = await locator.boundingBox();
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await page.waitForTimeout(50);
+    const next = await locator.boundingBox();
+    if (
+      box &&
+      next &&
+      box.x === next.x &&
+      box.y === next.y &&
+      box.width === next.width &&
+      box.height === next.height
+    ) {
+      return next;
+    }
+    box = next;
+  }
+  if (!box) throw new Error('el elemento no tiene bounding box');
+  return box;
+}
+
 test('los diálogos de edición se redimensionan con la agarradera', async () => {
   await page.getByRole('button', { name: 'Informe…' }).click();
   const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
@@ -2448,7 +2482,7 @@ test('los diálogos de edición se redimensionan con la agarradera', async () =>
   const grip = page.locator('[data-rdlc-dialog-grip]');
   await expect(grip).toBeVisible();
   const before = (await dialog.boundingBox())!;
-  const handle = (await grip.boundingBox())!;
+  const handle = await stableBox(grip);
 
   // Arrastrar la esquina: el diálogo crece (y no se cierra por la interacción).
   await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
@@ -2458,12 +2492,22 @@ test('los diálogos de edición se redimensionan con la agarradera', async () =>
   });
   await page.mouse.up();
   await expect(dialog).toBeVisible();
-  const after = (await dialog.boundingBox())!;
+  const after = await stableBox(dialog);
   expect(after.width).toBeGreaterThan(before.width + 100);
 
-  // Doble clic: vuelve al tamaño original.
-  const handle2 = (await grip.boundingBox())!;
-  await page.mouse.dblclick(handle2.x + handle2.width / 2, handle2.y + handle2.height / 2);
+  // Doble clic: vuelve al tamaño original. Secuencial (con el segundo clic
+  // marcado como clickCount 2): el `mouse.dblclick` de Playwright despacha
+  // mover/abajo/arriba/abajo/arriba en paralelo (`Promise.all`) y el clic podía
+  // adelantarse a la posición anterior; dos clics esperados reproducen el doble
+  // clic real.
+  const handle2 = await stableBox(grip);
+  const cx = handle2.x + handle2.width / 2;
+  const cy = handle2.y + handle2.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.mouse.down({ clickCount: 2 });
+  await page.mouse.up({ clickCount: 2 });
   await page.waitForTimeout(250);
   const reset = (await dialog.boundingBox())!;
   expect(Math.abs(reset.width - before.width)).toBeLessThan(8);

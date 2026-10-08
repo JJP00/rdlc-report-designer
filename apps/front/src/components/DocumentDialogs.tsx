@@ -10,12 +10,13 @@ import type {
 } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
 import { ConflictDialog } from '@/components/ConflictDialog';
+import { SaveAllDialog } from '@/components/SaveAllDialog';
 import { GroupPropertiesDialog } from '@/components/panels/GroupPropertiesDialog';
 import { ReportPropertiesDialog } from '@/components/panels/ReportPropertiesDialog';
 import { TablixFiltersDialog } from '@/components/panels/TablixFiltersDialog';
 import { TextEditorDialog } from '@/components/panels/TextEditorDialog';
 import { UnsavedChangesDialog } from '@/components/UnsavedChangesDialog';
-import type { PendingIntent, PendingResolution } from '@/hooks/useDocumentCore';
+import type { PendingIntent, PendingResolution } from '@/lib/windowClose';
 import { flattenItems } from '@/lib/projection';
 
 /** Grupo cuyas «Propiedades» están abiertas (estado de UI, no del documento). */
@@ -138,7 +139,11 @@ export function DocumentDialogs({
         onApply={onApplyParagraphs}
       />
 
-      <UnsavedChangesDialog intent={pendingIntent} onResolve={onResolvePending} />
+      {pendingIntent?.kind === 'windowCloseAll' ? (
+        <SaveAllDialog tabs={pendingIntent.tabs} onResolve={onResolvePending} />
+      ) : (
+        <UnsavedChangesDialog intent={pendingIntent} onResolve={onResolvePending} />
+      )}
       <ConflictDialog
         path={conflict}
         open={conflictOpen}

@@ -24,3 +24,12 @@ function errorDetails(data: unknown): string[] {
 export function hasErrorDetails(message: string): boolean {
   return message.includes('\n');
 }
+
+/**
+ * true si el error exige una acción del usuario (leer un aviso largo, resolver
+ * un conflicto, revisar el disco): los avisos con estos códigos no se borran
+ * solos (BUG-57).
+ */
+export function isPersistentErrorCode(code: string): boolean {
+  return code === 'E_UNSUPPORTED_SCHEMA' || code === 'E_CONFLICT' || code === 'E_IO';
+}

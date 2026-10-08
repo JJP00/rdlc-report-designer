@@ -1,10 +1,10 @@
 import type { ItemDto } from '@rdlc-designer/contracts';
 import { paletteRunner, type PaletteActionId } from '@/lib/palette';
-import type { DocumentCore } from './useDocumentCore';
+import type { WorkspaceCore } from './useWorkspace';
 import type { ItemEditing } from './useItemEditing';
 
 export interface PaletteActionsOptions {
-  core: DocumentCore;
+  core: WorkspaceCore;
   items: ItemEditing;
   selectedItem: ItemDto | undefined;
   structureTablix: ItemDto | undefined;
