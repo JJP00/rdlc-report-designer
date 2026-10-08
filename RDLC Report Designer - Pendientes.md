@@ -1,5 +1,326 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Pestañas MVP A–E ✅ · 2026-10-08 (tarde)** — la fase de pestañas queda
+> **implementada y verificada** (una pestaña por informe: varios informes abiertos
+> a la vez con estado, undo, `dirty`, conflicto y watcher independientes por
+> sesión). Verificación: `typecheck` 3/3; **254 front** unit; **114/114 E2E**.
+>
+> - **A · Workspace**: modelo puro en `apps/front/src/lib/workspace.ts` (39 unit)
+>   con `TabState`/`TabUiState`, eventos enrutados por `sessionId` (guarda de
+>   versión), anti-duplicados por ruta normalizada (case-insensitive en Windows),
+>   abrir/Nuevo/recientes/drag&drop **añaden** pestaña sin cerrar la anterior y la
+>   re-adopción al recargar la interfaz adopta **todas** las sesiones vivas.
+>   `useDocumentCore` desaparece: el ciclo de vida vive en `useWorkspace`.
+> - **B · Chrome**: `TabStrip` siempre visible (nombre, `*` de dirty, marca de
+>   conflicto, cerrar con guarda por pestaña, menú `+` con Nuevo/Abrir/recientes);
+>   `Ctrl+W` cierra la activa y `Ctrl+Tab`/`Ctrl+Shift+Tab` rotan; cerrar la última
+>   deja el editor vacío (no cierra la ventana). **Cambio deliberado**: abrir otro
+>   informe ya no pregunta nada (nada se pierde: se añade pestaña); la guarda queda
+>   para cerrar pestaña y cerrar ventana.
+> - **C · Ciclo de vida**: diálogo **«Guardar todas / Descartar todas / Cancelar»**
+>   para el cierre de ventana con varias sucias (se guardan en orden; al primer
+>   fallo se cancela el cierre y esa pestaña queda activa con su error);
+>   `saveAs` no puede crear dos pestañas con la misma ruta (error persistente).
+> - **D · Aislamiento**: `ReportTab key={sessionId}` (solo la activa monta el
+>   editor) y `TabUiState` **persistido**: selección, celdas, zoom y paneles se
+>   restauran al volver a una pestaña; paleta y diálogos se cierran al cambiar de
+>   pestaña; escrituras tardías de comandos van a su pestaña de origen.
+> - **E · QA**: `e2e/tabs.spec.ts` (9 pruebas con `--repeat-each=2` determinista:
+>   dos informes, undo/dirty independientes, selección+zoom conservados,
+>   anti-duplicados, cierre de pestaña con guarda y vecina correcta, cierre de
+>   ventana «Descartar todas», conflicto por pestaña) y `hasClipboard` pasa a ser
+>   por sesión (el backend ya lo era).
+>
+> **Punto de retomada**: ① **capas Nivel 1** (pendiente de tu confirmación;
+> `docs/features/0002-capas-rediseno-journey.md`); ② UX P2/P3 de
+> `docs/ux/0002`/`0003` (hoja de atajos, etiquetas de alinear/distribuir, toolbar y
+> barra de estado, `prefers-color-scheme`, lienzo enfocable — `/include`); ③ bug de
+> `Maximum update depth exceeded` al mover Tablix anidados (la guarda de BUG-47
+> protege el cambio de pestaña, pero el bug sigue abierto); ④ **T4** (property
+> tests) y **T5** (flujo BC documentado) + primera pasada de CI en la nube y firma.
+> **Evolutivo de pestañas** (fuera de la fase): restaurar al arrancar, reordenar
+> por arrastre, split view y comparación de informes. Todo lo de esta sesión está
+> **sin commitear**.
+
+> **Cierre P0/P1 · resiliencia · 2026-10-08 (tarde)** — los dos P0 y los siete P1 de
+> `docs/bugs/0002-resiliencia-2026-10-08.md` (más BUG-58/59, la jerga del estado y el
+> título de ventana) están **arreglados y verificados**. El contrato solo suma:
+> canales `listSessions` y `acknowledgeCloseRequest`, eventos `fileMissingChanged` y
+> `externalReloadFailed`, y `SaveResult.warning`.
+>
+> - **BUG-51 (P0.1)**: vigilante de cierre en `main.ts` (2 s → diálogo nativo «Cerrar
+>   sin guardar / Cancelar»), acuse `acknowledgeCloseRequest`, `render-process-gone`
+>   (recarga o cierra) y `unresponsive`; canal `listSessions` + re-adopción de las
+>   sesiones vivas al montar (la base de la fase de pestañas A); el aviso del boundary
+>   dice que el trabajo sigue en memoria. Los diálogos nativos del main quedan
+>   **_doc-only_** (compilan y están revisados; sin E2E que simule la caída).
+> - **BUG-52 (P0.2)**: `E_CONFLICT` abre el diálogo en el front y el back adelanta
+>   `lastWriteMs/Size` al disco actual: «sobrescribir» funciona una vez y un cambio
+>   posterior se sigue detectando.
+> - **BUG-53/55/56**: cambios externos no recargables en sesión limpia → aviso suave
+>   (`externalReloadFailed`, sin diálogo); `unlink` → `fileMissingChanged` con banner
+>   ámbar que se limpia al volver el fichero; `saveAs` crea el watcher nuevo antes de
+>   soltar el viejo y devuelve `warning` si falla.
+> - **BUG-54**: cola por sesión en `SessionService` para `save`/`saveAs`/`reload` y
+>   guarda `busy` síncrona en el front (grupo Fichero deshabilitado,
+>   «Abriendo…/Guardando…» a los 300 ms).
+> - **BUG-57/58/59**: errores accionables persistentes (`E_UNSUPPORTED_SCHEMA`,
+>   `E_CONFLICT`, `E_IO`); comandos rutinarios en silencio en el pie; título
+>   `Nombre.rdlc * — RDLC Report Designer`.
+>
+> Verificación: `typecheck` 3/3 paquetes; **380 back + 206 front** unit; **103/103
+> E2E** (`pnpm e2e`; 5 pruebas nuevas en `e2e/resilience.spec.ts`, más
+> `insertTextbox` y una aserción de `setLocation` actualizadas a la conducta nueva).
+> Sin cambios de producto destapados por la E2E; todo sin commitear.
+>
+> **Punto de retomada**: ① **pestañas A–B** (la re-adopción de sesiones ya está
+> hecha); ② pestañas **C–D**; ③ **E** (QA); después capas Nivel 1, UX P2/P3 de
+> `docs/ux/0002`/`0003` y T4/T5 + CI en la nube/firma. Sigue abierto el bug de
+> `Maximum update depth exceeded` al mover Tablix anidados.
+
+> **Rediseño de Capas con `/journey` · 2026-10-08** — solo documentación, sin código.
+> Detalle en `docs/features/0002-capas-rediseno-journey.md` (+ diagrama
+> `0002-capas-rediseno-journey.html`). **No sustituye** a `docs/features/0001-capas.md`
+> (trabajo del usuario, sin tocar): corrige su Fase 1 con los cambios de
+> `docs/ux/0003` Parte 2. Decisión tomada: **alcance por niveles**.
+>
+> - **Nivel 1 (a implementar primero, sin modo ni panel)**: «Seleccionar el de debajo»
+>   con tres vías equivalentes — `Alt+clic`, menú contextual («de debajo / de encima /
+>   Elementos aquí (N)») y `Alt+↓/↑` sobre la selección con anuncio `aria-live`; insignia
+>   «1 de 2 · Alt+clic» al seleccionar algo con otro elemento debajo; arrastrar desde el
+>   cuerpo del marco para mover un item tapado. No toca `hit.ts`, `ItemView`, `Paper`,
+>   `App` ni el documento.
+> - **Nivel 2 (condicional)**: panel «Elementos solapados» + modo «Editar solo esto» con
+>   las correcciones: chip como salida (`Esc` nunca cambia de modo), insertar fuera de la
+>   capa **redirige** al contenedor y avisa, panel por relevancia con pares de textos
+>   colapsados, panel como árbol con teclado y **estado por pestaña**. Se construye solo
+>   si hay pilas de 3+ o casos fuera de `LinesTable`/`LinesTable2`.
+> - **Nombre**: «Elementos solapados» en Fase 1; «Capas» queda para las manuales de la
+>   Fase 2 (sin cambios).
+> - **Spikes antes de codificar (no hechos)**: (1) `Alt+clic` y `Alt+↓/↑` en Electron/
+>   Windows sin activar la barra de menús; (2) pilas de las facturas con `tablixLayout`
+>   vs. script de solapes; (3) mover un item tapado desde el marco sin que el de encima
+>   robe el hit-test.
+> - **Delegado**: textos → `/articulate`; roles y lienzo no enfocable (P2 #11) →
+>   `/include`; Hidden/`unknown`, undo con insignia visible, inserción en celdas de
+>   Tablix → `/fortify`; atajos y hoja de atajos → `/specify`; métricas locales opt-in →
+>   `/measure`.
+> - **Pendiente de decisión del usuario**: confirmar Nivel 1 primero y Nivel 2
+>   condicionado.
+
+> **Evaluación 2026-10-08 (2.ª parte) · `/evaluate` con caminos de fallo + UX de las
+> capas** — complementa la revisión de más abajo (misma fecha). Método: revisión
+> **estática** (código del ciclo de vida, guardas, toolbar, barra de estado, atajos,
+> accesibilidad y diseño de capas) más un análisis de solapes sobre los `.rdlc` del
+> repo. **No se ha ejecutado la app, no hay capturas ni usuarios**: las puntuaciones son
+> estimaciones de experto. No evaluado: lector de pantalla real, contraste y foco en tema
+> oscuro, rendimiento con informes grandes e inspector nuevo.
+>
+> **Salud UX ≈ 61/100** (rango 55–68; 0002 daba 86). Heurísticas 19/40 → 52 %, éxito de
+> tarea ~60 % (5 ok · 2 dudas · 3 fallos), anti-patrones ~85 % (sin manipulación; solo
+> fallos de oficio de la categoría 9). **La bajada no es una regresión**: esta evaluación
+> incluye los caminos de fallo que 0002 no recorrió. Saltos: H1 1→3, H3 1→3, H9 1→3.
+> El criterio de salida del bucle («sin P0 en ningún camino») **no se cumple** (no se ha
+> corregido nada desde la revisión).
+>
+> **Hallazgos nuevos respecto a la revisión de más abajo**
+>
+> - **P1 · jerga interna en el estado.** `useDocumentCore` escribe
+>   `Comando 'setStyle' aplicado (v12)` tras cada edición: nombres de comando y versiones
+>   sin significado para el usuario. Al ser el único `role="status"` de la app, un lector
+>   de pantalla leería cada edición. → `/articulate` + `/include`.
+> - **P1 · sin título de ventana dinámico.** No hay `document.title` (solo el fijo de
+>   `index.html`): ni el nombre del informe ni el «sin guardar» aparecen en la barra de
+>   título o de tareas; el asterisco solo vive en el pie. Peor con varias pestañas. →
+>   `/organize`.
+> - **P2 · el lienzo no se enfoca con teclado** (sin `tabIndex` en los items; solo la
+>   regla lo tiene). Los atajos son globales y la **Jerarquía es la única vía no visual**:
+>   hay que garantizar que lo cubre todo. → `/include`.
+> - **P2 · el tema no respeta `prefers-color-scheme`**: arranca siempre en claro y se
+>   persiste solo en `localStorage`. → `/include`.
+> - Se mantienen P2/P3 de 0002: hoja de atajos, etiquetas de alinear/distribuir, barra de
+>   estado que repite la ruta, toolbar saturada y grupo Insertar sin etiqueta.
+>
+> **Recorridos que fallan** (sobre los P0, con la pregunta que se rompe): guardar tras un
+> cambio externo no visto por el watcher (el aviso sugiere recargar sin ofrecerlo; Q2/Q3/Q4)
+> y recuperarse de «La interfaz ha fallado» (no sabe que su trabajo sigue en memoria y la X
+> no responde; Q3/Q4). Son dos fallos distintos con el mismo síntoma («no sé qué hacer»):
+> no se resuelven con un único mensaje genérico.
+>
+> **Qué proteger**: guardas con consecuencias nombradas (Esc/clic fuera = cancelar), undo
+> byte-exacto con `dirty` recalculado, lote atómico, XSD antes de escribir + escritura
+> atómica con reintentos, Jerarquía + breadcrumb y `aria-label`/tooltip en los botones de
+> icono de la toolbar.
+>
+> **UX de las capas** (evaluación del **diseño**, aún sin implementar; ≈ **70/100**
+> como diseño — heurísticas 16/40, éxito de tarea ~70 % estimado, anti-patrones limpio).
+> Es un diseño sólido en lo técnico (no toca el `.rdlc`, no cambia el render, Fase 1
+> testeable) con fallos de **descubrimiento y de modo**:
+>
+> | Heur. | Pts | Hallazgo |
+> | ----- | --- | -------- |
+> | H6 reconocer, no recordar | **3** | `Alt+clic` es la única vía y no tiene ninguna pista visible: el usuario ve que el clic coge «lo equivocado» y no sabe que existe el ciclo |
+> | H2 lenguaje | 2 | Se llama «capas» a lo que son **solapes inferidos**; quien viene de Figma/Photoshop espera crear, nombrar y reordenar capas (eso es la Fase 2). Las entradas se llaman `Tablix1/3/4` |
+> | H4 consistencia | 2 | `Esc` hace dos cosas (sube al padre con selección; sale del modo capa sin ella): modo invisible con una tecla ambigua |
+> | H8 minimalismo | 2 | El panel lista todas las pilas sin distinguir importancia (ver evidencia) |
+> | H9 errores | 2 | «Insertar fuera de la capa activa se ignora con aviso en la barra de estado» es un fallo silencioso |
+> | H10 ayuda | 2 | Sin onboarding del gesto ni entrada en la hoja de atajos (que tampoco existe) |
+> | H1, H3, H5 | 1 | El chip «Capa: X ×» da visibilidad del modo; salir es barato; atenuar comunica el filtro |
+> | H7 | 0 | `Alt+clic` es buen acelerador para el experto |
+>
+> **Evidencia sobre los `.rdlc` del repo** (script de solapes por rectángulos declarados,
+> ver caveat): `SalesInvoiceESP`, `SalesInvoiceDEU` y `SalesCreditMemoESP` tienen **la pila
+> `LinesTable` (z 0–1) ↔ `LinesTable2` (z 5–6)** dentro de `Tablix2/Rectangle2` — es el
+> caso de uso real. **El riesgo de «cadenas» (`Tablix1/3/4/6/7` en una sola pila) no se
+> confirma**: todas las pilas medidas son de 2–3 miembros (`SalesShipment` tiene una de 3
+> textboxes). Pero **la mayoría de pilas son textbox sobre textbox o rectángulo + textbox**
+> (etiqueta y valor, fondos), de 3–6 por informe, que compiten con la pila de tablas en el
+> panel. `BTCLoadingOrder` no produce ninguna. **Caveat**: el script usa las medidas
+> declaradas (`Left/Top/Width/Height`); el diseño usa `tablixLayout` (el tamaño real crece
+> con las filas), así que puede **infraestimar** los solapes de Tablix. Verificar con la
+> implementación real.
+>
+> **Recorrido «editar `LinesTable` tapada por `LinesTable2`»**: sin pista, Q2 (visibilidad)
+> falla; con `Alt+clic` conocido pasa. Es **Duda** hoy y **Fallo** para quien no conoce el
+> gesto. **«Mover/editar solo con teclado»** falla (sin equivalente).
+>
+> **Cambios propuestos al diseño antes de escribir código** (ruta `/journey`, con
+> `/include` y `/articulate`):
+>
+> 1. **Descubrimiento**: al pasar el cursor sobre un punto con pila, chip «N elementos
+>    aquí · Alt+clic para rotar» y entrada **«Seleccionar el de debajo»** en el menú
+>    contextual (alternativa sin teclas modificadoras).
+> 2. **Salida del modo**: el chip de la barra de estado es la salida principal; `Esc` no
+>    cambia de modo.
+> 3. **Inserción fuera de la capa**: redirigir al contenedor de la capa o avisar junto al
+>    cursor; nunca ignorar en silencio.
+> 4. **Panel**: ordenar por relevancia (tablas primero), colapsar las pilas de textboxes
+>    y rotular con el `Name` más un descriptor del contenido, no solo `TablixN`.
+> 5. **Lenguaje**: llamarlas «Elementos solapados» en la Fase 1 y reservar «Capas» para
+>    las manuales con nombre de la Fase 2.
+> 6. **Teclado/roles**: panel operable con teclado y rotación por atajo.
+> 7. **Probar en la app real** el comportamiento de `Alt` en Electron/Windows antes de
+>    fijar el gesto (no verificado).
+> 8. **Alternativa más barata a valorar**: «Seleccionar el de debajo» + `Alt+clic` cubren
+>    el caso de la factura **sin panel ni modo**; el panel y el filtro de interacción solo
+>    se justifican si hay más casos que la pareja `LinesTable`/`LinesTable2`. Decisión
+>    del usuario.
+>
+> **Estado de este bloque**: solo documentación; **no se ha tocado
+> `docs/features/0001-capas.md`** (es trabajo del usuario) ni el código. La evaluación
+> completa (tablas de heurísticas, recorridos, evidencia, inventario de estados y
+> pruebas de estrés) está en `docs/ux/0003-evaluacion-ux.md`. Falta re-evaluar
+> **ejecutando la app** (E2E con `render-process-gone` simulado y un conflicto no
+> detectado) tras cerrar los P0.
+>
+> **Dónde está cada cosa de esta sesión (2026-10-08)**
+>
+> | Qué                                                           | Dónde                                                        |
+> | ------------------------------------------------------------- | ------------------------------------------------------------ |
+> | Lista de trabajo y orden (este bloque y el siguiente)         | este documento                                               |
+> | Bugs P0/P1 con ubicación, reproducción y arreglo propuesto    | `docs/bugs/0002-resiliencia-2026-10-08.md` (BUG-51 … BUG-59) |
+> | Evaluación UX, puntuaciones, recorridos, estados y estrés     | `docs/ux/0003-evaluacion-ux.md`                              |
+> | Script de solapes (evidencia de capas)                        | `docs/ux/tools/overlap-stacks.py`                            |
+> | Aviso de que 0002 quedó sobreconfiado                         | nota al inicio de `docs/ux/0002-evaluacion-ux.md`            |
+> | Rediseño del recorrido de Capas (Nivel 1 / Nivel 2)           | `docs/features/0002-capas-rediseno-journey.md` (+ `.html`)   |
+>
+> **Correspondencia de IDs**: P0.1 = BUG-51 · P0.2 = BUG-52 · P1.3 = BUG-53 · P1.4 =
+> BUG-54 · P1.5 = BUG-55 · P1.6 = BUG-56 · P1.7 = BUG-57 · jerga del estado = BUG-58 ·
+> título de ventana = BUG-59. Ninguno tiene todavía test de regresión (solo
+> documentados). El resto de hallazgos UX (P2/P3, capas) solo vive en 0003 y aquí.
+
+> **Revisión 2026-10-08 · resiliencia del ciclo de vida (`/fortify`) y fallas UX
+> (`/intent`)** — revisión **solo de lectura** (no se ha tocado código ni ejecutado la
+> app; las severidades son criterio experto, sin datos de uso). Contrasta con
+> `docs/ux/0002`, que da 86/100 y «ningún P0» porque evaluó la ruta feliz de cada guarda
+> y no los caminos de fallo. **Su frase «el trabajo sin guardar ya no se pierde en ningún
+> camino» no se sostiene** (P0.1 y P0.2).
+>
+> **P0 — pérdida de trabajo o usuario atrapado**
+>
+> - **P0.1 · Fallo de render con cambios sin guardar.** `ErrorBoundary` envuelve `<App/>`
+>   (`main.tsx`): al saltar se desmonta el listener `onCloseRequested`, y `main.ts`
+>   hace `preventDefault()` en cada `close` esperando al front → la X / Alt+F4 no hacen
+>   nada y solo queda matar el proceso. «Recargar» (`location.reload()`) olvida la sesión
+>   en el front mientras el backend la conserva sucia, huérfana y con su watcher. El bug
+>   abierto de `Maximum update depth exceeded` dispara justo este camino. **Arreglo**:
+>   temporizador de cierre sin respuesta en main (diálogo nativo «Cerrar sin guardar /
+>   Cancelar»), handlers `render-process-gone` y `unresponsive`, y re-adopción de las
+>   sesiones vivas del backend tras recargar (mismo mecanismo que la fase A de pestañas);
+>   el mensaje del boundary debe decir que los cambios siguen en memoria.
+> - **P0.2 · Guardar con conflicto que el watcher no vio.** `save` devuelve `E_CONFLICT`
+>   (`referenceStillOnDisk`), pero el front no lo trata: solo un banner de 6 s, sin abrir
+>   el diálogo de conflicto. Y «Guardar y sobrescribir» falla igual, porque en este camino
+>   el backend no adelanta la referencia de disco (sí lo hace `onExternalChange`). Con la
+>   guarda de «cerrar con cambios» el diálogo queda abierto sin explicación. **Arreglo**:
+>   en `save()`, `E_CONFLICT` → `setConflict(doc.path)`; en el backend, al rechazar por
+>   conflicto, adelantar `lastWriteMs/Size`. Un test unitario por camino.
+>
+> **P1**
+>
+> - **P1.3 · Conflicto obsoleto.** El `catch` final de `onExternalChange` emite
+>   `conflictDetected` aunque no haya cambios locales (fichero a medias por Report Builder
+>   o git). Al completarse, el backend recarga solo, pero el front nunca limpia `conflict`
+>   en `documentChanged/external` → diálogo «Sobrescribir» que podría pisar un fichero
+>   bueno. **Arreglo**: limpiar `conflict` en la recarga externa y no emitir conflicto por
+>   parse fallido si la sesión no está sucia (aviso suave).
+> - **P1.4 · Sin progreso ni protección contra doble acción.** Abrir / Nuevo / Guardar no
+>   tienen estado «en curso». Doble clic en un reciente (o soltar dos ficheros) captura el
+>   mismo `doc` obsoleto en `openPath` y deja una **sesión huérfana con su watcher**. Un
+>   doble Ctrl+S puede dar un falso `E_CONFLICT` (ventana estrecha entre el `rename` y la
+>   actualización de `lastWriteMs`). **Arreglo**: bandera `busy` en el hook, candado por
+>   sesión en `SessionService` para `save/saveAs/reload`, y «Abriendo… / Guardando…» pasados
+>   ~300 ms.
+> - **P1.5 · Fichero borrado o movido por fuera: silencio.** El watcher solo escucha
+>   `change`/`add`; guardar lo recrea sin avisar (`referenceStillOnDisk` devuelve `true`
+>   si el `stat` falla). **Arreglo**: escuchar `unlink` y avisar en ámbar.
+> - **P1.6 · «Guardar como» deja la sesión inconsistente si falla el watcher**: en
+>   `saveAs`, `filePath` y `originalBytes` ya apuntan al fichero nuevo cuando
+>   `fileWatcher.watch` puede lanzar (fichero escrito, sesión sucia, sin watcher, excepción
+>   sin mapear). **Arreglo**: `try/catch`, crear el watcher nuevo antes de soltar el viejo y
+>   avisar «guardado, pero no se vigilan cambios externos».
+> - **P1.7 · Errores accionables efímeros.** El autodescarte de 6 s alcanza a
+>   `E_UNSUPPORTED_SCHEMA`, `E_CONFLICT` y `E_IO` al guardar (mensajes largos con
+>   instrucciones). Antes era el P3 #8 de 0002; se **sube a P1** por P0.2. **Arreglo**:
+>   hacer persistentes esos códigos y dejar el autodescarte para errores de comando.
+>
+> **Capas (`docs/features/0001-capas.md`, sigue «propuesto», sin implementar y sin
+> tocar el documento)** — cinco riesgos de UX a resolver **antes** de escribir código:
+>
+> 1. **`Alt+clic` es un gesto oculto**: sin pista visible no se descubre (chip «N elementos
+>    solapados aquí» al pasar el cursor, o entrada en el menú contextual).
+> 2. **`Esc` sobrecargado** (sube al padre con selección, sale del modo capa sin ella):
+>    modo invisible con una tecla ambigua. Salida principal = chip de la barra de estado;
+>    `Esc` nunca cambia de modo.
+> 3. **Insertar fuera de la capa activa se ignora con un aviso en la barra de estado**:
+>    fallo silencioso. Redirigir al contenedor de la capa o avisar junto al cursor.
+> 4. **Pilas por componentes conexas**: en `SalesInvoiceESP`, `LinesTable` +
+>    `Tablix1/3/4/6/7` pueden formar una cadena y el ciclo recorrería miembros que no
+>    solapan bajo el cursor. **Probar sobre la factura real antes de implementar.**
+> 5. **Sin equivalente de teclado** (`/include`): el panel de Capas debe operarse con
+>    teclado y exponer roles; la Jerarquía es hoy la alternativa accesible.
+>
+> Además, `activeLayerId`/`showLayers` están pensados como estado global de `App`: con la
+> fase de pestañas deben vivir **por pestaña** (implementar ya con ese criterio o esperar
+> al store de pestañas). Además, el bug de Tablix anidados afecta a la misma estructura de
+> contenedores sobre la que irán las capas.
+>
+> **No evaluado todavía** (P3): lector de pantalla y teclado del lienzo Konva, contraste y
+> foco en **tema oscuro** (añadido después de 0002), inspector nuevo y rendimiento
+> percibido con informes grandes.
+>
+> **Orden recomendado**: ① P0.2 + P1.3 + P1.4 (cambios pequeños, un test unitario cada
+> uno); ② fase de pestañas A–B junto con P0.1 (comparten la re-adopción de sesiones); ③
+> pestañas C–E; ④ rediseño de capas con `/journey` e implementación; ⑤ UX P2/P3 de 0002
+> (hoja de atajos, etiquetas de alinear/distribuir, toolbar/estado/grupo Insertar); ⑥ T4,
+> T5 y primera pasada de CI en la nube con firma. **Criterio de salida del bucle**:
+> re-`/evaluate` incluyendo caminos de fallo, sin P0 en ninguno. Es el primer retroceso
+> sobre 0002.
+>
+> **Pendiente de evidencia del usuario**: ¿se ha perdido trabajo alguna vez o se ha visto
+> «La interfaz ha fallado»?, ¿con qué frecuencia hay conflictos con Report Builder? Sin
+> esos datos el orden entre P0 y capas es juicio, no medición.
+
 > **Planificación 2026-10-05 · nueva fase del MVP: pestañas (una pestaña = un informe)** —
 > decisión de producto: el editor pasa a abrir **varios informes a la vez**, cada uno
 > en su pestaña. Hoy `useDocumentCore` mantiene **un único** `doc` y abrir otro

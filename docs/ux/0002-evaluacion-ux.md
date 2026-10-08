@@ -1,5 +1,12 @@
 # Re-evaluación UX del editor — tras el pase U1–U9
 
+> **Nota 2026-10-08**: esta evaluación recorrió la ruta feliz de cada guarda y capturó
+> estados reales, **ninguno de fallo**. Su frase «el trabajo sin guardar ya no se pierde
+> en ningún camino» y el «P0: ninguno» **no se sostienen**: la revisión de caminos de
+> fallo (`docs/ux/0003-evaluacion-ux.md`, bugs `docs/bugs/0002-resiliencia-2026-10-08.md`)
+> encontró dos P0 (BUG-51, BUG-52). Las puntuaciones de abajo siguen siendo válidas
+> **para lo que se evaluó**.
+
 - **Fecha**: 2026-09-30
 - **Método**: re-evaluación heurística (Nielsen), walkthrough cognitivo, escaneo de
   anti-patrones y análisis de éxito de tarea, con el sistema *Intent*

@@ -289,11 +289,16 @@ Los módulos NestJS son **solo el cableado de DI** (binding por tokens: `provide
 
 # Fase MVP — Pestañas: una pestaña por informe
 
-> **Estado (2026-10-05): planificada; sin código todavía.** El uso diario con BC
-> pide varios informes abiertos a la vez. El **backend ya soporta N sesiones**; hoy
-> el front mantiene un único documento (`useDocumentCore`) y abrir otro cierra la
-> sesión anterior. Esta fase lleva esa capacidad a la UI. Los bloques de trabajo y
-> su punto de retomada viven en `RDLC Report Designer - Pendientes.md`.
+> **Estado (2026-10-08): implementada (bloques A–E) y verificada.** Una pestaña por
+> informe: store `apps/front/src/lib/workspace.ts` + `hooks/useWorkspace.ts`
+> (sustituye a `useDocumentCore`), `TabStrip`, `ReportTab key={sessionId}`, guardas
+> por pestaña y cierre de ventana «Guardar todas / Descartar todas / Cancelar».
+> Verificación: `typecheck` 3/3, **254 front** unit y **114/114 E2E**
+> (`apps/back/e2e/tabs.spec.ts` cubre dos informes, undo/`dirty` independientes,
+> selección+zoom por pestaña y los cierres). Queda **fuera de la fase** (evolutivo,
+> sin cambios): restaurar al arrancar, reordenar por arrastre, split view y
+> comparación. Riesgos vigilados en `RDLC Report Designer - Pendientes.md` (bug
+> abierto de `Maximum update depth exceeded`; memoria con muchos informes).
 
 ## Lo que ya está listo (no se toca)
 
