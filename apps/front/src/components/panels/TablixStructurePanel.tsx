@@ -568,7 +568,7 @@ function LeafIdentity({
 
 function TotalBadge({ total }: { total: 'before' | 'after' }): ReactNode {
   return (
-    <span className="flex items-center gap-0.5 text-amber-700" title={`Total (${total})`}>
+    <span className="flex items-center gap-0.5 text-amber-700 dark:text-amber-400" title={`Total (${total})`}>
       <Sigma className="size-3" />
     </span>
   );

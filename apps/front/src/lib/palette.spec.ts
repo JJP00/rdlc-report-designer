@@ -4,6 +4,8 @@ import {
   PALETTE_ACTIONS,
   paletteDisabledActions,
   paletteElements,
+  paletteFilter,
+  PALETTE_ACTION_MARK,
   type PaletteCapabilities,
 } from './palette';
 
@@ -157,5 +159,25 @@ describe('paletteDisabledActions', () => {
     expect(PALETTE_ACTIONS.map((action) => action.id)).toContain('close');
     expect(PALETTE_ACTIONS.map((action) => action.id)).toContain('zoom:fit-width');
     expect(PALETTE_ACTIONS.map((action) => action.id)).toContain('tablix-filters');
+  });
+});
+
+describe('paletteFilter', () => {
+  it('no devuelve ruido para una búsqueda sin coincidencia literal', () => {
+    expect(paletteFilter('Textbox95', 'zzzz', ['Textbox95 · Textbox'])).toBe(0);
+    // Una subsecuencia («txb95») ya no basta.
+    expect(paletteFilter('Textbox95', 'txb95')).toBe(0);
+  });
+
+  it('ignora mayúsculas y acentos, y exige todas las palabras', () => {
+    expect(paletteFilter('Textbox95', 'TEXTBOX')).toBeGreaterThan(0);
+    expect(paletteFilter(`${PALETTE_ACTION_MARK}Jerarquía`, 'jerarquia')).toBeGreaterThan(0);
+    expect(paletteFilter('Textbox95', 'textbox rectangulo')).toBe(0);
+  });
+
+  it('las acciones puntúan por encima de un elemento con la misma coincidencia', () => {
+    const action = paletteFilter(`${PALETTE_ACTION_MARK}Guardar como…`, 'guardar');
+    const element = paletteFilter('Guardar', 'guardar');
+    expect(action).toBeGreaterThan(element);
   });
 });

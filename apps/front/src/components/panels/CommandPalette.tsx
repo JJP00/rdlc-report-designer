@@ -1,16 +1,24 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
 import {
   Braces,
+  ArrowLeftToLine,
+  ArrowRightToLine,
+  ChevronLeft,
+  ChevronRight,
+  FilePlus,
   Filter,
   FolderOpen,
   Frame,
   Image,
+  ListTree,
   Minus,
+  Moon,
   MoveHorizontal,
   PencilLine,
   Percent,
   Redo2,
   Save,
+  SaveAll,
   Settings2,
   Square,
   Table,
@@ -33,7 +41,9 @@ import {
 } from '@/components/ui/command';
 import {
   PALETTE_ACTIONS,
+  PALETTE_ACTION_MARK,
   paletteDisabledActions,
+  paletteFilter,
   paletteElements,
   type PaletteActionId,
   type PaletteCapabilities,
@@ -55,8 +65,10 @@ export interface CommandPaletteProps {
 }
 
 const ACTION_ICONS: Record<PaletteActionId, ReactNode> = {
+  new: <FilePlus />,
   open: <FolderOpen />,
   save: <Save />,
+  'save-as': <SaveAll />,
   close: <X />,
   undo: <Undo2 />,
   redo: <Redo2 />,
@@ -70,6 +82,12 @@ const ACTION_ICONS: Record<PaletteActionId, ReactNode> = {
   'insert:image': <Image />,
   'insert:tablix': <Table />,
   'toggle-variables': <Variable />,
+  'toggle-hierarchy': <ListTree />,
+  'toggle-theme': <Moon />,
+  'tab:next': <ChevronRight />,
+  'tab:prev': <ChevronLeft />,
+  'tab:move-left': <ArrowLeftToLine />,
+  'tab:move-right': <ArrowRightToLine />,
   'report-properties': <Settings2 />,
 };
 
@@ -106,28 +124,56 @@ export function CommandPalette({
       title="Paleta de comandos"
       description="Busca elementos del informe, variables o acciones del editor"
     >
-      <Command>
+      <Command filter={paletteFilter}>
         <CommandInput placeholder="Buscar elemento, variable o acción…" />
         <CommandList>
           <CommandEmpty>Sin resultados.</CommandEmpty>
 
-          {elements.length > 0 ? (
-            <CommandGroup heading="Elementos del informe">
-              {elements.map((element) => (
+          <CommandGroup heading="Acciones">
+            {PALETTE_ACTIONS.map((action) => {
+              const disabled = disabledActions.has(action.id);
+              return (
                 <CommandItem
-                  key={element.id}
-                  value={element.id}
-                  keywords={[element.haystack]}
-                  onSelect={() => run(() => onSelectItem(element.id))}
+                  key={action.id}
+                  value={`${PALETTE_ACTION_MARK}${action.label}`}
+                  keywords={[action.group]}
+                  disabled={disabled}
+                  onSelect={() => run(() => onAction(action.id))}
                 >
-                  <Frame />
-                  <span className="truncate font-mono text-xs">{element.id}</span>
-                  <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                    {itemKindLabel(element.kind)}
-                  </span>
+                  {ACTION_ICONS[action.id]}
+                  <span>{action.label}</span>
+                  {action.shortcut ? (
+                    <CommandShortcut>{action.shortcut}</CommandShortcut>
+                  ) : (
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                      {action.group}
+                    </span>
+                  )}
                 </CommandItem>
-              ))}
-            </CommandGroup>
+              );
+            })}
+          </CommandGroup>
+
+          {elements.length > 0 ? (
+            <>
+              <CommandSeparator />
+              <CommandGroup heading="Elementos del informe">
+                {elements.map((element) => (
+                  <CommandItem
+                    key={element.id}
+                    value={element.id}
+                    keywords={[element.haystack]}
+                    onSelect={() => run(() => onSelectItem(element.id))}
+                  >
+                    <Frame />
+                    <span className="truncate font-mono text-xs">{element.id}</span>
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                      {itemKindLabel(element.kind)}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </>
           ) : null}
 
           {variables.length > 0 ? (
@@ -151,31 +197,6 @@ export function CommandPalette({
               </CommandGroup>
             </>
           ) : null}
-
-          <CommandSeparator />
-          <CommandGroup heading="Acciones">
-            {PALETTE_ACTIONS.map((action) => {
-              const disabled = disabledActions.has(action.id);
-              return (
-                <CommandItem
-                  key={action.id}
-                  value={`${action.label} ${action.group}`}
-                  disabled={disabled}
-                  onSelect={() => run(() => onAction(action.id))}
-                >
-                  {ACTION_ICONS[action.id]}
-                  <span>{action.label}</span>
-                  {action.shortcut ? (
-                    <CommandShortcut>{action.shortcut}</CommandShortcut>
-                  ) : (
-                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                      {action.group}
-                    </span>
-                  )}
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
         </CommandList>
       </Command>
     </CommandDialog>

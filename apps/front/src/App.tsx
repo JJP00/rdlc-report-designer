@@ -8,6 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useEditorKeys } from '@/hooks/useEditorKeys';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { useItemEditing } from '@/hooks/useItemEditing';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { usePaletteActions } from '@/hooks/usePaletteActions';
 import { useQaHooks } from '@/hooks/useQaHooks';
 import { useTheme } from '@/hooks/useTheme';
@@ -69,12 +70,33 @@ export function App(): ReactNode {
   /** Paneles de la pestaña activa (viven en su `ui`, bloque D). */
   const showVariables = ui.showVariables;
   const showHierarchy = ui.showHierarchy;
+  /** Por debajo de 1280 px solo cabe un panel izquierdo (hallazgo UX 5). */
+  const narrow = useMediaQuery('(max-width: 1279px)');
   const toggleVariables = useCallback((): void => {
+    // En ventana estrecha, abrir Variables cierra Jerarquía; apagarlo no toca
+    // al otro panel.
+    if (narrow && !showVariables) {
+      updateUi({ showVariables: true, showHierarchy: false });
+      return;
+    }
     updateUi({ showVariables: !showVariables });
-  }, [showVariables, updateUi]);
+  }, [narrow, showVariables, updateUi]);
   const toggleHierarchy = useCallback((): void => {
+    // En ventana estrecha, abrir Jerarquía cierra Variables; apagarlo no toca
+    // al otro panel.
+    if (narrow && !showHierarchy) {
+      updateUi({ showHierarchy: true, showVariables: false });
+      return;
+    }
     updateUi({ showHierarchy: !showHierarchy });
-  }, [showHierarchy, updateUi]);
+  }, [narrow, showHierarchy, updateUi]);
+
+  // Al estrechar la ventana con ambos paneles abiertos (o al llegar de otra
+  // pestaña que los tenía), se conserva Variables —el panel más reciente de la
+  // app— y se cierra Jerarquía, para no dejar el lienzo sin ancho.
+  useEffect(() => {
+    if (narrow && showVariables && showHierarchy) updateUi({ showHierarchy: false });
+  }, [narrow, showVariables, showHierarchy, updateUi]);
 
   // Diálogos y paleta pertenecen a la pestaña activa: cambiar de pestaña los
   // cierra para que no viajen al documento nuevo (bloque D).
@@ -153,6 +175,9 @@ export function App(): ReactNode {
     zoomFitWidth,
     zoomReset,
     onTogglePalette: () => setPaletteOpen((value) => !value),
+    onEditSelectedText: () => {
+      if (items.selectedItem?.kind === 'textbox') setEditingTextId(items.selectedItem.id);
+    },
   });
 
   /** Acciones que ofrece la paleta (Ctrl+K). */
@@ -163,7 +188,9 @@ export function App(): ReactNode {
     structureTablix,
     zoomFitWidth,
     zoomReset,
-    setShowVariables: (updater) => updateUi({ showVariables: updater(showVariables) }),
+    toggleVariables,
+    toggleHierarchy,
+    toggleTheme,
     setPropertiesOpen,
     setEditingTextId,
     setFiltersTablixId,
@@ -172,6 +199,17 @@ export function App(): ReactNode {
   return (
     <TooltipProvider>
       <div className="relative flex h-full flex-col bg-background" {...dropHandlers}>
+        {/* Primera parada de Tab; solo visible con foco. Lleva el foco al lienzo. */}
+        <a
+          href="#lienzo"
+          className="skip-link"
+          onClick={(event) => {
+            event.preventDefault();
+            document.querySelector<HTMLElement>('.canvas-dots')?.focus();
+          }}
+        >
+          Saltar al lienzo
+        </a>
         {dropActive ? (
           <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-sm font-medium text-primary">
             Suelta el fichero .rdlc o .rdl para abrirlo
@@ -204,6 +242,7 @@ export function App(): ReactNode {
           showHierarchy={showHierarchy}
           onToggleHierarchy={toggleHierarchy}
           onOpenProperties={() => setPropertiesOpen(true)}
+          onOpenPalette={() => setPaletteOpen(true)}
           onEditText={setEditingTextId}
           onOpenGroupProperties={(tablixId, axis, member) =>
             setGroupProperties({ tablixId, axis, member })

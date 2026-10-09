@@ -668,7 +668,7 @@ test.describe('BUG-41 las flechas con foco en un botón mueven el item', () => {
  * BUG-44 — Parseo del NumberInput (`Number.parseFloat(draft.replace(',', '.'))`):
  * acepta basura final («12abc» → 12) y trunca los separadores de miles
  * («1.234,5» → 1.234). El parseo no está exportado (no hay test unitario
- * posible), así que se prueba en el campo «X (Left)» del panel.
+ * posible), así que se prueba en el campo «X» del panel.
  * El tercer caso descrito (en estado mixto `null`, teclear 0 no confirma) NO
  * es alcanzable hoy desde la UI: todos los NumberInput con `value={null}`
  * tienen `min ≥ 1` (tamaño de fuente de lote/run), y el clamp convierte el 0
@@ -683,7 +683,7 @@ test.describe('BUG-44 el NumberInput acepta texto inválido', () => {
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox93');
     const before = await itemLeftCm(page, 'Textbox93');
-    const field = page.getByLabel('X (Left)', { exact: true });
+    const field = page.getByLabel('X', { exact: true });
     await field.fill('12abc');
     await field.press('Enter');
     await page.waitForTimeout(500);
@@ -693,7 +693,7 @@ test.describe('BUG-44 el NumberInput acepta texto inválido', () => {
   test('«1.234,5» no se trunca a 1,234', async () => {
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox93');
-    const field = page.getByLabel('X (Left)', { exact: true });
+    const field = page.getByLabel('X', { exact: true });
     await field.fill('1.234,5');
     await field.press('Enter');
     await page.waitForTimeout(500);

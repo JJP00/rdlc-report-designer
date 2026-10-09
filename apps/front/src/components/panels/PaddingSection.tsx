@@ -26,7 +26,7 @@ export function PaddingSection({
 }): ReactNode {
   return (
     <div className="grid gap-2">
-      <Label className="text-[11px] text-muted-foreground">Padding (pt)</Label>
+      <Label className="text-[11px] text-muted-foreground">Relleno (pt)</Label>
       <div className="grid grid-cols-2 gap-2">
         {PADDING_SIDES.map((side) => (
           <PaddingField

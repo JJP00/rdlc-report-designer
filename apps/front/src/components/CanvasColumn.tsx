@@ -18,6 +18,10 @@ export interface CanvasColumnProps {
   reveal: { id: string; nonce: number } | null;
   /** Edición de items (callbacks): se pasa el hook compuesto tal cual. */
   editing: ItemEditing;
+  /** Estado vacío: abrir un informe y los recientes. */
+  onOpenReport: () => void;
+  recents: string[];
+  onOpenRecent: (path: string) => void;
   onZoomChange: (zoom: number) => void;
   onFitZoomChange: (zoom: number) => void;
   onOpenGroupProperties: (
@@ -39,6 +43,9 @@ export function CanvasColumn({
   hasClipboard,
   reveal,
   editing,
+  onOpenReport,
+  recents,
+  onOpenRecent,
   onZoomChange,
   onFitZoomChange,
   onOpenGroupProperties,
@@ -57,6 +64,9 @@ export function CanvasColumn({
       ) : null}
       <CanvasArea
         projection={projection}
+        onOpenReport={onOpenReport}
+        recents={recents}
+        onOpenRecent={onOpenRecent}
         zoom={zoom}
         selectedId={selectedId}
         extraSelectedIds={selectedIds.filter((id) => id !== selectedId)}

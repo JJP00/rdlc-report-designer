@@ -14,6 +14,7 @@ import type {
   TextRunDto,
 } from '@rdlc-designer/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { insertDestinationLabel } from '@/hooks/canvasA11y';
 import { topLevelIds } from '@/lib/align';
 import { apiErrorMessage } from '@/lib/errors';
 import type { CanvasHit } from '@/lib/hit';
@@ -267,9 +268,11 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     [sessionId, updateTabUi],
   );
 
-  const [revealState, setReveal] = useState<{ id: string; nonce: number; sessionId: string } | null>(
-    null,
-  );
+  const [revealState, setReveal] = useState<{
+    id: string;
+    nonce: number;
+    sessionId: string;
+  } | null>(null);
 
   /** Item y celda son excluyentes: seleccionar uno limpia el otro. */
   const setSelectedId = useCallback(
@@ -338,9 +341,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
           const extras = current.extra ?? [];
           const isExtra = extras.some((entry) => entry.row === cell.row && entry.col === cell.col);
           if (isExtra) {
-            const next = extras.filter(
-              (entry) => entry.row !== cell.row || entry.col !== cell.col,
-            );
+            const next = extras.filter((entry) => entry.row !== cell.row || entry.col !== cell.col);
             return {
               ...clearItems,
               selectedCell:
@@ -944,10 +945,15 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
         index: hit.index,
         item: insertSpecAt(kind, hit, doc.projection),
       }).then((result) => {
-        if (result?.ok && result.id) setSelectedId(result.id);
+        if (!result?.ok || !result.id) return;
+        setSelectedId(result.id);
+        // El elemento nace fuera de la vista a veces: se trae a la vista y el
+        // pie dice dónde quedó (hallazgo 7).
+        setReveal({ id: result.id, nonce: Date.now(), sessionId: doc.sessionId });
+        setStatus(`«${result.id}» insertado en ${insertDestinationLabel(hit.scope)}`);
       });
     },
-    [doc, sendCommand],
+    [doc, sendCommand, setSelectedId, setStatus],
   );
 
   const insertItem = useCallback(
@@ -1016,14 +1022,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     }).then((result) => {
       if (result?.ok) setSelectedIds([]);
     });
-  }, [
-    flushNudge,
-    selectedIds,
-    selectedItems,
-    sendCommand,
-    setSelectedId,
-    setSelectedIds,
-  ]);
+  }, [flushNudge, selectedIds, selectedItems, sendCommand, setSelectedId, setSelectedIds]);
 
   /* ------------------------------ portapapeles ---------------------------- */
 
@@ -1053,7 +1052,16 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       setSelectedIds([]);
       setStatus(ids.length === 1 ? `Cortado: ${ids[0]}` : `Cortados ${ids.length} elementos`);
     });
-  }, [doc, flushNudge, markClipboard, selectedIds, selectedItem, setError, setSelectedIds, setStatus]);
+  }, [
+    doc,
+    flushNudge,
+    markClipboard,
+    selectedIds,
+    selectedItem,
+    setError,
+    setSelectedIds,
+    setStatus,
+  ]);
 
   const pasteAt = useCallback(
     (scope: ScopeRef, index: number): void => {

@@ -105,7 +105,7 @@ function BorderSideRow({
         {mixed ? ' —' : ''}
       </span>
       <select
-        className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
         aria-label={`Borde ${label.toLowerCase()}: estilo`}
         value={mixed ? '' : current.style}
         onChange={(event) => {
@@ -126,12 +126,12 @@ function BorderSideRow({
       </select>
       <label
         title={`Color del borde ${label.toLowerCase()}`}
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-background ${isNone ? 'opacity-40' : 'cursor-pointer'}`}
+        className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-background ${isNone ? 'opacity-40' : 'cursor-pointer'}`}
       >
         <span className="h-4 w-4 rounded-sm border" style={{ backgroundColor: color }} />
         <input
           type="color"
-          className="sr-only"
+          className={`absolute inset-0 size-full opacity-0 ${isNone ? '' : 'cursor-pointer'}`}
           aria-label={`Borde ${label.toLowerCase()}: color`}
           value={color}
           disabled={isNone}

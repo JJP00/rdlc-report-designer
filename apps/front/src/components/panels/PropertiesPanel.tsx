@@ -73,7 +73,7 @@ export function PropertiesPanel({
       <div className="grid grid-cols-2 gap-2">
         <LengthField
           key={`${item.id}-left`}
-          label="X (Left)"
+          label="X"
           value={toCm(item.left)}
           disabled={cellContent}
           axis="x"
@@ -82,7 +82,7 @@ export function PropertiesPanel({
         />
         <LengthField
           key={`${item.id}-top`}
-          label="Y (Top)"
+          label="Y"
           value={toCm(item.top)}
           disabled={cellContent}
           axis="y"
@@ -117,7 +117,7 @@ export function PropertiesPanel({
           <div className="grid gap-1">
             <Label className="text-[11px] text-muted-foreground">Salto de página</Label>
             <select
-              className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
               aria-label="Salto de página"
               value={item.pageBreak ?? 'None'}
               onChange={(event) =>
@@ -139,13 +139,13 @@ export function PropertiesPanel({
           <div className="text-xs font-medium text-muted-foreground">Opciones</div>
           <OptionField
             id="can-grow"
-            label="Crecer con el texto (CanGrow)"
+            label="Crecer con el texto"
             checked={item.canGrow ?? false}
             onChange={(canGrow) => onSetItemOptions({ canGrow })}
           />
           <OptionField
             id="keep-together"
-            label="Mantener junto (KeepTogether)"
+            label="Mantener junto"
             checked={item.keepTogether ?? false}
             onChange={(keepTogether) => onSetItemOptions({ keepTogether })}
           />

@@ -11,6 +11,7 @@ import {
   Moon,
   Plus,
   Redo2,
+  Search,
   Save,
   SaveAll,
   Settings2,
@@ -60,6 +61,8 @@ export interface EditorToolbarProps {
   onSaveAs: () => void;
   onClose: () => void;
   onOpenProperties: () => void;
+  /** Abre la paleta de comandos (Ctrl+K). */
+  onOpenPalette: () => void;
   onToggleVariables: () => void;
   onToggleHierarchy: () => void;
   onToggleTheme: () => void;
@@ -126,6 +129,21 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
+              size="sm"
+              className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
+              onClick={props.onOpenPalette}
+              aria-label="Paleta de comandos (Ctrl+K)"
+            >
+              <Search />
+              <span className="hidden 2xl:inline">Ctrl+K</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Paleta de comandos (Ctrl+K)</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
               size="icon-sm"
               className="shrink-0"
               onClick={props.onToggleTheme}
@@ -134,9 +152,7 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
               {props.theme === 'dark' ? <Sun /> : <Moon />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
-            {props.theme === 'dark' ? 'Modo claro' : 'Modo oscuro (blanco y negro)'}
-          </TooltipContent>
+          <TooltipContent>{props.theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</TooltipContent>
         </Tooltip>
         <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
         <ZoomGroup
@@ -185,10 +201,12 @@ function FileGroup({
         <DropdownMenuItem disabled={busy} onSelect={onNew}>
           <FilePlus />
           Nuevo
+          <DropdownMenuShortcut>Ctrl+N</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem disabled={busy} onSelect={onOpen}>
           <FolderOpen />
           Abrir…
+          <DropdownMenuShortcut>Ctrl+O</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger disabled={busy || recents.length === 0}>
@@ -217,11 +235,13 @@ function FileGroup({
         <DropdownMenuItem disabled={!hasDocument || busy} onSelect={onSaveAs}>
           <SaveAll />
           Guardar como…
+          <DropdownMenuShortcut>Ctrl+Mayús+S</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasDocument} onSelect={onClose}>
           <X />
           Cerrar
+          <DropdownMenuShortcut>Ctrl+W</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -247,39 +267,54 @@ function ReportGroup({
 >): ReactNode {
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="shrink-0 px-[7px] xl:pl-1.5 xl:pr-2.5"
-        onClick={onOpenProperties}
-        disabled={!hasDocument}
-        aria-label="Informe…"
-      >
-        <Settings2 />
-        <span className="hidden xl:inline">Informe…</span>
-      </Button>
-      <Button
-        variant={showVariables ? 'secondary' : 'ghost'}
-        size="sm"
-        className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
-        onClick={onToggleVariables}
-        disabled={!hasDocument}
-        aria-label="Variables"
-      >
-        <Variable />
-        <span className="hidden 2xl:inline">Variables</span>
-      </Button>
-      <Button
-        variant={showHierarchy ? 'secondary' : 'ghost'}
-        size="sm"
-        className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
-        onClick={onToggleHierarchy}
-        disabled={!hasDocument}
-        aria-label="Jerarquía"
-      >
-        <ListTree />
-        <span className="hidden 2xl:inline">Jerarquía</span>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 px-[7px] xl:pl-1.5 xl:pr-2.5"
+            onClick={onOpenProperties}
+            disabled={!hasDocument}
+            aria-label="Informe…"
+          >
+            <Settings2 />
+            <span className="hidden xl:inline">Informe…</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Propiedades del informe…</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={showVariables ? 'secondary' : 'ghost'}
+            size="sm"
+            className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
+            onClick={onToggleVariables}
+            disabled={!hasDocument}
+            aria-label="Variables"
+          >
+            <Variable />
+            <span className="hidden 2xl:inline">Variables</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Mostrar u ocultar Variables</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={showHierarchy ? 'secondary' : 'ghost'}
+            size="sm"
+            className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
+            onClick={onToggleHierarchy}
+            disabled={!hasDocument}
+            aria-label="Jerarquía"
+          >
+            <ListTree />
+            <span className="hidden 2xl:inline">Jerarquía</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Mostrar u ocultar Jerarquía</TooltipContent>
+      </Tooltip>
     </>
   );
 }
@@ -343,7 +378,7 @@ function EditGroup({
             <span className="hidden 2xl:inline">Deshacer</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Ctrl+Z</TooltipContent>
+        <TooltipContent>Deshacer (Ctrl+Z)</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -359,7 +394,7 @@ function EditGroup({
             <span className="hidden 2xl:inline">Rehacer</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Ctrl+Shift+Z o Ctrl+Y</TooltipContent>
+        <TooltipContent>Rehacer (Ctrl+Y)</TooltipContent>
       </Tooltip>
     </>
   );

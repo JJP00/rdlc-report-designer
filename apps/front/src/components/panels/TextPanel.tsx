@@ -43,7 +43,7 @@ export function TextPanel({
           <span className="text-sm font-semibold">Texto y expresión</span>
           <Badge variant="outline">
             {item.paragraphs.length} párr. ·{' '}
-            {item.paragraphs.reduce((acc, paragraph) => acc + paragraph.runs.length, 0)} run(s)
+            {item.paragraphs.reduce((acc, paragraph) => acc + paragraph.runs.length, 0)} fragmento(s)
           </Badge>
         </div>
 
@@ -58,8 +58,8 @@ export function TextPanel({
         ) : (
           <>
             <p className="text-xs text-muted-foreground">
-              Este textbox tiene texto mixto (varios párrafos o runs). Ábrelo en el editor de texto
-              para escribir, insertar expresiones o cambiar el formato de cada run.
+              Este textbox tiene texto mixto (varios párrafos o fragmentos). Ábrelo en el editor de texto
+              para escribir, insertar expresiones o cambiar el formato de cada fragmento.
             </p>
             <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
               {item.paragraphs.slice(0, 4).map((paragraph, p) => (

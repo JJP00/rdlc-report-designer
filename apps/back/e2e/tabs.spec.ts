@@ -455,7 +455,7 @@ test.describe('pestañas · cierre de pestaña con guarda', () => {
     await page.keyboard.press('Control+w');
     await expect(dialog).toHaveCount(0);
     await expect(tabs).toHaveCount(0);
-    await expect(page.locator('footer').first()).toContainText('Documento cerrado');
+    await expect(page.locator('footer').first()).toContainText('Informe cerrado');
     expect(await ctx().app.windows().length).toBe(1);
   });
 });
@@ -639,7 +639,7 @@ test.describe('pestañas · reordenar y menú contextual', () => {
     await expect(tabs.nth(0)).toContainText('Segundo.rdlc');
   });
 
-  test('Cerrar guardadas deja las sucias; Cerrar todas con sucias pregunta y Cancelar no cierra nada', async () => {
+  test('Cerrar las que no tienen cambios deja las sucias; Cerrar todas con sucias pregunta y Cancelar no cierra nada', async () => {
     const { page } = ctx();
     const tabs = tabsOf(page);
     await twoTabs();
@@ -650,7 +650,7 @@ test.describe('pestañas · reordenar y menú contextual', () => {
     await expect(tabs.nth(0)).toHaveAttribute('data-dirty', 'true');
 
     await tabs.nth(0).click({ button: 'right' });
-    await page.getByRole('menuitem', { name: 'Cerrar guardadas' }).click();
+    await page.getByRole('menuitem', { name: 'Cerrar las que no tienen cambios' }).click();
     // Se fue la limpia (Segundo); queda la sucia sin preguntar.
     await expect(tabs).toHaveCount(1);
     await expect(tabs.nth(0)).toContainText('PalletOutput.rdlc');

@@ -61,6 +61,8 @@ function DialogContent({
   onPointerDownOutside,
   onInteractOutside,
   onFocusOutside,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
@@ -68,6 +70,8 @@ function DialogContent({
   resizable?: boolean;
 }) {
   const contentRef = React.useRef<HTMLDivElement | null>(null);
+  /** Elemento que tenía el foco al abrir: al cerrar se le devuelve (UX 20). */
+  const returnFocusRef = React.useRef<HTMLElement | null>(null);
   /** Elemento real del contenido (callback ref): dispara la medición al montar. */
   const [contentEl, setContentEl] = React.useState<HTMLDivElement | null>(null);
   const setContent = React.useCallback((node: HTMLDivElement | null): void => {
@@ -247,6 +251,20 @@ function DialogContent({
           onFocusOutside={(event) => {
             if (keepGrip(event)) return;
             onFocusOutside?.(event);
+          }}
+          // El disparador se captura antes de que Radix mueva el foco al
+          // diálogo; al cerrar con Esc o con un botón se le devuelve, en vez
+          // de dejarlo en `body` (hallazgo UX 20).
+          onOpenAutoFocus={(event) => {
+            const active = document.activeElement;
+            returnFocusRef.current = active instanceof HTMLElement ? active : null;
+            onOpenAutoFocus?.(event);
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            const target = returnFocusRef.current;
+            if (target?.isConnected) target.focus();
+            onCloseAutoFocus?.(event);
           }}
           {...props}
         >

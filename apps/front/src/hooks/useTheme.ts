@@ -5,12 +5,29 @@ export type Theme = 'light' | 'dark';
 
 const STORAGE_KEY = 'rdlc-designer-theme';
 
-function readStoredTheme(): Theme {
+/** Esquema del sistema (`prefers-color-scheme`); claro si no se puede consultar. */
+function systemTheme(): Theme {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   } catch {
     return 'light';
   }
+}
+
+/** Valor guardado si existe; si no, el esquema del sistema. */
+export function resolveTheme(stored: string | null, system: Theme): Theme {
+  if (stored === 'dark' || stored === 'light') return stored;
+  return system;
+}
+
+function readStoredTheme(): Theme {
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(STORAGE_KEY);
+  } catch {
+    // Almacenamiento bloqueado: se usa el esquema del sistema.
+  }
+  return resolveTheme(stored, systemTheme());
 }
 
 function applyTheme(theme: Theme): void {

@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { focusActiveTab, shouldLeaveCanvas } from './canvasA11y';
 import { useGlobalKeys } from './useGlobalKeys';
 import type { WorkspaceCore } from './useWorkspace';
 import type { ItemEditing } from './useItemEditing';
@@ -10,6 +12,8 @@ export interface EditorKeysOptions {
   zoomFitWidth: () => void;
   zoomReset: () => void;
   onTogglePalette: () => void;
+  /** F2: abre el editor del textbox seleccionado (lo comprueba `App`). */
+  onEditSelectedText?: () => void;
 }
 
 /**
@@ -23,11 +27,36 @@ export function useEditorKeys({
   zoomFitWidth,
   zoomReset,
   onTogglePalette,
+  onEditSelectedText,
 }: EditorKeysOptions): void {
+  const hasSelection = items.selectedItem !== undefined || items.selectedCell !== null;
+
+  // Salida del lienzo con teclado: con el lienzo enfocado y nada seleccionado
+  // (Esc ya subió hasta deseleccionar), Esc devuelve el foco a la pestaña activa.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target instanceof Element ? event.target : null;
+      const leave = shouldLeaveCanvas({
+        key: event.key,
+        defaultPrevented: event.defaultPrevented,
+        hasSelection,
+        inCanvas: target?.closest('.canvas-dots') != null,
+        typing: target?.closest('input, textarea, select, [contenteditable="true"]') != null,
+        dialogOpen:
+          document.querySelector(
+            '[role="dialog"][data-state="open"], [role="menu"][data-state="open"]',
+          ) !== null,
+      });
+      if (leave && focusActiveTab()) event.preventDefault();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [hasSelection]);
+
   useGlobalKeys({
     hasDocument: core.doc !== null,
     // Una celda de Tablix tambiÃ©n es selecciÃ³n (Esc sube a su tabla).
-    hasSelection: items.selectedItem !== undefined || items.selectedCell !== null,
+    hasSelection,
     bodyIndex: core.doc?.projection.page.body.items.length ?? 0,
     onTogglePalette,
     onSave: () => void core.save(),
@@ -58,5 +87,6 @@ export function useEditorKeys({
     onBringToFront: () => items.zOrder('front'),
     onSendToBack: () => items.zOrder('back'),
     onSelectParent: items.selectParent,
+    ...(onEditSelectedText ? { onEditSelectedText } : {}),
   });
 }

@@ -199,13 +199,17 @@ export function NumberInput({
         }}
       />
       <span className={cn('flex shrink-0 flex-col', disabled && 'pointer-events-none opacity-40')}>
+        {/* Área de acierto mayor sin cambiar el tamaño visible: el ::before
+            invisible se expande 2 px hacia fuera y lateralmente. Nunca 12 px:
+            invadía la fila vecina y el clic del campo de al lado se lo comía
+            (lo cazó el E2E del panel de Estructura). */}
         <button
           type="button"
           aria-label={`${label}: aumentar`}
           title="Aumentar (↑)"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => stepBy(1)}
-          className="flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="relative flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground before:absolute before:-top-0.5 before:bottom-0 before:-left-0.5 before:-right-1.5 before:content-[''] hover:bg-muted hover:text-foreground"
         >
           <ChevronUp className="size-2.5" />
         </button>
@@ -215,7 +219,7 @@ export function NumberInput({
           title="Reducir (↓)"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => stepBy(-1)}
-          className="flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="relative flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground before:absolute before:top-0 before:-bottom-0.5 before:-left-0.5 before:-right-1.5 before:content-[''] hover:bg-muted hover:text-foreground"
         >
           <ChevronDown className="size-2.5" />
         </button>

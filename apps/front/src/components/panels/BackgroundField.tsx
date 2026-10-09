@@ -35,12 +35,12 @@ export function BackgroundField({ item, onSetStyle }: BackgroundFieldProps): Rea
       <div className="flex items-center gap-2">
         <label
           title="Color de fondo"
-          className="flex h-7 w-14 cursor-pointer items-center justify-center rounded-md border bg-background"
+          className="relative flex h-7 w-14 cursor-pointer items-center justify-center rounded-md border bg-background"
         >
           <span className="h-4 w-9 rounded-sm border" style={{ backgroundColor: color }} />
           <input
             type="color"
-            className="sr-only"
+            className="absolute inset-0 size-full cursor-pointer opacity-0"
             value={color}
             aria-label="Color de fondo"
             onChange={(event) => change(event.target.value)}

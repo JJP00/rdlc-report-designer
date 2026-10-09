@@ -47,30 +47,34 @@ export function EditorBanners({
           </button>
         </div>
       ) : null}
-      {conflict ? (
-        <div className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-800 dark:text-amber-300">
-          <span className="min-w-0 flex-1">
-            El fichero <span className="font-mono">{conflict}</span> cambió por fuera y hay cambios
-            sin guardar: no se ha recargado para no perderlos.
-          </span>
-          <button
-            type="button"
-            className="shrink-0 rounded border border-amber-600/40 px-2 py-0.5 text-xs font-medium transition-colors hover:bg-amber-500/20"
-            onClick={onResolveConflict}
-          >
-            Resolver…
-          </button>
-        </div>
-      ) : null}
-      {fileMissing ? (
+      {conflict || fileMissing ? (
+        // Conflicto y «fichero desaparecido» pueden coincidir: un solo aviso
+        // ámbar con las dos frases (antes se apilaban dos). El testid del
+        // fichero desaparecido se conserva en el banner fusionado.
         <div
-          data-testid="file-missing-banner"
-          className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-800 dark:text-amber-300"
+          data-testid={fileMissing ? 'file-missing-banner' : undefined}
+          className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs text-amber-800 dark:text-amber-300"
         >
-          <span className="min-w-0 flex-1">
-            El fichero <span className="font-mono">{fileMissing}</span> ya no existe en disco.
-            Guardar lo recreará, o usa «Guardar como…».
+          <span className="min-w-0 flex-1 line-clamp-2 break-words">
+            {conflict ? (
+              <>El fichero cambió por fuera y hay cambios sin guardar: no se ha recargado. </>
+            ) : null}
+            {fileMissing ? (
+              <>El fichero ya no existe en disco: guardar lo recreará, o usa «Guardar como…». </>
+            ) : null}
+            <span className="font-mono" title={conflict ?? fileMissing ?? undefined}>
+              {conflict ?? fileMissing}
+            </span>
           </span>
+          {conflict ? (
+            <button
+              type="button"
+              className="shrink-0 rounded border border-amber-600/40 px-2 py-0.5 text-xs font-medium transition-colors hover:bg-amber-500/20"
+              onClick={onResolveConflict}
+            >
+              Resolver…
+            </button>
+          ) : null}
         </div>
       ) : null}
       {!hasBackend ? (

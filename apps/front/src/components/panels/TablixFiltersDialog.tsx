@@ -145,7 +145,7 @@ export function TablixFiltersDialog({
                 onChange={(event) => update(index, { expression: event.target.value })}
               />
               <select
-                className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
                 aria-label={`Operador del filtro ${index + 1}`}
                 value={draft.operator}
                 onChange={(event) =>

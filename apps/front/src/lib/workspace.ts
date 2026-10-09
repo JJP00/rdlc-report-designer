@@ -66,7 +66,7 @@ export interface WorkspaceState {
 /** Estado del pie sin ninguna pestaña abierta. */
 export const IDLE_STATUS = 'Listo. Abre un informe .rdlc de Business Central o un .rdl 2016.';
 /** Pie tras cerrar la última pestaña (no se cierra la ventana). */
-export const CLOSED_STATUS = 'Documento cerrado.';
+export const CLOSED_STATUS = 'Informe cerrado.';
 /** Aviso al detectar un cambio externo con cambios locales (conflicto). */
 export const CONFLICT_STATUS = 'El fichero cambió en disco. Tus cambios siguen en el editor.';
 /** Recarga externa aplicada (evento `documentChanged` con `reason: 'external'`). */
@@ -449,8 +449,31 @@ export function applyDocumentChanged(
   return next;
 }
 
+/** Mensaje de guardado: deja de ser cierto en cuanto el documento vuelve a editarse. */
+export function isSavedStatus(status: string): boolean {
+  return /^Guardado/.test(status);
+}
+
+/** Pie vacío: el estado «neutro» de una pestaña cuando caduca un mensaje de acción. */
+export const EMPTY_STATUS = '';
+
 export function applyDirtyChanged(state: WorkspaceState, event: DirtyChangedEvent): WorkspaceState {
+  const tab = state.tabs.get(event.sessionId);
+  // Al editar, «Guardado…» miente (el título ya lleva `*`): se limpia.
+  if (tab && event.dirty && isSavedStatus(tab.status)) {
+    return updateTab(state, event.sessionId, { dirty: true, status: EMPTY_STATUS });
+  }
   return updateTab(state, event.sessionId, { dirty: event.dirty });
+}
+
+/** Caducidad de un mensaje de acción: solo si el pie sigue mostrando ese mismo mensaje. */
+export function expireStatus(
+  state: WorkspaceState,
+  sessionId: string,
+  message: string,
+): WorkspaceState {
+  const tab = state.tabs.get(sessionId);
+  return tab?.status === message ? updateTab(state, sessionId, { status: EMPTY_STATUS }) : state;
 }
 
 export function applyConflictDetected(

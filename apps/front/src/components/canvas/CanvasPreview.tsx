@@ -7,8 +7,19 @@ import type {
   ScopeRef,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
-import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
+import { edgeReadingId, nextReadingId, selectionAnnouncement } from '@/hooks/canvasA11y';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
@@ -19,6 +30,7 @@ import {
   findItemInList,
   findItemScope,
   findParentItemId,
+  flattenItems,
   isCellContent,
   scopeInsideItem,
   toCm,
@@ -30,6 +42,7 @@ import { PageResizePreview, PageResizeZones, type PageRegion } from './PageResiz
 import { Paper } from './Paper';
 import { Ruler, type RulerMark } from './Ruler';
 import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
+import { TextEditContext } from './textEditContext';
 import { useMarqueeSelection } from './useMarqueeSelection';
 import { usePageResize } from './usePageResize';
 import { measureSelection, useSelectionMeasure } from './useSelectionMeasure';
@@ -94,6 +107,8 @@ export interface CanvasPreviewProps {
   onContextMenuHit?: (hit: CanvasHit) => void;
   /** Un item de la toolbox soltado en el lienzo. */
   onDropItem?: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
+  /** Abre el editor de texto de un textbox (doble clic, Enter, F2). */
+  onEditText?: (id: string) => void;
   /** Petición de llevar un elemento a la vista (paleta Ctrl+K). */
   reveal?: { id: string; nonce: number } | null;
   /** Stage real del lienzo (benchmark/QA): permite mover nodos sin re-render. */
@@ -127,6 +142,7 @@ export function CanvasPreview({
   onFitZoomChange,
   onContextMenuHit,
   onDropItem,
+  onEditText,
   reveal,
   stageRef: stageRefProp,
 }: CanvasPreviewProps): ReactNode {
@@ -275,128 +291,260 @@ export function CanvasPreview({
   useEffect(() => {
     const container = scrollRef.current;
     if (!container || !reveal) return;
-
-    for (const band of bandsRef.current) {
-      const item = findItemInList(band.region.items, reveal.id);
-      if (!item) continue;
-
-      const x = RULER_PX + (band.x + toPx(item.left)) * zoom;
-      const y = RULER_PX + (band.y + toPx(item.top)) * zoom;
-      container.scrollTo({
-        left: Math.max(0, x - 120),
-        top: Math.max(0, y - 120),
-        behavior: 'smooth',
-      });
-      return;
-    }
+    scrollToItem(container, bandsRef.current, reveal.id, zoom);
   }, [reveal, zoom]);
 
+  // Ctrl+rueda: cada cambio de zoom redibuja el lienzo entero (con 136 elementos
+  // a 400 % ~350 ms). Durante el gesto el papel solo se escala con CSS
+  // (transform, barato) y el zoom real se confirma una vez, al parar la rueda.
+  const paperRef = useRef<HTMLDivElement | null>(null);
+  const wheelTargetRef = useRef<number | null>(null);
+  const wheelTimerRef = useRef(0);
+  const onZoomChangeRef = useRef(onZoomChange);
+  onZoomChangeRef.current = onZoomChange;
+  useLayoutEffect(() => {
+    // El zoom confirmado ya redibujó el papel: se retira la escala provisional.
+    wheelTargetRef.current = null;
+    if (paperRef.current) paperRef.current.style.transform = '';
+  }, [zoom]);
+  useEffect(
+    () => () => {
+      if (wheelTimerRef.current) window.clearTimeout(wheelTimerRef.current);
+    },
+    [],
+  );
+  const handleWheel = (event: Konva.KonvaEventObject<WheelEvent>): void => {
+    if (!onZoomChange) return;
+    const { ctrlKey, metaKey, deltaY } = event.evt;
+    if (!ctrlKey && !metaKey) return;
+    // En Electron, sin preventDefault Chromium haría zoom de toda la app.
+    event.evt.preventDefault();
+    const base = wheelTargetRef.current ?? zoom;
+    const target = roundZoom(clampZoom(base * (deltaY > 0 ? 1 / 1.1 : 1.1)));
+    wheelTargetRef.current = target;
+    if (paperRef.current) {
+      paperRef.current.style.transformOrigin = '0 0';
+      paperRef.current.style.transform = `scale(${target / zoom})`;
+    }
+    window.clearTimeout(wheelTimerRef.current);
+    wheelTimerRef.current = window.setTimeout(() => {
+      wheelTimerRef.current = 0;
+      const confirmed = wheelTargetRef.current;
+      if (confirmed === null) return;
+      if (confirmed === zoom) {
+        wheelTargetRef.current = null;
+        if (paperRef.current) paperRef.current.style.transform = '';
+      } else onZoomChangeRef.current?.(confirmed);
+    }, 120);
+  };
+
+  // Accesibilidad: orden de lectura, anuncios y teclado del lienzo.
+  const items = useMemo(() => flattenItems(projection), [projection]);
+  const itemIds = useMemo(() => items.map((item) => item.id), [items]);
+  const descriptionId = useId();
+  const selectedItem = useMemo(
+    () => (selectedId ? items.find((item) => item.id === selectedId) : undefined),
+    [items, selectedId],
+  );
+  const [liveMessage, setLiveMessage] = useState('');
+  const announcedSelectionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedItem) {
+      announcedSelectionRef.current = null;
+      if (items.length === 0) setLiveMessage('La página no tiene elementos');
+      return;
+    }
+    // Selección nueva: se anuncia al instante; mover con flechas, con retardo
+    // para no encadenar mensajes.
+    if (announcedSelectionRef.current !== selectedItem.id) {
+      announcedSelectionRef.current = selectedItem.id;
+      setLiveMessage(selectionAnnouncement(selectedItem));
+      return;
+    }
+    const timer = window.setTimeout(() => setLiveMessage(selectionAnnouncement(selectedItem)), 300);
+    return () => window.clearTimeout(timer);
+  }, [selectedItem, items.length]);
+
+  const revealItem = (id: string): void => {
+    const container = scrollRef.current;
+    if (container) scrollToItem(container, bandsRef.current, id, zoom);
+  };
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (event.defaultPrevented) return;
+    if (event.key === 'Tab') {
+      const next = onSelect
+        ? nextReadingId(itemIds, selectedId ?? null, event.shiftKey ? -1 : 1)
+        : null;
+      // Sin siguiente (fuera del rango) el Tab sigue su curso y sale del lienzo.
+      if (!next) return;
+      event.preventDefault();
+      onSelect?.(next);
+      revealItem(next);
+      return;
+    }
+    if (
+      (event.key === 'Home' || event.key === 'End') &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey &&
+      !event.altKey &&
+      onSelect
+    ) {
+      const edge = edgeReadingId(itemIds, event.key === 'Home' ? 'first' : 'last');
+      if (!edge) return;
+      event.preventDefault();
+      onSelect(edge);
+      revealItem(edge);
+      return;
+    }
+    if (
+      event.key === 'Enter' &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey &&
+      !event.altKey &&
+      selectedItem?.kind === 'textbox'
+    ) {
+      event.preventDefault();
+      onEditText?.(selectedItem.id);
+    }
+  };
+
   return (
-    <div
-      ref={scrollRef}
-      className="canvas-dots flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
-      onContextMenu={(event) => {
-        const stage = stageRef.current;
-        const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
-        if (hit) onContextMenuHit?.(hit);
-      }}
-      onDragOver={(event) => {
-        if (!event.dataTransfer.types.includes(ITEM_DRAG_TYPE)) return;
-        // Sin preventDefault el navegador no permite soltar aquí.
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'copy';
-      }}
-      onDrop={(event) => {
-        const kind = event.dataTransfer.getData(ITEM_DRAG_TYPE);
-        if (!kind || !onDropItem) return;
-        event.preventDefault();
-        const stage = stageRef.current;
-        const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
-        if (hit) onDropItem(kind as NewItemSpec['kind'], hit);
-      }}
-    >
+    <TextEditContext.Provider value={onEditText ?? null}>
       <div
-        className="relative"
-        style={{ width: RULER_PX + stageWidth, height: RULER_PX + stageHeight }}
+        ref={scrollRef}
+        className="canvas-dots flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
+        tabIndex={0}
+        role="group"
+        aria-label={pageLabel(items.length)}
+        aria-describedby={descriptionId}
+        onFocus={(event) => {
+          // Solo al llegar con teclado (no con clic): selecciona el primero.
+          if (event.target !== event.currentTarget) return;
+          if (!event.currentTarget.matches(':focus-visible')) return;
+          if (itemIds.length === 0) {
+            setLiveMessage('La página no tiene elementos');
+            return;
+          }
+          if (!selectedId || !itemIds.includes(selectedId)) {
+            const first = edgeReadingId(itemIds, 'first');
+            if (first) onSelect?.(first);
+          }
+        }}
+        onKeyDown={handleKeyDown}
+        onContextMenu={(event) => {
+          const stage = stageRef.current;
+          const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
+          if (hit) onContextMenuHit?.(hit);
+        }}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes(ITEM_DRAG_TYPE)) return;
+          // Sin preventDefault el navegador no permite soltar aquí.
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }}
+        onDrop={(event) => {
+          const kind = event.dataTransfer.getData(ITEM_DRAG_TYPE);
+          if (!kind || !onDropItem) return;
+          event.preventDefault();
+          const stage = stageRef.current;
+          const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
+          if (hit) onDropItem(kind as NewItemSpec['kind'], hit);
+        }}
       >
-        <CanvasRulers
-          projection={projection}
-          zoom={zoom}
-          stageWidth={stageWidth}
-          stageHeight={stageHeight}
-          rulerMarks={rulerMarks}
-        />
+        <span id={descriptionId} className="sr-only">
+          Usa Tab para recorrer los elementos, las flechas para mover el seleccionado, F2 para
+          editar su texto y Esc para salir del lienzo.
+        </span>
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {liveMessage}
+        </div>
+        <div
+          ref={paperRef}
+          className="relative"
+          style={{ width: RULER_PX + stageWidth, height: RULER_PX + stageHeight }}
+        >
+          <CanvasRulers
+            projection={projection}
+            zoom={zoom}
+            stageWidth={stageWidth}
+            stageHeight={stageHeight}
+            rulerMarks={rulerMarks}
+          />
 
-        <div className="absolute" style={{ left: RULER_PX, top: RULER_PX }}>
-          <Stage
-            ref={stageRef}
-            width={stageWidth}
-            height={stageHeight}
-            scaleX={zoom}
-            scaleY={zoom}
-            style={{ background: '#dcdce2' }}
-            onMouseDown={marqueeHandlers.onMouseDown}
-            onMouseMove={marqueeHandlers.onMouseMove}
-            onMouseUp={marqueeHandlers.onMouseUp}
-            onClick={(event) => {
-              // Tras un marco, el click sintético no debe limpiar la selección.
-              if (suppressClickRef.current) {
-                suppressClickRef.current = false;
-                return;
-              }
-              // Click en vacío = deseleccionar (los items cortan la propagación).
-              if (event.target === event.target.getStage()) onSelect?.(null);
-            }}
-            onWheel={(event) => zoomFromWheel(event, zoom, onZoomChange)}
-          >
-            {/* Zonas de página **bajo** el papel: el contenido gana el clic. */}
-            <PageResizeZones
-              layout={layout}
-              zoom={zoom}
-              onResizeRegion={onResizeRegion}
-              onResizeSectionWidth={onResizeSectionWidth}
-              sectionMinCm={sectionMinCm}
-              bandMinCm={bandMinCm}
-              onPreview={(orientation, position, label) =>
-                pageResizeRef.current?.showPreview(orientation, position, label)
-              }
-              onPreviewEnd={() => pageResizeRef.current?.hidePreview()}
-            />
-
-            <Paper
-              layout={layout}
-              selectedId={selectedId}
-              onSelect={onSelect}
-              onMoveTo={handleMoveEnd}
-              onResizeColumn={onResizeColumn}
-              onResizeRow={onResizeRow}
-              selectedCell={selectedCell}
-              onSelectCell={onSelectCell}
-              draggable={onMoveTo !== undefined}
-              cull={visibleRect}
-            />
-
-            <SelectionFrame {...frameProps} />
-            <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
-            {/* Previsualización de página por encima del contenido. */}
-            <PageResizePreview ref={pageResizeRef} layout={layout} zoom={zoom} />
-            {/* Marco de selección (arrastrar en vacío). */}
-            <Layer listening={false}>
-              <Rect
-                ref={marqueeRef}
-                name="marquee-rect"
-                visible={false}
-                stroke="#2563eb"
-                fill="rgba(37,99,235,0.08)"
-                strokeWidth={1}
-                dash={[4, 3]}
-                strokeScaleEnabled={false}
+          <div className="absolute" style={{ left: RULER_PX, top: RULER_PX }}>
+            <Stage
+              ref={stageRef}
+              width={stageWidth}
+              height={stageHeight}
+              scaleX={zoom}
+              scaleY={zoom}
+              style={{ background: '#dcdce2' }}
+              onMouseDown={marqueeHandlers.onMouseDown}
+              onMouseMove={marqueeHandlers.onMouseMove}
+              onMouseUp={marqueeHandlers.onMouseUp}
+              onClick={(event) => {
+                // Tras un marco, el click sintético no debe limpiar la selección.
+                if (suppressClickRef.current) {
+                  suppressClickRef.current = false;
+                  return;
+                }
+                // Click en vacío = deseleccionar (los items cortan la propagación).
+                if (event.target === event.target.getStage()) onSelect?.(null);
+              }}
+              onWheel={handleWheel}
+            >
+              {/* Zonas de página **bajo** el papel: el contenido gana el clic. */}
+              <PageResizeZones
+                layout={layout}
+                zoom={zoom}
+                onResizeRegion={onResizeRegion}
+                onResizeSectionWidth={onResizeSectionWidth}
+                sectionMinCm={sectionMinCm}
+                bandMinCm={bandMinCm}
+                onPreview={(orientation, position, label) =>
+                  pageResizeRef.current?.showPreview(orientation, position, label)
+                }
+                onPreviewEnd={() => pageResizeRef.current?.hidePreview()}
               />
-            </Layer>
-          </Stage>
+
+              <Paper
+                layout={layout}
+                selectedId={selectedId}
+                onSelect={onSelect}
+                onMoveTo={handleMoveEnd}
+                onResizeColumn={onResizeColumn}
+                onResizeRow={onResizeRow}
+                selectedCell={selectedCell}
+                onSelectCell={onSelectCell}
+                draggable={onMoveTo !== undefined}
+                cull={visibleRect}
+              />
+
+              <SelectionFrame {...frameProps} />
+              <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
+              {/* Previsualización de página por encima del contenido. */}
+              <PageResizePreview ref={pageResizeRef} layout={layout} zoom={zoom} />
+              {/* Marco de selección (arrastrar en vacío). */}
+              <Layer listening={false}>
+                <Rect
+                  ref={marqueeRef}
+                  name="marquee-rect"
+                  visible={false}
+                  stroke="#2563eb"
+                  fill="rgba(37,99,235,0.08)"
+                  strokeWidth={1}
+                  dash={[4, 3]}
+                  strokeScaleEnabled={false}
+                />
+              </Layer>
+            </Stage>
+          </div>
         </div>
       </div>
-    </div>
+    </TextEditContext.Provider>
   );
 }
 
@@ -525,19 +673,35 @@ function hitAtEvent(
   return hitTestItems(band.region.items, point, scopeOfBand(band.key));
 }
 
-/** Zoom con Ctrl/Cmd + rueda (la rueda normal es scroll). */
-function zoomFromWheel(
-  event: Konva.KonvaEventObject<WheelEvent>,
+/** Etiqueta accesible del grupo: «Página del informe, 3 elementos». */
+function pageLabel(count: number): string {
+  return `Página del informe, ${count} ${count === 1 ? 'elemento' : 'elementos'}`;
+}
+
+/**
+ * Desplaza el hueco del lienzo hasta el item pedido con un margen cómodo (lo
+ * usan el «traer a la vista» de la paleta y la navegación por teclado). Si el
+ * item no está en una banda visible (encabezado/pie apagados), no hace nada.
+ */
+function scrollToItem(
+  container: HTMLDivElement,
+  bands: PaperLayout['bands'],
+  id: string,
   zoom: number,
-  onZoomChange?: (zoom: number) => void,
 ): void {
-  if (!onZoomChange) return;
-  const { ctrlKey, metaKey, deltaY } = event.evt;
-  if (!ctrlKey && !metaKey) return;
-  // En Electron, sin preventDefault Chromium haría zoom de toda la app.
-  event.evt.preventDefault();
-  const factor = deltaY > 0 ? 1 / 1.1 : 1.1;
-  onZoomChange(roundZoom(clampZoom(zoom * factor)));
+  for (const band of bands) {
+    const item = findItemInList(band.region.items, id);
+    if (!item) continue;
+
+    const x = RULER_PX + (band.x + toPx(item.left)) * zoom;
+    const y = RULER_PX + (band.y + toPx(item.top)) * zoom;
+    container.scrollTo({
+      left: Math.max(0, x - 120),
+      top: Math.max(0, y - 120),
+      behavior: 'smooth',
+    });
+    return;
+  }
 }
 
 /** Marco de selección: caja del item y rejilla si es un Tablix. */

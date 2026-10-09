@@ -151,6 +151,9 @@ function RulerMarkHandle({
     : { top: offset - size / 2, left: 0, width: RULER_PX, height: size };
 
   return (
+    // Área de acierto ≥ 24 px con un ::before invisible que crece hacia fuera
+    // del asa (12 × 20). No toca `style` ni el cuerpo del arrastre: la posición
+    // sigue calculándose con el puntero sobre el contenedor de la regla.
     <div
       role="slider"
       aria-label={mark.label}
@@ -160,8 +163,10 @@ function RulerMarkHandle({
       aria-valuenow={Math.round(mark.cm * 100) / 100}
       tabIndex={0}
       title={`${mark.label} (arrastra en la regla)`}
-      className={`absolute z-10 outline-none ${
-        horizontal ? 'cursor-ew-resize' : 'cursor-ns-resize'
+      className={`absolute z-10 outline-none before:absolute before:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${
+        horizontal
+          ? 'cursor-ew-resize before:-inset-x-1.5 before:-inset-y-0.5'
+          : 'cursor-ns-resize before:-inset-y-1.5 before:-inset-x-0.5'
       } ${dragging ? 'bg-primary/30' : 'hover:bg-primary/20'}`}
       style={style}
       onPointerDown={(event) => {

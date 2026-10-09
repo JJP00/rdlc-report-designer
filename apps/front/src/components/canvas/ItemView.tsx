@@ -19,6 +19,7 @@ import { browserTextMeasurer, layoutTextbox } from '@/lib/textLayout';
 import { itemOpacity } from '@/lib/visibility';
 import { intersectsBox, itemExtent, type VisibleRect } from './culling';
 import { PX_PER_CM, SNAP_CM, toPx } from './geometry';
+import { useTextEdit } from './textEditContext';
 
 /**
  * Item del lienzo: el nodo Konva de cada elemento (selección y drag) y su
@@ -52,6 +53,8 @@ interface NodeGroupProps {
   /** Shift+click amplía el rango y Ctrl+click añade celdas (sobre el contenido). */
   shiftCell?: { id: string; row: number; col: number } | null;
   onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
+  /** Doble clic en un textbox: abre el editor de texto (como F2 o Enter). */
+  onEditText?: () => void;
   children: ReactNode;
 }
 
@@ -77,6 +80,7 @@ function NodeGroup({
   itemSize,
   shiftCell,
   onSelectCell,
+  onEditText,
   children,
 }: NodeGroupProps): ReactNode {
   const dragState = useRef<{
@@ -134,6 +138,22 @@ function NodeGroup({
       onTap={(event) => {
         event.cancelBubble = true;
         onSelect?.(itemId);
+      }}
+      onDblClick={(event) => {
+        // Doble clic en un textbox: editar el texto (como F2 o el menú). En
+        // otros tipos no se hace nada: el clic ya seleccionó.
+        if (!onEditText) return;
+        // Konva sintetiza `dblclick` también con un clic izquierdo seguido de
+        // uno derecho rápido en el mismo punto (y abriríamos el editor encima
+        // del menú contextual): solo edita el doble clic primario.
+        if (event.evt instanceof MouseEvent && event.evt.button !== 0) return;
+        event.cancelBubble = true;
+        onEditText();
+      }}
+      onDblTap={(event) => {
+        if (!onEditText) return;
+        event.cancelBubble = true;
+        onEditText();
       }}
       onDragStart={(event) => {
         if (event.target !== event.currentTarget) return;
@@ -258,6 +278,12 @@ export function ItemView({
   // (precedencia RDL: run > párrafo > item).
   const style = item.style;
 
+  // Doble clic sobre un textbox: abrir su editor. El callback llega por
+  // contexto para que los items anidados (rectángulos, celdas) lo hereden.
+  const editText = useTextEdit();
+  const editTextId = item.kind === 'textbox' ? item.id : null;
+  const handleEditText = editText && editTextId ? (): void => editText(editTextId) : undefined;
+
   return (
     <NodeGroup
       itemId={item.id}
@@ -274,6 +300,7 @@ export function ItemView({
       itemSize={{ width, height }}
       shiftCell={cellOwner ?? null}
       onSelectCell={onSelectCell}
+      onEditText={handleEditText}
     >
       {renderContent(
         item,

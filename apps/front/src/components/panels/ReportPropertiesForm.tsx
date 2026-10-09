@@ -300,7 +300,7 @@ export function ReportPropertiesForm({
               </Label>
               <select
                 id={`${uid}-paper-size`}
-                className="h-8 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-8 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
                 aria-label="Tamaño de papel"
                 value={selectedPaper}
                 onChange={(event) => selectPaper(event.target.value)}

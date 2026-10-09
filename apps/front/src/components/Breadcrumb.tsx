@@ -12,6 +12,9 @@ export interface BreadcrumbProps {
   onSelectCell: (cell: SelectedCell) => void;
 }
 
+/** Misma altura con o sin selección (el lienzo no debe moverse). */
+export const BREADCRUMB_ROW_CLASS = 'flex min-h-7 shrink-0 items-center border-b bg-muted/40';
+
 /**
  * Ruta de contenedores del elemento seleccionado (`Informe › Cuerpo › Tablix2 ›
  * Celda 2,1 › Textbox4`). Cada tramo con destino es un botón: sube de nivel sin
@@ -28,7 +31,9 @@ export function Breadcrumb({
     itemId: selectedId,
     cell: selectedCell,
   });
-  if (entries.length <= 1) return null;
+  // Fila siempre reservada: que aparezca al seleccionar desplazaría el lienzo 28 px
+  // y rompería el primer doble clic (N1).
+  if (entries.length <= 1) return <div aria-hidden className={BREADCRUMB_ROW_CLASS} />;
 
   const pick = (target: HierarchyTarget): void => {
     if (target.kind === 'item') onSelectItem(target.id);
@@ -46,7 +51,7 @@ export function Breadcrumb({
   return (
     <nav
       aria-label="Ruta del elemento seleccionado"
-      className="flex min-h-7 shrink-0 items-center gap-0.5 overflow-x-auto border-b bg-muted/40 px-3 py-0.5 text-xs"
+      className={`${BREADCRUMB_ROW_CLASS} gap-0.5 overflow-x-auto px-3 py-0.5 text-xs`}
     >
       {entries.map((entry, index) => {
         const last = index === entries.length - 1;

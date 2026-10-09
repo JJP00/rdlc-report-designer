@@ -194,7 +194,7 @@ function TextSection({
       <span className="text-xs font-medium text-muted-foreground">Texto</span>
       <div className="flex items-center gap-1.5">
         <select
-          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
           value={family ?? ''}
           aria-label="Fuente de la selección"
           disabled={disabled}
@@ -334,7 +334,7 @@ function VisibilitySection({
     <div className="flex items-center gap-1.5">
       <span className="w-16 shrink-0 text-xs text-muted-foreground">Visibilidad</span>
       <select
-        className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
         aria-label="Visibilidad de la selección"
         value={hidden === true ? 'hidden' : hidden === false ? 'visible' : ''}
         onChange={(event) => {

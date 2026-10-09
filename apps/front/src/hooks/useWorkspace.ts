@@ -16,6 +16,7 @@ import {
   adoptSessions,
   applyConflictDetected,
   applyDirtyChanged,
+  expireStatus,
   applyDocumentChanged,
   applyExternalReloadFailed,
   applyFileMissingChanged,
@@ -177,6 +178,8 @@ export interface WorkspaceCore {
 
 /** Tiempo que permanece visible un aviso de error (se borra solo). */
 const ERROR_BANNER_MS = 6000;
+/** Un mensaje de acción del pie (insertado, copiado…) se retira pasado este tiempo. */
+const STATUS_MESSAGE_MS = 8000;
 /** Retardo antes de mostrar «Abriendo…/Guardando…» en el pie (BUG-54). */
 const BUSY_STATUS_MS = 300;
 /** Debounce de la escritura del `ui` por pestaña en sessionStorage. */
@@ -271,16 +274,40 @@ export function useWorkspace(): WorkspaceCore {
     [setTabError, setWorkspaceError],
   );
 
+  const statusTimers = useRef(new Map<string, number>());
+
   const setStatus = useCallback(
     (message: string): void => {
       const sessionId = stateRef.current.activeSessionId;
+      const key = sessionId ?? WORKSPACE_ERROR_KEY;
+      const previous = statusTimers.current.get(key);
+      if (previous !== undefined) window.clearTimeout(previous);
+      statusTimers.current.delete(key);
       if (sessionId !== null && stateRef.current.tabs.has(sessionId)) {
         setWorkspace((current) => updateTab(current, sessionId, { status: message }));
+        // Los mensajes de acción caducan (solo si siguen siendo el mensaje visible).
+        if (message) {
+          statusTimers.current.set(
+            key,
+            window.setTimeout(() => {
+              statusTimers.current.delete(key);
+              setWorkspace((current) => expireStatus(current, sessionId, message));
+            }, STATUS_MESSAGE_MS),
+          );
+        }
       } else {
         setWorkspaceStatus(message);
       }
     },
     [setWorkspace],
+  );
+
+  useEffect(
+    () => () => {
+      for (const timer of statusTimers.current.values()) window.clearTimeout(timer);
+      statusTimers.current.clear();
+    },
+    [],
   );
 
   useEffect(
@@ -978,9 +1005,16 @@ export function useWorkspace(): WorkspaceCore {
         : () => {};
     const offClosed =
       typeof window.api.onSessionClosed === 'function'
-        ? window.api.onSessionClosed((event) =>
-            setWorkspace((current) => applySessionClosed(current, event)),
-          )
+        ? window.api.onSessionClosed((event) => {
+            // El backend emite `sessionClosed` **antes** de responder al cierre,
+            // así que este evento puede quitar la pestaña antes de que
+            // `closeTabNow` reanude: si la que se va era la última, el editor
+            // queda vacío y merece el mismo aviso («Documento cerrado.»).
+            const order = stateRef.current.order;
+            const wasLast = order.length === 1 && order[0] === event.sessionId;
+            setWorkspace((current) => applySessionClosed(current, event));
+            if (wasLast) setWorkspaceStatus(CLOSED_STATUS);
+          })
         : () => {};
 
     return () => {

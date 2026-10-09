@@ -48,10 +48,16 @@ export function ConflictDialog({
             versión conservar.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="sm:flex-col sm:items-stretch">
-          <Button onClick={onOverwrite}>Guardar y sobrescribir el fichero</Button>
-          <Button variant="outline" onClick={onSaveAs}>
+        {/* Orden de lectura/teclado y foco inicial seguros: «Guardar como…» es
+            la acción primaria (no destructiva) y la primera; sobrescribir queda
+            como secundaria. `flex-col` también en móvil para que el orden visual
+            coincida con el del DOM. */}
+        <DialogFooter className="flex-col items-stretch sm:flex-col">
+          <Button autoFocus onClick={onSaveAs}>
             Guardar como…
+          </Button>
+          <Button variant="outline" onClick={onOverwrite}>
+            Guardar y sobrescribir el fichero
           </Button>
           <Button variant="outline" onClick={onReload}>
             Recargar desde disco (descartar mis cambios)

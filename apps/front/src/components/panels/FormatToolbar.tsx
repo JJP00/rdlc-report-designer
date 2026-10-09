@@ -41,8 +41,9 @@ interface FormatToolbarProps {
 /**
  * Barra de formato de texto (como la de Report Builder): fuente, tamaño,
  * negrita/cursiva/subrayado, color, resaltado, alineación/viñetas y los
- * **botones de insertar** (click o arrastrar al lienzo). Todo en **una sola
- * línea**. Aplica al `<Style>` de **todos** los items seleccionados (en lote)
+ * **botones de insertar** (click o arrastrar al lienzo). En **una sola línea**
+ * si cabe; al estrecharse reparte los controles en varias filas (nunca hace
+ * scroll horizontal). Aplica al `<Style>` de **todos** los items seleccionados (en lote)
  * vía `setStyle`, igual que el panel de selección múltiple.
  * Las fuentes ofrecidas son las disponibles en **Business Central** (lista
  * oficial vía IPC).
@@ -81,12 +82,15 @@ export function FormatToolbar({
   );
 
   return (
-    <div className="flex items-center gap-1.5 overflow-x-auto border-b bg-chrome-subtle px-3 py-1.5">
+    <div className="flex flex-wrap items-center gap-1.5 border-b bg-chrome-subtle px-3 py-1.5">
       <div
-        className={cn('flex items-center gap-1.5', disabled && 'pointer-events-none opacity-40')}
+        className={cn(
+          'flex flex-wrap items-center gap-1.5',
+          disabled && 'pointer-events-none opacity-40',
+        )}
       >
         <select
-          className="h-7 max-w-[130px] shrink-0 rounded-md border bg-background px-1 text-xs"
+          className="h-7 max-w-[130px] shrink-0 rounded-md border border-input bg-background px-1 text-xs"
           value={style?.fontFamily ?? DEFAULT_FONT_FAMILY}
           aria-label="Fuente"
           onChange={(event) => onSetStyle({ fontFamily: event.target.value })}
@@ -308,7 +312,7 @@ function ColorField({
   return (
     <label
       title={title}
-      className="flex h-7 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted"
+      className="relative flex h-7 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted"
     >
       <span
         className={highlight ? 'rounded-sm px-0.5' : ''}
@@ -316,9 +320,16 @@ function ColorField({
       >
         A
       </span>
+      {/* Muestra del color; el input real cubre toda la etiqueta en invisible
+          (área de acierto ≥ 24 px, como el resto de botones de la barra). */}
+      <span
+        aria-hidden
+        className="pointer-events-none ml-0.5 h-4 w-4 rounded-[3px] border border-black/20 dark:border-white/30"
+        style={{ backgroundColor: color }}
+      />
       <input
         type="color"
-        className="h-4 w-4 cursor-pointer border-0 bg-transparent p-0"
+        className="absolute inset-0 size-full cursor-pointer opacity-0"
         value={color}
         aria-label={title}
         onChange={(event) => change(event.target.value)}

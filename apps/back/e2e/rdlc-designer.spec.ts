@@ -2150,8 +2150,8 @@ test('el panel de propiedades edita la visibilidad y el color de fondo', async (
 test('las opciones del textbox (CanGrow/KeepTogether) se editan y deshacen', async () => {
   // Textbox4 (encabezado) declara ambos flags en el corpus.
   await selectItemViaPalette('Textbox4');
-  const canGrow = page.getByRole('checkbox', { name: 'Crecer con el texto (CanGrow)' });
-  const keepTogether = page.getByRole('checkbox', { name: 'Mantener junto (KeepTogether)' });
+  const canGrow = page.getByRole('checkbox', { name: 'Crecer con el texto' });
+  const keepTogether = page.getByRole('checkbox', { name: 'Mantener junto' });
   await expect(canGrow).toBeChecked();
   await expect(keepTogether).toBeChecked();
 

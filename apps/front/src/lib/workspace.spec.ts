@@ -6,6 +6,8 @@ import {
   applyConflictDetected,
   closeTargets,
   applyDirtyChanged,
+  EMPTY_STATUS,
+  expireStatus,
   applyDocumentChanged,
   applyExternalReloadFailed,
   applyFileMissingChanged,
@@ -222,6 +224,29 @@ describe('enrutado de eventos por sessionId', () => {
 
     expect(next.tabs.get('s2')?.dirty).toBe(true);
     expect(next.tabs.get('s1')?.dirty).toBe(false);
+  });
+
+  it('al editar, «Guardado…» se limpia; otros mensajes se conservan', () => {
+    const saved = updateTab(base, 's1', { status: 'Guardado: C:\a\Uno.rdlc' });
+    const edited = applyDirtyChanged(saved, { sessionId: 's1', dirty: true });
+    expect(edited.tabs.get('s1')?.status).toBe(EMPTY_STATUS);
+    expect(edited.tabs.get('s1')?.dirty).toBe(true);
+
+    const undone = updateTab(base, 's1', { status: 'Deshecho' });
+    expect(applyDirtyChanged(undone, { sessionId: 's1', dirty: true }).tabs.get('s1')?.status).toBe(
+      'Deshecho',
+    );
+    // Quedar limpio (dirty=false) no toca el mensaje.
+    expect(applyDirtyChanged(saved, { sessionId: 's1', dirty: false }).tabs.get('s1')?.status).toBe(
+      'Guardado: C:\a\Uno.rdlc',
+    );
+  });
+
+  it('expireStatus solo retira el mensaje si sigue siendo el visible', () => {
+    const withMsg = updateTab(base, 's1', { status: 'Copiado: Textbox1' });
+    expect(expireStatus(withMsg, 's1', 'Copiado: Textbox1').tabs.get('s1')?.status).toBe(EMPTY_STATUS);
+    expect(expireStatus(withMsg, 's1', 'otro')).toBe(withMsg);
+    expect(expireStatus(withMsg, 'nope', 'x')).toBe(withMsg);
   });
 
   it('conflictDetected marca conflicto y estado solo en su pestaña', () => {

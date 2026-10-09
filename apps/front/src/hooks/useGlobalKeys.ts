@@ -49,6 +49,11 @@ export interface GlobalKeysOptions {
   onSendToBack: () => void;
   /** Esc: sube al contenedor del item seleccionado. */
   onSelectParent: () => void;
+  /**
+   * F2: abre el editor de texto del elemento seleccionado. Quien cablea el
+   * callback comprueba que la selección sea un textbox.
+   */
+  onEditSelectedText?: () => void;
 }
 
 export function useGlobalKeys(options: GlobalKeysOptions): void {
@@ -62,16 +67,18 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
     const target = event.target as HTMLElement | null;
     const isTextField = Boolean(
       target &&
-        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable),
+      (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable),
     );
     /**
      * Controles que usan las flechas/Supr para sí mismos (botones, pestañas,
      * sliders, checkboxes, radios…): con el foco en ellos, las flechas navegan
-     * el control y no mueven el item seleccionado del lienzo (BUG-41).
+     * el control y no mueven el item seleccionado del lienzo (BUG-41). El árbol
+     * de la Jerarquía (`tree`/`treeitem`), las listas y las rejillas también
+     * navegan con flechas (BUG-41, Jerarquía con roving tabindex).
      */
     const isInteractiveControl = Boolean(
       target?.closest(
-        'button, [role="slider"], [role="tab"], [role="checkbox"], [role="switch"], [role="radio"], [role="spinbutton"], [role="menuitem"], [role="option"]',
+        'button, [role="slider"], [role="tab"], [role="checkbox"], [role="switch"], [role="radio"], [role="spinbutton"], [role="menuitem"], [role="option"], [role="tree"], [role="treeitem"], [role="listbox"], [role="grid"]',
       ),
     );
     // Con un diálogo o menú **abierto**, sus teclas son suyas (Escape cierra el
@@ -154,6 +161,16 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
 
     if (dialogOpen || isTextField) return;
     if (!options.hasDocument) return;
+
+    // F2: editar el texto del elemento seleccionado (solo si es un textbox; lo
+    // comprueba quien cablea el callback). Vale también con el foco en un
+    // control de la toolbar o de un panel.
+    if (event.key === 'F2' && !accel && !event.shiftKey && !event.altKey) {
+      if (!options.hasSelection || !options.onEditSelectedText) return;
+      event.preventDefault();
+      options.onEditSelectedText();
+      return;
+    }
 
     // Con el foco en un control (toolbar, pestaña, slider…), Supr/Flechas son
     // del control: no borran ni mueven el item seleccionado (BUG-41).

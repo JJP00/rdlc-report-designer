@@ -1,5 +1,25 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Re-auditoría Intent del front · 2026-10-09** — `/evaluate`, `/include`, `/organize` +
+> `/articulate` y `/fortify` + `/transpose` sobre el árbol de trabajo con las correcciones
+> del otro agente (aún sin commitear; suite E2E 118/118 sobre un build recompilado).
+> Documento: `docs/ux/0005-reauditoria-intent.md`. **Salud UX ≈ 77/100** (72–82; 0004 ≈ 71).
+> De los 29 hallazgos de 0004: **12 resueltos**, **10 parciales**, **6 sin resolver** y **1
+> regresión medida** (zoom con rueda: p95 351–384 ms con el tope de 400 %, no comparable del
+> todo). Resueltos: lienzo y Jerarquía con teclado y anuncios, pestañas (roving, scroll,
+> «Todas las pestañas»), «Informe…» con scroll, ventana mínima 960×600, conflicto con
+> «Guardar como…» como primaria, «sin guardar» accesible, tooltips, foco devuelto.
+> **Sin resolver**: Ctrl+K y atajos invisibles, estado vacío, paleta incompleta, texto
+> largo recortado, enlace de salto/reduced-motion/reflow, `prefers-color-scheme`.
+> **Nuevo, P1**: el breadcrumb mueve el lienzo 28 px al seleccionar el primer elemento y
+> rompe el primer doble clic «en frío». **Nuevos P2**: toolbar recortada con escalado de
+> Windows del 150–200 %, 136 Tab para salir del lienzo, contrastes que escaparon (anillo de
+> foco de botones en claro 2,4–2,6:1, select «Fuente» 1,7:1, ámbar del pie 2,5:1), el pie
+> dice «Guardado» tras editar, y los tiradores del seleccionado tapan el borde de un vecino
+> solapado. La sospecha de regresión de clic en el lienzo se **descartó** con cientos de
+> clics reales. Orden sugerido en el documento (N1 primero).
+
+
 > **Zoom hasta 400 % · 2026-10-09** — el tope era 200 % (`ZOOM_MAX = 2` en
 > `apps/front/src/lib/zoom.ts`) y «ajustar al ancho» también se acotaba a él, así que en
 > una ventana ancha el papel no llenaba el lienzo. Ahora `ZOOM_MAX = 4`, con presets 300 %

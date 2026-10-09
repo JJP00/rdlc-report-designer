@@ -30,6 +30,8 @@ export interface ReportTabProps {
   onToggleHierarchy: () => void;
   /** Abre el diálogo de propiedades del informe. */
   onOpenProperties: () => void;
+  /** Abre la paleta de comandos (Ctrl+K). */
+  onOpenPalette: () => void;
   onEditText: (id: string) => void;
   onOpenGroupProperties: (
     tablixId: string,
@@ -70,6 +72,7 @@ export function ReportTab(props: ReportTabProps): ReactNode {
     showHierarchy,
     onToggleHierarchy,
     onOpenProperties,
+    onOpenPalette,
     tabStrip,
   } = props;
   const { doc, busy, recents, open, save, saveAs, createNew, openPath, close, undo, redo } = core;
@@ -94,6 +97,7 @@ export function ReportTab(props: ReportTabProps): ReactNode {
         onSaveAs={() => void saveAs()}
         onClose={close}
         onOpenProperties={onOpenProperties}
+        onOpenPalette={onOpenPalette}
         onToggleVariables={onToggleVariables}
         onToggleHierarchy={onToggleHierarchy}
         onToggleTheme={onToggleTheme}
@@ -122,7 +126,21 @@ export function ReportTab(props: ReportTabProps): ReactNode {
 
       {tabStrip}
 
-      <ReportBody key={doc?.sessionId ?? 'empty'} {...props} />
+      {/*
+       * `tabpanel` de la pestaña activa (hallazgo 3): el wrapper mantiene la
+       * columna flex del marco (banners + `main` + pie dentro) y conserva la
+       * `key` en `ReportBody` para que el cuerpo se remonte al cambiar de
+       * pestaña. Sin documento no hay pestañas: el wrapper pierde rol e ids.
+       */}
+      <div
+        role={doc !== null ? 'tabpanel' : undefined}
+        id={doc !== null ? `panel-${doc.sessionId}` : undefined}
+        aria-labelledby={doc !== null ? `tab-${doc.sessionId}` : undefined}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <ReportBody key={doc?.sessionId ?? 'empty'} {...props} />
+      </div>
     </>
   );
 }
@@ -189,6 +207,9 @@ function ReportBody({
           hasClipboard={items.hasClipboard}
           reveal={items.reveal}
           editing={items}
+          onOpenReport={core.open}
+          recents={core.recents}
+          onOpenRecent={core.openPath}
           onZoomChange={onZoomChange}
           onFitZoomChange={onFitZoomChange}
           onOpenGroupProperties={onOpenGroupProperties}

@@ -14,6 +14,10 @@ import { isNavigationAllowed, isPermissionAllowed } from './security/navigation.
 
 log.initialize();
 
+/** Tamaño mínimo de la ventana en px CSS (hallazgo UX 5). */
+const MIN_WIDTH_CSS_PX = 960;
+const MIN_HEIGHT_CSS_PX = 600;
+
 let mainWindow: BrowserWindow | null = null;
 /** URL con la que se carga el renderer: la única navegación permitida (T2). */
 let appUrl = '';
@@ -58,6 +62,10 @@ async function createWindow(): Promise<BrowserWindow> {
   const window = new BrowserWindow({
     width: 1500,
     height: 950,
+    // Mínimo de la ventana (hallazgo UX 5): por debajo, el lienzo, la toolbar y
+    // los diálogos no caben de forma utilizable.
+    minWidth: MIN_WIDTH_CSS_PX,
+    minHeight: MIN_HEIGHT_CSS_PX,
     show: false,
     title: 'RDLC Report Designer',
     autoHideMenuBar: true,
@@ -70,6 +78,19 @@ async function createWindow(): Promise<BrowserWindow> {
       sandbox: true,
     },
   });
+
+  // El mínimo se expresa en px CSS: con zoom del renderer (escalado 150–200 %)
+  // se multiplica por el factor para que el layout nunca baje de 960 px CSS.
+  const applyMinimumSize = (): void => {
+    if (window.isDestroyed()) return;
+    const factor = Math.max(1, window.webContents.getZoomFactor());
+    const [currentW, currentH] = window.getMinimumSize();
+    const width = Math.round(MIN_WIDTH_CSS_PX * factor);
+    const height = Math.round(MIN_HEIGHT_CSS_PX * factor);
+    if (currentW !== width || currentH !== height) window.setMinimumSize(width, height);
+  };
+  window.webContents.on('did-finish-load', applyMinimumSize);
+  window.on('resize', applyMinimumSize);
 
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {

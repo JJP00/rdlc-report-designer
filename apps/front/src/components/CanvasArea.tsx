@@ -7,9 +7,11 @@ import type {
   ScopeRef,
   TablixMemberDto,
 } from '@rdlc-designer/contracts';
+import { FolderOpen } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
 import { ExpressionDialog } from '@/components/panels/ExpressionDialog';
+import { Button } from '@/components/ui/button';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -45,6 +47,10 @@ const INSERT_KINDS = ['textbox', 'rectangle', 'line', 'image', 'tablix'] as cons
 
 export interface CanvasAreaProps {
   projection: ProjectionDto | null;
+  /** Estado vacío: abrir un informe y recientes. */
+  onOpenReport: () => void;
+  recents: string[];
+  onOpenRecent: (path: string) => void;
   zoom: number;
   selectedId: string | null;
   /** Items adicionales de la multiselección (U3). */
@@ -124,6 +130,9 @@ export interface CanvasAreaProps {
 export function CanvasArea(props: CanvasAreaProps): ReactNode {
   const {
     projection,
+    onOpenReport,
+    recents,
+    onOpenRecent,
     zoom,
     selectedId,
     extraSelectedIds,
@@ -218,10 +227,11 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
                 onResizeRegion={onResizeRegion}
                 onResizeSectionWidth={onResizeSectionWidth}
                 onSetPageMargins={onSetPageMargins}
+                onEditText={onEditText}
                 reveal={reveal}
               />
             ) : (
-              <EmptyCanvas />
+              <EmptyCanvas onOpen={onOpenReport} recents={recents} onOpenRecent={onOpenRecent} />
             )}
           </div>
         </ContextMenuTrigger>
@@ -525,16 +535,46 @@ function cellScopeForMenu(
   return null;
 }
 
-function EmptyCanvas(): ReactNode {
+/** Último tramo de una ruta (Windows o POSIX). */
+function fileName(path: string): string {
+  return path.split(/[\/]/).pop() || path;
+}
+
+function EmptyCanvas({
+  onOpen,
+  recents,
+  onOpenRecent,
+}: {
+  onOpen: () => void;
+  recents: string[];
+  onOpenRecent: (path: string) => void;
+}): ReactNode {
   return (
-    <div className="m-auto max-w-lg text-center text-sm text-muted-foreground">
-      <p>Sin documento abierto.</p>
-      <p className="mt-2">
-        Abre un .rdlc, arrastra un tipo de elemento desde la barra al lienzo (o haz click derecho
-        para insertar), selecciona un elemento y muévelo (imán de 0,1 cm; Shift lo ignora), edita su
-        texto o expresión en el panel derecho, deshaz con Ctrl+Z y guarda: solo cambian los valores
-        editados.
-      </p>
+    <div className="m-auto flex max-w-md flex-col items-center gap-3 px-4 text-center text-sm text-muted-foreground">
+      <p className="text-base font-medium text-foreground">Sin informe abierto</p>
+      <p>Abre un informe (.rdlc o .rdl) o arrástralo hasta aquí.</p>
+      <Button onClick={onOpen}>
+        <FolderOpen data-icon="inline-start" />
+        Abrir informe…
+      </Button>
+      <p className="text-xs">Atajo: Ctrl+O · Ctrl+K abre la paleta de comandos</p>
+      {recents.length > 0 ? (
+        <div className="mt-2 flex w-full flex-col items-stretch gap-1 text-left">
+          <span className="text-xs font-medium">Recientes</span>
+          {recents.slice(0, 5).map((path) => (
+            <Button
+              key={path}
+              variant="ghost"
+              size="sm"
+              className="justify-start font-normal"
+              title={path}
+              onClick={() => onOpenRecent(path)}
+            >
+              <span className="truncate">{fileName(path)}</span>
+            </Button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

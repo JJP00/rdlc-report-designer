@@ -26,7 +26,7 @@ export function ReportPropertiesDialog({
 }: ReportPropertiesDialogProps): ReactNode {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl" resizable>
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto" resizable>
         <DialogHeader>
           <DialogTitle>Propiedades del informe</DialogTitle>
           <DialogDescription>

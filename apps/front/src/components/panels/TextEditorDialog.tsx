@@ -162,7 +162,7 @@ function TextEditorBody({
         <div className="flex items-center justify-between gap-3">
           <DialogTitle>Texto de {item.id}</DialogTitle>
           <Badge variant="outline">
-            {paragraphs.length} párr. · {runCount} run(s)
+            {paragraphs.length} párr. · {runCount} fragmento(s)
           </Badge>
         </div>
         <DialogDescription>
@@ -170,7 +170,7 @@ function TextEditorBody({
           <code>
             {EXPRESSION_OPEN}=Fields!X.Value{EXPRESSION_CLOSE}
           </code>
-          . El bloque de abajo edita los runs del párrafo donde tienes el cursor.
+          . El bloque de abajo edita los fragmentos del párrafo donde tienes el cursor.
         </DialogDescription>
       </DialogHeader>
 
@@ -277,7 +277,7 @@ function TextEditorBody({
         <section className="rounded-lg border bg-muted/20 p-2">
           <header className="flex flex-wrap items-center gap-1">
             <span className="text-xs font-semibold">
-              Párrafo {active + 1} · {activeParagraph?.runs.length ?? 0} run(s)
+              Párrafo {active + 1} · {activeParagraph?.runs.length ?? 0} fragmento(s)
             </span>
             <div className="ml-auto flex items-center gap-1.5">
               <Button

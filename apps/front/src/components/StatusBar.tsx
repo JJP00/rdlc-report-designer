@@ -21,11 +21,11 @@ export function StatusBar({ status, path, dirty, stats, reloads }: StatusBarProp
         <span className="ml-auto flex shrink-0 items-center gap-3">
           <span className="max-w-[340px] truncate font-medium text-foreground" title={path}>
             {path}
-            {dirty ? <span className="text-amber-600"> *</span> : null}
+            {dirty ? <span className="text-amber-700 dark:text-amber-400"> *</span> : null}
           </span>
           {stats ? <span>{stats}</span> : null}
           {reloads > 0 ? (
-            <span className="text-amber-600">{reloads} recarga(s) externa(s)</span>
+            <span className="text-amber-700 dark:text-amber-400">{reloads} recarga(s) externa(s)</span>
           ) : null}
         </span>
       ) : null}
