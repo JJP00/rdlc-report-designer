@@ -1,5 +1,14 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Zoom hasta 400 % · 2026-10-09** — el tope era 200 % (`ZOOM_MAX = 2` en
+> `apps/front/src/lib/zoom.ts`) y «ajustar al ancho» también se acotaba a él, así que en
+> una ventana ancha el papel no llenaba el lienzo. Ahora `ZOOM_MAX = 4`, con presets 300 %
+> y 400 % en el menú de zoom (+/−, Ctrl+rueda y los atajos respetan el nuevo límite; el
+> `ui` de pestaña restaurado se acota igual). Comprobado en la app con SalesInvoiceESP:
+> ventana de 2384 px → «ajustar al ancho» = 252 % (antes 200 %), 400 % nítido, scroll a
+> 60 fps (p50 16,7 ms, p95 17,7 ms). Sin medir: memoria de los canvas de Konva a 400 % con
+> páginas muy grandes (un A4 a 400 % ≈ 3176×4492 px por capa).
+
 > **Ajustes de UI tras el análisis Intent · 2026-10-09** — pedidos en la revisión; sin
 > commitear. Verificación: `typecheck` 3/3, 400 back + 277 front unit y E2E (ver abajo).
 >

@@ -51,7 +51,7 @@ describe('tabUiStorage', () => {
     expect(ui.selectedId).toBeNull();
     expect(ui.selectedIds).toEqual(['a']);
     expect(ui.selectedCell).toBeNull();
-    expect(ui.zoom).toBe(2);
+    expect(ui.zoom).toBe(4);
     expect(ui.showVariables).toBe(false);
     expect(ui.showHierarchy).toBe(true);
     expect(sanitizeTabUi('basura')).toEqual(createTabUiState());

@@ -6,10 +6,10 @@
 
 /** Límites del zoom (los respetan +/−, la rueda, los presets y los atajos). */
 export const ZOOM_MIN = 0.2;
-export const ZOOM_MAX = 2;
+export const ZOOM_MAX = 4;
 
 /** Presets del menú de zoom (el 100 % va aparte, junto a «ajustar al ancho»). */
-export const ZOOM_PRESETS = [0.5, 0.75, 1.25, 1.5, 2] as const;
+export const ZOOM_PRESETS = [0.5, 0.75, 1.25, 1.5, 2, 3, 4] as const;
 
 /** Redondeo del zoom (3 decimales, como Ctrl+rueda): evita derivas visibles. */
 export function roundZoom(value: number): number {

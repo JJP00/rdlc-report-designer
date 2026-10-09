@@ -4,7 +4,7 @@ import { clampZoom, fitWidthZoom, roundZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_PRESETS } 
 describe('clampZoom', () => {
   it('acota a los límites del lienzo', () => {
     expect(clampZoom(0.05)).toBe(ZOOM_MIN);
-    expect(clampZoom(5)).toBe(ZOOM_MAX);
+    expect(clampZoom(9)).toBe(ZOOM_MAX);
     expect(clampZoom(0.6)).toBe(0.6);
   });
 });
@@ -24,7 +24,7 @@ describe('fitWidthZoom', () => {
 
   it('respeta los límites del zoom', () => {
     expect(fitWidthZoom(10, 794)).toBe(ZOOM_MIN);
-    expect(fitWidthZoom(5000, 794)).toBe(ZOOM_MAX);
+    expect(fitWidthZoom(9000, 794)).toBe(ZOOM_MAX);
   });
 
   it('devuelve null sin medidas (aún no hay lienzo montado)', () => {
@@ -41,5 +41,13 @@ describe('ZOOM_PRESETS', () => {
       expect(preset).toBeGreaterThanOrEqual(ZOOM_MIN);
       expect(preset).toBeLessThanOrEqual(ZOOM_MAX);
     }
+  });
+});
+
+describe('límite de zoom', () => {
+  it('permite llegar al 400 % (ajustar al ancho en ventanas anchas ya no se queda en 200 %)', () => {
+    expect(ZOOM_MAX).toBe(4);
+    expect(fitWidthZoom(2400, 794)).toBe(3.023);
+    expect(clampZoom(3.5)).toBe(3.5);
   });
 });
