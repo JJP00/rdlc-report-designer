@@ -1,5 +1,49 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Ronda de cierre de pestañas y resiliencia · 2026-10-09** — revisión de lo
+> commiteado el 2026-10-08 (`01add38`, `4da665f`) y cierre de los huecos que salieron.
+> Verificación: `typecheck` 3/3; **400 back + 277 front** unit; **118/118 E2E**
+> (`pnpm build:e2e` + `playwright test`; **no** vale un build de producción, que no trae
+> los ganchos `__rdlc*`).
+>
+> - **BUG-51 · cobertura**: la lógica del vigilante de cierre (2 s), `render-process-gone`
+>   y `unresponsive` sale de `main.ts` a `apps/back/src/lifecycle/windowLifecycle.ts`
+>   (sin Electron, dependencias inyectadas) con **19 unit** y timers falsos
+>   (`test/lifecycle/windowLifecycle.spec.ts`). Los diálogos nativos reales siguen sin
+>   E2E (Playwright no los alcanza), pero ya no es lógica sin probar.
+> - **Operaciones de fichero por sesión**: `lib/fileOps.ts` (`createSessionOps`,
+>   `createSerialQueue`). Guardar/Guardar como en la pestaña A no bloquea la B; dentro de
+>   una pestaña las operaciones se encadenan; abrir/Nuevo/soltar ficheros mientras otra
+>   apertura está en curso **se encolan** (aviso en el pie, ya no se pierden en silencio).
+> - **Cierre de ventana con un guardado en vuelo**: `saveAfterInFlight` espera esa
+>   operación y continúa; si falla, el cierre se cancela y la pestaña queda con su
+>   error (antes se cancelaba sin decir nada).
+> - **«Guardando…» solo en su pestaña**: `visibleBusyLabel`.
+> - **Re-adopción tras recargar la interfaz**: `ListedSession.missing` (contrato +
+>   `listSessions`) vuelve a `fileMissing` y el `ui` de cada pestaña (selección, zoom,
+>   paneles) se guarda en `sessionStorage` (`lib/tabUiStorage.ts`, validado campo a
+>   campo). El conflicto pendiente no se recupera (el backend no lo guarda), pero se
+>   vuelve a detectar al guardar (BUG-52).
+> - **Reordenar pestañas** (estaba como evolutivo): arrastrar y soltar en la tira
+>   (indicador de ranura), `Ctrl+Shift+RePág/AvPág` para la activa y `Alt+←/→` sobre la
+>   pestaña enfocada; `moveTab` puro en `lib/workspace.ts`.
+> - **Menú contextual de la pestaña** (clic derecho o tecla de menú): Cerrar · Cerrar
+>   guardadas · Cerrar otras · Cerrar a la derecha · Cerrar todas
+>   (`closeTargets`). Las que tienen cambios pasan por «Guardar todas / Descartar todas
+>   / Cancelar» y es atómico: Cancelar no cierra ninguna; un fallo al guardar no cierra
+>   nada y deja esa pestaña activa con su error.
+> - **Límites conocidos**: el orden de las pestañas no sobrevive a recargar la interfaz
+>   (el backend las devuelve por orden de apertura); las claves de `sessionStorage` de
+>   sesiones desaparecidas se quedan hasta cerrar la ventana; mientras se guarda en
+>   cualquier pestaña, Nuevo/Abrir del menú `+` están deshabilitados.
+>
+> **Punto de retomada**: ① **capas Nivel 1** (pendiente de tu confirmación;
+> `docs/features/0002-capas-rediseno-journey.md`); ② UX P2/P3 de `docs/ux/0002`/`0003`;
+> ③ bug de `Maximum update depth exceeded` con Tablix anidados; ④ T4, T5, CI en la
+> nube y firma; ⑤ evolutivo de pestañas: restaurar al arrancar, persistir el orden,
+> split view y comparación. Criterio de salida de 0003 (re-evaluar **ejecutando** la
+> app con una caída de render real) sigue sin hacerse.
+
 > **Pestañas MVP A–E ✅ · 2026-10-08 (tarde)** — la fase de pestañas queda
 > **implementada y verificada** (una pestaña por informe: varios informes abiertos
 > a la vez con estado, undo, `dirty`, conflicto y watcher independientes por
@@ -38,9 +82,9 @@
 > `Maximum update depth exceeded` al mover Tablix anidados (la guarda de BUG-47
 > protege el cambio de pestaña, pero el bug sigue abierto); ④ **T4** (property
 > tests) y **T5** (flujo BC documentado) + primera pasada de CI en la nube y firma.
-> **Evolutivo de pestañas** (fuera de la fase): restaurar al arrancar, reordenar
-> por arrastre, split view y comparación de informes. Todo lo de esta sesión está
-> **sin commitear**.
+> **Evolutivo de pestañas** (fuera de la fase): restaurar al arrancar, split view y
+> comparación de informes (reordenar por arrastre y el menú contextual se hicieron el
+> 2026-10-09).
 
 > **Cierre P0/P1 · resiliencia · 2026-10-08 (tarde)** — los dos P0 y los siete P1 de
 > `docs/bugs/0002-resiliencia-2026-10-08.md` (más BUG-58/59, la jerga del estado y el
@@ -71,12 +115,11 @@
 > Verificación: `typecheck` 3/3 paquetes; **380 back + 206 front** unit; **103/103
 > E2E** (`pnpm e2e`; 5 pruebas nuevas en `e2e/resilience.spec.ts`, más
 > `insertTextbox` y una aserción de `setLocation` actualizadas a la conducta nueva).
-> Sin cambios de producto destapados por la E2E; todo sin commitear.
+> Sin cambios de producto destapados por la E2E (commiteado en `01add38`).
 >
-> **Punto de retomada**: ① **pestañas A–B** (la re-adopción de sesiones ya está
-> hecha); ② pestañas **C–D**; ③ **E** (QA); después capas Nivel 1, UX P2/P3 de
-> `docs/ux/0002`/`0003` y T4/T5 + CI en la nube/firma. Sigue abierto el bug de
-> `Maximum update depth exceeded` al mover Tablix anidados.
+> **Punto de retomada**: superado — las pestañas A–E se hicieron después (ver el bloque
+> de arriba). Sigue abierto el bug de `Maximum update depth exceeded` al mover Tablix
+> anidados.
 
 > **Rediseño de Capas con `/journey` · 2026-10-08** — solo documentación, sin código.
 > Detalle en `docs/features/0002-capas-rediseno-journey.md` (+ diagrama

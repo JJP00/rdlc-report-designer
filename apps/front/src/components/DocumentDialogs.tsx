@@ -141,6 +141,8 @@ export function DocumentDialogs({
 
       {pendingIntent?.kind === 'windowCloseAll' ? (
         <SaveAllDialog tabs={pendingIntent.tabs} onResolve={onResolvePending} />
+      ) : pendingIntent?.kind === 'closeMany' ? (
+        <SaveAllDialog tabs={pendingIntent.tabs} scope="tabs" onResolve={onResolvePending} />
       ) : (
         <UnsavedChangesDialog intent={pendingIntent} onResolve={onResolvePending} />
       )}

@@ -29,6 +29,8 @@ export interface GlobalKeysOptions {
   onCloseTab: () => void;
   /** Ctrl+Tab / Ctrl+Shift+Tab: rota entre las pestañas abiertas. */
   onCycleTab: (direction: 1 | -1) => void;
+  /** Ctrl+Shift+RePág / AvPág: mueve la pestaña activa a la izquierda / derecha. */
+  onMoveTab: (direction: 1 | -1) => void;
   onUndo: () => void;
   onRedo: () => void;
   /** Ctrl+1: ajusta el zoom al ancho del lienzo. */
@@ -120,6 +122,12 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
       if (dialogOpen || !options.hasDocument) return;
       event.preventDefault();
       options.onCloseTab();
+      return;
+    }
+    if (accel && event.shiftKey && (key === 'pageup' || key === 'pagedown')) {
+      if (dialogOpen || !options.hasDocument) return;
+      event.preventDefault();
+      options.onMoveTab(key === 'pageup' ? -1 : 1);
       return;
     }
     if (accel && key === 'tab') {

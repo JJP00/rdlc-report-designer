@@ -89,6 +89,7 @@ export class SessionService implements ISessionService {
       sessionId: session.sessionId,
       filePath: session.filePath,
       dirty: session.dirty,
+      missing: session.missing,
       projection: this.project(session),
     }));
   }

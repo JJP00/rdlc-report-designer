@@ -305,6 +305,8 @@ export const listedSessionSchema = z.object({
   sessionId: z.string(),
   filePath: z.string(),
   dirty: z.boolean(),
+  /** El fichero ya no está en disco (BUG-55): se conserva al re-adoptar. */
+  missing: z.boolean(),
   projection: projectionSchema,
 });
 export type ListedSession = z.infer<typeof listedSessionSchema>;

@@ -194,9 +194,13 @@ async function resetWorkspace(ctx: Ctx): Promise<void> {
   }
 
   for (let guard = 0; guard < 8 && (await tabs.count()) > 0; guard += 1) {
+    const before = await tabs.count();
     const last = tabs.last();
     await last.click();
     await closeTabDiscarding(page, last);
+    // El cierre es asíncrono (IPC): se espera a que la pestaña desaparezca antes
+    // de volver a mirar, o el siguiente clic caería sobre una que ya se va.
+    await expect(tabs).toHaveCount(before - 1);
   }
   await expect(tabs).toHaveCount(0);
 
@@ -329,7 +333,9 @@ test.describe('pestañas · dos informes abiertos', () => {
 
     // Volver a A: recupera SU selección y SU zoom (bloque D).
     await tabs.nth(0).click();
-    await expect.poll(() => selectedId(page), { message: 'A recupera Textbox25' }).toBe('Textbox25');
+    await expect
+      .poll(() => selectedId(page), { message: 'A recupera Textbox25' })
+      .toBe('Textbox25');
     await expect(page.getByRole('button', { name: 'Zoom: 50 %' })).toBeVisible();
 
     // Y a B: los suyos, sin los de A.
@@ -540,5 +546,129 @@ test.describe('pestañas · el conflicto pertenece a su pestaña', () => {
     await expect(tabs.nth(1)).toHaveAttribute('data-dirty', 'false');
     await closeTabDiscarding(page, tabs.nth(1));
     await expect(tabs).toHaveCount(1);
+  });
+});
+
+/* ------------------- reordenar y menú contextual de la tira ----------------- */
+
+test.describe('pestañas · reordenar y menú contextual', () => {
+  const ctx = useApp();
+
+  /** Nombres de las pestañas en el orden de la tira. */
+  async function names(page: Page): Promise<string[]> {
+    const all = await tabsOf(page).allInnerTexts();
+    return all.map((text) => text.replace(/\s*\*\s*$/, '').trim());
+  }
+
+  async function twoTabs(): Promise<void> {
+    await resetWorkspace(ctx());
+    await openViaToolbar(ctx(), ctx().secondFile);
+    await expect(tabsOf(ctx().page)).toHaveCount(2);
+  }
+
+  test('arrastrar una pestaña la reordena sin cambiar la activa ni ensuciar nada', async () => {
+    const { page } = ctx();
+    const tabs = tabsOf(page);
+    await twoTabs();
+    expect(await names(page)).toEqual(['PalletOutput.rdlc', 'Segundo.rdlc']);
+    // La activa es la segunda (recién abierta).
+    await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+
+    const box = (await tabs.nth(1).boundingBox())!;
+    await tabs
+      .nth(0)
+      .dragTo(tabs.nth(1), { targetPosition: { x: box.width - 4, y: box.height / 2 } });
+
+    await expect.poll(() => names(page)).toEqual(['Segundo.rdlc', 'PalletOutput.rdlc']);
+    // La activa sigue siendo Segundo (ahora a la izquierda) y nada se ensució.
+    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs.nth(0)).toHaveAttribute('data-dirty', 'false');
+    await expect(tabs.nth(1)).toHaveAttribute('data-dirty', 'false');
+  });
+
+  test('Ctrl+Shift+AvPág / RePág mueven la pestaña activa; Alt+← mueve la enfocada', async () => {
+    const { page } = ctx();
+    const tabs = tabsOf(page);
+    await twoTabs();
+    // Activa = Segundo (índice 1): RePág la lleva a la izquierda.
+    await page.keyboard.press('Control+Shift+PageUp');
+    await expect.poll(() => names(page)).toEqual(['Segundo.rdlc', 'PalletOutput.rdlc']);
+    await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+    // AvPág la devuelve.
+    await page.keyboard.press('Control+Shift+PageDown');
+    await expect.poll(() => names(page)).toEqual(['PalletOutput.rdlc', 'Segundo.rdlc']);
+    // En el extremo derecho no pasa nada.
+    await page.keyboard.press('Control+Shift+PageDown');
+    expect(await names(page)).toEqual(['PalletOutput.rdlc', 'Segundo.rdlc']);
+
+    // Teclado sobre la pestaña enfocada: Alt+← la mueve.
+    await tabs.nth(1).focus();
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect.poll(() => names(page)).toEqual(['Segundo.rdlc', 'PalletOutput.rdlc']);
+  });
+
+  test('menú contextual: Cerrar otras y Cerrar a la derecha', async () => {
+    const { page } = ctx();
+    const tabs = tabsOf(page);
+    await twoTabs();
+
+    // La última pestaña no tiene nada a su derecha: opción deshabilitada.
+    await tabs.nth(1).click({ button: 'right' });
+    await expect(page.getByRole('menuitem', { name: 'Cerrar a la derecha' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+
+    // Desde la primera, «Cerrar a la derecha» cierra la segunda (limpia: sin guarda).
+    await tabs.nth(0).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Cerrar a la derecha' }).click();
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.nth(0)).toContainText('PalletOutput.rdlc');
+
+    // Con una sola pestaña, «Cerrar otras» no tiene sentido.
+    await tabs.nth(0).click({ button: 'right' });
+    await expect(page.getByRole('menuitem', { name: 'Cerrar otras' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+
+    await openViaToolbar(ctx(), ctx().secondFile);
+    await expect(tabs).toHaveCount(2);
+    await tabs.nth(1).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Cerrar otras' }).click();
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.nth(0)).toContainText('Segundo.rdlc');
+  });
+
+  test('Cerrar guardadas deja las sucias; Cerrar todas con sucias pregunta y Cancelar no cierra nada', async () => {
+    const { page } = ctx();
+    const tabs = tabsOf(page);
+    await twoTabs();
+
+    // Ensucia solo la primera.
+    await tabs.nth(0).click();
+    await insertTextbox(page);
+    await expect(tabs.nth(0)).toHaveAttribute('data-dirty', 'true');
+
+    await tabs.nth(0).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Cerrar guardadas' }).click();
+    // Se fue la limpia (Segundo); queda la sucia sin preguntar.
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.nth(0)).toContainText('PalletOutput.rdlc');
+    await expect(tabs.nth(0)).toHaveAttribute('data-dirty', 'true');
+
+    // Dos pestañas, una sucia: «Cerrar todas» pide decidir; Cancelar no cierra nada.
+    await openViaToolbar(ctx(), ctx().secondFile);
+    await expect(tabs).toHaveCount(2);
+    const dialog = page.getByTestId('save-all-dialog');
+    await tabs.nth(1).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Cerrar todas' }).click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('Vas a cerrar pestañas');
+    await dialog.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(tabs).toHaveCount(2);
+
+    // Descartar todas: se cierran las dos y el editor queda vacío.
+    await tabs.nth(1).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Cerrar todas' }).click();
+    await dialog.getByRole('button', { name: 'Descartar todas' }).click();
+    await expect(tabs).toHaveCount(0);
   });
 });

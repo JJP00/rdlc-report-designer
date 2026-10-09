@@ -4,6 +4,7 @@ import {
   activateTab,
   adoptSessions,
   applyConflictDetected,
+  closeTargets,
   applyDirtyChanged,
   applyDocumentChanged,
   applyExternalReloadFailed,
@@ -18,6 +19,7 @@ import {
   findTabByPath,
   IDLE_STATUS,
   markClipboard,
+  moveTab,
   normalizePath,
   openTab,
   RELOADED_STATUS,
@@ -294,8 +296,8 @@ describe('enrutado de eventos por sessionId', () => {
 describe('adoptSessions (re-adopción tras recargar la interfaz)', () => {
   it('adopta todas las sesiones vivas en orden y activa la última', () => {
     const adopted = adoptSessions(createWorkspace(), [
-      { sessionId: 'a', filePath: 'C:\\a\\Uno.rdlc', dirty: false, projection: projection(2) },
-      { sessionId: 'b', filePath: 'C:\\a\\Dos.rdlc', dirty: true, projection: projection(5) },
+      { sessionId: 'a', filePath: 'C:\\a\\Uno.rdlc', dirty: false, missing: false, projection: projection(2) },
+      { sessionId: 'b', filePath: 'C:\\a\\Dos.rdlc', dirty: true, missing: false, projection: projection(5) },
     ]);
 
     expect(adopted.order).toEqual(['a', 'b']);
@@ -303,6 +305,23 @@ describe('adoptSessions (re-adopción tras recargar la interfaz)', () => {
     expect(adopted.tabs.get('a')?.status).toBe('Sesión recuperada: C:\\a\\Uno.rdlc');
     expect(adopted.tabs.get('b')?.dirty).toBe(true);
     expect(adopted.tabs.get('b')?.projection.version).toBe(5);
+  });
+
+  it('propaga missing a fileMissing y restaura el ui guardado', () => {
+    const saved = { ...createTabUiState(), zoom: 1.5, showVariables: true, selectedId: 'x' };
+    const adopted = adoptSessions(
+      createWorkspace(),
+      [
+        { sessionId: 'a', filePath: 'C:\\a\\Uno.rdlc', dirty: false, missing: true, projection: projection(2) },
+        { sessionId: 'b', filePath: 'C:\\a\\Dos.rdlc', dirty: false, missing: false, projection: projection(2) },
+      ],
+      (id) => (id === 'a' ? saved : undefined),
+    );
+
+    expect(adopted.tabs.get('a')?.fileMissing).toBe('C:\\a\\Uno.rdlc');
+    expect(adopted.tabs.get('b')?.fileMissing).toBeNull();
+    expect(adopted.tabs.get('a')?.ui).toEqual(saved);
+    expect(adopted.tabs.get('b')?.ui).toEqual(createTabUiState());
   });
 
   it('sin sesiones no toca el workspace', () => {
@@ -452,3 +471,54 @@ describe('markClipboard (portapapeles por sesión)', () => {
     expect(markClipboard(base, 's9')).toBe(base);
   });
 });
+
+describe('moveTab (reordenar la tira)', () => {
+  const base = withTabs(tab('a', 'C:/a.rdlc'), tab('b', 'C:/b.rdlc'), tab('c', 'C:/c.rdlc'));
+
+  it('mueve una pestaña a otra posición sin tocar la activa ni las sesiones', () => {
+    const moved = moveTab(base, 'a', 2);
+    expect(moved.order).toEqual(['b', 'c', 'a']);
+    expect(moved.activeSessionId).toBe(base.activeSessionId);
+    expect(moved.tabs).toBe(base.tabs);
+  });
+
+  it('hacia la izquierda y con índices fuera de rango (se acotan)', () => {
+    expect(moveTab(base, 'c', 0).order).toEqual(['c', 'a', 'b']);
+    expect(moveTab(base, 'a', 99).order).toEqual(['b', 'c', 'a']);
+    expect(moveTab(base, 'c', -5).order).toEqual(['c', 'a', 'b']);
+  });
+
+  it('sin efecto (mismo estado) si ya está ahí o la pestaña no existe', () => {
+    expect(moveTab(base, 'b', 1)).toBe(base);
+    expect(moveTab(base, 'zz', 0)).toBe(base);
+  });
+});
+
+describe('closeTargets (cierre múltiple del menú contextual)', () => {
+  let base = withTabs(
+    tab('a', 'C:/a.rdlc'),
+    tab('b', 'C:/b.rdlc'),
+    tab('c', 'C:/c.rdlc'),
+    tab('d', 'C:/d.rdlc'),
+  );
+  base = updateTab(updateTab(base, 'b', { dirty: true }), 'd', { dirty: true });
+
+  it('self, others, right y all respetan el orden de la tira', () => {
+    expect(closeTargets(base, 'self', 'b')).toEqual(['b']);
+    expect(closeTargets(base, 'others', 'b')).toEqual(['a', 'c', 'd']);
+    expect(closeTargets(base, 'right', 'b')).toEqual(['c', 'd']);
+    expect(closeTargets(base, 'right', 'd')).toEqual([]);
+    expect(closeTargets(base, 'all', 'b')).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('saved solo recoge las pestañas sin cambios', () => {
+    expect(closeTargets(base, 'saved', 'b')).toEqual(['a', 'c']);
+  });
+
+  it('un ancla desconocida no cierra nada con self/others/right', () => {
+    expect(closeTargets(base, 'self', 'zz')).toEqual([]);
+    expect(closeTargets(base, 'others', 'zz')).toEqual([]);
+    expect(closeTargets(base, 'right', 'zz')).toEqual([]);
+  });
+});
+

@@ -322,4 +322,12 @@ traza y captura si falla. El modo `RDLC_SHOT` queda para capturas manuales puntu
       y capturas de ventana; reparación de ficheros ya rotos documentada en
       Pendientes.
 
+- [x] **Pestañas (una por informe)** y **resiliencia del ciclo de vida** (2026-10-08/09):
+      varios informes abiertos a la vez con undo, `dirty`, conflicto y watcher
+      independientes; reordenar por arrastre o teclado, menú contextual de cierre
+      (otras / derecha / guardadas / todas) y guarda «Guardar todas»; recuperación tras
+      una caída de la interfaz, conflicto al guardar, fichero borrado por fuera y
+      operaciones de fichero por sesión. Detalle en
+      [`docs/bugs/0002-resiliencia-2026-10-08.md`](docs/bugs/0002-resiliencia-2026-10-08.md).
+
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](./RDLC%20Report%20Designer%20-%20Pendientes.md).

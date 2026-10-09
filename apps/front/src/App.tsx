@@ -58,7 +58,9 @@ export function App(): ReactNode {
     openPath,
     createNew,
     closeTab,
+    closeTabs,
     activateTab,
+    moveTab,
   } = core;
   const { selectedIds, selectedItem, selectedCell, menuHit } = items;
 
@@ -188,7 +190,9 @@ export function App(): ReactNode {
           busy={busy}
           recents={recents}
           onActivate={activateTab}
+          onMove={moveTab}
           onClose={closeTab}
+          onCloseMany={closeTabs}
           onNew={createNew}
           onOpen={open}
           onOpenRecent={openPath}

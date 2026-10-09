@@ -1,7 +1,7 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
 import { createTab, type TabState } from './workspace';
-import { dirtyClosingTabs, planWindowClose, saveTabsInOrder } from './windowClose';
+import { dirtyClosingTabs, planWindowClose, saveAfterInFlight, saveTabsInOrder } from './windowClose';
 
 /** Proyección mínima: el plan de cierre solo mira `dirty` y las rutas. */
 function projection(version = 1): ProjectionDto {
@@ -129,5 +129,69 @@ describe('saveTabsInOrder (Guardar todas)', () => {
   it('sin pestañas que guardar también es un éxito (nada pendiente)', async () => {
     const outcome = await saveTabsInOrder([], () => true, () => Promise.resolve(true));
     expect(outcome).toEqual({ ok: true });
+  });
+});
+
+describe('saveAfterInFlight (cierre con un guardado en curso)', () => {
+  it('sin operación en curso guarda directamente', async () => {
+    let saves = 0;
+    const ok = await saveAfterInFlight(undefined, () => true, async () => {
+      saves++;
+      return true;
+    });
+    expect(ok).toBe(true);
+    expect(saves).toBe(1);
+  });
+
+  it('espera al guardado en curso y, si fue bien y no quedó sucia, no vuelve a guardar', async () => {
+    let release!: (value: boolean) => void;
+    const pending = new Promise<boolean>((resolve) => {
+      release = resolve;
+    });
+    let saves = 0;
+    const result = saveAfterInFlight(pending, () => false, async () => {
+      saves++;
+      return true;
+    });
+    release(true);
+    await expect(result).resolves.toBe(true);
+    expect(saves).toBe(0);
+  });
+
+  it('si quedó sucia tras el guardado en curso, guarda de nuevo', async () => {
+    let saves = 0;
+    const ok = await saveAfterInFlight(Promise.resolve(true), () => true, async () => {
+      saves++;
+      return true;
+    });
+    expect(ok).toBe(true);
+    expect(saves).toBe(1);
+  });
+
+  it('si el guardado en curso falla (o lanza), el cierre se cancela sin guardar otra vez', async () => {
+    let saves = 0;
+    const saveOne = async () => {
+      saves++;
+      return true;
+    };
+    await expect(saveAfterInFlight(Promise.resolve(false), () => true, saveOne)).resolves.toBe(false);
+    await expect(
+      saveAfterInFlight(Promise.reject(new Error('x')), () => true, saveOne),
+    ).resolves.toBe(false);
+    expect(saves).toBe(0);
+  });
+
+  it('con «Guardar todas» aborta en la pestaña cuyo guardado en curso falla', async () => {
+    const pendings = new Map<string, Promise<boolean>>([['b', Promise.resolve(false)]]);
+    const outcome = await saveTabsInOrder(
+      [
+        { sessionId: 'a', path: 'A' },
+        { sessionId: 'b', path: 'B' },
+        { sessionId: 'c', path: 'C' },
+      ],
+      () => true,
+      (id) => saveAfterInFlight(pendings.get(id), () => true, async () => true),
+    );
+    expect(outcome).toEqual({ ok: false, failed: { sessionId: 'b', path: 'B' } });
   });
 });

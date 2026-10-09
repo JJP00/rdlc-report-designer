@@ -36,6 +36,7 @@ export function useEditorKeys({
     onOpen: core.open,
     onCloseTab: core.close,
     onCycleTab: core.cycleTab,
+    onMoveTab: core.moveActiveTab,
     onUndo: () => void core.undo(),
     onRedo: () => void core.redo(),
     onZoomFitWidth: zoomFitWidth,

@@ -14,6 +14,8 @@ import { fileBasename } from '@/lib/windowTitle';
 export interface SaveAllDialogProps {
   /** Pestañas sucias pendientes de resolver; `null` = diálogo cerrado. */
   tabs: readonly ClosingTab[] | null;
+  /** `window`: salir de la aplicación; `tabs`: cerrar varias pestañas (menú contextual). */
+  scope?: 'window' | 'tabs';
   onResolve: (resolution: PendingResolution) => void;
 }
 
@@ -24,7 +26,7 @@ export interface SaveAllDialogProps {
  * sin guardar; «Cancelar» aborta el cierre. La lista de ficheros permite ver de
  * un vistazo qué trabajo está en juego.
  */
-export function SaveAllDialog({ tabs, onResolve }: SaveAllDialogProps): ReactNode {
+export function SaveAllDialog({ tabs, scope = 'window', onResolve }: SaveAllDialogProps): ReactNode {
   if (!tabs || tabs.length === 0) return null;
   return (
     <Dialog
@@ -38,8 +40,11 @@ export function SaveAllDialog({ tabs, onResolve }: SaveAllDialogProps): ReactNod
         <DialogHeader>
           <DialogTitle>Cambios sin guardar</DialogTitle>
           <DialogDescription>
-            Vas a salir de la aplicación y hay {tabs.length} informes con cambios sin guardar. Si
-            alguno no se puede guardar, el cierre se cancela y su error queda a la vista.
+            {scope === 'tabs' ? 'Vas a cerrar pestañas y ' : 'Vas a salir de la aplicación y '}
+            {tabs.length === 1
+              ? 'hay 1 informe con cambios sin guardar.'
+              : `hay ${tabs.length} informes con cambios sin guardar.`}{' '}
+            Si alguno no se puede guardar, no se cierra nada y su error queda a la vista.
           </DialogDescription>
         </DialogHeader>
         <ul className="max-h-40 list-disc overflow-y-auto pl-5 font-mono text-xs text-muted-foreground">

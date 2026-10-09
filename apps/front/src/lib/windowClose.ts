@@ -17,7 +17,9 @@ export interface ClosingTab {
 export type PendingIntent =
   | { kind: 'close'; sessionId: string; path: string }
   | { kind: 'windowClose'; sessionId: string; path: string }
-  | { kind: 'windowCloseAll'; tabs: readonly ClosingTab[] };
+  | { kind: 'windowCloseAll'; tabs: readonly ClosingTab[] }
+  /** Cerrar varias pestañas (menú contextual): `tabs` son las sucias, `targets` todas. */
+  | { kind: 'closeMany'; tabs: readonly ClosingTab[]; targets: readonly string[] };
 
 /** Resolución del diálogo de cambios sin guardar. */
 export type PendingResolution = 'save' | 'discard' | 'cancel';
@@ -50,6 +52,30 @@ export function planWindowClose(tabs: readonly TabState[]): WindowClosePlan {
     };
   }
   return { kind: 'intent', intent: { kind: 'windowCloseAll', tabs: dirty } };
+}
+
+/**
+ * Guardado previo a un cierre: si la pestaña ya está guardando, **espera** a esa
+ * operación en vez de rendirse. Si la operación en curso falla, devuelve `false`
+ * (el cierre se cancela y la pestaña conserva su error); si termina bien pero la
+ * pestaña quedó sucia (cambios posteriores), guarda de nuevo.
+ */
+export async function saveAfterInFlight(
+  pending: Promise<boolean> | undefined,
+  isDirty: () => boolean,
+  saveOne: () => Promise<boolean>,
+): Promise<boolean> {
+  if (pending !== undefined) {
+    let ok = false;
+    try {
+      ok = await pending;
+    } catch {
+      ok = false;
+    }
+    if (!ok) return false;
+    if (!isDirty()) return true;
+  }
+  return saveOne();
 }
 
 /** Resultado de guardar todas: todo bien o la pestaña que falló (la primera). */

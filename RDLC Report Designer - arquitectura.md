@@ -379,7 +379,11 @@ App
 - `TabStrip`: una pestaña por sesión — nombre del fichero (`basename`, tooltip con
   la ruta completa), `*` si hay `dirty`, marca de conflicto y botón de cerrar; menú
   `+` con Nuevo… / Abrir… / recientes; la activa se resalta. Con muchas pestañas,
-  scroll horizontal.
+  scroll horizontal. Se **reordenan** arrastrando (HTML5 DnD, `moveTab`), con
+  `Ctrl+Shift+RePág/AvPág` (activa) o `Alt+←/→` (enfocada). El **menú contextual**
+  ofrece Cerrar / guardadas / otras / a la derecha / todas (`closeTargets`); con
+  sucias abre «Guardar todas / Descartar todas / Cancelar» (intención `closeMany`,
+  atómica).
 - Diálogos y paleta pertenecen a la pestaña activa: cambiar de pestaña los cierra
   (no viajan entre documentos).
 
@@ -443,7 +447,8 @@ activa.
 - **E2E**: dos informes abiertos con `dirty`/undo independientes; cambio de pestaña
   que conserva selección y zoom; cerrar pestaña sucia (guardar / descartar /
   cancelar); `Ctrl+W` y `Ctrl+Tab`; cierre de ventana con dos sucias («Guardar
-  todas» y cancelación por fallo de validación).
+  todas» y cancelación por fallo de validación); reordenar por arrastre y por
+  teclado; menú contextual (cerrar otras / a la derecha / guardadas / todas con guarda).
 - **Regresión**: la suite actual asume **una** pestaña; el reset entre tests pasa a
   cerrar todas las pestañas abiertas.
 

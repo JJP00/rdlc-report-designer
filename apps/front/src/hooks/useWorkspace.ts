@@ -2,7 +2,14 @@ import type { CommandResult, ItemDto, ProjectionDto, RdlcCommand } from '@rdlc-d
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { setCompletionMeta } from '@/lib/completionMeta';
 import { apiErrorMessage, hasErrorDetails, isPersistentErrorCode } from '@/lib/errors';
+import {
+  createSerialQueue,
+  createSessionOps,
+  QUEUED_OPERATION_STATUS,
+  visibleBusyLabel,
+} from '@/lib/fileOps';
 import { patchItem } from '@/lib/projection';
+import { loadTabUi, removeTabUi, saveTabUi } from '@/lib/tabUiStorage';
 import { formatWindowTitle } from '@/lib/windowTitle';
 import {
   activateTab,
@@ -18,11 +25,13 @@ import {
   createTab,
   createWorkspace,
   createdStatus,
+  closeTargets,
   cycleTab as cycleWorkspaceTab,
   EMPTY_TAB_UI,
   findTabByPath,
   IDLE_STATUS,
   markClipboard,
+  moveTab as moveWorkspaceTab,
   normalizePath,
   openTab,
   openedStatus,
@@ -32,6 +41,7 @@ import {
   updateTab,
   updateTabUi as patchTabUi,
   resolveTabUiPatch,
+  type CloseScope,
   type TabState,
   type TabUiPatch,
   type TabUiState,
@@ -39,6 +49,7 @@ import {
 } from '@/lib/workspace';
 import {
   planWindowClose,
+  saveAfterInFlight,
   saveTabsInOrder,
   type PendingIntent,
   type PendingResolution,
@@ -143,10 +154,16 @@ export interface WorkspaceCore {
   close: () => void;
   /** Cerrar una pestaña concreta (botón de la tira, con guarda). */
   closeTab: (sessionId: string) => void;
+  /** Cierra varias pestañas desde `sessionId` (menú contextual), con guarda. */
+  closeTabs: (scope: CloseScope, sessionId: string) => void;
   /** Activar una pestaña. */
   activateTab: (sessionId: string) => void;
   /** Rotar la pestaña activa (Ctrl+Tab). */
   cycleTab: (direction: 1 | -1) => void;
+  /** Mueve una pestaña a la posición `toIndex` de la tira (reordenar). */
+  moveTab: (sessionId: string, toIndex: number) => void;
+  /** Mueve la pestaña activa una posición a la izquierda (-1) o derecha (1). */
+  moveActiveTab: (direction: 1 | -1) => void;
   /** Recargar desde disco descartando lo local (conflicto). */
   reloadFromDisk: () => Promise<void>;
   /** Relee los ficheros recientes (tras abrir/guardar como). */
@@ -162,6 +179,8 @@ export interface WorkspaceCore {
 const ERROR_BANNER_MS = 6000;
 /** Retardo antes de mostrar «Abriendo…/Guardando…» en el pie (BUG-54). */
 const BUSY_STATUS_MS = 300;
+/** Debounce de la escritura del `ui` por pestaña en sessionStorage. */
+const UI_PERSIST_MS = 300;
 /** Clave del error del pie cuando no hay ninguna pestaña. */
 const WORKSPACE_ERROR_KEY = '__workspace__';
 
@@ -274,40 +293,57 @@ export function useWorkspace(): WorkspaceCore {
 
   /* ------------------------- guarda de operaciones ------------------------ */
 
-  const [busy, setBusy] = useState(false);
-  const [busyLabel, setBusyLabel] = useState<string | null>(null);
-  const busyRef = useRef(false);
-  const busyTimer = useRef<number | null>(null);
+  /** Operación de fichero en curso (abrir/crear: `sessionId` null; guardar: su pestaña). */
+  interface ActiveOperation {
+    id: number;
+    sessionId: string | null;
+    label: string;
+    /** La etiqueta solo se enseña pasados ~300 ms (operaciones rápidas no parpadean). */
+    shown: boolean;
+  }
+  const [operations, setOperations] = useState<ActiveOperation[]>([]);
+  const operationTimers = useRef(new Map<number, number>());
+  const operationSeq = useRef(0);
+  /** Guarda POR SESIÓN de guardar/guardar como: una pestaña no bloquea a otra. */
+  const sessionOps = useRef(createSessionOps());
+  /** Cola secuencial de abrir/crear: lo que llega con una apertura en curso se encola. */
+  const openQueue = useRef(createSerialQueue());
 
   /**
-   * Guarda de re-entrada de las operaciones de fichero (BUG-54): síncrona, y
-   * con aviso en el pie si la operación sigue viva pasados ~300 ms. Devuelve
-   * `false` si ya hay una operación en curso.
+   * Registra una operación visible en el pie (con aviso diferido, BUG-54).
+   * Devuelve la función que la termina.
    */
-  const beginFileOperation = useCallback((label: string): boolean => {
-    if (busyRef.current) return false;
-    busyRef.current = true;
-    setBusy(true);
-    busyTimer.current = window.setTimeout(() => {
-      busyTimer.current = null;
-      setBusyLabel(label);
-    }, BUSY_STATUS_MS);
-    return true;
+  const beginOperation = useCallback((sessionId: string | null, label: string): (() => void) => {
+    operationSeq.current += 1;
+    const id = operationSeq.current;
+    setOperations((current) => [...current, { id, sessionId, label, shown: false }]);
+    operationTimers.current.set(
+      id,
+      window.setTimeout(() => {
+        operationTimers.current.delete(id);
+        setOperations((current) => current.map((op) => (op.id === id ? { ...op, shown: true } : op)));
+      }, BUSY_STATUS_MS),
+    );
+    return () => {
+      const timer = operationTimers.current.get(id);
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+        operationTimers.current.delete(id);
+      }
+      setOperations((current) => current.filter((op) => op.id !== id));
+    };
   }, []);
 
-  const endFileOperation = useCallback((): void => {
-    busyRef.current = false;
-    setBusy(false);
-    if (busyTimer.current !== null) {
-      window.clearTimeout(busyTimer.current);
-      busyTimer.current = null;
-    }
-    setBusyLabel(null);
-  }, []);
+  const busy = operations.length > 0;
+  const busyLabel = visibleBusyLabel(
+    operations.filter((op) => op.shown),
+    state.activeSessionId,
+  );
 
   useEffect(
     () => () => {
-      if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
+      for (const timer of operationTimers.current.values()) window.clearTimeout(timer);
+      operationTimers.current.clear();
     },
     [],
   );
@@ -381,33 +417,38 @@ export function useWorkspace(): WorkspaceCore {
 
   /** Abre varias rutas de una vez (drag&drop): cada fichero válido, su pestaña. */
   const openPaths = useCallback(
-    async (paths: string[]): Promise<void> => {
+    (paths: string[]): void => {
       if (paths.length === 0) return;
-      if (!beginFileOperation('Abriendo…')) return;
-      try {
-        setWorkspaceError(null);
-        const activeId = stateRef.current.activeSessionId;
-        if (activeId !== null) setTabError(activeId, null);
+      const started = openQueue.current.enqueue(async () => {
+        const endOperation = beginOperation(null, 'Abriendo…');
+        try {
+          setWorkspaceError(null);
+          const activeId = stateRef.current.activeSessionId;
+          if (activeId !== null) setTabError(activeId, null);
 
-        const seen = new Set<string>();
-        let opened = false;
-        for (const path of paths) {
-          const key = normalizePath(path);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          if (await openOne(path)) opened = true;
+          const seen = new Set<string>();
+          let opened = false;
+          for (const path of paths) {
+            const key = normalizePath(path);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (await openOne(path)) opened = true;
+          }
+          if (opened) refreshRecentsRef.current();
+        } finally {
+          endOperation();
         }
-        if (opened) refreshRecentsRef.current();
-      } finally {
-        endFileOperation();
-      }
+      });
+      // Nada de retornos silenciosos: si hay una apertura en curso, la nueva se
+      // encola (se hará a continuación) y el pie lo dice.
+      if (!started) setStatus(QUEUED_OPERATION_STATUS);
     },
-    [beginFileOperation, endFileOperation, openOne, setTabError, setWorkspaceError],
+    [beginOperation, openOne, setStatus, setTabError, setWorkspaceError],
   );
 
   const openPath = useCallback(
     (path: string): void => {
-      void openPaths([path]);
+      openPaths([path]);
     },
     [openPaths],
   );
@@ -415,14 +456,14 @@ export function useWorkspace(): WorkspaceCore {
   const open = useCallback((): void => {
     void window.api.pickFile().then((picked) => {
       if (!picked.ok || !picked.path) return;
-      void openPaths([picked.path]);
+      openPaths([picked.path]);
     });
   }, [openPaths]);
 
   /** Nuevo: pide ruta, escribe la plantilla en blanco y la abre en su pestaña. */
   const createNew = useCallback((): void => {
-    void (async () => {
-      if (!beginFileOperation('Creando…')) return;
+    const job = async (): Promise<void> => {
+      const endOperation = beginOperation(null, 'Creando…');
       try {
         setWorkspaceError(null);
         const picked = await window.api.pickSavePath('Nuevo informe.rdlc');
@@ -456,17 +497,18 @@ export function useWorkspace(): WorkspaceCore {
         );
         refreshRecentsRef.current();
       } finally {
-        endFileOperation();
+        endOperation();
       }
-    })();
-  }, [beginFileOperation, endFileOperation, setWorkspace, setWorkspaceError]);
+    };
+    if (!openQueue.current.enqueue(job)) setStatus(QUEUED_OPERATION_STATUS);
+  }, [beginOperation, setStatus, setWorkspace, setWorkspaceError]);
 
-  /** Guardar: `true` si se escribió (para encadenar «guardar y …»). */
-  const saveTab = useCallback(
+  /** Cuerpo del guardado (sin guarda): lo ejecuta `saveTab` bajo la guarda por sesión. */
+  const runSave = useCallback(
     async (sessionId: string): Promise<boolean> => {
       const tab = stateRef.current.tabs.get(sessionId);
       if (!tab) return false;
-      if (!beginFileOperation('Guardando…')) return false;
+      const endOperation = beginOperation(sessionId, 'Guardando…');
       try {
         setWorkspaceError(null);
         setTabError(sessionId, null);
@@ -497,10 +539,21 @@ export function useWorkspace(): WorkspaceCore {
         );
         return true;
       } finally {
-        endFileOperation();
+        endOperation();
       }
     },
-    [beginFileOperation, endFileOperation, setTabError, setWorkspace, setWorkspaceError],
+    [beginOperation, setTabError, setWorkspace, setWorkspaceError],
+  );
+
+  /** Guardar: `true` si se escribió (para encadenar «guardar y …»). */
+  const saveTab = useCallback(
+    async (sessionId: string): Promise<boolean> => {
+      if (!stateRef.current.tabs.has(sessionId)) return false;
+      // Guarda por sesión: si ya hay una operación en esta pestaña se encadena
+      // detrás (no se descarta); otras pestañas no se ven afectadas.
+      return sessionOps.current.run(sessionId, 'save', () => runSave(sessionId));
+    },
+    [runSave],
   );
 
   const save = useCallback((): Promise<boolean> => {
@@ -509,11 +562,11 @@ export function useWorkspace(): WorkspaceCore {
   }, [saveTab]);
 
   /** Guardar como: pide ruta y la sesión pasa a apuntar ahí (clave del anti-duplicados). */
-  const saveAsTab = useCallback(
+  const runSaveAs = useCallback(
     async (sessionId: string): Promise<boolean> => {
       const tab = stateRef.current.tabs.get(sessionId);
       if (!tab) return false;
-      if (!beginFileOperation('Guardando…')) return false;
+      const endOperation = beginOperation(sessionId, 'Guardando…');
       try {
         setWorkspaceError(null);
         setTabError(sessionId, null);
@@ -552,10 +605,18 @@ export function useWorkspace(): WorkspaceCore {
         refreshRecentsRef.current();
         return true;
       } finally {
-        endFileOperation();
+        endOperation();
       }
     },
-    [beginFileOperation, endFileOperation, setTabError, setWorkspace, setWorkspaceError],
+    [beginOperation, setTabError, setWorkspace, setWorkspaceError],
+  );
+
+  const saveAsTab = useCallback(
+    async (sessionId: string): Promise<boolean> => {
+      if (!stateRef.current.tabs.has(sessionId)) return false;
+      return sessionOps.current.run(sessionId, 'saveAs', () => runSaveAs(sessionId));
+    },
+    [runSaveAs],
   );
 
   const saveAs = useCallback((): Promise<boolean> => {
@@ -639,6 +700,37 @@ export function useWorkspace(): WorkspaceCore {
     [closeTabNow, setWorkspace],
   );
 
+  /**
+   * Cierre múltiple (menú contextual de la tira). Si no hay sucias entre las
+   * afectadas se cierran sin preguntar; con una sola pestaña sucia y sola, la
+   * guarda de siempre; con varias, «Guardar todas / Descartar todas / Cancelar»
+   * y no se cierra nada hasta resolverlo (atómico: Cancelar no deja huecos).
+   */
+  const requestCloseTabs = useCallback(
+    (scope: CloseScope, anchorId: string): void => {
+      const current = stateRef.current;
+      const targets = closeTargets(current, scope, anchorId);
+      if (targets.length === 0) return;
+      if (targets.length === 1) {
+        requestCloseTab(targets[0]!);
+        return;
+      }
+      const dirty = targets.flatMap((id) => {
+        const tab = current.tabs.get(id);
+        return tab?.dirty ? [{ sessionId: id, path: tab.path }] : [];
+      });
+      if (dirty.length === 0) {
+        void (async () => {
+          for (const id of targets) await closeTabNow(id);
+        })();
+        return;
+      }
+      setWorkspace((state) => activateTab(state, dirty[0]!.sessionId));
+      setPendingIntent({ kind: 'closeMany', tabs: dirty, targets });
+    },
+    [closeTabNow, requestCloseTab, setWorkspace],
+  );
+
   const close = useCallback((): void => {
     const sessionId = stateRef.current.activeSessionId;
     if (sessionId !== null) requestCloseTab(sessionId);
@@ -658,6 +750,39 @@ export function useWorkspace(): WorkspaceCore {
       setWorkspace((current) => cycleWorkspaceTab(current, direction));
     },
     [setWorkspace],
+  );
+
+  const move = useCallback(
+    (sessionId: string, toIndex: number): void => {
+      setWorkspace((current) => moveWorkspaceTab(current, sessionId, toIndex));
+    },
+    [setWorkspace],
+  );
+
+  const moveActive = useCallback(
+    (direction: 1 | -1): void => {
+      setWorkspace((current) => {
+        const id = current.activeSessionId;
+        if (id === null) return current;
+        return moveWorkspaceTab(current, id, current.order.indexOf(id) + direction);
+      });
+    },
+    [setWorkspace],
+  );
+
+  /**
+   * Guardado previo a cerrar: si la pestaña ya está guardando, ESPERA a esa
+   * operación (y re-guarda si quedó sucia); si la operación en curso falla, el
+   * cierre se cancela y la pestaña conserva su error.
+   */
+  const saveTabForClose = useCallback(
+    (sessionId: string): Promise<boolean> =>
+      saveAfterInFlight(
+        sessionOps.current.pending(sessionId),
+        () => stateRef.current.tabs.get(sessionId)?.dirty ?? false,
+        () => saveTab(sessionId),
+      ),
+    [saveTab],
   );
 
   /* ------------------------ guardas de trabajo sin guardar ------------------ */
@@ -681,7 +806,7 @@ export function useWorkspace(): WorkspaceCore {
         if (resolution === 'save') {
           // Si el guardado falla (p. ej. validación), el diálogo sigue abierto:
           // no se pierde el trabajo y el usuario puede corregir.
-          void saveTab(pendingIntent.sessionId).then((ok) => {
+          void saveTabForClose(pendingIntent.sessionId).then((ok) => {
             if (!ok) return;
             setPendingIntent(null);
             void closeTabNow(pendingIntent.sessionId);
@@ -702,9 +827,38 @@ export function useWorkspace(): WorkspaceCore {
           return;
         }
         // Un fallo cancela el cierre: esa pestaña queda activa con su error.
-        void saveTab(sessionId).then((ok) => {
+        void saveTabForClose(sessionId).then((ok) => {
           if (ok) void window.api.confirmWindowClose(true);
         });
+        return;
+      }
+
+      if (pendingIntent.kind === 'closeMany') {
+        const { tabs, targets } = pendingIntent;
+        if (resolution === 'cancel') {
+          setPendingIntent(null);
+          return;
+        }
+        const closeAll = async (): Promise<void> => {
+          for (const id of targets) await closeTabNow(id);
+        };
+        if (resolution === 'discard') {
+          setPendingIntent(null);
+          void closeAll();
+          return;
+        }
+        // Guardar todas: al primer fallo no se cierra nada y esa pestaña queda
+        // activa con su error (el diálogo se cierra para poder verlo).
+        setPendingIntent(null);
+        void (async () => {
+          const outcome = await saveTabsInOrder(
+            tabs,
+            (sessionId) => stateRef.current.tabs.has(sessionId),
+            saveTabForClose,
+          );
+          if (outcome.ok) await closeAll();
+          else setWorkspace((state) => activateTab(state, outcome.failed.sessionId));
+        })();
         return;
       }
 
@@ -720,7 +874,7 @@ export function useWorkspace(): WorkspaceCore {
         const outcome = await saveTabsInOrder(
           tabs,
           (sessionId) => stateRef.current.tabs.has(sessionId),
-          saveTab,
+          saveTabForClose,
         );
         if (outcome.ok) {
           // `confirmWindowClose(true)` se llama una sola vez, ya sin trabajo.
@@ -732,7 +886,7 @@ export function useWorkspace(): WorkspaceCore {
         setWorkspace((current) => activateTab(current, outcome.failed.sessionId));
       })();
     },
-    [closeTabNow, pendingIntent, saveTab, setWorkspace],
+    [closeTabNow, pendingIntent, saveTabForClose, setWorkspace],
   );
 
   // El SO quiere cerrar la ventana: sin sucias se confirma directamente; con
@@ -774,7 +928,7 @@ export function useWorkspace(): WorkspaceCore {
           if (typeof window.api.listSessions !== 'function') return;
           const listed = await window.api.listSessions();
           if (cancelled || !listed.ok || listed.sessions.length === 0) return;
-          setWorkspace((current) => adoptSessions(current, listed.sessions));
+          setWorkspace((current) => adoptSessions(current, listed.sessions, loadTabUi));
           return;
         }
         await openOneRef.current(pending.path);
@@ -946,6 +1100,50 @@ export function useWorkspace(): WorkspaceCore {
     [updateTabUiFor],
   );
 
+  /* ----------------------- persistencia del ui (recarga) ------------------- */
+
+  /** Último `ui` escrito en sessionStorage por sesión (comparación por referencia). */
+  const persistedUi = useRef(new Map<string, TabUiState>());
+  const persistTimer = useRef<number | null>(null);
+
+  /** Vuelca a sessionStorage los `ui` que cambiaron y borra los de sesiones cerradas. */
+  const flushTabUi = useCallback((): void => {
+    persistTimer.current = null;
+    const known = persistedUi.current;
+    const { tabs: liveTabs } = stateRef.current;
+    for (const [sessionId, tab] of liveTabs) {
+      if (known.get(sessionId) === tab.ui) continue;
+      saveTabUi(sessionId, tab.ui);
+      known.set(sessionId, tab.ui);
+    }
+    for (const sessionId of [...known.keys()]) {
+      if (liveTabs.has(sessionId)) continue;
+      removeTabUi(sessionId);
+      known.delete(sessionId);
+    }
+  }, []);
+
+  // Con debounce y sin `setState`: no provoca renders extra. `pagehide` fuerza el
+  // volcado final antes de recargar la interfaz.
+  useEffect(() => {
+    const known = persistedUi.current;
+    let dirtyUi = known.size !== state.tabs.size;
+    for (const [sessionId, tab] of state.tabs) {
+      if (known.get(sessionId) !== tab.ui) dirtyUi = true;
+    }
+    if (!dirtyUi || persistTimer.current !== null) return;
+    persistTimer.current = window.setTimeout(flushTabUi, UI_PERSIST_MS);
+  }, [state.tabs, flushTabUi]);
+
+  useEffect(() => {
+    window.addEventListener('pagehide', flushTabUi);
+    return () => {
+      window.removeEventListener('pagehide', flushTabUi);
+      if (persistTimer.current !== null) window.clearTimeout(persistTimer.current);
+      flushTabUi();
+    };
+  }, [flushTabUi]);
+
   /** Copiar/cortar en esa sesión: su pestaña queda con «Pegar» disponible. */
   const markSessionClipboard = useCallback(
     (sessionId: string): void => {
@@ -1034,14 +1232,17 @@ export function useWorkspace(): WorkspaceCore {
     markClipboard: markSessionClipboard,
     open,
     openPath,
-    openPaths: (paths: string[]) => void openPaths(paths),
+    openPaths,
     createNew,
     save,
     saveAs,
     close,
     closeTab: requestCloseTab,
+    closeTabs: requestCloseTabs,
     activateTab: activate,
     cycleTab: cycle,
+    moveTab: move,
+    moveActiveTab: moveActive,
     reloadFromDisk,
     refreshRecents,
     resolvePending,

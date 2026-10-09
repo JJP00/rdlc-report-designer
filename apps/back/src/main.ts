@@ -9,126 +9,17 @@ import { IPC_CHANNELS, IPC_EVENTS, windowCloseConfirmationSchema } from '@rdlc-d
 import { AppModule } from './app.module.js';
 import { ElectronEventBusAdapter } from './infrastructure/events/ElectronEventBusAdapter.js';
 import { IpcController } from './presentation/ipc/IpcController.js';
+import { createWindowLifecycle, type WindowLifecycle } from './lifecycle/windowLifecycle.js';
 import { isNavigationAllowed, isPermissionAllowed } from './security/navigation.js';
 
 log.initialize();
 
 let mainWindow: BrowserWindow | null = null;
-/** true cuando el front ya confirmó el cierre (no se vuelve a interceptar). */
-let allowClose = false;
 /** URL con la que se carga el renderer: la única navegación permitida (T2). */
 let appUrl = '';
 
-/**
- * Tiempo máximo que el main espera a que el renderer **acuse** la petición de
- * cierre (P0.1, BUG-51). Si no llega, el front está roto o colgado: se ofrece
- * cerrar sin guardar con un diálogo nativo.
- */
-const CLOSE_ACK_TIMEOUT_MS = 2000;
-
-/** Vigilante del cierre; si el front acusa a tiempo, se cancela. */
-let closeWatchdog: NodeJS.Timeout | null = null;
-/** Evita apilar diálogos nativos (cierre, render caído, «no responde»). */
-let dialogOpen = false;
-/** Re-entrada del diálogo de «no responde»; `responsive` la limpia. */
-let unresponsiveDialogOpen = false;
-
-function cancelCloseWatchdog(): void {
-  if (!closeWatchdog) return;
-  clearTimeout(closeWatchdog);
-  closeWatchdog = null;
-}
-
-/** Arma el vigilante: sin acuse del renderer, se ofrece cerrar sin guardar. */
-function armCloseWatchdog(window: BrowserWindow): void {
-  cancelCloseWatchdog();
-  closeWatchdog = setTimeout(() => {
-    closeWatchdog = null;
-    void showCloseFallbackDialog(window);
-  }, CLOSE_ACK_TIMEOUT_MS);
-}
-
-/** Cierre sin acuse del front (ErrorBoundary, renderer colgado): decide el usuario. */
-async function showCloseFallbackDialog(window: BrowserWindow): Promise<void> {
-  if (dialogOpen || window.isDestroyed()) return;
-  dialogOpen = true;
-  try {
-    const { response } = await dialog.showMessageBox(window, {
-      type: 'warning',
-      buttons: ['Cerrar sin guardar', 'Cancelar'],
-      defaultId: 1,
-      cancelId: 1,
-      title: 'RDLC Report Designer',
-      message: 'La interfaz no responde.',
-      detail:
-        'El trabajo sin guardar sigue en memoria del editor. Puedes cerrar sin guardar o cancelar.',
-    });
-    if (response === 0) {
-      allowClose = true;
-      if (!window.isDestroyed()) window.close();
-    }
-    // «Cancelar»: nada; un nuevo intento de cierre vuelve a armar el vigilante.
-  } catch (error) {
-    log.error('No se pudo mostrar el diálogo de cierre', error);
-  } finally {
-    dialogOpen = false;
-  }
-}
-
-/** Proceso del renderer caído: recargar (el front re-adopta sesiones) o cerrar. */
-async function showRenderProcessGoneDialog(window: BrowserWindow): Promise<void> {
-  if (dialogOpen || window.isDestroyed()) return;
-  dialogOpen = true;
-  try {
-    const { response } = await dialog.showMessageBox(window, {
-      type: 'warning',
-      buttons: ['Recargar la interfaz', 'Cerrar sin guardar'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'RDLC Report Designer',
-      message: 'La interfaz se ha cerrado de forma inesperada.',
-      detail:
-        'El trabajo sin guardar sigue en memoria del editor. Recarga la interfaz para recuperarlo o cierra sin guardar.',
-    });
-    if (response === 0) {
-      // Al montar, el front re-adopta las sesiones vivas vía `listSessions`.
-      if (!window.isDestroyed()) window.webContents.reload();
-      return;
-    }
-    allowClose = true;
-    window.destroy();
-  } catch (error) {
-    log.error('No se pudo mostrar el diálogo de render caído', error);
-  } finally {
-    dialogOpen = false;
-  }
-}
-
-/** El front se quedó colgado: esperar o recargar la interfaz. */
-async function showUnresponsiveDialog(window: BrowserWindow): Promise<void> {
-  if (dialogOpen || window.isDestroyed()) return;
-  dialogOpen = true;
-  try {
-    const { response } = await dialog.showMessageBox(window, {
-      type: 'warning',
-      buttons: ['Esperar', 'Recargar la interfaz'],
-      defaultId: 0,
-      cancelId: 0,
-      title: 'RDLC Report Designer',
-      message: 'La interfaz no responde.',
-      detail:
-        'Puedes esperar a que termine o recargar la interfaz; el trabajo sin guardar sigue en memoria del editor.',
-    });
-    if (response === 1 && !window.isDestroyed()) {
-      window.webContents.reload();
-    }
-  } catch (error) {
-    log.error('No se pudo mostrar el diálogo de aplicación bloqueada', error);
-  } finally {
-    dialogOpen = false;
-    unresponsiveDialogOpen = false;
-  }
-}
+/** Ciclo de vida (cierre sin acuse, render caído, «no responde») de la ventana actual. */
+let lifecycle: WindowLifecycle | null = null;
 
 /**
  * Endurecimiento común a todo `webContents` (T2): sin ventanas nuevas, sin
@@ -190,34 +81,37 @@ async function createWindow(): Promise<BrowserWindow> {
   // perder: se cierra directamente. El modo benchmark no abre documentos y se
   // deja cerrar sin pasar por el front.
   const isBench = bench !== undefined;
-  allowClose = isBench;
+  const windowLifecycle = createWindowLifecycle({
+    isBench,
+    setTimer: (callback, ms) => setTimeout(callback, ms),
+    clearTimer: (handle) => clearTimeout(handle as NodeJS.Timeout),
+    showDialog: async (options) => (await dialog.showMessageBox(window, options)).response,
+    closeWindow: () => window.close(),
+    destroyWindow: () => window.destroy(),
+    reload: () => window.webContents.reload(),
+    isDestroyed: () => window.isDestroyed(),
+    log,
+  });
+  lifecycle = windowLifecycle;
   window.on('close', (event) => {
-    if (allowClose || window.webContents.isLoading()) return;
+    if (windowLifecycle.allowClose || window.webContents.isLoading()) return;
     event.preventDefault();
     window.webContents.send(IPC_EVENTS.closeRequested);
     // El front acusa con `acknowledgeCloseRequest`; si no llega (ErrorBoundary
     // desmontado, renderer colgado), se ofrece cerrar sin guardar (BUG-51).
-    armCloseWatchdog(window);
+    windowLifecycle.armCloseWatchdog();
   });
 
   // El proceso del renderer murió (p. ej. un render error): recargar recupera
   // las sesiones vivas vía `listSessions`, cerrar no espera más.
   window.webContents.on('render-process-gone', (_event, details) => {
-    if (allowClose || details.reason === 'clean-exit') return;
-    void showRenderProcessGoneDialog(window);
+    windowLifecycle.handleRenderProcessGone(details.reason);
   });
 
-  // El front se quedó colgado: esperar o recargar. En benchmark no se
-  // interviene (mismo comportamiento de siempre).
+  // El front se quedó colgado: esperar o recargar (no se instala en benchmark).
   if (!isBench) {
-    window.on('unresponsive', () => {
-      if (unresponsiveDialogOpen) return;
-      unresponsiveDialogOpen = true;
-      void showUnresponsiveDialog(window);
-    });
-    window.on('responsive', () => {
-      unresponsiveDialogOpen = false;
-    });
+    window.on('unresponsive', () => windowLifecycle.handleUnresponsive());
+    window.on('responsive', () => windowLifecycle.handleResponsive());
   }
 
   // Diagnóstico: la consola del renderer también va al log del main.
@@ -264,17 +158,17 @@ async function bootstrap(): Promise<void> {
   // El renderer acusa la petición de cierre: está vivo y atendiendo. Cancela
   // el vigilante para que no salte el diálogo de «no responde» (BUG-51).
   ipcMain.handle(IPC_CHANNELS.acknowledgeCloseRequest, () => {
-    cancelCloseWatchdog();
+    lifecycle?.cancelCloseWatchdog();
   });
 
   // Respuesta del renderer a la petición de cierre (guardas de cambios).
   ipcMain.handle(IPC_CHANNELS.confirmWindowClose, (_event, payload: unknown) => {
     // Confirmación o cancelación: en ambos casos el front está vivo, así que el
     // vigilante ya no procede.
-    cancelCloseWatchdog();
+    lifecycle?.cancelCloseWatchdog();
     const parsed = windowCloseConfirmationSchema.safeParse(payload);
     if (!parsed.success || !parsed.data.proceed) return;
-    allowClose = true;
+    if (lifecycle) lifecycle.allowClose = true;
     mainWindow?.close();
   });
 

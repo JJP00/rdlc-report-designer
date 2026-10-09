@@ -371,4 +371,29 @@ describe('Resiliencia · re-adopción de sesiones (BUG-51)', () => {
     await service.close(second.value.sessionId);
     expect(service.listSessions()).toEqual([]);
   });
+
+  it('listSessions refleja missing=true tras desaparecer el fichero y false al volver', async () => {
+    const { service, watcher, events, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'PalletOutput.rdlc');
+    const opened = await service.open(path);
+    if (!opened.isRight()) throw new Error('no abrió');
+    const original = await readFile(path);
+
+    expect(service.listSessions()[0]?.missing).toBe(false);
+
+    await rm(path);
+    watcher.triggerUnlink(path);
+    await vi.waitFor(() => {
+      expect(service.listSessions()[0]?.missing).toBe(true);
+    });
+
+    await writeFile(path, original);
+    watcher.trigger(path);
+    await vi.waitFor(() => {
+      expect(service.listSessions()[0]?.missing).toBe(false);
+    });
+    expect(events.payloads<FileMissingChangedEvent>(IPC_EVENTS.fileMissingChanged).at(-1)?.missing).toBe(
+      false,
+    );
+  });
 });

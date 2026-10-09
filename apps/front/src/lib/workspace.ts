@@ -331,29 +331,83 @@ export function cycleTab(state: WorkspaceState, direction: 1 | -1): WorkspaceSta
   return nextId === undefined ? state : activateTab(state, nextId);
 }
 
+/** Qué pestañas cierra una orden del menú contextual de la tira. */
+export type CloseScope = 'self' | 'saved' | 'all' | 'others' | 'right';
+
+/**
+ * Pestañas que cierra `scope` desde la pestaña `anchorId` (en orden de la
+ * tira): ella misma, las que no tienen cambios, todas, todas menos ella o las
+ * de su derecha. Una ancla inexistente no cierra nada (salvo `all`/`saved`).
+ */
+export function closeTargets(
+  state: WorkspaceState,
+  scope: CloseScope,
+  anchorId: string,
+): string[] {
+  const index = state.order.indexOf(anchorId);
+  switch (scope) {
+    case 'self':
+      return index < 0 ? [] : [anchorId];
+    case 'saved':
+      return state.order.filter((id) => state.tabs.get(id)?.dirty === false);
+    case 'all':
+      return [...state.order];
+    case 'others':
+      return index < 0 ? [] : state.order.filter((id) => id !== anchorId);
+    case 'right':
+      return index < 0 ? [] : state.order.slice(index + 1);
+  }
+}
+
+/**
+ * Mueve una pestaña a la posición `toIndex` de la tira (reordenar por arrastre
+ * o con Ctrl+Shift+RePág/AvPág). El índice se acota al rango; no cambia la
+ * pestaña activa ni toca ninguna sesión. Sin efecto (mismo estado) si la
+ * pestaña no existe o ya está en esa posición.
+ */
+export function moveTab(
+  state: WorkspaceState,
+  sessionId: string,
+  toIndex: number,
+): WorkspaceState {
+  const from = state.order.indexOf(sessionId);
+  if (from < 0) return state;
+  const target = Math.max(0, Math.min(state.order.length - 1, toIndex));
+  if (target === from) return state;
+  const order = [...state.order];
+  order.splice(from, 1);
+  order.splice(target, 0, sessionId);
+  return { ...state, order };
+}
+
 /**
  * Re-adopta las sesiones vivas del backend tras recargar la interfaz: todas
- * como pestañas en orden de apertura, activa la última (BUG-51).
+ * como pestañas en orden de apertura, activa la última (BUG-51). Propaga
+ * `missing` a `fileMissing` y, si se da `restoreUi`, recupera el estado de UI
+ * guardado de cada sesión (selección, zoom, paneles).
  */
 export function adoptSessions(
   state: WorkspaceState,
   sessions: readonly ListedSession[],
+  restoreUi?: (sessionId: string) => TabUiState | undefined,
 ): WorkspaceState {
   if (sessions.length === 0) return state;
   const tabs = new Map(state.tabs);
   const order = [...state.order];
   for (const session of sessions) {
     if (tabs.has(session.sessionId)) continue;
-    tabs.set(
-      session.sessionId,
-      createTab({
-        sessionId: session.sessionId,
-        path: session.filePath,
-        projection: session.projection,
-        dirty: session.dirty,
-        status: recoveredStatus(session.filePath),
-      }),
-    );
+    const created = createTab({
+      sessionId: session.sessionId,
+      path: session.filePath,
+      projection: session.projection,
+      dirty: session.dirty,
+      status: recoveredStatus(session.filePath),
+    });
+    tabs.set(session.sessionId, {
+      ...created,
+      fileMissing: session.missing ? session.filePath : null,
+      ui: restoreUi?.(session.sessionId) ?? created.ui,
+    });
     order.push(session.sessionId);
   }
   const last = sessions[sessions.length - 1];
