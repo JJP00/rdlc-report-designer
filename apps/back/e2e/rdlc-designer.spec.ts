@@ -3797,3 +3797,51 @@ test('multiselección: Ctrl+click, alinear en lote y un solo undo', async () => 
     .poll(async () => (await itemLocation('Textbox17'))?.left)
     .toBeCloseTo(before17!.left, 3);
 });
+
+test('multiselección: arrastrar y mover con flechas desplaza todos; suprimir borra todos', async () => {
+  await selectItemViaPalette('Textbox4');
+  const center17 = await nodeCenter('Textbox17');
+  await page.keyboard.down('Control');
+  await page.mouse.click(center17!.x, center17!.y);
+  await page.keyboard.up('Control');
+  await expect(page.getByTestId('multi-selection-panel')).toContainText('2 elementos');
+
+  const before4 = await itemLocation('Textbox4');
+  const before17 = await itemLocation('Textbox17');
+
+  // Flechas: se mueven los dos (no solo el último seleccionado).
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await expect
+    .poll(async () => (await itemLocation('Textbox4'))!.left - before4!.left)
+    .toBeGreaterThan(0);
+  const d4 = (await itemLocation('Textbox4'))!.left - before4!.left;
+  await expect
+    .poll(async () => (await itemLocation('Textbox17'))!.left - before17!.left)
+    .toBeCloseTo(d4, 3);
+
+  // Arrastre de uno de ellos: la multiselección sobrevive y el otro acompaña.
+  const mid4 = await itemLocation('Textbox4');
+  const mid17 = await itemLocation('Textbox17');
+  const start = await nodeCenter('Textbox17');
+  await page.mouse.move(start!.x, start!.y);
+  await page.mouse.down();
+  await page.mouse.move(start!.x, start!.y - 24, { steps: 6 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => mid17!.top - (await itemLocation('Textbox17'))!.top)
+    .toBeGreaterThan(0.3);
+  const up17 = mid17!.top - (await itemLocation('Textbox17'))!.top;
+  await expect
+    .poll(async () => mid4!.top - (await itemLocation('Textbox4'))!.top)
+    .toBeCloseTo(up17, 2);
+  await expect(page.getByTestId('multi-selection-panel')).toContainText('2 elementos');
+
+  // Suprimir elimina los dos.
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => itemLocation('Textbox4')).toBeUndefined();
+  await expect.poll(async () => itemLocation('Textbox17')).toBeUndefined();
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => itemLocation('Textbox4')).toBeDefined();
+  await expect.poll(async () => itemLocation('Textbox17')).toBeDefined();
+});

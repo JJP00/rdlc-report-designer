@@ -70,6 +70,7 @@ export interface CanvasAreaProps {
   /** Publica el zoom de «ajustar al ancho» medido del hueco del lienzo. */
   onFitZoomChange: (zoom: number) => void;
   onMoveTo: (id: string, top: Length, left: Length) => void;
+  onMoveMany: (moves: { id: string; top: Length; left: Length }[]) => void;
   /** El drag soltó sobre otro contenedor: reparentar (`moveItem`). */
   onMoveItemToScope: (
     id: string,
@@ -147,6 +148,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onZoomChange,
     onFitZoomChange,
     onMoveTo,
+    onMoveMany,
     onMoveItemToScope,
     onResizeItem,
     onResizeColumn,
@@ -216,6 +218,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
                 onSelectMany={onSelectMany}
                 onSelectCell={onSelectCell}
                 onMoveTo={onMoveTo}
+                onMoveMany={onMoveMany}
                 onMoveItemToScope={onMoveItemToScope}
                 onZoomChange={onZoomChange}
                 onFitZoomChange={onFitZoomChange}

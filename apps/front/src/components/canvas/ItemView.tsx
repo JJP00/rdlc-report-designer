@@ -91,6 +91,8 @@ function NodeGroup({
     /** Distancia del puntero al origen del item al agarrar (cm). */
     grabCmX: number;
     grabCmY: number;
+    /** Resto de la multiselección: se mueve con el nodo arrastrado. */
+    followers: { node: Konva.Node; x: number; y: number }[];
   } | null>(null);
 
   /**
@@ -159,10 +161,22 @@ function NodeGroup({
         if (event.target !== event.currentTarget) return;
         event.cancelBubble = true;
         // Arrastrar selecciona: Konva no re-emite `click` tras un drag y el
-        // elemento quedaría sin seleccionar al soltar.
-        onSelect?.(itemId);
+        // elemento quedaría sin seleccionar al soltar. Si ya forma parte de una
+        // multiselección se conserva y el resto de sus miembros viaja con él.
         const node = event.target;
         const stage = node.getStage();
+        const selection = stage?.getAttr('rdlcSelection') as string[] | undefined;
+        const group = selection && selection.length > 1 && selection.includes(itemId);
+        if (!group) onSelect?.(itemId);
+        const followers =
+          group && stage
+            ? selection
+                .filter((id) => id !== itemId)
+                .flatMap((id) => {
+                  const other = stage.find((candidate: Konva.Node) => candidate.id() === id)[0];
+                  return other ? [{ node: other, x: other.x(), y: other.y() }] : [];
+                })
+            : [];
         const zoom = stage?.scaleX() ?? 1;
         const containerRect = stage?.container().getBoundingClientRect();
         // Punto del item que agarró el puntero (cm): el reparentado lo conserva.
@@ -178,6 +192,7 @@ function NodeGroup({
           grabCmY: containerRect
             ? (event.evt.clientY - (containerRect.top + box.y * zoom)) / zoom / PX_PER_CM
             : 0,
+          followers,
         };
       }}
       onDragMove={(event) => {
@@ -194,6 +209,12 @@ function NodeGroup({
         node.x(state.nodeX + (event.evt.clientX - state.pointerX) / zoom);
         node.y(state.nodeY + (event.evt.clientY - state.pointerY) / zoom);
         clampToBounds(node);
+        const dx = node.x() - state.nodeX;
+        const dy = node.y() - state.nodeY;
+        for (const follower of state.followers) {
+          follower.node.x(Math.max(0, follower.x + dx));
+          follower.node.y(Math.max(0, follower.y + dy));
+        }
         // Redibuja escena y grafo de hit: sin esto el `click` posterior usa la
         // posición antigua y la selección se pierde al soltar.
         node.getLayer()?.batchDraw();
@@ -215,6 +236,16 @@ function NodeGroup({
         });
 
         node.position({ x: left * PX_PER_CM, y: top * PX_PER_CM });
+        // Con la posición final (ya con imán) los acompañantes quedan a la misma
+        // distancia; la proyección optimista los recoloca igual.
+        if (state) {
+          const dx = node.x() - state.nodeX;
+          const dy = node.y() - state.nodeY;
+          for (const follower of state.followers) {
+            follower.node.x(Math.max(0, follower.x + dx));
+            follower.node.y(Math.max(0, follower.y + dy));
+          }
+        }
         const drop: DropInfo = {
           clientX: event.evt.clientX,
           clientY: event.evt.clientY,

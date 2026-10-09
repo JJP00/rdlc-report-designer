@@ -71,6 +71,8 @@ export interface CanvasPreviewProps {
   onSelectMany?: (ids: string[]) => void;
   /** Se llama al soltar un drag con la posición ya normalizada (cm). */
   onMoveTo?: (id: string, top: Length, left: Length, drop?: DropInfo) => void;
+  /** Mueve varios items a la vez (multiselección arrastrada): un solo paso de undo. */
+  onMoveMany?: (moves: { id: string; top: Length; left: Length }[]) => void;
   /** El drag terminó sobre otro contenedor: reparentar (`moveItem`). */
   onMoveItemToScope?: (
     id: string,
@@ -142,6 +144,7 @@ export function CanvasPreview({
   onFitZoomChange,
   onContextMenuHit,
   onDropItem,
+  onMoveMany,
   onEditText,
   reveal,
   stageRef: stageRefProp,
@@ -237,6 +240,14 @@ export function CanvasPreview({
    * al scroll sin recalcular la geometría de contenedores anidados.
    */
   const extraKey = extraSelectedIds.join('|');
+  // El arrastre de un miembro de la multiselección mueve a todos: los nodos lo
+  // consultan en el stage (sin pasar la lista por todo el árbol de items).
+  useEffect(() => {
+    stageRef.current?.setAttr(
+      'rdlcSelection',
+      [selectedId, ...extraSelectedIds].filter((value): value is string => !!value),
+    );
+  }, [selectedId, extraKey]);
 
   /**
    * Fin de un drag: si el puntero soltó sobre **otro contenedor**, el item se
@@ -248,6 +259,30 @@ export function CanvasPreview({
    */
   const handleMoveEnd = (id: string, top: Length, left: Length, drop?: DropInfo): void => {
     const stage = stageRef.current;
+    // Multiselección: todos los miembros se desplazan lo mismo que el arrastrado
+    // (sin reparentar: cada uno conserva su contenedor).
+    const group = [selectedId, ...extraSelectedIds].filter((value): value is string => !!value);
+    if (group.length > 1 && group.includes(id) && onMoveMany) {
+      const origin = findItem(projection, id);
+      if (origin) {
+        const dTop = toCm(top) - toCm(origin.top);
+        const dLeft = toCm(left) - toCm(origin.left);
+        if (round4(dTop) === 0 && round4(dLeft) === 0) return;
+        const moves = group.flatMap((memberId) => {
+          const member = findItem(projection, memberId);
+          if (!member) return [];
+          return [
+            {
+              id: memberId,
+              top: cm(round4(Math.max(0, toCm(member.top) + dTop))),
+              left: cm(round4(Math.max(0, toCm(member.left) + dLeft))),
+            },
+          ];
+        });
+        onMoveMany(moves);
+        return;
+      }
+    }
     if (drop && stage && onMoveItemToScope) {
       const hit = hitAtEvent(stage, zoom, layout, drop);
       const current = findItemScope(projection, id);

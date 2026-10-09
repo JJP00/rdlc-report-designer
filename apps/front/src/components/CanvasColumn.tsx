@@ -85,6 +85,7 @@ export function CanvasColumn({
         onZoomChange={onZoomChange}
         onFitZoomChange={onFitZoomChange}
         onMoveTo={editing.moveTo}
+        onMoveMany={editing.moveMany}
         onMoveItemToScope={editing.moveItemToScope}
         onResizeItem={editing.resizeItem}
         onResizeColumn={editing.resizeColumn}

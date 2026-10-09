@@ -89,6 +89,7 @@ export interface ItemEditing {
   flushNudge: () => void;
   nudge: (dxCm: number, dyCm: number) => void;
   moveTo: (id: string, top: Length, left: Length) => void;
+  moveMany: (moves: { id: string; top: Length; left: Length }[]) => void;
   /** Reparenta/reordena un item (fin de drag) en un solo paso de undo. */
   moveItemToScope: (id: string, scope: ScopeRef, index: number, top: Length, left: Length) => void;
   setItemLocation: (top: Length, left: Length) => void;
@@ -482,11 +483,11 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
   /* --------------------- mover con flechas (1pt / 10pt) ------------------ */
 
   interface PendingMove {
-    id: string;
+    /** Identifica la ráfaga: los ids movidos (una multiselección es una sola ráfaga). */
+    key: string;
+    members: { id: string; topCm: number; leftCm: number }[];
     /** Sesión que originó el movimiento: el flush diferido no viaja a otra pestaña. */
     sessionId: string;
-    topCm: number;
-    leftCm: number;
     timer: number;
   }
 
@@ -499,13 +500,14 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     window.clearTimeout(pending.timer);
     // La reconciliación de los valores normalizados la hace `sendCommand` en
     // la sesión que originó el movimiento (aunque la activa haya cambiado).
+    const commands = pending.members.map((member) => ({
+      cmd: 'setLocation' as const,
+      id: member.id,
+      top: cm(member.topCm),
+      left: cm(member.leftCm),
+    }));
     void sendCommand(
-      {
-        cmd: 'setLocation',
-        id: pending.id,
-        top: cm(pending.topCm),
-        left: cm(pending.leftCm),
-      },
+      commands.length === 1 ? commands[0]! : { cmd: 'batch', commands },
       pending.sessionId,
     );
   }, [sendCommand]);
@@ -522,48 +524,62 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
 
   const nudge = useCallback(
     (dxCm: number, dyCm: number): void => {
-      if (!doc || !selectedItem) return;
+      if (!doc) return;
+      // Multiselección: se mueven todos los miembros movibles juntos.
+      const group =
+        selectedIds.length > 1
+          ? selectedItems.filter((item) => movableIds.includes(item.id))
+          : selectedItem
+            ? [selectedItem]
+            : [];
+      if (group.length === 0) return;
 
       // El contenido directo de una celda está anclado: la celda fija su
       // posición (Report Builder tampoco deja moverlo).
-      if (isCellContent(doc.projection, selectedItem.id)) {
+      if (selectedIds.length <= 1 && isCellContent(doc.projection, group[0]!.id)) {
         setStatus('La celda fija el contenido: no se puede mover');
         return;
       }
 
-      const id = selectedItem.id;
+      const key = group.map((item) => item.id).join('|');
       const sessionId = doc.sessionId;
       const current = pendingMove.current;
       // Ráfaga de otra selección u otra sesión: se cierra contra su pestaña
       // antes de empezar la nueva (el flush fija su `sessionId`).
-      if (current && (current.id !== id || current.sessionId !== sessionId)) {
+      if (current && (current.key !== key || current.sessionId !== sessionId)) {
         flushRef.current();
       }
       const previous = pendingMove.current;
       const pending: PendingMove =
-        previous && previous.id === id && previous.sessionId === sessionId
+        previous && previous.key === key && previous.sessionId === sessionId
           ? previous
           : {
-              id,
+              key,
               sessionId,
-              topCm: toCm(selectedItem.top),
-              leftCm: toCm(selectedItem.left),
+              members: group.map((item) => ({
+                id: item.id,
+                topCm: toCm(item.top),
+                leftCm: toCm(item.left),
+              })),
               timer: 0,
             };
 
-      const nextTop = pending.topCm + dyCm;
-      const nextLeft = pending.leftCm + dxCm;
-
-      // Nada que mover (p. ej. ya está en el borde): no se envía nada.
+      // Nada que mover (p. ej. ya están en el borde): no se envía nada.
+      const nextMembers = pending.members.map((member) => ({
+        id: member.id,
+        topCm: Math.max(0, member.topCm + dyCm),
+        leftCm: Math.max(0, member.leftCm + dxCm),
+      }));
       if (
-        round4(nextTop) === round4(toCm(selectedItem.top)) &&
-        round4(nextLeft) === round4(toCm(selectedItem.left))
+        nextMembers.every(
+          (member, index) =>
+            round4(member.topCm) === round4(pending.members[index]!.topCm) &&
+            round4(member.leftCm) === round4(pending.members[index]!.leftCm),
+        )
       ) {
         return;
       }
-
-      pending.topCm = nextTop;
-      pending.leftCm = nextLeft;
+      pending.members = nextMembers;
       // Un temporizador por ráfaga (no se reinicia con cada tecla): mantén la
       // tecla pulsada = unos pocos comandos, no uno por repetición.
       if (pending.timer === 0) {
@@ -571,11 +587,15 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       }
       pendingMove.current = pending;
 
-      updateProjection((projection) =>
-        patchItem(projection, id, { top: cm(pending.topCm), left: cm(pending.leftCm) }),
-      );
+      updateProjection((projection) => {
+        let next = projection;
+        for (const member of pending.members) {
+          next = patchItem(next, member.id, { top: cm(member.topCm), left: cm(member.leftCm) });
+        }
+        return next;
+      });
     },
-    [doc, selectedItem, setStatus, updateProjection],
+    [doc, movableIds, selectedIds, selectedItem, selectedItems, setStatus, updateProjection],
   );
 
   /* --------------------------- geometría y estilo ------------------------- */
@@ -592,6 +612,31 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       void sendCommand({ cmd: 'setLocation', id, top, left });
     },
     [doc, sendCommand, setStatus, updateProjection],
+  );
+
+  /** Arrastre de una multiselección: todos a la vez, un solo paso de undo. */
+  const moveMany = useCallback(
+    (moves: { id: string; top: Length; left: Length }[]): void => {
+      const movable = doc ? moves.filter((move) => !isCellContent(doc.projection, move.id)) : [];
+      if (movable.length === 0) return;
+      updateProjection((projection) => {
+        let next = projection;
+        for (const move of movable) {
+          next = patchItem(next, move.id, { top: move.top, left: move.left });
+        }
+        return next;
+      });
+      void sendCommand({
+        cmd: 'batch',
+        commands: movable.map((move) => ({
+          cmd: 'setLocation' as const,
+          id: move.id,
+          top: move.top,
+          left: move.left,
+        })),
+      });
+    },
+    [doc, sendCommand, updateProjection],
   );
 
   /**
@@ -1280,6 +1325,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     flushNudge: () => flushRef.current(),
     nudge,
     moveTo,
+    moveMany,
     moveItemToScope,
     setItemLocation,
     setItemSize,
