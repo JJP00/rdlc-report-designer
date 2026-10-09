@@ -82,7 +82,7 @@ export interface EditorToolbarProps {
 export function EditorToolbar(props: EditorToolbarProps): ReactNode {
   return (
     <TooltipProvider>
-      <header className="flex items-center gap-1.5 overflow-x-auto border-b bg-background px-3 py-1.5">
+      <header className="flex items-center gap-1.5 overflow-x-auto border-b bg-chrome px-3 py-1.5">
         <span className="mr-2 hidden whitespace-nowrap text-sm font-semibold xl:inline">
           RDLC Report Designer
         </span>

@@ -31,6 +31,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  /* Jerarquía de superficies del chrome (de más a menos elevada): barra
+     principal, barra de formato, pista de pestañas y pie. */
+  --color-chrome: var(--chrome);
+  --color-chrome-subtle: var(--chrome-subtle);
+  --color-tabstrip: var(--tabstrip);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -63,8 +68,8 @@ body,
 }
 
 .dark .canvas-dots {
-  background-color: #17171b;
-  background-image: radial-gradient(circle, #36363f 1px, transparent 1.4px);
+  background-color: #101015;
+  background-image: radial-gradient(circle, #34343f 1px, transparent 1.4px);
 }
 
 /* Barras de scroll nativas en toda la app: pista transparente y pulgar fino y
@@ -94,23 +99,30 @@ body,
   /* Controles nativos (radios, selects, barras) en claro… */
   color-scheme: light;
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0.15 0.01 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.15 0.01 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.15 0.01 260);
+  --primary: oklch(0.21 0.02 260);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.871 0 0);
-  --input: oklch(0.82 0 0);
-  --ring: oklch(0.55 0 0);
+  --secondary: oklch(0.945 0.008 260);
+  --secondary-foreground: oklch(0.21 0.02 260);
+  --muted: oklch(0.945 0.008 260);
+  --muted-foreground: oklch(0.44 0.015 260);
+  --accent: oklch(0.925 0.012 260);
+  --accent-foreground: oklch(0.21 0.02 260);
+  --destructive: oklch(0.52 0.22 27);
+  /* Bordes y campos con contraste real: los separadores se ven y el borde de un
+     campo llega a ≥ 3:1 sobre blanco (WCAG 1.4.11). */
+  --border: oklch(0.8 0.012 260);
+  --input: oklch(0.57 0.015 260);
+  --ring: oklch(0.5 0.17 262);
+  /* Chrome: la barra principal es la más marcada; la tira de pestañas es una
+     pista más oscura sobre la que destaca la pestaña activa (blanca). */
+  --chrome: oklch(0.915 0.014 260);
+  --chrome-subtle: oklch(0.968 0.006 260);
+  --tabstrip: oklch(0.88 0.016 260);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -131,24 +143,29 @@ body,
   /* …y en oscuro: sin esto los radios nativos salen blancos y no se ve cuál
      está seleccionado (el `accent-primary` oscuro también es claro). */
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 15%);
-  --input: oklch(1 0 0 / 20%);
-  --ring: oklch(0.62 0 0);
+  --background: oklch(0.2 0.012 260);
+  --foreground: oklch(0.975 0.004 260);
+  --card: oklch(0.255 0.014 260);
+  --card-foreground: oklch(0.975 0.004 260);
+  --popover: oklch(0.27 0.014 260);
+  --popover-foreground: oklch(0.975 0.004 260);
+  --primary: oklch(0.94 0.01 260);
+  --primary-foreground: oklch(0.2 0.02 260);
+  --secondary: oklch(0.3 0.016 260);
+  --secondary-foreground: oklch(0.975 0.004 260);
+  --muted: oklch(0.3 0.016 260);
+  --muted-foreground: oklch(0.76 0.012 260);
+  --accent: oklch(0.34 0.02 260);
+  --accent-foreground: oklch(0.975 0.004 260);
+  --destructive: oklch(0.72 0.19 22);
+  --border: oklch(0.42 0.016 260);
+  --input: oklch(0.62 0.015 260);
+  --ring: oklch(0.78 0.12 262);
+  /* Chrome oscuro: la barra principal es la más elevada (más clara que el
+     contenido) y la pista de pestañas la más hundida. */
+  --chrome: oklch(0.3 0.016 260);
+  --chrome-subtle: oklch(0.25 0.014 260);
+  --tabstrip: oklch(0.12 0.01 260);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -166,7 +183,7 @@ body,
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground;

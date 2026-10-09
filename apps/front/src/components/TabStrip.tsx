@@ -1,15 +1,5 @@
-import { AlertTriangle, FilePlus, FolderOpen, History, Plus, X } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { useState, type DragEvent, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -18,7 +8,6 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { CloseScope } from '@/lib/workspace';
 import { fileBasename } from '@/lib/windowTitle';
@@ -34,38 +23,27 @@ export interface TabStripItem {
 export interface TabStripProps {
   tabs: readonly TabStripItem[];
   activeSessionId: string | null;
-  /** Hay una operación de fichero en curso: el menú `+` se deshabilita. */
-  busy: boolean;
-  recents: readonly string[];
   onActivate: (sessionId: string) => void;
   /** Reordenar: mueve la pestaña a la posición `toIndex` de la tira. */
   onMove: (sessionId: string, toIndex: number) => void;
   onClose: (sessionId: string) => void;
   /** Menú contextual: cierra varias pestañas desde la pulsada, con guarda. */
   onCloseMany: (scope: CloseScope, sessionId: string) => void;
-  onNew: () => void;
-  onOpen: () => void;
-  onOpenRecent: (path: string) => void;
 }
 
 /**
  * Tira de pestañas (siempre visible): una por sesión del backend — nombre del
  * fichero con `*` si hay cambios, marca de conflicto y botón de cerrar con
- * guarda. El menú `+` ofrece Nuevo / Abrir / recientes, igual que el menú
- * «Fichero» de la toolbar. Con muchas pestañas hace scroll horizontal.
+ * guarda. Abrir, Nuevo y recientes viven en el menú «Fichero» y en el arrastre de
+ * ficheros a la ventana. Con muchas pestañas hace scroll horizontal.
  */
 export function TabStrip({
   tabs,
   activeSessionId,
-  busy,
-  recents,
   onActivate,
   onMove,
   onClose,
   onCloseMany,
-  onNew,
-  onOpen,
-  onOpenRecent,
 }: TabStripProps): ReactNode {
   // Reordenar por arrastre (HTML5 DnD): `dragId` es la pestaña en vuelo y
   // `drop` la ranura de destino (índice de inserción en la lista **actual**).
@@ -94,7 +72,7 @@ export function TabStrip({
   };
 
   return (
-    <div data-testid="tab-strip" className="flex items-stretch border-b bg-muted/40">
+    <div data-testid="tab-strip" className="flex items-stretch border-b bg-tabstrip">
       <div
         role="tablist"
         aria-label="Informes abiertos"
@@ -131,8 +109,8 @@ export function TabStrip({
                     markBefore && 'shadow-[inset_2px_0_0_0_var(--color-primary,#2563eb)]',
                     markAfter && 'shadow-[inset_-2px_0_0_0_var(--color-primary,#2563eb)]',
                     active
-                      ? 'border-border bg-background font-medium text-foreground'
-                      : 'border-transparent text-muted-foreground hover:bg-muted',
+                      ? 'border-border border-t-2 border-t-primary bg-background font-medium text-foreground'
+                      : 'border-transparent text-muted-foreground hover:bg-background/60 hover:text-foreground',
                   )}
                   onClick={() => onActivate(tab.sessionId)}
                   onDragStart={(event) => {
@@ -168,14 +146,14 @@ export function TabStrip({
                 >
                   {tab.conflict ? (
                     <AlertTriangle
-                      className="size-3 shrink-0 text-amber-600"
+                      className="size-3 shrink-0 text-amber-700 dark:text-amber-400"
                       aria-label="Conflicto: el fichero cambió en disco"
                     />
                   ) : null}
                   <span className="min-w-0 truncate">
                     {name}
                     {tab.dirty ? (
-                      <span className="text-amber-600" aria-hidden>
+                      <span className="text-amber-700 dark:text-amber-400" aria-hidden>
                         {' *'}
                       </span>
                     ) : null}
@@ -227,54 +205,6 @@ export function TabStrip({
           );
         })}
       </div>
-
-      <DropdownMenu>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                data-testid="tab-new-menu"
-                aria-label="Nueva pestaña: nuevo, abrir o recientes"
-                className="m-1 shrink-0"
-                disabled={busy}
-              >
-                <Plus />
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Nuevo / Abrir / recientes</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="start" className="w-60">
-          <DropdownMenuItem disabled={busy} onSelect={onNew}>
-            <FilePlus />
-            Nuevo…
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={busy} onSelect={onOpen}>
-            <FolderOpen />
-            Abrir…
-          </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger disabled={busy || recents.length === 0}>
-              <History />
-              Recientes
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="max-w-96">
-              {recents.map((path) => (
-                <DropdownMenuItem
-                  key={path}
-                  onSelect={() => onOpenRecent(path)}
-                  title={path}
-                  className="font-mono text-xs"
-                >
-                  <span className="truncate">{path}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 }

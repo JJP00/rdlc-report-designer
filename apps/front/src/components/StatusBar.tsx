@@ -13,7 +13,7 @@ export interface StatusBarProps {
 /** Pie: mensaje de estado + info del documento (ruta, dirty, recargas, conteo). */
 export function StatusBar({ status, path, dirty, stats, reloads }: StatusBarProps): ReactNode {
   return (
-    <footer className="flex items-center gap-3 border-t bg-background px-3 py-1 text-xs text-muted-foreground">
+    <footer className="flex items-center gap-3 border-t bg-chrome px-3 py-1 text-xs text-muted-foreground">
       <span className="truncate" role="status">
         {status}
       </span>

@@ -48,7 +48,7 @@ export function EditorBanners({
         </div>
       ) : null}
       {conflict ? (
-        <div className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-700">
+        <div className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-800 dark:text-amber-300">
           <span className="min-w-0 flex-1">
             El fichero <span className="font-mono">{conflict}</span> cambió por fuera y hay cambios
             sin guardar: no se ha recargado para no perderlos.
@@ -65,7 +65,7 @@ export function EditorBanners({
       {fileMissing ? (
         <div
           data-testid="file-missing-banner"
-          className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-700"
+          className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-amber-800 dark:text-amber-300"
         >
           <span className="min-w-0 flex-1">
             El fichero <span className="font-mono">{fileMissing}</span> ya no existe en disco.

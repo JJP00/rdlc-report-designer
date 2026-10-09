@@ -378,8 +378,9 @@ App
   arranca de `tab.ui` y persiste cada cambio.
 - `TabStrip`: una pestaña por sesión — nombre del fichero (`basename`, tooltip con
   la ruta completa), `*` si hay `dirty`, marca de conflicto y botón de cerrar; menú
-  `+` con Nuevo… / Abrir… / recientes; la activa se resalta. Con muchas pestañas,
-  scroll horizontal. Se **reordenan** arrastrando (HTML5 DnD, `moveTab`), con
+  `+` con Nuevo… / Abrir… / recientes (**retirado**: se abre desde «Fichero» o
+  arrastrando ficheros); la activa se resalta. Con muchas pestañas, scroll horizontal.
+  Va bajo la barra de formato (marco estable de `ReportTab`). Se **reordenan** arrastrando (HTML5 DnD, `moveTab`), con
   `Ctrl+Shift+RePág/AvPág` (activa) o `Alt+←/→` (enfocada). El **menú contextual**
   ofrece Cerrar / guardadas / otras / a la derecha / todas (`closeTargets`); con
   sucias abre «Guardar todas / Descartar todas / Cancelar» (intención `closeMany`,

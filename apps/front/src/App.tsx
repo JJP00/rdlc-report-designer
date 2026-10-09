@@ -21,7 +21,7 @@ import { findOwnerTablix } from '@/lib/tablix';
  * pestañas, `useItemEditing` para la edición de la activa y `useEditorKeys`
  * para los atajos) y del chrome (tira de pestañas + cuerpo de la pestaña
  * activa). Los diálogos de trabajo y la paleta viven **fuera** del cuerpo
- * (`ReportTab` con `key={activeSessionId}`): al cambiar de pestaña se monta un
+ * (el cuerpo de `ReportTab` lleva `key={sessionId}`): al cambiar de pestaña se monta un
  * cuerpo nuevo y los diálogos de la anterior se cierran.
  */
 export function App(): ReactNode {
@@ -51,12 +51,7 @@ export function App(): ReactNode {
     ui,
     updateUi,
     hasBackend,
-    busy,
     conflict,
-    recents,
-    open,
-    openPath,
-    createNew,
     closeTab,
     closeTabs,
     activateTab,
@@ -183,25 +178,19 @@ export function App(): ReactNode {
           </div>
         ) : null}
 
-        {/* Una pestaña por informe (fase MVP de pestañas): siempre visible. */}
-        <TabStrip
-          tabs={tabs}
-          activeSessionId={activeSessionId}
-          busy={busy}
-          recents={recents}
-          onActivate={activateTab}
-          onMove={moveTab}
-          onClose={closeTab}
-          onCloseMany={closeTabs}
-          onNew={createNew}
-          onOpen={open}
-          onOpenRecent={openPath}
-        />
-
-        {/* Solo la pestaña activa monta el editor; al cambiar, se remonta. */}
+        {/* Marco estable (toolbars + tira de pestañas); el cuerpo se remonta por pestaña. */}
         <ReportTab
-          key={activeSessionId ?? 'empty'}
           core={core}
+          tabStrip={
+            <TabStrip
+              tabs={tabs}
+              activeSessionId={activeSessionId}
+              onActivate={activateTab}
+              onMove={moveTab}
+              onClose={closeTab}
+              onCloseMany={closeTabs}
+            />
+          }
           items={items}
           structureTablix={structureTablix}
           theme={theme}

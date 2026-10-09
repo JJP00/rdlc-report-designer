@@ -81,7 +81,7 @@ export function FormatToolbar({
   );
 
   return (
-    <div className="flex items-center gap-1.5 overflow-x-auto border-b bg-background px-3 py-1.5">
+    <div className="flex items-center gap-1.5 overflow-x-auto border-b bg-chrome-subtle px-3 py-1.5">
       <div
         className={cn('flex items-center gap-1.5', disabled && 'pointer-events-none opacity-40')}
       >

@@ -1,5 +1,75 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Ajustes de UI tras el análisis Intent · 2026-10-09** — pedidos en la revisión; sin
+> commitear. Verificación: `typecheck` 3/3, 400 back + 277 front unit y E2E (ver abajo).
+>
+> - **Tira de pestañas bajo la barra de formato**, justo encima del lienzo. `ReportTab`
+>   se divide en un **marco estable** (barra principal, barra de formato y la tira, que
+>   llega como `tabStrip` desde `App`) y un `ReportBody` con `key={sessionId}` (avisos,
+>   paneles, lienzo, inspector y pie). Así la tira ya no se remonta al cambiar de
+>   pestaña y conserva scroll y foco.
+> - **Botón «+» eliminado** de la tira: Nuevo/Abrir/recientes quedan en «Fichero» y en
+>   arrastrar ficheros a la ventana (`onNew`/`onOpen`/`onOpenRecent`/`busy`/`recents`
+>   salen de `TabStrip`).
+> - **Colores más contrastados y con jerarquía** (`styles.css`): tokens nuevos
+>   `--chrome` (barra principal), `--chrome-subtle` (barra de formato) y `--tabstrip`
+>   (pista de pestañas); en claro la barra principal es la más marcada y la pestaña
+>   activa (blanca, con filete superior `primary`) destaca sobre una pista más oscura;
+>   en oscuro la barra principal es la más elevada y la pista la más hundida. Neutros
+>   con un matiz frío (hue 260). `--border`, `--input` (≥ 3:1: 0,62 en claro, 0,56 en
+>   oscuro), `--muted-foreground`, `--accent`/`--muted` (hover visible), `--ring`
+>   (opaco y azulado; el contorno base pasa de `outline-ring/50` a `outline-ring`) y
+>   avisos ámbar con variante oscura (`EditorBanners`, asterisco de la pestaña). Es el
+>   primer arreglo de los hallazgos 10 y 11 de `docs/ux/0004` (foco, bordes y avisos).
+> - **Verificado con `/include` midiendo en la app** (tokens resueltos a RGB; ratios
+>   WCAG y escalones de luminosidad OKLab). Texto sobre todas las superficies: 12,7–19,7:1
+>   (principal) y 5,4–9,4:1 (atenuado), claro y oscuro. Borde de campo (`--input`) ≥ 3,1:1
+>   sobre las seis superficies en ambos temas (antes 1,6–1,8:1 y, en un primer intento,
+>   2,8–2,9:1 sobre la barra principal: subido a `oklch(.57)` claro y `oklch(.62)` oscuro).
+>   Foco (`--ring`) 4,8–9,3:1. Avisos ámbar 6,5:1 (claro) y 15,2:1 (oscuro); asterisco de
+>   «sin guardar» 5,0:1 y 17,5:1. Destructivo 6,0:1 y 6,7:1. **Jerarquía**: el primer
+>   intento daba escalones de ≈ 1,07 (barra principal/barra de formato; en oscuro,
+>   pestaña activa/pista); se subió a ≥ 5 puntos de luminosidad entre niveles (claro:
+>   barra 91,5 · formato 96,8 · pista 88 · contenido 100; oscuro: 30 · 25 · 12 · 20).
+>   Los bordes de separación (`--border`) quedan en 1,5–2,1:1: son decorativos, no
+>   delimitan controles. No se han probado combinaciones con el lienzo Konva (el papel
+>   sigue blanco por fidelidad WYSIWYG) ni daltonismo simulado.
+
+> **Análisis del front con el sistema Intent · 2026-10-09** — `/evaluate`, `/include`,
+> `/organize` + `/articulate` y `/fortify` + `/transpose` **con la app ejecutándose**
+> (capturas, árbol de accesibilidad, contrastes calculados, 3 tamaños de ventana, 8
+> pestañas). Documento completo: `docs/ux/0004-analisis-intent-frontend.md`.
+> **Salud UX ≈ 71/100** (rango 64–78; 0003 ≈ 61, 0002 = 86). Sin manipulación; sin
+> regresiones de los P0 de resiliencia. Las puntuaciones son estimaciones y los
+> contrastes, cálculos. **No evaluado**: lector de pantalla real, DPI del sistema,
+> arrastrar ficheros desde el Explorador, cierre con varias sucias.
+>
+> **Por prioridad** (detalle, evidencia y arreglo en 0004):
+> - **P0 · el lienzo no se puede usar con teclado ni lector** (`role="presentation"`, sin
+>   `tabindex`; las flechas solo mueven con selección previa). La Jerarquía, única vía no
+>   visual, declara `role="tree"` sin navegación de árbol (341 botones; hasta ~340 Tab).
+> - **P1**: tira de pestañas con `tablist` incompleto y la **pestaña activa fuera de
+>   vista** con muchas abiertas (sin `scrollIntoView`); diálogo «Informe…» que se sale de
+>   la ventana sin scroll; **sin tamaño mínimo de ventana** y con Jerarquía + Variables
+>   abiertas el lienzo mide 0 px a 800; **editar texto solo por clic derecho** (sin doble
+>   clic/Enter/F2); insertar sin modelo mental ni aviso; **conflicto con «Sobrescribir»
+>   como acción primaria enfocada**; «sin guardar» solo por color y `aria-hidden`.
+> - **P2**: foco, bordes de campo y avisos ámbar bajo 3:1/4,5:1; objetivos < 24 px;
+>   toolbar sin tooltips; Ctrl+K y atajos invisibles; estado vacío sin acción; inspector
+>   apilado y con jerga (CanGrow, KeepTogether, Zindex…); pie que no refleja la actividad
+>   y trunca el nombre del fichero; terminología de cierre inconsistente; foco perdido al
+>   cerrar diálogos; reordenar pestañas sin anunciar.
+> - **P3**: tirones con Ctrl+rueda en informes grandes, texto recortado sin señal, nombres
+>   largos de pestaña, `prefers-color-scheme`, textos menores.
+>
+> **Orden sugerido**: ① accesibilidad del lienzo y la Jerarquía (`/journey` →
+> `/specify`); ② robustez a ventana pequeña (`minWidth`, un solo panel, scroll del
+> diálogo y de la tira): cambios pequeños; ③ descubrimiento y feedback (editar texto,
+> inserción, estado vacío, Ctrl+K); ④ foco seguro en el diálogo de conflicto y «sin
+> guardar» accesible; ⑤ pasada única de tokens (foco, bordes, objetivos); ⑥ guía de
+> terminología. **Esto no sustituye** al «Punto de retomada» de más abajo: se suma a él
+> (las capas Nivel 1 comparten el hueco del teclado del lienzo).
+
 > **Ronda de cierre de pestañas y resiliencia · 2026-10-09** — revisión de lo
 > commiteado el 2026-10-08 (`01add38`, `4da665f`) y cierre de los huecos que salieron.
 > Verificación: `typecheck` 3/3; **400 back + 277 front** unit; **118/118 E2E**
@@ -35,7 +105,7 @@
 > - **Límites conocidos**: el orden de las pestañas no sobrevive a recargar la interfaz
 >   (el backend las devuelve por orden de apertura); las claves de `sessionStorage` de
 >   sesiones desaparecidas se quedan hasta cerrar la ventana; mientras se guarda en
->   cualquier pestaña, Nuevo/Abrir del menú `+` están deshabilitados.
+>   cualquier pestaña, Nuevo/Abrir del menú Fichero están deshabilitados.
 >
 > **Punto de retomada**: ① **capas Nivel 1** (pendiente de tu confirmación;
 > `docs/features/0002-capas-rediseno-journey.md`); ② UX P2/P3 de `docs/ux/0002`/`0003`;
@@ -56,7 +126,7 @@
 >   re-adopción al recargar la interfaz adopta **todas** las sesiones vivas.
 >   `useDocumentCore` desaparece: el ciclo de vida vive en `useWorkspace`.
 > - **B · Chrome**: `TabStrip` siempre visible (nombre, `*` de dirty, marca de
->   conflicto, cerrar con guarda por pestaña, menú `+` con Nuevo/Abrir/recientes);
+>   conflicto, cerrar con guarda por pestaña, el menú `+` que tuvo se retiró el 2026-10-09);
 >   `Ctrl+W` cierra la activa y `Ctrl+Tab`/`Ctrl+Shift+Tab` rotan; cerrar la última
 >   deja el editor vacío (no cierra la ventana). **Cambio deliberado**: abrir otro
 >   informe ya no pregunta nada (nada se pierde: se añade pestaña); la guarda queda

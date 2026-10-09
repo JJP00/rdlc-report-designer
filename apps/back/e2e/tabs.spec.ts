@@ -564,6 +564,9 @@ test.describe('pestañas · reordenar y menú contextual', () => {
     await resetWorkspace(ctx());
     await openViaToolbar(ctx(), ctx().secondFile);
     await expect(tabsOf(ctx().page)).toHaveCount(2);
+    // El menú «Fichero» (ahora parte del marco estable, ya no se remonta por pestaña)
+    // anima su cierre: con él abierto los atajos globales se ignoran a propósito.
+    await expect(ctx().page.getByRole('menu')).toHaveCount(0);
   }
 
   test('arrastrar una pestaña la reordena sin cambiar la activa ni ensuciar nada', async () => {

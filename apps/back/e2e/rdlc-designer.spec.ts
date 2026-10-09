@@ -3582,7 +3582,7 @@ test('la toolbar alterna el modo oscuro (blanco y negro)', async () => {
         () => getComputedStyle(document.querySelector('.canvas-dots')!).backgroundColor,
       ),
     )
-    .toBe('rgb(23, 23, 27)');
+    .toBe('rgb(16, 16, 21)');
 
   // Y se puede volver al modo claro (el botón cambia de icono y etiqueta).
   await page.getByRole('button', { name: 'Modo claro' }).click();

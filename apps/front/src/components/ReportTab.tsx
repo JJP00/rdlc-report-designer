@@ -31,73 +31,49 @@ export interface ReportTabProps {
   /** Abre el diálogo de propiedades del informe. */
   onOpenProperties: () => void;
   onEditText: (id: string) => void;
-  onOpenGroupProperties: (tablixId: string, axis: 'row' | 'column', member: TablixMemberDto) => void;
+  onOpenGroupProperties: (
+    tablixId: string,
+    axis: 'row' | 'column',
+    member: TablixMemberDto,
+  ) => void;
   onOpenTablixFilters: (tablixId: string) => void;
   /** Reabre el diálogo de conflicto (aviso superior). */
   onResolveConflict: () => void;
   onPickExpression: (expression: string, name: string) => void;
+  /**
+   * Tira de pestañas: va justo debajo de la barra de formato y encima del
+   * lienzo. La pinta `App` (no se remonta al cambiar de pestaña, así conserva
+   * su scroll y su foco).
+   */
+  tabStrip: ReactNode;
 }
 
 /**
- * Cuerpo del editor de **una** pestaña (fase MVP de pestañas, bloque D): toolbar,
- * barra de formato, avisos, paneles, lienzo y pie. `App` lo monta con
- * `key={activeSessionId}`, así que cambiar de pestaña desmonta el cuerpo entero
- * (un único stage Konva) y lo vuelve a montar limpio; el estado que sobrevive
- * (selección, zoom, paneles) vive en `tab.ui` y lo consume `useItemEditing`.
+ * Editor de la pestaña activa (fase MVP de pestañas, bloque D). El **marco**
+ * —toolbar, barra de formato y tira de pestañas— es estable; el **cuerpo**
+ * (avisos, paneles, lienzo y pie, `ReportBody`) lleva `key={sessionId}`, así que
+ * cambiar de pestaña lo desmonta entero (un único stage Konva) y lo vuelve a
+ * montar limpio. El estado que sobrevive (selección, zoom, paneles) vive en
+ * `tab.ui` y lo consume `useItemEditing`.
  */
-export function ReportTab({
-  core,
-  items,
-  structureTablix,
-  theme,
-  onToggleTheme,
-  zoom,
-  onZoomChange,
-  onZoomFitWidth,
-  onFitZoomChange,
-  showVariables,
-  onToggleVariables,
-  showHierarchy,
-  onToggleHierarchy,
-  onOpenProperties,
-  onEditText,
-  onOpenGroupProperties,
-  onOpenTablixFilters,
-  onResolveConflict,
-  onPickExpression,
-}: ReportTabProps): ReactNode {
+export function ReportTab(props: ReportTabProps): ReactNode {
   const {
-    doc,
-    status,
-    error,
-    dirty,
-    conflict,
-    fileMissing,
-    busy,
-    reloads,
-    hasBackend,
-    recents,
-    open,
-    save,
-    saveAs,
-    createNew,
-    openPath,
-    close,
-    undo,
-    redo,
-    setError,
-  } = core;
-  const { selectedId, selectedIds, selectedItems, movableIds, selectedItem, selectedCell } = items;
-  const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
-
-  /** Qué edita el panel de lote: multiselección de items o contenidos de celdas. */
-  const batchSelection = useBatchSelection({
-    projection: doc?.projection ?? null,
-    selectedIds,
-    selectedItems,
-    movableIds,
-    selectedCell,
-  });
+    core,
+    items,
+    theme,
+    onToggleTheme,
+    zoom,
+    onZoomChange,
+    onZoomFitWidth,
+    showVariables,
+    onToggleVariables,
+    showHierarchy,
+    onToggleHierarchy,
+    onOpenProperties,
+    tabStrip,
+  } = props;
+  const { doc, busy, recents, open, save, saveAs, createNew, openPath, close, undo, redo } = core;
+  const { selectedId, selectedItem } = items;
 
   return (
     <>
@@ -144,6 +120,44 @@ export function ReportTab({
         insertDisabled={doc === null}
       />
 
+      {tabStrip}
+
+      <ReportBody key={doc?.sessionId ?? 'empty'} {...props} />
+    </>
+  );
+}
+
+/** Avisos, paneles, lienzo, inspector y pie de **una** pestaña (se remonta al cambiar). */
+function ReportBody({
+  core,
+  items,
+  structureTablix,
+  zoom,
+  onZoomChange,
+  onFitZoomChange,
+  showVariables,
+  showHierarchy,
+  onEditText,
+  onOpenGroupProperties,
+  onOpenTablixFilters,
+  onResolveConflict,
+  onPickExpression,
+}: ReportTabProps): ReactNode {
+  const { doc, status, error, dirty, conflict, fileMissing, reloads, hasBackend, setError } = core;
+  const { selectedId, selectedIds, selectedItems, movableIds, selectedItem, selectedCell } = items;
+  const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
+
+  /** Qué edita el panel de lote: multiselección de items o contenidos de celdas. */
+  const batchSelection = useBatchSelection({
+    projection: doc?.projection ?? null,
+    selectedIds,
+    selectedItems,
+    movableIds,
+    selectedCell,
+  });
+
+  return (
+    <>
       <EditorBanners
         error={error}
         conflict={conflict}
