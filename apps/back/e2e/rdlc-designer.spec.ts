@@ -782,6 +782,13 @@ async function selectedId(): Promise<string | null> {
   );
 }
 
+/** Ids de la multiselección (según `__rdlcSelectionIds`, publicado en un efecto). */
+async function selectionIds(): Promise<string[]> {
+  return page.evaluate(
+    () => ((window as never as Record<string, unknown>)['__rdlcSelectionIds'] as string[]) ?? [],
+  );
+}
+
 /** Selecciona un elemento del informe por nombre desde la paleta (Ctrl+K). */
 async function selectItemViaPalette(id: string): Promise<void> {
   // Con un editor Monaco enfocado, Ctrl+K no llega a la app (es un chord).
@@ -795,6 +802,9 @@ async function selectItemViaPalette(id: string): Promise<void> {
   // encaja con «Textbox187»).
   await page.getByRole('option', { name: new RegExp(`^${id}\\b`) }).click();
   await expect.poll(selectedId).toBe(id);
+  // La paleta tarda en desmontarse: si se pulsa una tecla (Supr, Ctrl+Z…) con
+  // su buscador aún enfocado, el atajo no llega al lienzo y la prueba falla.
+  await expect(page.getByPlaceholder('Buscar elemento, variable o acción…')).toHaveCount(0);
   // La paleta «trae a la vista» con scroll suave: si un `nodeCenter` se
   // calcula a media animación, el click cae en otro sitio.
   await waitCanvasScrollSettled();
@@ -820,6 +830,67 @@ async function waitCanvasScrollSettled(): Promise<void> {
     previous = current;
     await page.waitForTimeout(50);
   }
+}
+
+/**
+ * Centra el nodo en el hueco visible del lienzo con scroll directo (sin animación)
+ * y espera a que se asiente. El «traer a la vista» de la app es suave: en un
+ * runner de CI (más lento y con ventana más baja) puede seguir en marcha al
+ * medir, y el centro calculado caería fuera del hueco visible sin llegar a
+ * pulsar el item.
+ */
+async function scrollNodeIntoView(id: string): Promise<void> {
+  await page.evaluate((nodeId) => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+      container(): HTMLElement;
+      scaleX(): number;
+    };
+    const node = stage.findOne((candidate) => candidate.id() === nodeId);
+    const canvas = stage.container();
+    const scroller = canvas.closest('.overflow-auto');
+    if (!node || !(scroller instanceof HTMLElement)) return;
+    const box = node.getClientRect({ relativeTo: stage as unknown as never });
+    const zoom = stage.scaleX();
+    const contentTop =
+      canvas.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top +
+      scroller.scrollTop;
+    const center = contentTop + (box.y + box.height / 2) * zoom;
+    scroller.scrollLeft = 0;
+    scroller.scrollTop = Math.max(
+      0,
+      Math.min(scroller.scrollHeight - scroller.clientHeight, center - scroller.clientHeight / 2),
+    );
+  }, id);
+  await waitCanvasScrollSettled();
+}
+
+/** ¿El punto de pantalla cae dentro del hueco visible del lienzo? */
+async function pointInCanvasViewport(point: { x: number; y: number }): Promise<boolean> {
+  return page.evaluate(({ x, y }) => {
+    const scroller = document.querySelector('canvas')?.closest('.overflow-auto');
+    if (!(scroller instanceof HTMLElement)) return true;
+    const rect = scroller.getBoundingClientRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }, point);
+}
+
+/**
+ * Punto de pantalla del nodo esperando a que deje de moverse: el «traer a la
+ * vista» de la app es suave y puede arrancar **después** de medir (más aún en
+ * CI), con lo que el punto quedaría obsoleto y el gesto caería en vacío.
+ */
+async function waitNodeSettled(id: string): Promise<{ x: number; y: number }> {
+  let previous = '';
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const point = await nodeCenter(id);
+    const current = JSON.stringify(point);
+    if (point && current === previous) return point;
+    previous = current;
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`el nodo ${id} no se asienta`);
 }
 
 /** Texto pintado por un editor Monaco (una expresión, tal cual se ve). */
@@ -1015,13 +1086,15 @@ test('al añadir una fila, las celdas nuevas nacen con un textbox seleccionable'
   expect(ids).toHaveLength(1);
   expect(ids[0]).toMatch(/^Textbox\d+$/);
 
-  // El lienzo lo pinta y se selecciona como cualquier item. Se remide el
-  // centro en cada intento: si el lienzo se asienta (scroll/repintado), el
-  // punto medido antes puede caer fuera.
-  await waitCanvasScrollSettled();
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const center = await nodeCenter(ids[0]!);
-    if (center) await page.mouse.click(center.x, center.y);
+  // El lienzo lo pinta y se selecciona como cualquier item. En cada intento se
+  // centra el nodo y se remide: el scroll suave de la app (o el de una prueba
+  // anterior) puede dejar el punto fuera del hueco visible.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await scrollNodeIntoView(ids[0]!);
+    const center = await waitNodeSettled(ids[0]!);
+    if (await pointInCanvasViewport(center)) {
+      await page.mouse.click(center.x, center.y);
+    }
     if ((await selectedId()) === ids[0]) break;
     await page.waitForTimeout(150);
   }
@@ -1397,7 +1470,10 @@ test('un rango de celdas edita el contenido en lote (un solo undo)', async () =>
 
 test('el marco de selección selecciona los items que intersecta', async () => {
   // Caja que cubre Textbox4 y Textbox17 (ambos en el encabezado), empezando en
-  // el margen izquierdo del papel (zona vacía del lienzo).
+  // el margen izquierdo del papel (zona vacía del lienzo). Se centra antes el
+  // encabezado: el scroll de pruebas anteriores puede dejarlo fuera del hueco
+  // visible (en CI el viewport es más bajo).
+  await scrollNodeIntoView('Textbox4');
   const box = await page.evaluate(() => {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
       container(): HTMLElement;
@@ -1430,12 +1506,11 @@ test('el marco de selección selecciona los items que intersecta', async () => {
   await page.mouse.move(box.end.x, box.end.y, { steps: 10 });
   await page.mouse.up();
 
-  const ids = await page.evaluate(
-    () => (window as never as Record<string, unknown>)['__rdlcSelectionIds'] as string[],
-  );
-  expect(ids).toContain('Textbox4');
-  expect(ids).toContain('Textbox17');
-  expect(ids.length).toBeGreaterThan(1);
+  // `__rdlcSelectionIds` se publica desde un efecto de React: se sondea en vez
+  // de leerlo una vez (en CI puede no haberse actualizado aún al soltar).
+  await expect
+    .poll(selectionIds, { message: 'el marco debe seleccionar Textbox4 y Textbox17' })
+    .toEqual(expect.arrayContaining(['Textbox4', 'Textbox17']));
   await expect(page.getByTestId('multi-selection-panel')).toBeVisible();
 });
 
@@ -1478,10 +1553,7 @@ test('duplicar y portapapeles en lote (un undo por operación)', async () => {
   const before = await total();
   await page.keyboard.press('Control+d');
   await expect.poll(total).toBe(before + 2);
-  const clones = await page.evaluate(
-    () => (window as never as Record<string, unknown>)['__rdlcSelectionIds'] as string[],
-  );
-  expect(clones).toHaveLength(2);
+  await expect.poll(async () => (await selectionIds()).length).toBe(2);
   await page.keyboard.press('Control+z');
   await expect.poll(total).toBe(before);
 
@@ -2255,14 +2327,22 @@ test('mover un rectángulo un poco no intenta reparentarlo (sin error)', async (
   // Rectangle2 (encabezado, vacío): arrastrarlo unos píxeles deja el puntero
   // dentro de él; antes se intentaba reparentar en sí mismo y daba error.
   await selectItemViaPalette('Rectangle2');
+  await scrollNodeIntoView('Rectangle2');
   const before = await itemLocation('Rectangle2');
-  const from = await nodeCenter('Rectangle2');
-  expect(from).not.toBeNull();
 
-  await page.mouse.move(from!.x, from!.y);
-  await page.mouse.down();
-  await page.mouse.move(from!.x + 14, from!.y + 10, { steps: 6 });
-  await page.mouse.up();
+  // Si el «traer a la vista» se asienta justo después de medir, el primer
+  // arrastre puede caer en vacío: se remide y se reintenta.
+  let moved = false;
+  for (let attempt = 0; attempt < 3 && !moved; attempt += 1) {
+    const from = await waitNodeSettled('Rectangle2');
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 14, from.y + 10, { steps: 6 });
+    await page.mouse.up();
+    const now = await itemLocation('Rectangle2');
+    moved = now?.top !== before?.top || now?.left !== before?.left;
+    if (!moved) await page.waitForTimeout(150);
+  }
 
   await expect(page.getByText(/dentro de sí mismo/)).toHaveCount(0);
   await expect.poll(() => itemLocation('Rectangle2')).not.toEqual(before);
@@ -2485,14 +2565,18 @@ test('los diálogos de edición se redimensionan con la agarradera', async () =>
   const handle = await stableBox(grip);
 
   // Arrastrar la esquina: el diálogo crece (y no se cierra por la interacción).
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(handle.x + handle.width / 2 + 140, handle.y + handle.height / 2 + 40, {
-    steps: 10,
-  });
-  await page.mouse.up();
+  // Si el primer gesto no engancha la agarradera (timing en CI), se reintenta.
+  let after = await stableBox(dialog);
+  for (let attempt = 0; attempt < 3 && after.width <= before.width + 100; attempt += 1) {
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + handle.width / 2 + 140, handle.y + handle.height / 2 + 40, {
+      steps: 10,
+    });
+    await page.mouse.up();
+    after = await stableBox(dialog);
+  }
   await expect(dialog).toBeVisible();
-  const after = await stableBox(dialog);
   expect(after.width).toBeGreaterThan(before.width + 100);
 
   // Doble clic: vuelve al tamaño original. Secuencial (con el segundo clic
