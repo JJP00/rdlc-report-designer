@@ -3,7 +3,7 @@
 # RDLC Report Designer
 
 **Editor visual de informes `.rdlc` de Business Central y `.rdl` de SSRS.**
-Una alternativa moderna al Report Builder: edita el layout con el ratón y obtén un XML que se guarda **sin alterar nada de lo que no tocaste**.
+Una alternativa moderna al Report Builder: edita el layout con el ratón y obtén un XML que se guarda **sin alterar nada de lo que no tocaste**. test ci
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
