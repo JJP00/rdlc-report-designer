@@ -2355,8 +2355,19 @@ test('un Tablix seleccionado se elimina desde el menú contextual', async () => 
   await expect.poll(() => tablixRowCount('Tablix3')).toBeGreaterThan(0);
 
   // Click derecho en vacío (regla): el menú muestra las acciones de la selección.
+  // El papel puede venir scrolled (en CI la ventana es más baja y el borde
+  // superior del papel sale del hueco): se apunta a un punto **visible** de la
+  // regla, a la izquierda del canto del papel — ahí el hit es siempre vacío.
   const stageBox = await page.locator('canvas').first().boundingBox();
-  await page.mouse.click(stageBox!.x - 8, stageBox!.y + 20, { button: 'right' });
+  const scrollerBox = await page.evaluate(() => {
+    const scroller = document.querySelector('canvas')?.closest('.overflow-auto');
+    if (!(scroller instanceof HTMLElement)) return null;
+    const rect = scroller.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, height: rect.height };
+  });
+  const clickX = Math.max(stageBox!.x - 8, (scrollerBox?.left ?? 0) + 4);
+  const clickY = (scrollerBox?.top ?? 0) + (scrollerBox?.height ?? 0) / 2;
+  await page.mouse.click(clickX, clickY, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Eliminar' }).click();
 
   await expect
@@ -3511,6 +3522,11 @@ test('los márgenes se arrastran desde la regla (previsualización junto a la l�
   const zoom = await stageZoom();
   const before = lengthToCm((await projection()).page.margins.left);
   const marker = page.getByRole('slider', { name: 'Margen izquierdo' });
+  // La regla vive en el hueco con scroll: el papel puede venir scrolled de las
+  // pruebas anteriores y, en ventanas bajas (CI), su borde superior queda fuera
+  // del hueco. Se trae el marcador a la vista antes de medir.
+  await marker.scrollIntoViewIfNeeded();
+  await waitCanvasScrollSettled();
   const box = (await marker.boundingBox())!;
   expect(box).not.toBeNull();
 
@@ -3550,6 +3566,8 @@ test('los márgenes se arrastran desde la regla (previsualización junto a la l�
   // encima y el tamaño resultante.
   const topBefore = lengthToCm((await projection()).page.margins.top);
   const topMarker = page.getByRole('slider', { name: 'Margen superior' });
+  await topMarker.scrollIntoViewIfNeeded();
+  await waitCanvasScrollSettled();
   const topBox = (await topMarker.boundingBox())!;
   await page.mouse.move(topBox.x + topBox.width / 2, topBox.y + topBox.height / 2);
   await page.mouse.down();
