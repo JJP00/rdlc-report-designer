@@ -36,7 +36,10 @@ test.beforeAll(async () => {
   file = join(workspace, 'PalletOutput.rdlc');
   copyFileSync(fixture, file);
   secondFile = join(workspace, 'Segundo.rdlc');
-  copyFileSync(join(here, '..', '..', '..', 'fixtures', 'corpus', 'SalesCreditMemoESP.rdlc'), secondFile);
+  copyFileSync(
+    join(here, '..', '..', '..', 'fixtures', 'corpus', 'SalesCreditMemoESP.rdlc'),
+    secondFile,
+  );
 
   app = await electron.launch({
     args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
@@ -263,9 +266,12 @@ test('pestañas: «guardar como» a una ruta abierta se aborta y la UI no viaja'
 
   // Guardar como… hacia la ruta de la OTRA pestaña: se aborta con un aviso
   // persistente y no se crea una segunda pestaña sobre el mismo fichero.
-  await app.evaluate(({ dialog }, filePath) => {
-    dialog.showSaveDialog = async () => ({ canceled: false, filePath });
-  }, join(workspace, 'Copia.rdlc'));
+  await app.evaluate(
+    ({ dialog }, filePath) => {
+      dialog.showSaveDialog = async () => ({ canceled: false, filePath });
+    },
+    join(workspace, 'Copia.rdlc'),
+  );
   await page.getByRole('button', { name: 'Fichero' }).click();
   await page.getByRole('menuitem', { name: 'Guardar como…' }).click();
   await expect(page.getByRole('alert').first()).toContainText(

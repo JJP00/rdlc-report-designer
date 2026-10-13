@@ -28,7 +28,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { BorderField } from '@/components/panels/BorderField';
 import { PaddingSection } from '@/components/panels/PaddingSection';
 import { useAvailableFonts } from '@/hooks/useAvailableFonts';
-import { alignBoxes, alignCommands, distributeCommands, topLevelIds, type AlignBox } from '@/lib/align';
+import {
+  alignBoxes,
+  alignCommands,
+  distributeCommands,
+  topLevelIds,
+  type AlignBox,
+} from '@/lib/align';
 import { effectiveTextStyle, sameStyleValue, toPt } from '@/lib/style';
 
 export interface MultiSelectionPanelProps {
@@ -90,7 +96,11 @@ export function MultiSelectionPanel({
   // separado rechazaba el `batch` entero (el hijo ya no existe tras quitar el
   // padre) y no se borraba nada (BUG-35).
   const deletableIds = useMemo(
-    () => topLevelIds(items, items.map((item) => item.id)),
+    () =>
+      topLevelIds(
+        items,
+        items.map((item) => item.id),
+      ),
     [items],
   );
 

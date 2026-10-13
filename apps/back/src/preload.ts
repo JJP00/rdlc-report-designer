@@ -77,8 +77,7 @@ const api: RdlcApi = {
   acknowledgeCloseRequest: (): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.acknowledgeCloseRequest),
 
-  listSessions: (): Promise<ListedSessionsResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.listSessions),
+  listSessions: (): Promise<ListedSessionsResult> => ipcRenderer.invoke(IPC_CHANNELS.listSessions),
 
   executeCommand: (sessionId: string, command: RdlcCommand): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.executeCommand, { sessionId, command }),

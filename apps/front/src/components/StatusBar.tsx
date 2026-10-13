@@ -25,7 +25,9 @@ export function StatusBar({ status, path, dirty, stats, reloads }: StatusBarProp
           </span>
           {stats ? <span>{stats}</span> : null}
           {reloads > 0 ? (
-            <span className="text-amber-700 dark:text-amber-400">{reloads} recarga(s) externa(s)</span>
+            <span className="text-amber-700 dark:text-amber-400">
+              {reloads} recarga(s) externa(s)
+            </span>
           ) : null}
         </span>
       ) : null}

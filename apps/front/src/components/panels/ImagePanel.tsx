@@ -1,5 +1,5 @@
 import type { EmbeddedImageDto, ImageDto, StylePatch } from '@rdlc-designer/contracts';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,7 +52,6 @@ const SIZINGS = [
 export function ImagePanel({
   item,
   onSetImageOptions,
-  onSetStyle,
   embeddedImages = [],
 }: ImagePanelProps): ReactNode {
   return (

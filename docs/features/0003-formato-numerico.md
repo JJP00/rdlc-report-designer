@@ -27,13 +27,13 @@ cantidades, importes, fechas), así que es un hueco de uso diario.
 
 ## 2. Estado actual (verificado en el código)
 
-| Capa             | Estado                                                                                                                                                   |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Contrato         | `format: z.string().optional()` en `packages/contracts/src/style.ts` (líneas 46 y 91, parche con `optional`)                                              |
-| Backend          | `setStyle` mapea `format → <Format>` (`apps/back/src/domain/document/commands/setStyle.ts:52`) y está en `SUPPORTED_KEYS`                                |
-| Proyección       | **No verificado** si se proyecta `format` al DTO del item/run                                                                                            |
-| Frontend         | **Ninguna referencia a `format`** en `apps/front/src` (ni panel de texto, ni barra de formato, ni editor de runs, ni lienzo)                              |
-| Round-trip       | Los `<Format>` existentes se conservan al guardar (nodos desconocidos opacos y escritura tag a tag)                                                      |
+| Capa       | Estado                                                                                                                       |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Contrato   | `format: z.string().optional()` en `packages/contracts/src/style.ts` (líneas 46 y 91, parche con `optional`)                 |
+| Backend    | `setStyle` mapea `format → <Format>` (`apps/back/src/domain/document/commands/setStyle.ts:52`) y está en `SUPPORTED_KEYS`    |
+| Proyección | **No verificado** si se proyecta `format` al DTO del item/run                                                                |
+| Frontend   | **Ninguna referencia a `format`** en `apps/front/src` (ni panel de texto, ni barra de formato, ni editor de runs, ni lienzo) |
+| Round-trip | Los `<Format>` existentes se conservan al guardar (nodos desconocidos opacos y escritura tag a tag)                          |
 
 ## 3. Evidencia del corpus (9 `.rdlc` de BC)
 
@@ -43,15 +43,15 @@ FAKESalesShipment 5, BTCQualityControl 1, BTCWhseShipment 1, PalletOutput 0.
 
 Valores más frecuentes:
 
-| Veces | Valor                                                              |
-| ----- | ------------------------------------------------------------------ |
-| 51    | `=First(Fields!BTCFormatcurrency_Lbl.Value, "DataSet_Result")`     |
-| 29    | `=Fields!BTCQtyIntegerFormat.Value`                                |
-| 11    | `=Fields!BTCFormatcurrency_Lbl.Value`                              |
-| 8     | `=First(Fields!BTCFormatUnitPrice_Lbl.Value, "DataSet_Result")`    |
-| 4     | `=Fields!QtyIntegerFormatLbl.Value`                                |
-| 1     | `d` (literal)                                                      |
-| resto | otras expresiones con `First(Fields!…Format…)`                     |
+| Veces | Valor                                                           |
+| ----- | --------------------------------------------------------------- |
+| 51    | `=First(Fields!BTCFormatcurrency_Lbl.Value, "DataSet_Result")`  |
+| 29    | `=Fields!BTCQtyIntegerFormat.Value`                             |
+| 11    | `=Fields!BTCFormatcurrency_Lbl.Value`                           |
+| 8     | `=First(Fields!BTCFormatUnitPrice_Lbl.Value, "DataSet_Result")` |
+| 4     | `=Fields!QtyIntegerFormatLbl.Value`                             |
+| 1     | `d` (literal)                                                   |
+| resto | otras expresiones con `First(Fields!…Format…)`                  |
 
 Tres consecuencias de diseño:
 
@@ -78,18 +78,18 @@ Tres consecuencias de diseño:
   la fuente y la alineación.
 - **Selector de presets** + **campo libre con expresión**:
 
-  | Preset            | Cadena        | Ejemplo (1234,5 / 2026-10-13) |
-  | ----------------- | ------------- | ----------------------------- |
-  | General           | _(sin tag)_   | 1234,5                        |
-  | Número            | `N0`          | 1.235                         |
-  | Número, 2 decimales | `N2`        | 1.234,50                      |
-  | Porcentaje        | `P0` / `P2`   | 123.450 % / 123.450,00 %      |
-  | Moneda            | `C2`          | 1.234,50 €                    |
-  | Fecha corta       | `d`           | 13/10/2026                    |
-  | Fecha larga       | `D`           | martes, 13 de octubre de 2026 |
-  | Fecha y hora      | `g`           | 13/10/2026 10:30              |
-  | Personalizado…    | texto libre   | `#,##0.00;(#,##0.00);""`      |
-  | Expresión…        | `=…`          | `=Fields!BTCQtyIntegerFormat.Value` |
+  | Preset              | Cadena      | Ejemplo (1234,5 / 2026-10-13)       |
+  | ------------------- | ----------- | ----------------------------------- |
+  | General             | _(sin tag)_ | 1234,5                              |
+  | Número              | `N0`        | 1.235                               |
+  | Número, 2 decimales | `N2`        | 1.234,50                            |
+  | Porcentaje          | `P0` / `P2` | 123.450 % / 123.450,00 %            |
+  | Moneda              | `C2`        | 1.234,50 €                          |
+  | Fecha corta         | `d`         | 13/10/2026                          |
+  | Fecha larga         | `D`         | martes, 13 de octubre de 2026       |
+  | Fecha y hora        | `g`         | 13/10/2026 10:30                    |
+  | Personalizado…      | texto libre | `#,##0.00;(#,##0.00);""`            |
+  | Expresión…          | `=…`        | `=Fields!BTCQtyIntegerFormat.Value` |
 
 - **Vista previa** solo cuando el valor del textbox es un campo simple y el formato es un
   literal: muestra un valor de ejemplo con la cultura del informe. Con expresión de
@@ -118,15 +118,15 @@ Tres consecuencias de diseño:
 
 ## 5. Casos límite
 
-| Caso                                                                | Comportamiento esperado                                                   |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Textbox con varios runs y formatos distintos                        | El campo del textbox muestra «Mixto»; cambiarlo lo aplica a todos los runs |
-| Run con `Format` y párrafo/item con otro                            | Manda el del run; al editar el item se quitan los sombreados              |
-| Expresión de formato con comillas (`"DataSet_Result"`)              | Se conservan tal cual (escape propio de texto; ver hallazgo 5 del corpus) |
-| Cadena con `;` o `\` ( `#,##0.00;(#,##0.00)` )                      | Se escribe literal                                                        |
-| Valor `Format` en celdas de Tablix                                  | Igual que en un textbox suelto; viaja con el run                          |
-| Deshacer                                                            | Byte-exacto, incluido volver a «sin tag»                                  |
-| Informe sin `Language`                                              | Avisar de que el resultado depende de la cultura del servidor             |
+| Caso                                                   | Comportamiento esperado                                                    |
+| ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Textbox con varios runs y formatos distintos           | El campo del textbox muestra «Mixto»; cambiarlo lo aplica a todos los runs |
+| Run con `Format` y párrafo/item con otro               | Manda el del run; al editar el item se quitan los sombreados               |
+| Expresión de formato con comillas (`"DataSet_Result"`) | Se conservan tal cual (escape propio de texto; ver hallazgo 5 del corpus)  |
+| Cadena con `;` o `\` ( `#,##0.00;(#,##0.00)` )         | Se escribe literal                                                         |
+| Valor `Format` en celdas de Tablix                     | Igual que en un textbox suelto; viaja con el run                           |
+| Deshacer                                               | Byte-exacto, incluido volver a «sin tag»                                   |
+| Informe sin `Language`                                 | Avisar de que el resultado depende de la cultura del servidor              |
 
 ## 6. Pruebas
 

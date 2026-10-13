@@ -19,6 +19,7 @@ Start with the brand's core attributes — the 3-5 characteristics that define h
 Translate brand attributes into writing principles. Each attribute generates 1-2 specific principles that a writer can act on.
 
 **Attribute → Principle pattern:**
+
 - "Direct" → "Lead with the action. If the user needs to do something, start with the verb."
 - "Empathetic" → "Acknowledge the user's situation before providing instructions. Error messages start with what happened, not what to do."
 - "Expert" → "Use precise terminology when it helps, but always define it in context. Never use jargon as a substitute for explanation."
@@ -30,6 +31,7 @@ Translate brand attributes into writing principles. Each attribute generates 1-2
 Voice is constant. Tone shifts by context. A voice framework must define how tone changes across different situations while the voice remains recognizable.
 
 Map tone across a spectrum for each of these dimensions:
+
 - **Formality:** casual ←→ formal
 - **Emotion:** warm ←→ matter-of-fact
 - **Authority:** peer ←→ expert
@@ -42,6 +44,7 @@ Then map where different product contexts fall on each spectrum. Onboarding migh
 Concrete rules that implement the voice principles. These are the operational layer — the "how to write" instructions.
 
 **Include:**
+
 - Sentence length targets (aim for 15-20 words average; break up longer sentences)
 - Active vs. passive voice guidance (active for actions, passive acceptable for system states: "Your file was saved" vs. "We saved your file")
 - Pronoun usage (we/you/they — and when to use each)
@@ -56,18 +59,18 @@ Concrete rules that implement the voice principles. These are the operational la
 
 The tone matrix maps how voice shifts across product contexts. This is the most practical artifact in the content strategy toolkit — it's what writers actually reference daily.
 
-| Context | Formality | Emotion | Authority | Complexity | Example |
-|---------|-----------|---------|-----------|------------|---------|
-| **Onboarding** | Casual | Warm, encouraging | Peer | Simple | "Welcome! Let's get your workspace set up. This takes about 2 minutes." |
-| **Success states** | Casual | Celebratory but brief | Peer | Simple | "Done! Your changes are live." |
-| **Error messages** | Moderate | Empathetic, calm | Expert | Simple | "We couldn't save your changes. Your internet connection dropped — try again when you're back online." |
-| **Empty states** | Casual | Encouraging, helpful | Peer | Simple | "No projects yet. Create your first one to get started." |
-| **Settings/Preferences** | Moderate | Neutral, clear | Expert | Moderate | "Two-factor authentication adds a second verification step when you sign in. We recommend enabling it." |
-| **Legal/Compliance** | Formal | Neutral | Expert | Technical (with plain-language summary) | "We process your data under GDPR Article 6(1)(b) — it's necessary for the service you asked us to provide." |
-| **Destructive actions** | Moderate | Serious, clear | Expert | Simple | "Deleting this workspace removes all projects, files, and member access. This can't be undone." |
-| **Help/Documentation** | Moderate | Patient, thorough | Expert | Moderate to technical | "Webhooks send real-time notifications to your server when events happen in your workspace. Here's how to set one up." |
-| **Marketing/Upgrade** | Casual to moderate | Enthusiastic but honest | Peer | Simple | "The Pro plan includes unlimited projects and priority support. Here's what changes — and what stays the same." |
-| **Support/Contact** | Moderate | Warm, professional | Peer | Simple | "Stuck on something? Our support team usually responds within an hour." |
+| Context                  | Formality          | Emotion                 | Authority | Complexity                              | Example                                                                                                                |
+| ------------------------ | ------------------ | ----------------------- | --------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Onboarding**           | Casual             | Warm, encouraging       | Peer      | Simple                                  | "Welcome! Let's get your workspace set up. This takes about 2 minutes."                                                |
+| **Success states**       | Casual             | Celebratory but brief   | Peer      | Simple                                  | "Done! Your changes are live."                                                                                         |
+| **Error messages**       | Moderate           | Empathetic, calm        | Expert    | Simple                                  | "We couldn't save your changes. Your internet connection dropped — try again when you're back online."                 |
+| **Empty states**         | Casual             | Encouraging, helpful    | Peer      | Simple                                  | "No projects yet. Create your first one to get started."                                                               |
+| **Settings/Preferences** | Moderate           | Neutral, clear          | Expert    | Moderate                                | "Two-factor authentication adds a second verification step when you sign in. We recommend enabling it."                |
+| **Legal/Compliance**     | Formal             | Neutral                 | Expert    | Technical (with plain-language summary) | "We process your data under GDPR Article 6(1)(b) — it's necessary for the service you asked us to provide."            |
+| **Destructive actions**  | Moderate           | Serious, clear          | Expert    | Simple                                  | "Deleting this workspace removes all projects, files, and member access. This can't be undone."                        |
+| **Help/Documentation**   | Moderate           | Patient, thorough       | Expert    | Moderate to technical                   | "Webhooks send real-time notifications to your server when events happen in your workspace. Here's how to set one up." |
+| **Marketing/Upgrade**    | Casual to moderate | Enthusiastic but honest | Peer      | Simple                                  | "The Pro plan includes unlimited projects and priority support. Here's what changes — and what stays the same."        |
+| **Support/Contact**      | Moderate           | Warm, professional      | Peer      | Simple                                  | "Stuck on something? Our support team usually responds within an hour."                                                |
 
 ---
 
@@ -80,6 +83,7 @@ Content modeling defines the structure of content independently from its present
 Every piece of content should be modeled as structured data, not as a blob of formatted text.
 
 **Example: An event**
+
 - Title (plain text, max 80 characters)
 - Description (rich text, max 500 characters)
 - Short description (plain text, max 140 characters — for cards and previews)
@@ -96,6 +100,7 @@ Every piece of content should be modeled as structured data, not as a blob of fo
 Content that will be translated needs to be modeled for translation from the start. Retrofitting localization is orders of magnitude more expensive than building it in.
 
 **Rules:**
+
 - Separate content from presentation. Don't hardcode text in templates, components, or images.
 - Don't concatenate strings. "You have " + count + " messages" breaks in languages with different word order. Use ICU MessageFormat or equivalent: "{count, plural, one {You have 1 message} other {You have # messages}}".
 - Don't assume text length. German text is typically 30% longer than English. Japanese may be shorter. Design layouts that accommodate variation.
@@ -149,6 +154,7 @@ Microcopy is the small text that guides users through interactions. It's the mos
 The first screen a new user sees is almost always an empty state. It's the product's first impression — and most products waste it.
 
 **Good empty states contain:**
+
 1. What this area is for (education)
 2. How to add the first item (action)
 3. Why it's worth doing (motivation)
@@ -168,6 +174,7 @@ Inconsistent terminology is one of the most common causes of user confusion and 
 **Identify terms that need governance:** Technical terms, product-specific concepts, feature names, status labels, action verbs. If two writers might use different words for the same thing, it needs a glossary entry.
 
 **For each term, document:**
+
 - The canonical term (the one we use)
 - Synonyms we don't use (and why — "we say 'workspace,' not 'project space' or 'dashboard'")
 - Definition (in user-facing language, not internal language)
@@ -184,6 +191,7 @@ Inconsistent terminology is one of the most common causes of user confusion and 
 ### Jargon Management
 
 **Rules:**
+
 1. If the user needs a technical term to use the product, define it the first time it appears — in context, not in a glossary page nobody will visit.
 2. If a simpler word exists, use it. "Use" not "utilize." "Start" not "initiate." "End" not "terminate."
 3. Internal terminology never reaches the user. The user doesn't know what "SKU" means, that "KYC" stands for Know Your Customer, or that "RBAC" is role-based access control. Translate.
@@ -198,6 +206,7 @@ Inconsistent terminology is one of the most common causes of user confusion and 
 **Flesch-Kincaid Grade Level** is the most widely used readability metric. It estimates the U.S. school grade level required to understand the text. Target: grade 6-8 for consumer products, grade 8-10 for professional tools, grade 10-12 for expert documentation.
 
 **How to improve readability scores:**
+
 - Shorter sentences (average 15-20 words)
 - Shorter words (prefer one and two-syllable words)
 - Active voice (subject → verb → object)
@@ -211,6 +220,7 @@ Inconsistent terminology is one of the most common causes of user confusion and 
 Plain language is not simple language. It's clear language. The goal is that the reader can find what they need, understand what they find, and use that understanding to act.
 
 **Federal Plain Language Guidelines (plainlanguage.gov) principles:**
+
 1. Write for your audience — use their vocabulary, address their needs
 2. Organize for the reader — most important information first
 3. Use short sentences and paragraphs
@@ -222,6 +232,7 @@ Plain language is not simple language. It's clear language. The goal is that the
 9. Use meaningful headings
 
 **In product interfaces specifically:**
+
 - Button labels should be verbs that describe the action: "Save changes," "Create project," "Send message"
 - Error messages should be sentences: subject, verb, solution
 - Instructions should start with the goal, then the steps: "To export your data, go to Settings > Export"

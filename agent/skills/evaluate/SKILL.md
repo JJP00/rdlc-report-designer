@@ -15,6 +15,7 @@ description: >
   issues and refers to specialists.
 version: 1.6.0
 ---
+
 # Evaluate — Assess UX Quality
 
 ## Overview
@@ -73,13 +74,13 @@ When evaluating a design, you carry the storytelling discipline's `protagonist-a
 - **What goal-state did they fail to reach?** Be specific — not "the user got confused" but "the user could not complete checkout because the address validation kept rejecting valid international postcodes."
 - **What does the breakage feel like for them?** Frustration, abandonment, switching to a competitor, calling support — the emotional resolution of the failed arc.
 
-**Pathology to refuse:** Same as the canonical pattern — *false coherence.* Smoothing the breakage into a tidy "the user struggled with X" when the underlying data shows three different ways three different users got stuck. Show the variance.
+**Pathology to refuse:** Same as the canonical pattern — _false coherence._ Smoothing the breakage into a tidy "the user struggled with X" when the underlying data shows three different ways three different users got stuck. Show the variance.
 
 **Why this matters:** A heuristic audit can pass and still miss what users actually feel when the design fails them. The arc applied to failures connects the audit findings to the user's lived experience — turns a list of issues into a story of where the team's design lost the people it was meant to serve.
 
 **Operative voice:**
 
-> *"The audit identified three high-severity issues. Let me reframe them as the story of where the user's checkout journey breaks — the team will care more, and prioritization gets clearer once we see which break costs the user the most."*
+> _"The audit identified three high-severity issues. Let me reframe them as the story of where the user's checkout journey breaks — the team will care more, and prioritization gets clearer once we see which break costs the user the most."_
 
 For the full pattern library and stance, see `storytelling`.
 
@@ -189,21 +190,21 @@ Every finding maps to a specific Intent skill. This is what makes evaluation act
 
 **Routing logic:**
 
-| Issue category | Route to | Examples |
-|---|---|---|
-| Navigation, findability, information structure | `/organize` | Users can't find settings; menu labels don't match mental model |
-| Copy, labels, error messages, instructions | `/articulate` | Generic error messages; jargon in UI; ambiguous button labels |
-| Flow logic, task structure, interaction sequence | `/journey` | Steps out of order; dead ends in task flow; unclear entry points |
-| Edge cases, empty states, loading, error recovery | `/fortify` | No loading indicator; empty states with no guidance; no undo |
-| Accessibility, assistive tech, inclusive design | `/include` | Insufficient contrast; keyboard traps; missing alt text |
-| System architecture, backend constraints, dependencies | `/blueprint` | UX issue caused by service timeout; data sync problems |
-| Dark patterns, manipulative design | Flag + anti-pattern catalog | Confirmshaming; prechecked consent; fake urgency |
-| Success metrics, measurement gaps | `/measure` | No analytics on key flows; success undefined |
-| Research gaps, unanswered user questions | `/investigate` | "We don't know why users drop off here" |
-| Problem framing, strategic misalignment | `/strategize` | Experience solves wrong problem; audience mismatch |
-| Platform adaptation, cross-device issues | `/transpose` | Mobile experience is just a shrunk desktop; touch targets too small |
-| Specification gaps, handoff issues | `/specify` | Interaction states undocumented; edge cases unspecified |
-| Vague unease, qualitative wrongness | `/philosopher` | "Something feels off but I can't name it" |
+| Issue category                                         | Route to                    | Examples                                                            |
+| ------------------------------------------------------ | --------------------------- | ------------------------------------------------------------------- |
+| Navigation, findability, information structure         | `/organize`                 | Users can't find settings; menu labels don't match mental model     |
+| Copy, labels, error messages, instructions             | `/articulate`               | Generic error messages; jargon in UI; ambiguous button labels       |
+| Flow logic, task structure, interaction sequence       | `/journey`                  | Steps out of order; dead ends in task flow; unclear entry points    |
+| Edge cases, empty states, loading, error recovery      | `/fortify`                  | No loading indicator; empty states with no guidance; no undo        |
+| Accessibility, assistive tech, inclusive design        | `/include`                  | Insufficient contrast; keyboard traps; missing alt text             |
+| System architecture, backend constraints, dependencies | `/blueprint`                | UX issue caused by service timeout; data sync problems              |
+| Dark patterns, manipulative design                     | Flag + anti-pattern catalog | Confirmshaming; prechecked consent; fake urgency                    |
+| Success metrics, measurement gaps                      | `/measure`                  | No analytics on key flows; success undefined                        |
+| Research gaps, unanswered user questions               | `/investigate`              | "We don't know why users drop off here"                             |
+| Problem framing, strategic misalignment                | `/strategize`               | Experience solves wrong problem; audience mismatch                  |
+| Platform adaptation, cross-device issues               | `/transpose`                | Mobile experience is just a shrunk desktop; touch targets too small |
+| Specification gaps, handoff issues                     | `/specify`                  | Interaction states undocumented; edge cases unspecified             |
+| Vague unease, qualitative wrongness                    | `/philosopher`              | "Something feels off but I can't name it"                           |
 
 **Priority mapping:** P0 issues get addressed first regardless of category. Within the same priority tier, address issues that affect the most users or the most critical tasks first. Group issues by skill when possible — it's more efficient to engage `/fortify` once for 5 edge case issues than 5 times for 1 issue each.
 

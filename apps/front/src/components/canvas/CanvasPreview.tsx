@@ -1,5 +1,4 @@
 import type {
-  ItemDto,
   Length,
   NewItemSpec,
   PageMarginsDto,

@@ -38,15 +38,15 @@ What it misses: Efficiency without satisfaction. A user who completes a task but
 
 ### Applying HEART by Feature Type
 
-| Feature type | Primary dimension | Secondary dimensions |
-|-------------|------------------|---------------------|
-| Core workflow (checkout, file creation, messaging) | Task success | Happiness, Engagement |
-| Onboarding | Adoption | Task success, Retention (day-1) |
-| Social features | Engagement | Retention, Happiness |
-| Content / discovery | Engagement | Happiness, Adoption (new content areas) |
-| Settings / configuration | Task success | Happiness |
-| Monetization | Adoption (conversion) | Retention (renewal), Happiness |
-| Support / help | Task success (resolution) | Happiness (satisfaction) |
+| Feature type                                       | Primary dimension         | Secondary dimensions                    |
+| -------------------------------------------------- | ------------------------- | --------------------------------------- |
+| Core workflow (checkout, file creation, messaging) | Task success              | Happiness, Engagement                   |
+| Onboarding                                         | Adoption                  | Task success, Retention (day-1)         |
+| Social features                                    | Engagement                | Retention, Happiness                    |
+| Content / discovery                                | Engagement                | Happiness, Adoption (new content areas) |
+| Settings / configuration                           | Task success              | Happiness                               |
+| Monetization                                       | Adoption (conversion)     | Retention (renewal), Happiness          |
+| Support / help                                     | Task success (resolution) | Happiness (satisfaction)                |
 
 ---
 
@@ -64,12 +64,12 @@ HEART tells you what dimensions to measure. GSM tells you how to operationalize 
 
 ### GSM Example: Search Feature
 
-| Layer | Content |
-|-------|---------|
-| **Goal** | Users can quickly find relevant content |
-| **Signals (positive)** | User clicks a result, user's session continues after search, user doesn't refine the same query multiple times |
-| **Signals (negative)** | User abandons search without clicking, user immediately searches again with different terms, user contacts support after searching |
-| **Metrics** | Search success rate (% of searches with a result click), refinement rate (% of searches followed by a query change), time to first click, support tickets mentioning "can't find" |
+| Layer                  | Content                                                                                                                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Goal**               | Users can quickly find relevant content                                                                                                                                           |
+| **Signals (positive)** | User clicks a result, user's session continues after search, user doesn't refine the same query multiple times                                                                    |
+| **Signals (negative)** | User abandons search without clicking, user immediately searches again with different terms, user contacts support after searching                                                |
+| **Metrics**            | Search success rate (% of searches with a result click), refinement rate (% of searches followed by a query change), time to first click, support tickets mentioning "can't find" |
 
 ### Common GSM Mistakes
 
@@ -92,11 +92,13 @@ You don't need to be a statistician. You need to know enough to ask the right qu
 **Why it matters:** A test with too few users can't detect real differences. A test that runs too long wastes time testing something that's already conclusive. Sample size determines the reliability of your conclusions.
 
 **Rules of thumb for qualitative research:**
+
 - Usability testing: 5 users per round (Nielsen). Catches ~85% of major issues. Run multiple rounds, not bigger rounds.
 - Interviews: 12-20 for thematic saturation in a homogeneous group (Guest et al., 2006). More segments = more interviews.
 - Card sorting: 15-20 for open sorts, 30+ for closed sorts with quantitative analysis.
 
 **Rules of thumb for quantitative research:**
+
 - Surveys: Minimum 30 for basic statistics, 100+ for segmentation, 400+ for population estimates.
 - A/B tests: Use a sample size calculator. Inputs: baseline conversion rate, minimum detectable effect, significance level, power. Don't guess — calculate.
 
@@ -182,6 +184,7 @@ The technology industry's default success metric — engagement — is structura
 **When engagement conflicts with wellbeing:** Social media (more use often correlates with worse mental health outcomes, per Haidt & Twenge), entertainment (compulsive consumption doesn't equal enjoyment), news (doomscrolling is engagement without benefit), gaming (session length optimization can be harmful).
 
 **Alternative metrics for wellbeing:**
+
 - Session satisfaction (post-session survey: "Was that time well spent?")
 - Intentional return rate (users who set out to use the product vs. users pulled in by notifications)
 - Goal completion (did the user accomplish what they came for?)

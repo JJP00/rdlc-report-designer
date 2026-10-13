@@ -65,8 +65,8 @@ export function insertDestinationLabel(scope: ScopeRef): string {
 }
 
 /**
- * Esc en el lienzo sin selección: la salida con teclado (WCAG 2.1.2). `true`
- * si la tecla debe devolver el foco a la pestaña activa.
+ * Esc en el lienzo sin selecciï¿½n: la salida con teclado (WCAG 2.1.2). `true`
+ * si la tecla debe devolver el foco a la pestaï¿½a activa.
  */
 export function shouldLeaveCanvas(opts: {
   key: string;
@@ -86,7 +86,7 @@ export function shouldLeaveCanvas(opts: {
   );
 }
 
-/** Mueve el foco a la pestaña activa de la tira. `false` si no hay ninguna. */
+/** Mueve el foco a la pestaï¿½a activa de la tira. `false` si no hay ninguna. */
 export function focusActiveTab(root: ParentNode = document): boolean {
   const tab = root.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
   if (!tab) return false;

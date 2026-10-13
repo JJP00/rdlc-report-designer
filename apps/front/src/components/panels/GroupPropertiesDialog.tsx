@@ -135,7 +135,6 @@ interface TabProps {
 }
 
 function GeneralTab({
-  member,
   variables,
   draft,
   setDraft,

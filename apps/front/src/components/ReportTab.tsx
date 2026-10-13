@@ -162,7 +162,7 @@ function ReportBody({
   onPickExpression,
 }: ReportTabProps): ReactNode {
   const { doc, status, error, dirty, conflict, fileMissing, reloads, hasBackend, setError } = core;
-  const { selectedId, selectedIds, selectedItems, movableIds, selectedItem, selectedCell } = items;
+  const { selectedId, selectedIds, selectedItems, movableIds, selectedCell } = items;
   const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
 
   /** Qué edita el panel de lote: multiselección de items o contenidos de celdas. */

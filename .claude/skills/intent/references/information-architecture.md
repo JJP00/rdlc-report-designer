@@ -97,6 +97,7 @@ A mental model is the user's internal representation of how a system works. It d
 ### Applied Mental Model Theory
 
 **The Design of Everyday Things (1988)** distinguishes three models:
+
 1. **Design model** — How the designer thinks the system works
 2. **System model** — How the system actually works
 3. **User model** — How the user thinks the system works
@@ -104,6 +105,7 @@ A mental model is the user's internal representation of how a system works. It d
 The interface is the bridge between design model and user model. When they align, the product feels intuitive. When they don't, the product feels broken — even if it works perfectly from a technical standpoint.
 
 **Common misalignments:**
+
 - Users think "deleting" removes something permanently; the system moves it to trash. (Mild — the system is more forgiving than expected.)
 - Users think "saving" preserves their work; the system auto-saves and "save" does nothing visible. (Confusing — the action has no visible effect.)
 - Users think each browser tab is independent; the system shares session state across tabs. (Dangerous — changes in one tab silently affect another.)
@@ -173,22 +175,26 @@ The user doesn't know the domain well enough to formulate a useful query. Exampl
 ### Running a Card Sort
 
 **Preparation:**
+
 1. Select 30-60 content items that represent the full breadth of your content. Too few misses important distinctions; too many fatigues participants.
 2. Write each item on a card (physical or digital — tools like OptimalSort, Maze, or UXtweak work well for remote sorts).
 3. Use real content labels, not internal jargon. If the sort reveals that users don't understand a label, that's a finding.
 
 **Open sort protocol:**
+
 1. Ask participants to group cards in whatever way makes sense to them. No right answer.
 2. After grouping, ask them to name each group.
 3. Ask about any cards they found difficult to place.
 4. Note: some participants will create many small groups; others will create few large groups. Both patterns are informative.
 
 **Closed sort protocol:**
+
 1. Provide pre-defined categories.
 2. Ask participants to place each card in the category where they'd expect to find it.
 3. Record placement and confidence. Low-confidence placements indicate taxonomy problems.
 
 **Analysis:**
+
 - Generate a similarity matrix showing how often items were grouped together.
 - Use dendrograms or cluster analysis to identify natural groupings.
 - Look for items that consistently end up alone or oscillate between groups — these are your taxonomy's problem children.
@@ -197,22 +203,26 @@ The user doesn't know the domain well enough to formulate a useful query. Exampl
 ### Running a Tree Test
 
 **Preparation:**
+
 1. Create a text-only representation of your navigation hierarchy. No visual design, no icons, no color.
 2. Write 8-12 tasks that represent common user goals. Example: "Where would you find information about changing your password?"
 3. Each task should have exactly one correct destination.
 
 **Protocol:**
+
 1. Show the top level of the tree.
 2. Present a task.
 3. Participant clicks into categories, drilling deeper until they think they've found the right place.
 4. Record: path taken, success/failure, directness (did they backtrack?), time to completion.
 
 **Key metrics:**
+
 - **Success rate:** What percentage of participants found the correct answer? Below 70% for a task indicates a structural problem.
 - **Directness:** What percentage went straight to the answer without backtracking? Low directness with high eventual success means the label worked but the location wasn't intuitive — users found it by elimination.
 - **First click:** Where did participants click first? If the majority's first click is wrong, the top-level labels or categories are the problem.
 
 **Interpreting results:**
+
 - High success + high directness = the structure works for this task
 - High success + low directness = findable but not intuitive; users had to hunt
 - Low success + varied paths = structural problem; the item isn't where users expect it

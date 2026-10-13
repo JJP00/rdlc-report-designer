@@ -540,7 +540,7 @@ function cellScopeForMenu(
 
 /** Último tramo de una ruta (Windows o POSIX). */
 function fileName(path: string): string {
-  return path.split(/[\/]/).pop() || path;
+  return path.split('/').pop() || path;
 }
 
 function EmptyCanvas({

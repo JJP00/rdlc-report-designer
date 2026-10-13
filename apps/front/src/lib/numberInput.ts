@@ -24,7 +24,7 @@ export function parseNumberDraft(draft: string): number | undefined {
 
   const lastComma = trimmed.lastIndexOf(',');
   const lastDot = trimmed.lastIndexOf('.');
-  let normalized = trimmed;
+  let normalized: string;
   if (lastComma >= 0 && lastDot >= 0) {
     const decimal = lastComma > lastDot ? ',' : '.';
     const thousands = decimal === ',' ? '.' : ',';

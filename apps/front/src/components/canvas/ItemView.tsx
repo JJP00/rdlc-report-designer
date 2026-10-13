@@ -731,7 +731,6 @@ function ImagePlaceholder({
 
 function TablixContent({
   item,
-  selected,
   onSelect,
   onMoveTo,
   onResizeColumn,

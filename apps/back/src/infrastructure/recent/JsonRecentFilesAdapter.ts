@@ -33,7 +33,9 @@ export class JsonRecentFilesAdapter implements RecentFilesPort {
   private async readStored(): Promise<string[]> {
     try {
       const parsed: unknown = JSON.parse(await readFile(this.filePath, 'utf8'));
-      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === 'string')
+        : [];
     } catch {
       // Sin fichero (primera ejecución) o JSON corrupto: se empieza de cero.
       return [];

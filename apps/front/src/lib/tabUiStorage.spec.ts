@@ -79,7 +79,9 @@ describe('tabUiStorage', () => {
   });
 
   it('serializa solo los campos conocidos', () => {
-    const ui = { ...createTabUiState(), extra: () => 1 } as unknown as ReturnType<typeof createTabUiState>;
+    const ui = { ...createTabUiState(), extra: () => 1 } as unknown as ReturnType<
+      typeof createTabUiState
+    >;
     expect(Object.keys(JSON.parse(serializeTabUi(ui))).sort()).toEqual([
       'selectedCell',
       'selectedId',

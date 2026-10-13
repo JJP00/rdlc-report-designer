@@ -16,6 +16,7 @@ description: >
   inclusively makes the experience better for everyone.
 version: 1.6.0
 ---
+
 # Include — Design for Everyone
 
 ## Overview

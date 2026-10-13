@@ -22,6 +22,7 @@ Information architecture is the structural design of shared information environm
 IA is not navigation design (that's one output of IA). It's not content strategy (that's what fills the structure). It's not visual design (that's how the structure looks). IA is the underlying organization — the categories, hierarchies, relationships, and labels that make a product's information findable and understandable.
 
 **Trigger this skill when users ask about:**
+
 - Designing or restructuring navigation (top-level, secondary, contextual)
 - Organizing content into categories, sections, or taxonomies
 - Site maps, content inventories, or structural audits
@@ -46,7 +47,7 @@ You work alongside complementary skills that handle interconnected concerns:
 - **`/localize`** — IA decisions that work in one language or culture may fail in another. Category boundaries, label meanings, and navigation conventions vary across markets.
 - **`/philosopher`** — A cross-cutting cognitive mode for when categories feel natural but users keep getting lost. Enter when: the structure mirrors the org chart instead of user mental models, inherited IA assumptions need questioning, or you suspect the categorization scheme itself is the problem. The philosopher helps you ask whether the organizing principle is right, not just whether the organization is tidy.
 
-Collaborate explicitly with each when their domain matters. Call out what you're *not* deciding.
+Collaborate explicitly with each when their domain matters. Call out what you're _not_ deciding.
 
 ## Visualization
 
@@ -80,83 +81,164 @@ CSS below in an inline `<style>` tag.
 
 ```css
 :root {
-  --bg: #fafafc; --surface: #ffffff; --fg: #18182b; --fg-muted: #65657a;
-  --border: #d8d8e4; --accent: #4338ca;
-  --sans: "Hanken Grotesk", Inter, system-ui, -apple-system, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, monospace;
-  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
-  --s5: 20px; --s6: 24px; --s7: 32px; --s8: 48px;
+  --bg: #fafafc;
+  --surface: #ffffff;
+  --fg: #18182b;
+  --fg-muted: #65657a;
+  --border: #d8d8e4;
+  --accent: #4338ca;
+  --sans: 'Hanken Grotesk', Inter, system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s7: 32px;
+  --s8: 48px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #18182b; --surface: #1f1f36; --fg: #f0f0f8; --fg-muted: #8888a8;
-    --border: #2a2a44; --accent: #7c6ff0;
+    --bg: #18182b;
+    --surface: #1f1f36;
+    --fg: #f0f0f8;
+    --fg-muted: #8888a8;
+    --border: #2a2a44;
+    --accent: #7c6ff0;
   }
 }
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 body {
-  font-family: var(--sans); background: var(--bg); color: var(--fg);
-  padding: var(--s7); line-height: 1.5; margin: 0;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--fg);
+  padding: var(--s7);
+  line-height: 1.5;
+  margin: 0;
 }
 .visual-diagram {
-  margin: 0; padding: var(--s5);
-  background: var(--surface); border-radius: 8px;
-  border: 1px solid var(--border); overflow-x: auto;
+  margin: 0;
+  padding: var(--s5);
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
 }
 .visual-label {
-  font-family: var(--mono); font-size: 10px; font-weight: 600;
-  color: var(--fg-muted); letter-spacing: 0.06em;
-  margin-bottom: var(--s4); text-transform: uppercase;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: var(--s4);
+  text-transform: uppercase;
 }
 .sitemap-tabbar {
-  display: flex; align-items: center; justify-content: space-around;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
   padding: var(--s2) var(--s3);
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 8px; margin-bottom: var(--s4);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: var(--s4);
 }
 .sitemap-tab {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 2px; font-size: 10px; color: var(--fg-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--fg-muted);
   padding: var(--s1) var(--s2);
 }
-.sitemap-tab svg { color: var(--fg-muted); }
-.sitemap-tab-active { color: var(--accent); }
-.sitemap-tab-active svg { color: var(--accent); }
+.sitemap-tab svg {
+  color: var(--fg-muted);
+}
+.sitemap-tab-active {
+  color: var(--accent);
+}
+.sitemap-tab-active svg {
+  color: var(--accent);
+}
 .sitemap-tab-post {
-  background: var(--accent); border-radius: 50%;
-  width: 32px; height: 32px;
-  display: flex; align-items: center; justify-content: center; padding: 0;
+  background: var(--accent);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
-.sitemap-tab-post svg { color: white; }
-.sitemap-tree { padding: var(--s2) 0; }
-.sitemap-root { margin-bottom: var(--s3); }
+.sitemap-tab-post svg {
+  color: white;
+}
+.sitemap-tree {
+  padding: var(--s2) 0;
+}
+.sitemap-root {
+  margin-bottom: var(--s3);
+}
 .sitemap-root .sitemap-node-label {
-  font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--fg);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fg);
 }
-.sitemap-branches { display: flex; gap: var(--s2); flex-wrap: wrap; }
-.sitemap-branch { flex: 1; min-width: 85px; }
+.sitemap-branches {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+.sitemap-branch {
+  flex: 1;
+  min-width: 85px;
+}
 .sitemap-node {
-  padding: var(--s2); background: var(--bg);
-  border: 1px solid var(--border); border-radius: 4px;
-  font-size: 11px; font-weight: 600; color: var(--fg);
+  padding: var(--s2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
   margin-bottom: var(--s2);
-  display: flex; align-items: center; gap: var(--s1);
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
 }
-.sitemap-node-primary { border-color: var(--accent); border-width: 2px; }
+.sitemap-node-primary {
+  border-color: var(--accent);
+  border-width: 2px;
+}
 .sitemap-node-action {
-  background: var(--accent); color: white; border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
 }
 .sitemap-node-tag {
-  font-family: var(--mono); font-size: 9px;
-  color: var(--fg-muted); font-weight: 400; margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--fg-muted);
+  font-weight: 400;
+  margin-left: auto;
 }
-.sitemap-node-action .sitemap-node-tag { color: rgba(255,255,255,0.7); }
+.sitemap-node-action .sitemap-node-tag {
+  color: rgba(255, 255, 255, 0.7);
+}
 .sitemap-children {
-  padding-left: var(--s3); border-left: 1px dashed var(--border);
+  padding-left: var(--s3);
+  border-left: 1px dashed var(--border);
 }
 .sitemap-leaf {
-  font-size: 10.5px; color: var(--fg-muted);
-  padding: 2px 0; line-height: 1.4;
+  font-size: 10.5px;
+  color: var(--fg-muted);
+  padding: 2px 0;
+  line-height: 1.4;
 }
 ```
 
@@ -169,9 +251,18 @@ body {
   <!-- Optional tab bar mockup (skip if the IA isn't a tabbed mobile shell). -->
   <div class="sitemap-tabbar">
     <div class="sitemap-tab sitemap-tab-active">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round"
-           stroke-linejoin="round"><!-- icon path --></svg>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <!-- icon path -->
+      </svg>
       <span>[TAB 1 — ACTIVE]</span>
     </div>
     <div class="sitemap-tab">
@@ -180,11 +271,18 @@ body {
     </div>
     <!-- Centered accent action tab (e.g., Post, Pay, +) — round indigo button -->
     <div class="sitemap-tab sitemap-tab-post">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-           stroke-linejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"/>
-        <line x1="5" y1="12" x2="19" y2="12"/>
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
     </div>
     <div class="sitemap-tab">
@@ -321,11 +419,13 @@ Labels are the single most important IA decision. A perfectly organized taxonomy
 **Labels must communicate destination, not just category.** "Resources" tells you nothing. "Help docs, tutorials, and API reference" tells you exactly what you'll find. "Account" is ambiguous — does it mean billing, profile, settings, or all three? Name it for what the user will find or do there.
 
 **Testing labels:**
+
 - **5-second test**: Show users a navigation bar for 5 seconds, then ask what they'd find under each label. If they can't predict the contents, the label fails.
 - **Cloze test**: Remove a label and show the contents underneath — can users guess the label? If not, the label doesn't match the mental model.
 - **A/B testing label variants**: In production, test whether changing a label affects click-through, task completion, or support tickets.
 
 **Common labeling failures:**
+
 - **Internal jargon** — Your team calls it "Workspace" but users call it "My projects." Use their language.
 - **Ambiguous labels** — "Dashboard," "Overview," "Home" — what's the difference? If your team can't articulate it in one sentence, users can't navigate it.
 - **Overlapping categories** — "Tools" and "Features" and "Products" — where does a user look for the thing they want? Overlap creates hesitation and backtracking.
@@ -350,12 +450,14 @@ Users find information in two fundamentally different ways, and most products ne
 Wayfinding is the art of helping people orient themselves and navigate through an environment. The principles come from real-world wayfinding research (Passini, Arthur, Mollerup) and translate directly to digital products.
 
 **Four wayfinding questions users are always asking:**
+
 1. **Where am I?** (Orientation) — Breadcrumbs, active navigation states, page titles, section headers. Users need constant, ambient confirmation of their location. If they have to think about where they are, the wayfinding is failing.
 2. **Where can I go?** (Route decision) — Navigation menus, links, CTAs, related content. Users need to see their options without being overwhelmed. Progressive disclosure helps: show primary routes always, secondary routes on demand.
 3. **Am I on the right track?** (Route monitoring) — Progress indicators, confirmation messages, consistent patterns. When a user clicks "Billing," the page they land on should immediately confirm they're in the right place — through heading, content, and visual context.
 4. **Am I there?** (Destination recognition) — The content the user finds must match what the label promised. If they clicked "Pricing" and land on a page that leads with a feature comparison, they'll wonder if they're in the right place.
 
 **When users feel lost:**
+
 - Too many options at once (more than 7-9 top-level items strains scanning)
 - Inconsistent patterns (navigation works differently in different sections)
 - Missing landmarks (no persistent elements to anchor orientation)
@@ -370,9 +472,10 @@ Design wayfinding cues as a system: breadcrumbs, active states, page titles, sec
 IA decisions should be tested, not assumed. These are the primary research methods for validating information architecture:
 
 **Card sorting** — Participants organize content items into groups that make sense to them.
-- *Open card sort*: Participants create their own categories and name them. Reveals natural mental models. Use with 15+ participants minimum. Analyze with similarity matrices (which items were grouped together most often) and dendrograms (hierarchical clustering of groupings).
-- *Closed card sort*: Participants sort items into predefined categories. Tests whether your categories are intuitive. Use with 30+ participants for statistical confidence.
-- *Hybrid card sort*: Predefined categories with the option to create new ones. Best of both: tests your categories while surfacing gaps.
+
+- _Open card sort_: Participants create their own categories and name them. Reveals natural mental models. Use with 15+ participants minimum. Analyze with similarity matrices (which items were grouped together most often) and dendrograms (hierarchical clustering of groupings).
+- _Closed card sort_: Participants sort items into predefined categories. Tests whether your categories are intuitive. Use with 30+ participants for statistical confidence.
+- _Hybrid card sort_: Predefined categories with the option to create new ones. Best of both: tests your categories while surfacing gaps.
 
 **Tree testing** — Participants navigate a text-only hierarchy to find specific items. No visual design, no content — just the structure. This isolates IA quality from other design factors. Task-based: "Where would you find X?" Measure success rate (did they find it?) and directness (did they go straight there or backtrack?). Use with 50+ participants.
 
@@ -423,6 +526,7 @@ Structure your IA deliverable as needed for the problem at hand. Not every secti
 ## Scope boundaries
 
 **You own:**
+
 - Navigation structure and patterns
 - Taxonomy design and classification logic
 - Labeling systems and naming conventions
@@ -432,6 +536,7 @@ Structure your IA deliverable as needed for the problem at hand. Not every secti
 - Site maps and content organization
 
 **You don't own:**
+
 - User flow sequencing and task design (`/journey` owns how users move through the structure step-by-step)
 - Screen-level structural layout (`/wireframe` owns where your structures sit on each screen and at what prominence)
 - Visual navigation design and layout (that's visual design territory)
@@ -447,6 +552,7 @@ Structure your IA deliverable as needed for the problem at hand. Not every secti
 **When users disagree with each other:** Different user segments may have fundamentally different mental models. Power users categorize by workflow; new users categorize by topic. B2B buyers think in capabilities; end users think in tasks. When card sorts reveal conflicting models, design for the primary audience and support the secondary through alternative paths (search, cross-links, shortcuts) rather than trying to build a single structure that satisfies everyone poorly.
 
 **Always ask:**
+
 - How do users think about this information? (Not how do we think about it.)
 - What are people searching for that they should be able to browse to?
 - Where do users get lost, backtrack, or give up?

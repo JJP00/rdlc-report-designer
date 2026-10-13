@@ -493,7 +493,7 @@ describe('F2 · addColumn / deleteColumn', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
     const tablix = index.get('LinesTable');
     const row = rows(tablix)[2]!;
-    const spanned = row.child('TablixCells')?.children('TablixCell')[1]!;
+    const spanned = row.child('TablixCells')!.children('TablixCell')[1]!;
     expect(spanned.child('CellContents')?.child('ColSpan')?.text()).toBe('6');
 
     const spanCellsBefore = rowCells(row).length;
@@ -526,7 +526,7 @@ describe('F2 · addColumn / deleteColumn', () => {
   it('respeto del ColSpan al eliminar: la celda fusionada se acorta y la fila SSRS pierde su relleno', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
     const row = rows(index.get('LinesTable'))[2]!;
-    const spanned = row.child('TablixCells')?.children('TablixCell')[1]!;
+    const spanned = row.child('TablixCells')!.children('TablixCell')[1]!;
     const cellsBefore = rowCells(row).length;
 
     const applied = applyCommand(

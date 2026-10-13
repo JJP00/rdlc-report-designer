@@ -192,16 +192,13 @@ export function useWorkspace(): WorkspaceCore {
   const stateRef = useRef(state);
 
   /** Todas las mutaciones pasan por aquí: el ref queda al día al instante. */
-  const setWorkspace = useCallback(
-    (updater: (current: WorkspaceState) => WorkspaceState): void => {
-      setState((current) => {
-        const next = updater(current);
-        stateRef.current = next;
-        return next;
-      });
-    },
-    [],
-  );
+  const setWorkspace = useCallback((updater: (current: WorkspaceState) => WorkspaceState): void => {
+    setState((current) => {
+      const next = updater(current);
+      stateRef.current = next;
+      return next;
+    });
+  }, []);
 
   const [workspaceStatus, setWorkspaceStatus] = useState(IDLE_STATUS);
   const [workspaceError, setWorkspaceErrorState] = useState<string | null>(null);
@@ -232,7 +229,9 @@ export function useWorkspace(): WorkspaceCore {
           errorTimers.current.delete(sessionId);
           setWorkspace((current) => {
             const tab = current.tabs.get(sessionId);
-            return tab?.error === message ? updateTab(current, sessionId, { error: null }) : current;
+            return tab?.error === message
+              ? updateTab(current, sessionId, { error: null })
+              : current;
           });
         }, ERROR_BANNER_MS);
         errorTimers.current.set(sessionId, timer);
@@ -348,7 +347,9 @@ export function useWorkspace(): WorkspaceCore {
       id,
       window.setTimeout(() => {
         operationTimers.current.delete(id);
-        setOperations((current) => current.map((op) => (op.id === id ? { ...op, shown: true } : op)));
+        setOperations((current) =>
+          current.map((op) => (op.id === id ? { ...op, shown: true } : op)),
+        );
       }, BUSY_STATUS_MS),
     );
     return () => {
@@ -999,9 +1000,7 @@ export function useWorkspace(): WorkspaceCore {
         : () => {};
     const offSaved =
       typeof window.api.onSaved === 'function'
-        ? window.api.onSaved((event) =>
-            setWorkspace((current) => applySavedEvent(current, event)),
-          )
+        ? window.api.onSaved((event) => setWorkspace((current) => applySavedEvent(current, event)))
         : () => {};
     const offClosed =
       typeof window.api.onSessionClosed === 'function'
@@ -1208,7 +1207,7 @@ export function useWorkspace(): WorkspaceCore {
 
   /* -------------------------------- vista --------------------------------- */
 
-  const activeTab = state.activeSessionId ? state.tabs.get(state.activeSessionId) ?? null : null;
+  const activeTab = state.activeSessionId ? (state.tabs.get(state.activeSessionId) ?? null) : null;
 
   /** UI de la pestaña activa; sin pestañas, el estado por defecto (estable). */
   const ui = activeTab?.ui ?? EMPTY_TAB_UI;

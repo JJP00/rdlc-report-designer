@@ -58,6 +58,7 @@ Not all touchpoints are equal. Moments of truth (a term coined by Jan Carlzon, t
 ### Identifying Moments of Truth
 
 A moment of truth has three characteristics:
+
 1. **High emotional stakes** — The customer cares about the outcome. The anxiety of a medical test result, the anticipation of a delivery, the frustration of a failed payment.
 2. **Perception formation** — The interaction shapes how the customer perceives the entire service. A smooth onboarding creates a halo effect. A botched recovery from an error colors everything.
 3. **Decision influence** — The interaction affects whether the customer continues, recommends, or leaves.
@@ -103,20 +104,21 @@ A touchpoint is any point of contact between the customer and the service. Touch
 
 For each touchpoint, assess:
 
-| Dimension | Question |
-|-----------|----------|
-| **Frequency** | How often does this touchpoint occur? Daily, weekly, once? |
-| **Criticality** | If this touchpoint fails, what's the consequence? Minor annoyance or complete service breakdown? |
-| **Emotional impact** | What emotional state is the customer in when they encounter this touchpoint? |
-| **Consistency** | Does this touchpoint deliver the same quality every time? |
-| **Brand alignment** | Does this touchpoint reflect the brand's values and voice? |
-| **Handoff quality** | How well does this touchpoint connect to the previous and next touchpoints? |
+| Dimension            | Question                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| **Frequency**        | How often does this touchpoint occur? Daily, weekly, once?                                       |
+| **Criticality**      | If this touchpoint fails, what's the consequence? Minor annoyance or complete service breakdown? |
+| **Emotional impact** | What emotional state is the customer in when they encounter this touchpoint?                     |
+| **Consistency**      | Does this touchpoint deliver the same quality every time?                                        |
+| **Brand alignment**  | Does this touchpoint reflect the brand's values and voice?                                       |
+| **Handoff quality**  | How well does this touchpoint connect to the previous and next touchpoints?                      |
 
 ### Cross-Channel Consistency
 
 The most common touchpoint failure isn't a bad individual touchpoint — it's inconsistency between touchpoints. The website says one thing, the app says another, the call center agent says a third. The customer starts a process online and can't continue in the store. The mobile app's features don't match the desktop app's features.
 
 **Designing for cross-channel consistency:**
+
 - Shared content model: information authored once, displayed across channels
 - Unified customer record: every channel sees the same customer history
 - Consistent terminology: the same action has the same name everywhere

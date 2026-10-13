@@ -5,3 +5,10 @@ coverage/
 .turbo/
 fixtures/corpus/
 pnpm-lock.yaml
+apps/back/release/
+apps/back/test-results/
+apps/back/playwright-report/
+# Skills sincronizadas de agentes (skills-lock.json); se sobrescriben al re-sincronizar.
+.claude/skills/
+.agents/skills/
+agent/skills/

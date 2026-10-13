@@ -187,9 +187,7 @@ export class SessionService implements ISessionService {
     return this.enqueue(sessionId, () => this.saveLocked(sessionId));
   }
 
-  private async saveLocked(
-    sessionId: string,
-  ): Promise<Either<DomainError, SaveSessionResult>> {
+  private async saveLocked(sessionId: string): Promise<Either<DomainError, SaveSessionResult>> {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
 
@@ -283,9 +281,7 @@ export class SessionService implements ISessionService {
     return this.enqueue(sessionId, () => this.reloadLocked(sessionId));
   }
 
-  private async reloadLocked(
-    sessionId: string,
-  ): Promise<Either<DomainError, OpenSessionResult>> {
+  private async reloadLocked(sessionId: string): Promise<Either<DomainError, OpenSessionResult>> {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
 

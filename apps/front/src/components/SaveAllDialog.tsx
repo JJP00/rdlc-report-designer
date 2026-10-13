@@ -26,7 +26,11 @@ export interface SaveAllDialogProps {
  * sin guardar; «Cancelar» aborta el cierre. La lista de ficheros permite ver de
  * un vistazo qué trabajo está en juego.
  */
-export function SaveAllDialog({ tabs, scope = 'window', onResolve }: SaveAllDialogProps): ReactNode {
+export function SaveAllDialog({
+  tabs,
+  scope = 'window',
+  onResolve,
+}: SaveAllDialogProps): ReactNode {
   if (!tabs || tabs.length === 0) return null;
   return (
     <Dialog

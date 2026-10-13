@@ -76,7 +76,10 @@ describe('openTab', () => {
   });
 
   it('anti-duplicado: la misma ruta con otra caja activa la existente, no la reabre', () => {
-    const state = withTabs(tab('s1', 'C:\\Informes\\Pedidos.rdlc'), tab('s2', 'C:\\Informes\\Stock.rdlc'));
+    const state = withTabs(
+      tab('s1', 'C:\\Informes\\Pedidos.rdlc'),
+      tab('s2', 'C:\\Informes\\Stock.rdlc'),
+    );
 
     const next = openTab(state, tab('s3', 'c:\\INFORMES\\pedidos.RDLC'));
 
@@ -107,7 +110,11 @@ describe('openTab', () => {
 
 describe('removeTab', () => {
   it('si se cierra la activa, la nueva activa es la vecina de la derecha', () => {
-    const state = withTabs(tab('s1', 'C:\\a\\Uno.rdlc'), tab('s2', 'C:\\a\\Dos.rdlc'), tab('s3', 'C:\\a\\Tres.rdlc'));
+    const state = withTabs(
+      tab('s1', 'C:\\a\\Uno.rdlc'),
+      tab('s2', 'C:\\a\\Dos.rdlc'),
+      tab('s3', 'C:\\a\\Tres.rdlc'),
+    );
     const activated = activateTab(state, 's2');
 
     const next = removeTab(activated, 's2');
@@ -136,7 +143,11 @@ describe('removeTab', () => {
   });
 
   it('cerrar una pestaña no activa conserva la activa', () => {
-    const state = withTabs(tab('s1', 'C:\\a\\Uno.rdlc'), tab('s2', 'C:\\a\\Dos.rdlc'), tab('s3', 'C:\\a\\Tres.rdlc'));
+    const state = withTabs(
+      tab('s1', 'C:\\a\\Uno.rdlc'),
+      tab('s2', 'C:\\a\\Dos.rdlc'),
+      tab('s3', 'C:\\a\\Tres.rdlc'),
+    );
     const activated = activateTab(state, 's3');
 
     const next = removeTab(activated, 's1');
@@ -154,7 +165,11 @@ describe('removeTab', () => {
 
 describe('cycleTab', () => {
   it('rota hacia delante con vuelta circular y hacia atrás', () => {
-    const state = withTabs(tab('s1', 'C:\\a\\Uno.rdlc'), tab('s2', 'C:\\a\\Dos.rdlc'), tab('s3', 'C:\\a\\Tres.rdlc'));
+    const state = withTabs(
+      tab('s1', 'C:\\a\\Uno.rdlc'),
+      tab('s2', 'C:\\a\\Dos.rdlc'),
+      tab('s3', 'C:\\a\\Tres.rdlc'),
+    );
     const first = activateTab(state, 's1');
 
     expect(cycleTab(first, 1).activeSessionId).toBe('s2');
@@ -194,7 +209,10 @@ describe('enrutado de eventos por sessionId', () => {
   });
 
   it('una recarga externa cuenta, limpia el conflicto y deja su estado', () => {
-    const state = updateTab(base, 's1', { conflict: 'C:\\a\\Uno.rdlc', fileMissing: 'C:\\a\\Uno.rdlc' });
+    const state = updateTab(base, 's1', {
+      conflict: 'C:\\a\\Uno.rdlc',
+      fileMissing: 'C:\\a\\Uno.rdlc',
+    });
 
     const next = applyDocumentChanged(state, {
       sessionId: 's1',
@@ -227,7 +245,7 @@ describe('enrutado de eventos por sessionId', () => {
   });
 
   it('al editar, «Guardado…» se limpia; otros mensajes se conservan', () => {
-    const saved = updateTab(base, 's1', { status: 'Guardado: C:\a\Uno.rdlc' });
+    const saved = updateTab(base, 's1', { status: 'Guardado: C:\\a\\Uno.rdlc' });
     const edited = applyDirtyChanged(saved, { sessionId: 's1', dirty: true });
     expect(edited.tabs.get('s1')?.status).toBe(EMPTY_STATUS);
     expect(edited.tabs.get('s1')?.dirty).toBe(true);
@@ -238,13 +256,15 @@ describe('enrutado de eventos por sessionId', () => {
     );
     // Quedar limpio (dirty=false) no toca el mensaje.
     expect(applyDirtyChanged(saved, { sessionId: 's1', dirty: false }).tabs.get('s1')?.status).toBe(
-      'Guardado: C:\a\Uno.rdlc',
+      'Guardado: C:\\a\\Uno.rdlc',
     );
   });
 
   it('expireStatus solo retira el mensaje si sigue siendo el visible', () => {
     const withMsg = updateTab(base, 's1', { status: 'Copiado: Textbox1' });
-    expect(expireStatus(withMsg, 's1', 'Copiado: Textbox1').tabs.get('s1')?.status).toBe(EMPTY_STATUS);
+    expect(expireStatus(withMsg, 's1', 'Copiado: Textbox1').tabs.get('s1')?.status).toBe(
+      EMPTY_STATUS,
+    );
     expect(expireStatus(withMsg, 's1', 'otro')).toBe(withMsg);
     expect(expireStatus(withMsg, 'nope', 'x')).toBe(withMsg);
   });
@@ -258,7 +278,10 @@ describe('enrutado de eventos por sessionId', () => {
   });
 
   it('saved limpia el conflicto (robustez) y fija la ruta guardada', () => {
-    const state = updateTab(base, 's1', { conflict: 'C:\\a\\Uno.rdlc', fileMissing: 'C:\\a\\Uno.rdlc' });
+    const state = updateTab(base, 's1', {
+      conflict: 'C:\\a\\Uno.rdlc',
+      fileMissing: 'C:\\a\\Uno.rdlc',
+    });
 
     const next = applySavedEvent(state, { sessionId: 's1', path: 'C:\\a\\Uno2.rdlc' });
 
@@ -313,16 +336,32 @@ describe('enrutado de eventos por sessionId', () => {
     expect(applyConflictDetected(base, { sessionId: 's9', filePath: 'x' })).toBe(base);
     expect(applySavedEvent(base, { sessionId: 's9', path: 'x' })).toBe(base);
     expect(applyDocumentChanged(base, { sessionId: 's9', projection: projection(9) })).toBe(base);
-    expect(applyFileMissingChanged(base, { sessionId: 's9', filePath: 'x', missing: true })).toBe(base);
-    expect(applyExternalReloadFailed(base, { sessionId: 's9', filePath: 'x', reason: 'unreadable' })).toBe(base);
+    expect(applyFileMissingChanged(base, { sessionId: 's9', filePath: 'x', missing: true })).toBe(
+      base,
+    );
+    expect(
+      applyExternalReloadFailed(base, { sessionId: 's9', filePath: 'x', reason: 'unreadable' }),
+    ).toBe(base);
   });
 });
 
 describe('adoptSessions (re-adopción tras recargar la interfaz)', () => {
   it('adopta todas las sesiones vivas en orden y activa la última', () => {
     const adopted = adoptSessions(createWorkspace(), [
-      { sessionId: 'a', filePath: 'C:\\a\\Uno.rdlc', dirty: false, missing: false, projection: projection(2) },
-      { sessionId: 'b', filePath: 'C:\\a\\Dos.rdlc', dirty: true, missing: false, projection: projection(5) },
+      {
+        sessionId: 'a',
+        filePath: 'C:\\a\\Uno.rdlc',
+        dirty: false,
+        missing: false,
+        projection: projection(2),
+      },
+      {
+        sessionId: 'b',
+        filePath: 'C:\\a\\Dos.rdlc',
+        dirty: true,
+        missing: false,
+        projection: projection(5),
+      },
     ]);
 
     expect(adopted.order).toEqual(['a', 'b']);
@@ -337,8 +376,20 @@ describe('adoptSessions (re-adopción tras recargar la interfaz)', () => {
     const adopted = adoptSessions(
       createWorkspace(),
       [
-        { sessionId: 'a', filePath: 'C:\\a\\Uno.rdlc', dirty: false, missing: true, projection: projection(2) },
-        { sessionId: 'b', filePath: 'C:\\a\\Dos.rdlc', dirty: false, missing: false, projection: projection(2) },
+        {
+          sessionId: 'a',
+          filePath: 'C:\\a\\Uno.rdlc',
+          dirty: false,
+          missing: true,
+          projection: projection(2),
+        },
+        {
+          sessionId: 'b',
+          filePath: 'C:\\a\\Dos.rdlc',
+          dirty: false,
+          missing: false,
+          projection: projection(2),
+        },
       ],
       (id) => (id === 'a' ? saved : undefined),
     );
@@ -390,7 +441,10 @@ describe('updateTabUi (persistencia del ui por pestaña, bloque D)', () => {
   const base = withTabs(tab('s1', 'C:\\a\\Uno.rdlc'), tab('s2', 'C:\\a\\Dos.rdlc'));
 
   it('aplica el parche a la pestaña indicada y fusiona con el ui existente', () => {
-    const next = updateTabUi(base, 's1', { selectedIds: ['Textbox1', 'Textbox2'], selectedId: 'Textbox2' });
+    const next = updateTabUi(base, 's1', {
+      selectedIds: ['Textbox1', 'Textbox2'],
+      selectedId: 'Textbox2',
+    });
 
     const s1 = next.tabs.get('s1')!;
     expect(s1.ui.selectedIds).toEqual(['Textbox1', 'Textbox2']);
@@ -418,7 +472,14 @@ describe('updateTabUi (persistencia del ui por pestaña, bloque D)', () => {
   });
 
   it('compara la celda por valor (incluidos rango y celdas extra)', () => {
-    const cell = { id: 'Tablix1', row: 0, col: 0, endRow: 2, endCol: 1, extra: [{ row: 4, col: 4 }] };
+    const cell = {
+      id: 'Tablix1',
+      row: 0,
+      col: 0,
+      endRow: 2,
+      endCol: 1,
+      extra: [{ row: 4, col: 4 }],
+    };
     const state = updateTabUi(base, 's1', { selectedCell: cell });
     const again = updateTabUi(state, 's1', {
       selectedCell: { ...cell, extra: [{ row: 4, col: 4 }] },
@@ -546,4 +607,3 @@ describe('closeTargets (cierre múltiple del menú contextual)', () => {
     expect(closeTargets(base, 'right', 'zz')).toEqual([]);
   });
 });
-

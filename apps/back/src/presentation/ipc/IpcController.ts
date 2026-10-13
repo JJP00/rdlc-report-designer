@@ -105,10 +105,10 @@ export class IpcController {
 
     // Sesiones vivas del backend: el front las re-adopta tras recargar la
     // interfaz (recuperación del ErrorBoundary, P0.1/BUG-51).
-    ipcMain.handle(
-      IPC_CHANNELS.listSessions,
-      (): ListedSessionsResult => ({ ok: true, sessions: this.sessions.listSessions() }),
-    );
+    ipcMain.handle(IPC_CHANNELS.listSessions, (): ListedSessionsResult => ({
+      ok: true,
+      sessions: this.sessions.listSessions(),
+    }));
 
     // Drop de ficheros: lo llama el preload con la ruta real del `File`
     // (`webUtils.getPathForFile`); el renderer no puede invocar este canal.

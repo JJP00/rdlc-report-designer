@@ -57,10 +57,15 @@ describe('createSessionOps (guarda por sesión)', () => {
       runs++;
       return first.promise;
     });
-    const joined = ops.run('a', 'save', async () => {
-      runs++;
-      return true;
-    }, { join: true });
+    const joined = ops.run(
+      'a',
+      'save',
+      async () => {
+        runs++;
+        return true;
+      },
+      { join: true },
+    );
     first.resolve(false);
     await expect(joined).resolves.toBe(false);
     await p1;

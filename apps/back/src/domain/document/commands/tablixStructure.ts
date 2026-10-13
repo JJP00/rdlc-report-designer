@@ -900,9 +900,7 @@ export function applyUnmergeCells(
     const cells = target.child('TablixCells');
     if (!cells) continue;
     const slot =
-      index === command.row
-        ? anchorSlot
-        : usesSlotCells(target, columnCount, coverage[index]);
+      index === command.row ? anchorSlot : usesSlotCells(target, columnCount, coverage[index]);
     for (let column = command.col; column < command.col + entry.colSpan; column += 1) {
       if (index === command.row && column === command.col) continue;
       // SSRS/BC: la columna cubierta ya existe como celda de relleno; se rellena

@@ -41,7 +41,6 @@
 > solapado. La sospecha de regresión de clic en el lienzo se **descartó** con cientos de
 > clics reales. Orden sugerido en el documento (N1 primero).
 
-
 > **Zoom hasta 400 % · 2026-10-09** — el tope era 200 % (`ZOOM_MAX = 2` en
 > `apps/front/src/lib/zoom.ts`) y «ajustar al ancho» también se acotaba a él, así que en
 > una ventana ancha el papel no llenaba el lienzo. Ahora `ZOOM_MAX = 4`, con presets 300 %
@@ -96,6 +95,7 @@
 > arrastrar ficheros desde el Explorador, cierre con varias sucias.
 >
 > **Por prioridad** (detalle, evidencia y arreglo en 0004):
+>
 > - **P0 · el lienzo no se puede usar con teclado ni lector** (`role="presentation"`, sin
 >   `tabindex`; las flechas solo mueven con selección previa). La Jerarquía, única vía no
 >   visual, declara `role="tree"` sin navegación de árbol (341 botones; hasta ~340 Tab).
@@ -321,16 +321,16 @@
 > Es un diseño sólido en lo técnico (no toca el `.rdlc`, no cambia el render, Fase 1
 > testeable) con fallos de **descubrimiento y de modo**:
 >
-> | Heur. | Pts | Hallazgo |
-> | ----- | --- | -------- |
-> | H6 reconocer, no recordar | **3** | `Alt+clic` es la única vía y no tiene ninguna pista visible: el usuario ve que el clic coge «lo equivocado» y no sabe que existe el ciclo |
-> | H2 lenguaje | 2 | Se llama «capas» a lo que son **solapes inferidos**; quien viene de Figma/Photoshop espera crear, nombrar y reordenar capas (eso es la Fase 2). Las entradas se llaman `Tablix1/3/4` |
-> | H4 consistencia | 2 | `Esc` hace dos cosas (sube al padre con selección; sale del modo capa sin ella): modo invisible con una tecla ambigua |
-> | H8 minimalismo | 2 | El panel lista todas las pilas sin distinguir importancia (ver evidencia) |
-> | H9 errores | 2 | «Insertar fuera de la capa activa se ignora con aviso en la barra de estado» es un fallo silencioso |
-> | H10 ayuda | 2 | Sin onboarding del gesto ni entrada en la hoja de atajos (que tampoco existe) |
-> | H1, H3, H5 | 1 | El chip «Capa: X ×» da visibilidad del modo; salir es barato; atenuar comunica el filtro |
-> | H7 | 0 | `Alt+clic` es buen acelerador para el experto |
+> | Heur.                     | Pts   | Hallazgo                                                                                                                                                                             |
+> | ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+> | H6 reconocer, no recordar | **3** | `Alt+clic` es la única vía y no tiene ninguna pista visible: el usuario ve que el clic coge «lo equivocado» y no sabe que existe el ciclo                                            |
+> | H2 lenguaje               | 2     | Se llama «capas» a lo que son **solapes inferidos**; quien viene de Figma/Photoshop espera crear, nombrar y reordenar capas (eso es la Fase 2). Las entradas se llaman `Tablix1/3/4` |
+> | H4 consistencia           | 2     | `Esc` hace dos cosas (sube al padre con selección; sale del modo capa sin ella): modo invisible con una tecla ambigua                                                                |
+> | H8 minimalismo            | 2     | El panel lista todas las pilas sin distinguir importancia (ver evidencia)                                                                                                            |
+> | H9 errores                | 2     | «Insertar fuera de la capa activa se ignora con aviso en la barra de estado» es un fallo silencioso                                                                                  |
+> | H10 ayuda                 | 2     | Sin onboarding del gesto ni entrada en la hoja de atajos (que tampoco existe)                                                                                                        |
+> | H1, H3, H5                | 1     | El chip «Capa: X ×» da visibilidad del modo; salir es barato; atenuar comunica el filtro                                                                                             |
+> | H7                        | 0     | `Alt+clic` es buen acelerador para el experto                                                                                                                                        |
 >
 > **Evidencia sobre los `.rdlc` del repo** (script de solapes por rectángulos declarados,
 > ver caveat): `SalesInvoiceESP`, `SalesInvoiceDEU` y `SalesCreditMemoESP` tienen **la pila
@@ -379,14 +379,14 @@
 >
 > **Dónde está cada cosa de esta sesión (2026-10-08)**
 >
-> | Qué                                                           | Dónde                                                        |
-> | ------------------------------------------------------------- | ------------------------------------------------------------ |
-> | Lista de trabajo y orden (este bloque y el siguiente)         | este documento                                               |
-> | Bugs P0/P1 con ubicación, reproducción y arreglo propuesto    | `docs/bugs/0002-resiliencia-2026-10-08.md` (BUG-51 … BUG-59) |
-> | Evaluación UX, puntuaciones, recorridos, estados y estrés     | `docs/ux/0003-evaluacion-ux.md`                              |
-> | Script de solapes (evidencia de capas)                        | `docs/ux/tools/overlap-stacks.py`                            |
-> | Aviso de que 0002 quedó sobreconfiado                         | nota al inicio de `docs/ux/0002-evaluacion-ux.md`            |
-> | Rediseño del recorrido de Capas (Nivel 1 / Nivel 2)           | `docs/features/0002-capas-rediseno-journey.md` (+ `.html`)   |
+> | Qué                                                        | Dónde                                                        |
+> | ---------------------------------------------------------- | ------------------------------------------------------------ |
+> | Lista de trabajo y orden (este bloque y el siguiente)      | este documento                                               |
+> | Bugs P0/P1 con ubicación, reproducción y arreglo propuesto | `docs/bugs/0002-resiliencia-2026-10-08.md` (BUG-51 … BUG-59) |
+> | Evaluación UX, puntuaciones, recorridos, estados y estrés  | `docs/ux/0003-evaluacion-ux.md`                              |
+> | Script de solapes (evidencia de capas)                     | `docs/ux/tools/overlap-stacks.py`                            |
+> | Aviso de que 0002 quedó sobreconfiado                      | nota al inicio de `docs/ux/0002-evaluacion-ux.md`            |
+> | Rediseño del recorrido de Capas (Nivel 1 / Nivel 2)        | `docs/features/0002-capas-rediseno-journey.md` (+ `.html`)   |
 >
 > **Correspondencia de IDs**: P0.1 = BUG-51 · P0.2 = BUG-52 · P1.3 = BUG-53 · P1.4 =
 > BUG-54 · P1.5 = BUG-55 · P1.6 = BUG-56 · P1.7 = BUG-57 · jerga del estado = BUG-58 ·

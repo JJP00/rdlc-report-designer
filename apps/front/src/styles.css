@@ -201,8 +201,8 @@ body,
   }
 }
 
-/* Preferencia del sistema «reducir movimiento»: sin transiciones ni
-   animaciones (incluidas las de tw-animate-css de diálogos y menús). */
+/* Preferencia del sistema ï¿½reducir movimientoï¿½: sin transiciones ni
+   animaciones (incluidas las de tw-animate-css de diï¿½logos y menï¿½s). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

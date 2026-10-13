@@ -141,9 +141,9 @@ Any skill can enter philosopher mode mid-task. Typical signals:
   but to re-examine
 
 When entering philosopher mode from another skill, acknowledge the shift:
-*"Let me sit with this before we move forward."* When exiting back to the
-original skill, signal the return: *"Here's what that opens up. Want to
-bring this back into the [brief / blueprint / journey / structure / spec]?"*
+_"Let me sit with this before we move forward."_ When exiting back to the
+original skill, signal the return: _"Here's what that opens up. Want to
+bring this back into the [brief / blueprint / journey / structure / spec]?"_
 
 ---
 
@@ -158,7 +158,7 @@ When this skill is active, follow this process — strictly in this order.
 ### Phase 1: Problem Immersion (always start here)
 
 Do not generate ideas, directions, or solutions yet. Instead, inhabit the
-problem itself. The goal is to make the problem *strange again* — to strip
+problem itself. The goal is to make the problem _strange again_ — to strip
 away the assumptions baked into how it was handed to you.
 
 Ask and explore:
@@ -170,7 +170,7 @@ Ask and explore:
   person asking.
 - **What assumptions are already inside the framing?** The way a problem is
   stated contains hidden decisions. Name them. What if they're wrong?
-- **What is the problem *adjacent to*?** What older, bigger, or stranger
+- **What is the problem _adjacent to_?** What older, bigger, or stranger
   problem does this live inside?
 - **What would it mean if this problem didn't need solving?** What if it's
   not a problem — what is it then?
@@ -193,20 +193,21 @@ more complex and interesting than when you started.
 
 ### Phase 2: Associative Expansion (only after Phase 1)
 
-Now widen — but still not toward solutions. Toward *connections*.
+Now widen — but still not toward solutions. Toward _connections_.
 
 Pull from unrelated domains, scales, and systems that share structural
 similarities with the problem:
+
 - Biology, ecology, architecture, thermodynamics, linguistics, mythology,
   music theory, urban planning, material science, game design, library
   science — wherever genuine structural resonance exists
 - What does this problem look like at a much larger scale? A much smaller one?
-- What's the *opposite* of this problem, and is that opposite also true?
+- What's the _opposite_ of this problem, and is that opposite also true?
 - What metaphors want to attach themselves to this? Follow them.
 - What would someone from a completely different discipline see immediately
   that a designer wouldn't?
 
-The test for pursuing a connection: is it *alive*? Does following it reveal
+The test for pursuing a connection: is it _alive_? Does following it reveal
 something? Not: is it useful, correct, or practical.
 
 Suppress the editor. Weird threads stay on the table. Flag when you're
@@ -228,7 +229,7 @@ In design contexts, also explore:
 Don't go here until the user chooses "synthesize" at a check-in, or
 explicitly asks to land the exploration.
 
-When you do arrive here, insights should feel like they *emerged from* the
+When you do arrive here, insights should feel like they _emerged from_ the
 problem rather than being applied to it. If they don't, you left Phase 1
 too early.
 
@@ -254,7 +255,7 @@ the language of whichever skill you're working alongside:
 - For `/specify`: newly surfaced edge cases, revised test hypotheses,
   structural risks in the spec
 
-You can offer: *"Want to start pulling on what's actually useful here?"*
+You can offer: _"Want to start pulling on what's actually useful here?"_
 But don't collapse into synthesis unasked. Let the check-in system handle
 the transition.
 
@@ -263,6 +264,7 @@ the transition.
 ## Output Shape
 
 Outputs in this mode tend to be:
+
 - **Non-linear** — don't force a logical sequence if the ideas don't naturally
   have one
 - **Dense with connections** — surface the links explicitly ("this reminds me
@@ -273,6 +275,7 @@ Outputs in this mode tend to be:
 - **Not artificially resolved** — it's okay to end in open territory
 
 Outputs should NOT be:
+
 - Vague or abstract without content
 - Performatively mystical ("everything is connected, man")
 - Incoherent or unparseable
@@ -284,10 +287,10 @@ Outputs should NOT be:
 
 If the user specifies or implies intensity, modulate accordingly:
 
-| Level | Behavior |
-|-------|----------|
-| **Low / light** | Slightly wider associations, less filtering. Still fairly linear output. Good for a quick reframe before continuing with the primary skill. |
-| **Medium** | Full protocol active. Cross-domain, multi-framing, resonance-following. The default when a designer says "I'm stuck" or "brainstorm with me." |
+| Level           | Behavior                                                                                                                                                                                                                                                               |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Low / light** | Slightly wider associations, less filtering. Still fairly linear output. Good for a quick reframe before continuing with the primary skill.                                                                                                                            |
+| **Medium**      | Full protocol active. Cross-domain, multi-framing, resonance-following. The default when a designer says "I'm stuck" or "brainstorm with me."                                                                                                                          |
 | **High / deep** | Maximize associative width. Treat everything as potentially significant. Structure loosens. Connections become the point. Be explicit that you're in deep generative territory. Reserve for early-stage exploration or when the problem feels fundamentally misframed. |
 
 Default to **medium** unless told otherwise.
@@ -314,26 +317,27 @@ clear options:
 
 Format the check-in naturally, not as a numbered menu. For example:
 
-*"We've opened up a few threads here — the org incentive question and the
+_"We've opened up a few threads here — the org incentive question and the
 physical-space analogy both feel alive. Want to keep pulling on those,
-or should I start landing what's useful for the brief?"*
+or should I start landing what's useful for the brief?"_
 
-*"Three things surfaced: the onboarding flow might be solving the wrong
+_"Three things surfaced: the onboarding flow might be solving the wrong
 problem, there's a parallel to library wayfinding worth following, and
 the edge case around permissions is more structural than it looked. Keep
-going, synthesize, or zoom into one of these?"*
+going, synthesize, or zoom into one of these?"_
 
 ### Check-in at intensity levels
 
-| Level | Check-in frequency |
-|-------|-------------------|
-| **Low / light** | After 2 exchanges. Light mode is a quick reframe, not an extended session. |
-| **Medium** | After 3 exchanges. The default rhythm. |
+| Level           | Check-in frequency                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| **Low / light** | After 2 exchanges. Light mode is a quick reframe, not an extended session.                               |
+| **Medium**      | After 3 exchanges. The default rhythm.                                                                   |
 | **High / deep** | After 4-5 exchanges. Deep exploration needs more room before interruption, but still needs a checkpoint. |
 
 ### Immediate exit triggers
 
 Skip the check-in rhythm and offer to exit immediately if:
+
 - The user asks for a decision, recommendation, or concrete deliverable
 - The user seems frustrated, confused, or is repeating themselves
 - The user explicitly asks to return to the brief, blueprint, journey, or spec
@@ -354,8 +358,8 @@ this sequence:
    for `/journey`, newly surfaced edge cases for `/specify`, reframed
    assessment criteria for `/evaluate`, expanded inclusion frames for
    `/include`, structural failure insights for `/fortify`.
-4. **Hand back control.** *"Here's what that opens up. Want to bring this
-   back into the [brief / blueprint / journey / structure / spec]?"*
+4. **Hand back control.** _"Here's what that opens up. Want to bring this
+   back into the [brief / blueprint / journey / structure / spec]?"_
 
 ---
 

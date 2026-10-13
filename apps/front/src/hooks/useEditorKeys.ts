@@ -32,7 +32,7 @@ export function useEditorKeys({
   const hasSelection = items.selectedItem !== undefined || items.selectedCell !== null;
 
   // Salida del lienzo con teclado: con el lienzo enfocado y nada seleccionado
-  // (Esc ya subió hasta deseleccionar), Esc devuelve el foco a la pestaña activa.
+  // (Esc ya subiï¿½ hasta deseleccionar), Esc devuelve el foco a la pestaï¿½a activa.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const target = event.target instanceof Element ? event.target : null;

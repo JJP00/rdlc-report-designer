@@ -1,4 +1,3 @@
-import type { ReportMetaDto } from '@rdlc-designer/contracts';
 import * as monaco from 'monaco-editor';
 // monaco 0.56 mapea `monaco-editor/*` → `esm/vs/*.js` (no hay que poner `esm/vs`).
 import editorWorker from 'monaco-editor/editor/editor.worker.js?worker';

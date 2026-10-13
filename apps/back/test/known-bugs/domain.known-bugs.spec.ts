@@ -524,24 +524,21 @@ describe('BUG-05 · número de celdas coherente bajo un RowSpan', () => {
     ).toEqual(tablixRows(tablix).map(() => columnCount));
   });
 
-  it(
-    'addColumn dentro de un bloque RowSpan×ColSpan: la fila cubierta gana su relleno',
-    () => {
-      const { ctx } = openXml(BLOCK_SLOT_XML);
+  it('addColumn dentro de un bloque RowSpan×ColSpan: la fila cubierta gana su relleno', () => {
+    const { ctx } = openXml(BLOCK_SLOT_XML);
 
-      const added = applyCommand(ctx, { cmd: 'addColumn', id: 'T', column: 1 });
-      expect(added.isRight(), 'addColumn debe aplicarse').toBe(true);
+    const added = applyCommand(ctx, { cmd: 'addColumn', id: 'T', column: 1 });
+    expect(added.isRight(), 'addColumn debe aplicarse').toBe(true);
 
-      const tablix = ctx.index.get('T');
-      const columnCount = tablixColumns(tablix).length;
-      expect(columnCount).toBe(4);
-      // Convención SSRS/BC: una TablixCell por columna en todas las filas.
-      expect(
-        tablixRows(tablix).map((row) => rowCells(row).length),
-        'cada TablixRow (convención slot) debe tener una TablixCell por columna',
-      ).toEqual([columnCount, columnCount]);
-    },
-  );
+    const tablix = ctx.index.get('T');
+    const columnCount = tablixColumns(tablix).length;
+    expect(columnCount).toBe(4);
+    // Convención SSRS/BC: una TablixCell por columna en todas las filas.
+    expect(
+      tablixRows(tablix).map((row) => rowCells(row).length),
+      'cada TablixRow (convención slot) debe tener una TablixCell por columna',
+    ).toEqual([columnCount, columnCount]);
+  });
 });
 
 /*
@@ -670,24 +667,21 @@ describe('BUG-11 · nombres de items y grupos no colisionan', () => {
  * Remove `.fails` when fixing; the test must then pass.
  */
 describe('BUG-12 · clonar actualiza ToggleItem a los nombres del clon', () => {
-  it(
-    'duplicateItem de un rectángulo: el ToggleItem del clon apunta al toggler del clon',
-    () => {
-      const { ctx } = openXml(BASE_XML);
+  it('duplicateItem de un rectángulo: el ToggleItem del clon apunta al toggler del clon', () => {
+    const { ctx } = openXml(BASE_XML);
 
-      const result = applyCommand(ctx, { cmd: 'duplicateItem', id: 'Rect' });
-      expect(result.isRight(), 'duplicateItem debe aplicarse').toBe(true);
-      if (!result.isRight()) return;
+    const result = applyCommand(ctx, { cmd: 'duplicateItem', id: 'Rect' });
+    expect(result.isRight(), 'duplicateItem debe aplicarse').toBe(true);
+    if (!result.isRight()) return;
 
-      const clone = rebuilt(ctx).index.get(result.value.createdId!);
-      const [toggler, target] = clone?.child('ReportItems')?.children('Textbox') ?? [];
-      expect(toggler?.attribute('Name')).not.toBe('Toggler');
-      expect(
-        target?.child('Visibility')?.child('ToggleItem')?.text(),
-        'el ToggleItem del clon debe referenciar el Toggler renombrado del clon',
-      ).toBe(toggler?.attribute('Name'));
-    },
-  );
+    const clone = rebuilt(ctx).index.get(result.value.createdId!);
+    const [toggler, target] = clone?.child('ReportItems')?.children('Textbox') ?? [];
+    expect(toggler?.attribute('Name')).not.toBe('Toggler');
+    expect(
+      target?.child('Visibility')?.child('ToggleItem')?.text(),
+      'el ToggleItem del clon debe referenciar el Toggler renombrado del clon',
+    ).toBe(toggler?.attribute('Name'));
+  });
 });
 
 /*
@@ -836,23 +830,20 @@ describe('BUG-16 · el índice se reconstruye tras borrar filas/columnas', () =>
     expect(edited.isLeft(), 'setText sobre un textbox borrado debe rechazarse').toBe(true);
   });
 
-  it(
-    'setText sobre un textbox de una columna borrada se rechaza (no encontrado)',
-    async () => {
-      const { commands, sessionId } = await openBase();
+  it('setText sobre un textbox de una columna borrada se rechaza (no encontrado)', async () => {
+    const { commands, sessionId } = await openBase();
 
-      expect(
-        commands.execute(sessionId, { cmd: 'deleteColumn', id: 'T', column: 2 }).isRight(),
-      ).toBe(true);
+    expect(commands.execute(sessionId, { cmd: 'deleteColumn', id: 'T', column: 2 }).isRight()).toBe(
+      true,
+    );
 
-      const edited = commands.execute(sessionId, {
-        cmd: 'setText',
-        id: 'D3',
-        p: 0,
-        r: 0,
-        value: 'fantasma',
-      });
-      expect(edited.isLeft(), 'setText sobre un textbox borrado debe rechazarse').toBe(true);
-    },
-  );
+    const edited = commands.execute(sessionId, {
+      cmd: 'setText',
+      id: 'D3',
+      p: 0,
+      r: 0,
+      value: 'fantasma',
+    });
+    expect(edited.isLeft(), 'setText sobre un textbox borrado debe rechazarse').toBe(true);
+  });
 });

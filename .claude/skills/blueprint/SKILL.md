@@ -86,9 +86,9 @@ own a different dimension of the design problem:
   actually handles it.
 
 You provide the structural foundation that other Intent skills build on.
-`/strategize` defines *what* to solve and *why*. You define *how the system
-needs to work*. `/journey` defines *what the user experiences*. `/specify`
-makes it *buildable*. `/philosopher` can be entered from any skill when the
+`/strategize` defines _what_ to solve and _why_. You define _how the system
+needs to work_. `/journey` defines _what the user experiences_. `/specify`
+makes it _buildable_. `/philosopher` can be entered from any skill when the
 problem needs more exploration before the next move.
 
 ## Visualization
@@ -123,79 +123,164 @@ CSS below in an inline `<style>` tag.
 
 ```css
 :root {
-  --bg: #fafafc; --surface: #ffffff; --fg: #18182b; --fg-muted: #65657a;
-  --border: #d8d8e4; --accent: #4338ca;
-  --sans: "Hanken Grotesk", Inter, system-ui, -apple-system, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, monospace;
-  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
-  --s5: 20px; --s6: 24px; --s7: 32px; --s8: 48px;
+  --bg: #fafafc;
+  --surface: #ffffff;
+  --fg: #18182b;
+  --fg-muted: #65657a;
+  --border: #d8d8e4;
+  --accent: #4338ca;
+  --sans: 'Hanken Grotesk', Inter, system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s7: 32px;
+  --s8: 48px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #18182b; --surface: #1f1f36; --fg: #f0f0f8; --fg-muted: #8888a8;
-    --border: #2a2a44; --accent: #7c6ff0;
+    --bg: #18182b;
+    --surface: #1f1f36;
+    --fg: #f0f0f8;
+    --fg-muted: #8888a8;
+    --border: #2a2a44;
+    --accent: #7c6ff0;
   }
 }
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 body {
-  font-family: var(--sans); background: var(--bg); color: var(--fg);
-  padding: var(--s7); line-height: 1.5; margin: 0;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--fg);
+  padding: var(--s7);
+  line-height: 1.5;
+  margin: 0;
 }
 .visual-diagram {
-  margin: 0; padding: var(--s5);
-  background: var(--surface); border-radius: 8px;
-  border: 1px solid var(--border); overflow-x: auto;
+  margin: 0;
+  padding: var(--s5);
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
 }
 .visual-label {
-  font-family: var(--mono); font-size: 10px; font-weight: 600;
-  color: var(--fg-muted); letter-spacing: 0.06em;
-  margin-bottom: var(--s4); text-transform: uppercase;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: var(--s4);
+  text-transform: uppercase;
 }
-.blueprint-lane { padding: var(--s2) 0; }
-.blueprint-lane-label { margin-bottom: var(--s2); }
+.blueprint-lane {
+  padding: var(--s2) 0;
+}
+.blueprint-lane-label {
+  margin-bottom: var(--s2);
+}
 .blueprint-lane-title {
-  font-family: var(--mono); font-size: 10px; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.06em;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--fg-muted);
 }
-.blueprint-lane-sub { font-size: 10px; color: var(--fg-muted); margin-left: var(--s2); }
-.blueprint-lane-nodes { display: flex; align-items: center; }
-.blueprint-node {
-  flex: 1; padding: var(--s2);
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 4px; text-align: center; min-width: 0;
+.blueprint-lane-sub {
+  font-size: 10px;
+  color: var(--fg-muted);
+  margin-left: var(--s2);
 }
-.blueprint-node-step { font-family: var(--mono); font-size: 9px; color: var(--accent); font-weight: 600; }
-.blueprint-node-label { font-size: 11px; font-weight: 500; color: var(--fg); }
-.blueprint-node-end { border-color: var(--accent); }
+.blueprint-lane-nodes {
+  display: flex;
+  align-items: center;
+}
+.blueprint-node {
+  flex: 1;
+  padding: var(--s2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  text-align: center;
+  min-width: 0;
+}
+.blueprint-node-step {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.blueprint-node-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.blueprint-node-end {
+  border-color: var(--accent);
+}
 .blueprint-connector {
-  width: 12px; min-width: 12px; height: 1px;
-  background: var(--border); flex-shrink: 0;
+  width: 12px;
+  min-width: 12px;
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
 }
 .blueprint-line-of-interaction,
 .blueprint-line-of-visibility,
 .blueprint-line-of-support {
   border-top: 1px dashed var(--border);
-  padding: 4px 0; text-align: right;
+  padding: 4px 0;
+  text-align: right;
 }
 .blueprint-line-of-interaction span,
 .blueprint-line-of-visibility span,
 .blueprint-line-of-support span {
-  font-size: 9px; font-family: var(--mono);
-  text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--fg-muted); opacity: 0.5;
+  font-size: 9px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  opacity: 0.5;
 }
-.blueprint-lane-services { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.blueprint-lane-services {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
 .blueprint-service {
   padding: var(--s2) var(--s3);
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 4px; flex: 1; min-width: 80px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  flex: 1;
+  min-width: 80px;
 }
-.blueprint-service-name { font-size: 11px; font-weight: 600; color: var(--fg); }
-.blueprint-service-detail { font-size: 10px; color: var(--fg-muted); margin-top: 1px; }
-.blueprint-service-infra { background: transparent; border-style: dashed; }
-.blueprint-lane-backstage { opacity: 0.85; }
-.blueprint-lane-support { opacity: 0.6; }
+.blueprint-service-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.blueprint-service-detail {
+  font-size: 10px;
+  color: var(--fg-muted);
+  margin-top: 1px;
+}
+.blueprint-service-infra {
+  background: transparent;
+  border-style: dashed;
+}
+.blueprint-lane-backstage {
+  opacity: 0.85;
+}
+.blueprint-lane-support {
+  opacity: 0.6;
+}
 ```
 
 **Structure template** — fill with the real blueprint:
@@ -306,11 +391,11 @@ When designing a service blueprint, you carry the storytelling discipline's `cho
 
 **Shape:** Actors × time × handoffs and dependencies. **No single protagonist.** The story is the lived service — the coordinated movement of customers, frontline staff, backend systems, partners, and physical/digital touchpoints across the duration of a service encounter. Story emerges from the choreography itself, not from one character's arc.
 
-**Pathology to refuse:** *Role reduction.* Coordination clarity purchased at the cost of human visibility. When you flatten people into system roles ("the customer," "the agent," "the system"), the blueprint becomes an org chart — clear, but nobody on the team can locate themselves or a real user inside it. The choreography must keep the humans visible.
+**Pathology to refuse:** _Role reduction._ Coordination clarity purchased at the cost of human visibility. When you flatten people into system roles ("the customer," "the agent," "the system"), the blueprint becomes an org chart — clear, but nobody on the team can locate themselves or a real user inside it. The choreography must keep the humans visible.
 
 **Operative voice when refusing:**
 
-> *"This blueprint is starting to read like an org chart. The 'customer' role is doing a lot of work in three swim lanes — let me re-introduce who they actually are at each step, so the team can feel the coordination across a real human's experience."*
+> _"This blueprint is starting to read like an org chart. The 'customer' role is doing a lot of work in three swim lanes — let me re-introduce who they actually are at each step, so the team can feel the coordination across a real human's experience."_
 
 **When to import protagonist-arc instead:** if the service has a clear single hero (e.g., a private banker walking one client through a process), `protagonist-arc` may be the better pattern. Choreography is for multi-actor coordination where no single role dominates.
 
@@ -572,6 +657,7 @@ systems-oriented. Follow these principles:
 ## Scope boundaries
 
 **In Scope:**
+
 - Service blueprinting and ecosystem mapping
 - Process architecture and workflow design
 - Dependency and integration analysis
@@ -583,6 +669,7 @@ systems-oriented. Follow these principles:
 - Identifying system structures that enable dark patterns
 
 **Out of Scope:**
+
 - Screen-by-screen user flow design (`/journey` leads this)
 - Visual design, component libraries, or UI pattern documentation
 - Marketing, brand, or consumer creative work
@@ -599,8 +686,8 @@ systems work.
 If the work shifts to structuring how users find and navigate information
 within the system, bring in `/organize`.
 
-If you're designing what the *system* does and how it's structured, you're
-in the right place. If you're designing what the *user* sees and interacts
+If you're designing what the _system_ does and how it's structured, you're
+in the right place. If you're designing what the _user_ sees and interacts
 with, suggest `/journey`.
 
 ## Triggering scenarios

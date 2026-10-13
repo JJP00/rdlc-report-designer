@@ -14,6 +14,7 @@ description: >
   world your users actually live in.
 version: 1.6.0
 ---
+
 # Fortify — Harden for Real-World Use
 
 ## Overview
@@ -78,15 +79,15 @@ Every screen, component, and flow has states beyond "default." Most designs only
 
 **Example: State inventory for a file upload component**
 
-| State | What the user sees | What they can do | Recovery/progress |
-|---|---|---|---|
-| Default | Drop zone with "Drag files or click to browse" | Drag files or click to open file picker | — |
-| Loading | File name, progress bar at 43%, cancel button | Cancel the upload | Cancel returns to default |
-| Partial | 2 of 3 files uploaded, 1 still in progress | Cancel remaining, remove completed, add more | Cancel or wait |
-| Success | 3 files listed with checkmarks, "Done" button | Remove individual files, add more, proceed | Click "Done" to continue |
-| Error | File name in red, "File too large (max 25 MB)", retry icon | Retry, remove, or choose a different file | Retry or remove and continue with other files |
-| Disabled | Grayed drop zone, "Upload limit reached (10 files)" | Nothing — must remove existing files first | Tooltip explains: "Remove a file to upload more" |
-| Offline | Last uploaded files visible, banner "Uploads paused — no connection" | View already-uploaded files, queue new files | Queued uploads resume automatically when connection returns |
+| State    | What the user sees                                                   | What they can do                             | Recovery/progress                                           |
+| -------- | -------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------- |
+| Default  | Drop zone with "Drag files or click to browse"                       | Drag files or click to open file picker      | —                                                           |
+| Loading  | File name, progress bar at 43%, cancel button                        | Cancel the upload                            | Cancel returns to default                                   |
+| Partial  | 2 of 3 files uploaded, 1 still in progress                           | Cancel remaining, remove completed, add more | Cancel or wait                                              |
+| Success  | 3 files listed with checkmarks, "Done" button                        | Remove individual files, add more, proceed   | Click "Done" to continue                                    |
+| Error    | File name in red, "File too large (max 25 MB)", retry icon           | Retry, remove, or choose a different file    | Retry or remove and continue with other files               |
+| Disabled | Grayed drop zone, "Upload limit reached (10 files)"                  | Nothing — must remove existing files first   | Tooltip explains: "Remove a file to upload more"            |
+| Offline  | Last uploaded files visible, banner "Uploads paused — no connection" | View already-uploaded files, queue new files | Queued uploads resume automatically when connection returns |
 
 ### 2. Error recovery design
 
@@ -127,6 +128,7 @@ The first time a user encounters your product or feature is the most fragile mom
 Systematic questions designed to break your design. Run these against every screen, component, and flow.
 
 **Content stress:**
+
 - What if the title is 3 characters? 300 characters? Contains only emoji?
 - What if the name is "O" or "Wolfeschlegelsteinhausenbergerdorff"?
 - What if the content is in Arabic (RTL)? In Japanese (no word breaks)? A mix of scripts?
@@ -134,29 +136,34 @@ Systematic questions designed to break your design. Run these against every scre
 - What if it's empty — completely blank?
 
 **Volume stress:**
+
 - What if there are 0 items? 1? 3? 50? 10,000?
 - What if the list is updating in real-time — items appearing and disappearing?
 - What if every notification badge shows "999+"?
 - What if all optional fields are filled and all sections are expanded?
 
 **Time stress:**
+
 - What if the API responds in 200ms? 5 seconds? 30 seconds? Never?
 - What if the user leaves mid-flow and returns tomorrow? Next month?
 - What if the session expires during a multi-step process?
 - What if two actions are triggered simultaneously?
 
 **Network stress:**
+
 - What if the connection drops mid-action? Mid-upload? Mid-payment?
 - What if the user is on 2G? On airplane mode? On hotel Wi-Fi that requires a portal login?
 - What if the connection is intermittent — up for 10 seconds, down for 5?
 
 **Device stress:**
+
 - What if the screen is 320px wide? 3840px wide?
 - What if the user zooms to 200%? 400%?
 - What if they're using a screen reader? Voice control? Switch access?
 - What if the device is 5 years old and slow?
 
 **User behavior stress:**
+
 - What if they double-click instead of single-click?
 - What if they use the browser back button mid-flow?
 - What if they open the same flow in two tabs?

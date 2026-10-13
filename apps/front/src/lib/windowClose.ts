@@ -25,9 +25,7 @@ export type PendingIntent =
 export type PendingResolution = 'save' | 'discard' | 'cancel';
 
 /** Qué hacer cuando el SO pide cerrar la ventana. */
-export type WindowClosePlan =
-  | { kind: 'confirm' }
-  | { kind: 'intent'; intent: PendingIntent };
+export type WindowClosePlan = { kind: 'confirm' } | { kind: 'intent'; intent: PendingIntent };
 
 /** Pestañas sucias, en orden, como intención de cierre. */
 export function dirtyClosingTabs(tabs: readonly TabState[]): ClosingTab[] {
@@ -66,7 +64,7 @@ export async function saveAfterInFlight(
   saveOne: () => Promise<boolean>,
 ): Promise<boolean> {
   if (pending !== undefined) {
-    let ok = false;
+    let ok: boolean;
     try {
       ok = await pending;
     } catch {

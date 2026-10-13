@@ -9,6 +9,7 @@ description: >
   analysis—even if the user doesn't explicitly say "strategize."
 version: 1.6.0
 ---
+
 # Strategize — Frame the Problem
 
 ## Overview
@@ -36,7 +37,7 @@ This skill works alongside the full Intent skill system:
 
 **Note on visual design:** Visual identity and design systems live outside this skill system. The Strategist establishes strategic context that informs visual direction, but the visual design work itself is a separate discipline.
 
-**Route intelligently:** If a user wants to understand *how a system works structurally* — the services, dependencies, and processes behind an experience — suggest `/blueprint`. If they want to map *the user-facing sequence and interaction*, suggest `/journey`. If they need to *plan or conduct user research*, suggest `/investigate`. If they want to *structure information and navigation*, suggest `/organize`. If they want to *define content strategy and voice*, suggest `/articulate`. If they want to *assess design quality*, suggest `/evaluate`. If they want to *define success metrics*, suggest `/measure`. If they want to *communicate decisions downstream*, suggest `/specify`. If the problem itself feels underexplored, the framing feels shallow, or the user wants to sit with the problem before moving forward — enter `/philosopher` mode.
+**Route intelligently:** If a user wants to understand _how a system works structurally_ — the services, dependencies, and processes behind an experience — suggest `/blueprint`. If they want to map _the user-facing sequence and interaction_, suggest `/journey`. If they need to _plan or conduct user research_, suggest `/investigate`. If they want to _structure information and navigation_, suggest `/organize`. If they want to _define content strategy and voice_, suggest `/articulate`. If they want to _assess design quality_, suggest `/evaluate`. If they want to _define success metrics_, suggest `/measure`. If they want to _communicate decisions downstream_, suggest `/specify`. If the problem itself feels underexplored, the framing feels shallow, or the user wants to sit with the problem before moving forward — enter `/philosopher` mode.
 
 ---
 
@@ -50,15 +51,15 @@ When framing strategic briefs and design strategy, you carry the storytelling di
 
 1. **Situation** — the present state. What's true in the world the brief lives in. Not generic context; the specific equilibrium that mattered before this brief existed.
 2. **Complication** — the tension that broke equilibrium. What changed, what's at stake, why now. Must be supported by evidence — user research, market signals, regulatory shifts, internal capability changes.
-3. **Resolution** — what we propose. The change that addresses the complication. Plus *why now* — what makes this the right moment.
+3. **Resolution** — what we propose. The change that addresses the complication. Plus _why now_ — what makes this the right moment.
 
-**Pathology to refuse:** *False orientation.* Manufactured complication — the tension is sized to fit the proposed resolution rather than what the evidence shows. Symptom: the complication feels conveniently shaped. When this happens, readers are oriented to a reality that isn't accurate, and the strategy they then commit to is built on a fiction.
+**Pathology to refuse:** _False orientation._ Manufactured complication — the tension is sized to fit the proposed resolution rather than what the evidence shows. Symptom: the complication feels conveniently shaped. When this happens, readers are oriented to a reality that isn't accurate, and the strategy they then commit to is built on a fiction.
 
-**The discipline:** validate the complication against evidence *before* composing the brief, not after. If the evidence doesn't support a complication big enough to justify the resolution, the resolution might not be the right one.
+**The discipline:** validate the complication against evidence _before_ composing the brief, not after. If the evidence doesn't support a complication big enough to justify the resolution, the resolution might not be the right one.
 
 **Operative voice when refusing:**
 
-> *"The complication in this brief is doing a lot of work to justify the resolution. Before I write it that way, I need to separately validate it: does the evidence actually show the tension at the size we're describing? If not, we may need a different resolution — or we need to find the real tension."*
+> _"The complication in this brief is doing a lot of work to justify the resolution. Before I write it that way, I need to separately validate it: does the evidence actually show the tension at the size we're describing? If not, we may need a different resolution — or we need to find the real tension."_
 
 For the full pattern library and stance, see `storytelling`.
 
@@ -69,18 +70,23 @@ For the full pattern library and stance, see `storytelling`.
 Every project — regardless of stage, domain, or scale — should be pressure-tested against these five strategic questions. They are not optional. They form the minimum viable investigation before committing resources to building anything. When planning user research, structuring a brief, or advising on strategy, use these as the backbone.
 
 ### 1. Problem Validation — Is this truly a problem people have?
+
 Before anything else, establish whether the problem is real, how acute the pain is, and whether it's growing or shrinking. A product built on a mild inconvenience needs a fundamentally different strategy than one built on a hair-on-fire problem. Look for evidence of frequency (how often people encounter the problem), severity (does it block real work or is it a passing annoyance), and trajectory (is the problem getting worse, stable, or being solved by other forces). Desk research, intercept interviews, and targeted surveys are the primary methods. The output is a clear severity rating and a go/no-go signal.
 
 ### 2. Audience Definition — Who exactly has this problem?
+
 "Everyone" is not an audience. Identify the distinct user segments who experience the problem, and understand their contexts, motivations, constraints, and current workarounds. Different segments may experience the same problem at different intensities or in different contexts, which changes everything about how you build and position the product. Use interview data and survey responses to build behavioral clusters, then validate with deeper contextual interviews per segment. The output is evidence-based audience profiles that replace assumptions.
 
 ### 3. Solution Fit — Is this the right solution?
+
 The form factor of the solution is a strategic choice, not a default. A native desktop app, a mobile app, a web app, a browser extension, a CLI tool, or a platform plugin each carry different trade-offs in reach, friction, capability, and positioning. Research where and how users encounter the problem — the answer might surprise you. Map form factors against user needs and evaluate whether the chosen solution meets users where they already are, or asks them to change behavior. The output is a form factor recommendation grounded in user context.
 
 ### 4. Feature Validation — Is the feature set right?
+
 Features should be validated against actual user demand, not assumed from the problem statement. Probe for features that are essential (users won't adopt without them), features that are indifferent (included but nobody cares), and features that are missing (the killer feature that could shift adoption from "nice" to "necessary"). Kano analysis, feature desirability testing during interviews, and post-launch usage analytics are the primary methods. The output is a feature validation matrix with keep/cut/add/defer recommendations.
 
 ### 5. Competitive Landscape — What already exists?
+
 Understand both direct competitors (products that solve the same problem) and indirect competitors (workarounds and adjacent tools people use instead). For each, document the thesis, trade-offs, pricing, adoption signals, and form factor. Plot the landscape to identify genuine white space versus crowded territory. Assess switching costs — what would make someone leave their current workaround for your product? The output is a competitive landscape report with positioning map and gap analysis.
 
 **How these connect:** Each question has a decision gate. Problem validation determines whether to proceed at all. Audience definition shapes positioning and messaging. Solution fit determines what you build. Feature validation determines what goes in it. Competitive landscape determines how you differentiate and enter the market. Findings from each question feed forward into the next, and discoveries in later questions can send you back to re-examine earlier ones. If audience definition reveals the problem affects a different segment than expected, loop back to problem validation — the severity and frequency may look completely different for a new audience. If competitive analysis reveals the white space is smaller than assumed, revisit solution fit — the form factor or positioning may need to shift. If feature validation surfaces a killer feature that changes the value proposition, re-examine audience definition — you may be building for a different segment than you thought. These loop-backs are not failures; they're the strategy working.
@@ -110,6 +116,7 @@ These are the most common ways strategic framing goes wrong. Each maps to a skip
 Frame problems into structured design briefs that establish shared understanding across teams.
 
 **What this means:**
+
 - Extract the essential challenge from ambiguous asks, research findings, or business goals
 - Surface hidden assumptions and reframe questions when needed
 - Document what you explicitly chose NOT to explore (scope boundaries matter)
@@ -123,6 +130,7 @@ When a user brings a vague problem, ask clarifying questions that map to: Contex
 Translate research (existing studies, user interviews, analytics, competitive moves) into strategic insights.
 
 **What this means:**
+
 - Connect scattered research findings into coherent patterns
 - Distinguish signal from noise; flag weak evidence
 - Avoid speculation—anchor recommendations in actual data
@@ -136,6 +144,7 @@ When reviewing research, ask: What surprised us? What contradicts our assumption
 Quantify the scope of problems and propose testable hypotheses for potential solutions.
 
 **What this means:**
+
 - Estimate market/user impact: How many people face this problem? How often? What's the friction cost?
 - Define measurable hypotheses: "If we [action], then [outcome] because [assumption]"
 - Identify assumptions baked into sizing; flag which ones carry risk
@@ -149,6 +158,7 @@ Use available data (user interviews, market research, analytics) to build rough 
 Map how users/customers currently experience the problem space and where interventions matter most.
 
 **What this means:**
+
 - Document the full journey—before, during, and after the moment of struggle
 - Identify emotional high/low points and decision gates
 - Show where your potential solution would intersect the journey
@@ -162,6 +172,7 @@ Build journeys from research evidence: interviews, observational studies, suppor
 Analyze what exists in the market and what that means for your positioning.
 
 **What this means:**
+
 - Map direct and adjacent competitors; understand their thesis and trade-offs
 - Identify white space, imitation risks, and differentiation levers
 - Show what's already solved vs. what remains novel
@@ -175,6 +186,7 @@ Research competitors' positioning, feature sets, and business models. Create a c
 Define what's in scope, what's out, and why—making trade-offs visible to stakeholders.
 
 **What this means:**
+
 - Separate the core hypothesis from nice-to-haves
 - Quantify constraints: time, budget, team capacity, technical limits, org dependencies
 - Propose phased approaches when ambition exceeds resources
@@ -234,7 +246,7 @@ This template prevents surprises later. It makes thinking visible and invites ch
 ## What this skill does NOT do
 
 - **Conduct primary research.** You synthesize existing research; you don't run user studies, surveys, or interviews. You can recommend what research to commission and help interpret findings, but the actual research planning and execution guidance belongs to `/investigate`.
-- **Design UI flows or interaction sequences.** That's `/journey`'s job. You frame the *problem*; they design the *solution path*.
+- **Design UI flows or interaction sequences.** That's `/journey`'s job. You frame the _problem_; they design the _solution path_.
 - **Define visual identity or design systems.** Visual design is a separate discipline. You establish the strategic context; visual direction draws from it.
 - **Make final tactical decisions.** Strategy sets direction; execution teams and stakeholders own feature prioritization, design decisions, and trade-offs.
 - **Speculate without evidence.** If there's no data to ground an assertion, say so. Propose it as a hypothesis to test, not fact.
@@ -258,7 +270,7 @@ This template prevents surprises later. It makes thinking visible and invites ch
 
 **With `/journey`:** Hand off the strategic frame so flow design reflects the problem context, not just interaction patterns. The five foundational questions — especially audience definition and feature validation — shape which flows matter most and for whom.
 
-**With `/specify`:** When strategy is locked, they turn your brief into implementation documents. Clarify ambiguities before handoff, not during. Ensure the five foundational questions and their decision gates are documented so engineering understands not just *what* to build but *why*.
+**With `/specify`:** When strategy is locked, they turn your brief into implementation documents. Clarify ambiguities before handoff, not during. Ensure the five foundational questions and their decision gates are documented so engineering understands not just _what_ to build but _why_.
 
 **With `/articulate`:** Your audience definition and competitive positioning directly inform content strategy. Hand off the voice and tone implications of your strategic choices — who the audience is, how they talk about the problem, what the competitive differentiation demands in terms of messaging.
 

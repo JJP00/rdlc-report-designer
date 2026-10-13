@@ -22,11 +22,11 @@
 
 **≈ 71 / 100** (rango 64–78), con los mismos pesos que 0003.
 
-| Componente           | Resultado                                           | Peso |
-| -------------------- | --------------------------------------------------- | ---- |
-| Heurísticas (H1–H10) | 16 puntos de severidad / 40 → 60 %                  | 50 % |
-| Éxito de tarea       | 6 ok · 2 dudas · 1 fallo (~75 %, estimado)          | 30 % |
-| Anti-patrones        | sin manipulación; fallos de oficio (~90 %)          | 20 % |
+| Componente           | Resultado                                  | Peso |
+| -------------------- | ------------------------------------------ | ---- |
+| Heurísticas (H1–H10) | 16 puntos de severidad / 40 → 60 %         | 50 % |
+| Éxito de tarea       | 6 ok · 2 dudas · 1 fallo (~75 %, estimado) | 30 % |
+| Anti-patrones        | sin manipulación; fallos de oficio (~90 %) | 20 % |
 
 Comparación: 0002 = 86 (solo ruta feliz), 0003 ≈ 61 (caminos de fallo, estático), hoy
 ≈ 71. Sube respecto a 0003 porque lo ejecutado confirma las mejoras (título con `*`,
@@ -34,18 +34,18 @@ Comparación: 0002 = 86 (solo ruta feliz), 0003 ≈ 61 (caminos de fallo, estát
 capa de problemas de accesibilidad y adaptación que el análisis estático no veía. El rango
 es amplio porque H9 (recuperación de errores) no se volvió a medir.
 
-| H   | Hoy | Nota                                                                |
-| --- | --- | ------------------------------------------------------------------- |
-| H1  | 2   | Las ediciones no dicen nada en el pie; «Abierto: …» queda obsoleto  |
-| H2  | 1   | Jerga del modelo en el inspector                                    |
-| H3  | 1   | Undo y diálogos de cierre con «Cancelar» enfocado                   |
-| H4  | 2   | «Aplicar» (informe) frente a edición en vivo (elemento)             |
-| H5  | 1   |                                                                     |
-| H6  | 2   | Editar texto solo desde el menú contextual; toolbar sin etiquetas   |
-| H7  | 2   | Sin doble clic / Enter / F2; lienzo sin teclado; Ctrl+K invisible   |
-| H8  | 2   | Inspector apilado                                                   |
-| H9  | 1   | No re-medido                                                        |
-| H10 | 2   | Estado vacío largo; sin hoja de atajos                              |
+| H   | Hoy | Nota                                                               |
+| --- | --- | ------------------------------------------------------------------ |
+| H1  | 2   | Las ediciones no dicen nada en el pie; «Abierto: …» queda obsoleto |
+| H2  | 1   | Jerga del modelo en el inspector                                   |
+| H3  | 1   | Undo y diálogos de cierre con «Cancelar» enfocado                  |
+| H4  | 2   | «Aplicar» (informe) frente a edición en vivo (elemento)            |
+| H5  | 1   |                                                                    |
+| H6  | 2   | Editar texto solo desde el menú contextual; toolbar sin etiquetas  |
+| H7  | 2   | Sin doble clic / Enter / F2; lienzo sin teclado; Ctrl+K invisible  |
+| H8  | 2   | Inspector apilado                                                  |
+| H9  | 1   | No re-medido                                                       |
+| H10 | 2   | Estado vacío largo; sin hoja de atajos                             |
 
 ## Veredicto de anti-patrones
 
@@ -63,6 +63,7 @@ Las cuatro auditorías coinciden en varios puntos; aquí están **fusionados**. 
 
 **1. El lienzo no tiene entrada por teclado ni alternativa para lector de pantalla.**
 Confirma y agrava 0003 #11 (lo señalan `/include`, `/evaluate`, `/organize` y `/fortify`).
+
 - Observado: los `<canvas>` de Konva cuelgan de un `div role="presentation"`, sin
   `tabindex`, `role` ni `aria-label`. De las 40–45 paradas de Tab ninguna entra en el
   lienzo; tras un clic, `document.activeElement` es `BODY`. Los atajos globales (flechas,
@@ -87,6 +88,7 @@ Arreglo: roving tabindex con ↑/↓, →/← para expandir y colapsar, Inicio/F
 
 **3. La tira de pestañas es un `tablist` incompleto y la activa puede quedar fuera de
 vista.** [NUEVO] (`/include`, `/fortify`, `/organize`)
+
 - Observado: no hay `tabpanel` ni `aria-controls`; cada pestaña contiene un botón «Cerrar»
   enfocable (2N paradas de Tab y nombre accesible «A.rdlc Cerrar A.rdlc»); no hay roving
   tabindex ni flechas entre pestañas ni Inicio/Fin (Verificado: `TabStrip.tsx` solo trata

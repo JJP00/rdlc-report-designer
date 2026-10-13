@@ -51,6 +51,7 @@ The master skill catalogs anti-patterns. This document explains how to fix them 
 The General Data Protection Regulation is the most comprehensive privacy regulation in force. Key requirements for designers:
 
 **Consent (Article 7, Recitals 32, 42, 43):**
+
 - Must be freely given — no bundling consent with service access unless data processing is genuinely necessary for the service
 - Must be specific — separate consent for separate purposes
 - Must be informed — plain language, no legalese
@@ -58,16 +59,19 @@ The General Data Protection Regulation is the most comprehensive privacy regulat
 - Withdrawal must be as easy as giving consent — no asymmetric flows
 
 **Data Minimization (Article 5(1)(c)):**
+
 - Collect only what's necessary for the stated purpose
 - Don't collect data "in case we need it later"
 - Design forms to request minimum required fields
 
 **Right to Erasure (Article 17):**
+
 - Users can request deletion of their data
 - Deletion must be actual, not just hiding the record
 - Design systems need real deletion capabilities, not just soft deletes
 
 **Privacy by Design (Article 25):**
+
 - Data protection must be built into the design of systems, not bolted on
 - Default settings must be the most privacy-protective option
 - This is a legal requirement, not a best practice
@@ -79,11 +83,13 @@ The General Data Protection Regulation is the most comprehensive privacy regulat
 The Federal Trade Commission uses its authority under Section 5 (unfair or deceptive acts) to pursue dark patterns.
 
 **Key enforcement actions:**
+
 - Epic Games / Fortnite (2022): $520M settlement for dark patterns targeting children, including confusing purchase flows and unauthorized charges
 - Amazon Prime (2023): FTC sued over "Iliad" — Amazon's internal name for a cancellation flow deliberately designed to be confusing
 - Age of Empires / Microsoft (2023): Enforcement against manipulative subscription practices
 
 **"Click to Cancel" Rule (2024):**
+
 - Businesses must make cancellation as easy as sign-up
 - Must get affirmative consent before charging
 - Must provide clear annual reminders for negative-option programs
@@ -96,6 +102,7 @@ The Federal Trade Commission uses its authority under Section 5 (unfair or decep
 The Children's Online Privacy Protection Act applies to services directed at children under 13, or services that knowingly collect data from children under 13.
 
 **Design requirements:**
+
 - Verifiable parental consent before collecting personal information from children
 - No behavioral advertising to children
 - No conditioning participation on data collection beyond what's necessary
@@ -115,14 +122,17 @@ The Children's Online Privacy Protection Act applies to services directed at chi
 ### EU Digital Services Act (2024)
 
 **Dark pattern prohibition (Article 25):**
+
 - Online platforms must not design, organize, or operate interfaces in a way that deceives, manipulates, or materially distorts users' ability to make free and informed decisions
 - Specific prohibition on: giving more prominence to certain choices, repeatedly requesting users to make choices they've already made, making cancellation harder than sign-up, and making choices non-neutral by default
 
 **Minor protection (Article 28):**
+
 - Platforms accessible to minors must implement appropriate measures to ensure a high level of privacy, safety, and security
 - No targeted advertising based on profiling when the platform is aware the user is a minor
 
 **Algorithmic transparency (Articles 27, 38):**
+
 - Recommendation systems must explain the main parameters used
 - Users must have at least one option not based on profiling
 
@@ -135,6 +145,7 @@ The Children's Online Privacy Protection Act applies to services directed at chi
 Developed by Batya Friedman and colleagues at the University of Washington, VSD is a theoretically grounded approach to the design of technology that accounts for human values in a principled and comprehensive manner throughout the design process.
 
 **Three investigations:**
+
 1. **Conceptual** — Identify stakeholders (direct and indirect), identify values at stake, investigate how values might conflict
 2. **Empirical** — Study how stakeholders actually apprehend and experience the technology and the values at stake
 3. **Technical** — Analyze how specific technical properties support or hinder stakeholder values
@@ -148,6 +159,7 @@ Developed by Batya Friedman and colleagues at the University of Washington, VSD 
 Design Justice rethinks design processes by centering the people who are most impacted by design decisions, rather than the most powerful stakeholders.
 
 **Core principles:**
+
 1. Design to sustain, heal, and empower communities — prioritize impact on the most marginalized
 2. Center the voices of those who are directly impacted by design outcomes
 3. Prioritize design's impact on the community over the designer's intent
@@ -161,6 +173,7 @@ Design Justice rethinks design processes by centering the people who are most im
 Developed by Doteveryone (now the Responsible Technology Institute), Consequence Scanning is a lightweight practice for identifying potential consequences of a product or feature.
 
 **Process:**
+
 1. **Describe** the product/feature in plain terms — what it does, who uses it, what data it touches
 2. **Brainstorm consequences** across three dimensions:
    - Intended consequences (what you're trying to achieve)

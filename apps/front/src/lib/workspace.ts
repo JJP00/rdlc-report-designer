@@ -217,7 +217,10 @@ export function isCaseInsensitivePathPlatform(): boolean {
  * barras repetidas y barra final fuera; en Windows además sin distinguir
  * mayúsculas.
  */
-export function normalizePath(path: string, caseInsensitive = isCaseInsensitivePathPlatform()): string {
+export function normalizePath(
+  path: string,
+  caseInsensitive = isCaseInsensitivePathPlatform(),
+): string {
   const collapsed = path.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
   const trimmed = collapsed.length > 1 ? collapsed.replace(/\/+$/, '') : collapsed;
   return caseInsensitive ? trimmed.toLowerCase() : trimmed;
@@ -339,11 +342,7 @@ export type CloseScope = 'self' | 'saved' | 'all' | 'others' | 'right';
  * tira): ella misma, las que no tienen cambios, todas, todas menos ella o las
  * de su derecha. Una ancla inexistente no cierra nada (salvo `all`/`saved`).
  */
-export function closeTargets(
-  state: WorkspaceState,
-  scope: CloseScope,
-  anchorId: string,
-): string[] {
+export function closeTargets(state: WorkspaceState, scope: CloseScope, anchorId: string): string[] {
   const index = state.order.indexOf(anchorId);
   switch (scope) {
     case 'self':
@@ -365,11 +364,7 @@ export function closeTargets(
  * pestaña activa ni toca ninguna sesión. Sin efecto (mismo estado) si la
  * pestaña no existe o ya está en esa posición.
  */
-export function moveTab(
-  state: WorkspaceState,
-  sessionId: string,
-  toIndex: number,
-): WorkspaceState {
+export function moveTab(state: WorkspaceState, sessionId: string, toIndex: number): WorkspaceState {
   const from = state.order.indexOf(sessionId);
   if (from < 0) return state;
   const target = Math.max(0, Math.min(state.order.length - 1, toIndex));

@@ -47,7 +47,6 @@ describe('F0 · comparativa de adaptadores (evidencia ADR)', () => {
       scores.set(codec.name, ok);
     }
 
-    // eslint-disable-next-line no-console
     console.log(`\nRound-trip byte a byte sobre ${corpus.length} ficheros:\n${rows.join('\n')}\n`);
 
     expect(scores.get('xml-trueformat')).toBe(corpus.length);
@@ -76,14 +75,12 @@ describe('F0 · comparativa de adaptadores (evidencia ADR)', () => {
       );
     }
 
-    // eslint-disable-next-line no-console
     console.log(`\nTiempos xml-trueformat:\n${rows.join('\n')}\n`);
   });
 
   it('mide memoria retenida con los 10 documentos en memoria', () => {
     const gc = (globalThis as { gc?: () => void }).gc;
     if (!gc) {
-      // eslint-disable-next-line no-console
       console.log('\nMemoria: gc no disponible (ejecutar con --expose-gc); medición omitida\n');
       return;
     }
@@ -98,7 +95,6 @@ describe('F0 · comparativa de adaptadores (evidencia ADR)', () => {
     const totalMb = retained / 1024 / 1024;
     const corpusBytes = corpus.reduce((acc, f) => acc + f.bytes.length, 0);
 
-    // eslint-disable-next-line no-console
     console.log(
       `\nMemoria retenida: ${totalMb.toFixed(1)} MB para ${(corpusBytes / 1024 / 1024).toFixed(
         2,

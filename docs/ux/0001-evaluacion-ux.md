@@ -2,7 +2,7 @@
 
 - **Fecha**: 2026-09-29
 - **Método**: evaluación heurística (Nielsen), walkthrough cognitivo, escaneo de
-  anti-patrones y análisis de éxito de tarea, aplicados con el sistema *Intent*
+  anti-patrones y análisis de éxito de tarea, aplicados con el sistema _Intent_
   (`/intent` → `/evaluate`).
 - **Artefacto evaluado**: build `pnpm --filter @rdlc-designer/back build:e2e` del
   **árbol de trabajo** (incluye el trabajo en curso de grupos de fila del Tablix,
@@ -26,11 +26,11 @@
 **72 / 100** — herramienta interna sólida, frenada por dos caminos de pérdida de
 trabajo sin guardar y una tanda de detalles de copia/consistencia.
 
-| Componente               | Resultado                              | Peso |
-| ------------------------ | -------------------------------------- | ---- |
-| Heurísticas (H1–H10)     | 17 puntos de severidad / 40 → 57,5 %   | 50 % |
-| Éxito de tarea           | 4 ok · 1 duda · 1 fallo → ~78 %        | 30 % |
-| Anti-patrones            | Limpio → 100 %                         | 20 % |
+| Componente           | Resultado                            | Peso |
+| -------------------- | ------------------------------------ | ---- |
+| Heurísticas (H1–H10) | 17 puntos de severidad / 40 → 57,5 % | 50 % |
+| Éxito de tarea       | 4 ok · 1 duda · 1 fallo → ~78 %      | 30 % |
+| Anti-patrones        | Limpio → 100 %                       | 20 % |
 
 ## Veredicto de anti-patrones
 
@@ -59,7 +59,7 @@ watcher quedan vivos sin referencia (fuga).
 de sesión: reutilizar o cerrar la anterior).
 
 **2. Cerrar la ventana (X) sale sin avisar.**
-Solo el botón *Cerrar* de la toolbar comprueba cambios (con un
+Solo el botón _Cerrar_ de la toolbar comprueba cambios (con un
 `window.confirm` nativo). El cierre de ventana del SO y el quit de la app no
 tienen guarda en el proceso principal (`main.ts` solo maneja `closed` /
 `window-all-closed`). El mismo escenario de pérdida, más fácil de provocar.
@@ -77,25 +77,25 @@ existe).
 
 **4. El diálogo Propiedades del informe descarta ediciones en silencio.**
 Los campos numéricos no tienen indicador de «sin aplicar»; cerrar con X/Esc
-pierde los cambios sin pista de que *Aplicar* era necesario. Tampoco hay
+pierde los cambios sin pista de que _Aplicar_ era necesario. Tampoco hay
 validación de límites del tamaño de página/márgenes (0/negativos no se
 rechazan en cliente).
 → **Ruta:** `/fortify` (borradores con estado, validación).
 
 **5. La selección no se reconoce en el inspector.**
 Con una fila del Tablix seleccionada (captura 04), el panel sigue diciendo
-*«Selecciona un elemento en el lienzo para editar sus propiedades.»* —
+_«Selecciona un elemento en el lienzo para editar sus propiedades.»_ —
 contradice lo que el usuario acaba de hacer.
 → **Ruta:** `/articulate` (empty state contextual).
 
 **6. Errores de copia en español que se leen como dejadez.**
-*«1 filas × 1 columnas»* (cabecera de Estructura, sin pluralización) y
-*«1 párr. · 1 run(s)»* (editor de texto). Pequeños, pero están en pantalla cada
+_«1 filas × 1 columnas»_ (cabecera de Estructura, sin pluralización) y
+_«1 párr. · 1 run(s)»_ (editor de texto). Pequeños, pero están en pantalla cada
 sesión.
 → **Ruta:** `/articulate`.
 
 **7. «Horizontal» está mezclado en la fila de tamaños de papel.**
-A4 / Letter / Legal (tamaños) convive con *Horizontal* (una **acción** de
+A4 / Letter / Legal (tamaños) convive con _Horizontal_ (una **acción** de
 orientación que intercambia ancho/alto). Peor aún: pulsar un preset de tamaño
 devuelve a vertical una página horizontal sin avisar. Semánticas distintas en
 un mismo grupo visual.
@@ -103,21 +103,21 @@ un mismo grupo visual.
 etiquetas).
 
 **8. La paleta esconde casi todo lo que puede hacer.**
-En reposo solo muestra *Elementos del informe*; las acciones (Guardar,
+En reposo solo muestra _Elementos del informe_; las acciones (Guardar,
 Insertar…, Propiedades) y las variables solo aparecen al escribir. El
 placeholder promete «elemento, variable o acción» pero la superficie no lo
 muestra.
 → **Ruta:** `/organize` (estructura de la superficie de comandos).
 
 **9. La barra de estado se repite y se queda obsoleta.**
-*«Abierto: <ruta completa>»* a la izquierda más la misma ruta truncada + stats
+_«Abierto: <ruta completa>»_ a la izquierda más la misma ruta truncada + stats
 a la derecha; el mensaje izquierdo se mantiene hasta la siguiente acción y
 envejece como contexto.
 → **Ruta:** `/organize` (prioridad de la información).
 
 ### P3 — Cosmético
 
-- **10.** El `window.confirm` nativo del flujo *Cerrar* rompe el lenguaje de
+- **10.** El `window.confirm` nativo del flujo _Cerrar_ rompe el lenguaje de
   diálogos propio (H4) — se resolverá junto con P1; ruta `/articulate` para la
   copia de confirmación.
 - **11.** No hay «ajustar a ventana» / 100 %; el 60 % inicial es fijo (solo
@@ -130,7 +130,7 @@ envejece como contexto.
   opacidad) sin textbox seleccionado — coste de chrome puro →
   `/include` · `/articulate` (colapsarla).
 - **14.** Los botones de insertar son solo icono (T / □ / — / imagen); los
-  tooltips ayudan, pero un grupo *Insertar* con etiqueta ayudaría a los nuevos
+  tooltips ayudan, pero un grupo _Insertar_ con etiqueta ayudaría a los nuevos
   → `/organize`.
 - **15.** Texto de 10–11 px en Estructura/Estado y botones de icono de 24 px
   están en el mínimo de WCAG 2.5.8; el gris atenuado sobre blanco queda al
@@ -140,29 +140,29 @@ envejece como contexto.
 
 ## Puntuación heurística (0 = sin problemas, 4 = catastrófico)
 
-| #   | Heurística                          | Nota | Hallazgo clave                                                                 |
-| --- | ----------------------------------- | ---- | ------------------------------------------------------------------------------ |
-| H1  | Visibilidad del estado              | 2    | Buen feedback de versión/estado; el texto de estado envejece; sin acuse de selección de miembro (P2.5) |
-| H2  | Lenguaje del mundo real             | 1    | Lenguaje de dominio excelente (Tablix, grupo, `Code.`, `Fields!`); deslices de pluralización (P2.6) |
-| H3  | Control y libertad del usuario      | 2    | Undo byte-exacto, jerarquía Esc, diálogos cancelables; **pérdida de trabajo sin guardar (P1.1, P1.2)** |
-| H4  | Consistencia y estándares           | 2    | Lenguaje shadcn coherente; `confirm` nativo, dos sistemas de tooltip, promesa de Ctrl+S (P2.3) |
-| H5  | Prevención de errores               | 2    | XSD validado antes de escribir; borrados deshacibles; faltan guardas al abrir/cerrar/ventana |
-| H6  | Reconocer antes que recordar        | 1    | Paleta, variables, tooltips y etiquetas en el lienzo; toolbar solo-icono, contenido de la paleta oculto |
-| H7  | Flexibilidad y eficiencia           | 1    | Ctrl+K, flechas 1pt/10pt, snap+Shift, Ctrl+rueda; sin Ctrl+S ni ajustar-a-ventana |
-| H8  | Estético y minimalista              | 2    | Lienzo protagonista y sereno; dos filas de toolbar siempre presentes, estado recargado |
-| H9  | Diagnóstico y recuperación de errores | 2  | Banner de conflicto explica causa + 2 salidas; errores autodescartables pierden la recuperación |
-| H10 | Ayuda y documentación               | 2    | Textos de ayuda inline excelentes; sin referencia de atajos ni entrada de ayuda |
+| #   | Heurística                            | Nota | Hallazgo clave                                                                                          |
+| --- | ------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------- |
+| H1  | Visibilidad del estado                | 2    | Buen feedback de versión/estado; el texto de estado envejece; sin acuse de selección de miembro (P2.5)  |
+| H2  | Lenguaje del mundo real               | 1    | Lenguaje de dominio excelente (Tablix, grupo, `Code.`, `Fields!`); deslices de pluralización (P2.6)     |
+| H3  | Control y libertad del usuario        | 2    | Undo byte-exacto, jerarquía Esc, diálogos cancelables; **pérdida de trabajo sin guardar (P1.1, P1.2)**  |
+| H4  | Consistencia y estándares             | 2    | Lenguaje shadcn coherente; `confirm` nativo, dos sistemas de tooltip, promesa de Ctrl+S (P2.3)          |
+| H5  | Prevención de errores                 | 2    | XSD validado antes de escribir; borrados deshacibles; faltan guardas al abrir/cerrar/ventana            |
+| H6  | Reconocer antes que recordar          | 1    | Paleta, variables, tooltips y etiquetas en el lienzo; toolbar solo-icono, contenido de la paleta oculto |
+| H7  | Flexibilidad y eficiencia             | 1    | Ctrl+K, flechas 1pt/10pt, snap+Shift, Ctrl+rueda; sin Ctrl+S ni ajustar-a-ventana                       |
+| H8  | Estético y minimalista                | 2    | Lienzo protagonista y sereno; dos filas de toolbar siempre presentes, estado recargado                  |
+| H9  | Diagnóstico y recuperación de errores | 2    | Banner de conflicto explica causa + 2 salidas; errores autodescartables pierden la recuperación         |
+| H10 | Ayuda y documentación                 | 2    | Textos de ayuda inline excelentes; sin referencia de atajos ni entrada de ayuda                         |
 
 ## Walkthrough cognitivo
 
-| Tarea                                    | Pasos                                          | Veredicto       | Dónde se rompe                                                        |
-| ---------------------------------------- | ---------------------------------------------- | --------------- | ---------------------------------------------------------------------- |
-| Encontrar y seleccionar un textbox        | Ctrl+K → escribir → Enter                      | ✅ Pasa         | Menor: la paleta solo muestra elementos en reposo                     |
-| Cambiar la expresión de un textbox        | seleccionar → panel → Monaco → Aplicar         | ⚠️ Duda         | Objetivos diminutos al 60 %; primera apertura de Monaco sin señal de carga |
-| Añadir una fila a una tabla               | borde del Tablix → `+` de Estructura           | ⚠️ Duda         | Seleccionar por borde fino vs. click dentro es conocimiento de iniciados (Q2 visibilidad) |
-| Recuperarse de un cambio externo          | banner de conflicto → guardar o reabrir        | ✅ Pasa         | La copia nombra las dos salidas (ejemplar)                            |
-| Renombrar / visibilidad / fondo           | panel de propiedades                           | ✅ Pasa         | Validación y undo funcionan como se espera                            |
-| **Cambiar de documento / salir sin guardar** | Abrir… o X de la ventana                    | ❌ **Fallo**    | **Sin guarda; el trabajo se pierde en silencio — el único arco roto** |
+| Tarea                                        | Pasos                                   | Veredicto    | Dónde se rompe                                                                            |
+| -------------------------------------------- | --------------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| Encontrar y seleccionar un textbox           | Ctrl+K → escribir → Enter               | ✅ Pasa      | Menor: la paleta solo muestra elementos en reposo                                         |
+| Cambiar la expresión de un textbox           | seleccionar → panel → Monaco → Aplicar  | ⚠️ Duda      | Objetivos diminutos al 60 %; primera apertura de Monaco sin señal de carga                |
+| Añadir una fila a una tabla                  | borde del Tablix → `+` de Estructura    | ⚠️ Duda      | Seleccionar por borde fino vs. click dentro es conocimiento de iniciados (Q2 visibilidad) |
+| Recuperarse de un cambio externo             | banner de conflicto → guardar o reabrir | ✅ Pasa      | La copia nombra las dos salidas (ejemplar)                                                |
+| Renombrar / visibilidad / fondo              | panel de propiedades                    | ✅ Pasa      | Validación y undo funcionan como se espera                                                |
+| **Cambiar de documento / salir sin guardar** | Abrir… o X de la ventana                | ❌ **Fallo** | **Sin guarda; el trabajo se pierde en silencio — el único arco roto**                     |
 
 ---
 

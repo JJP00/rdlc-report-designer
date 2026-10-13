@@ -9,7 +9,7 @@
 
 - **Fecha**: 2026-09-30
 - **Método**: re-evaluación heurística (Nielsen), walkthrough cognitivo, escaneo de
-  anti-patrones y análisis de éxito de tarea, con el sistema *Intent*
+  anti-patrones y análisis de éxito de tarea, con el sistema _Intent_
   (`/intent` → `/evaluate`). Contrasta con `docs/ux/0001-evaluacion-ux.md`.
 - **Artefacto evaluado**: build `pnpm --filter @rdlc-designer/back build:e2e` del
   **árbol de trabajo** con el pase de UX completo (U1–U9: vida de fichero y
@@ -34,11 +34,11 @@ crear, cerrar, salir), el conflicto tiene salidas honestas y la edición en lote
 llega con un solo undo. Lo que resta es deuda de acabado (multiselección
 incompleta y saturación del chrome), no de confianza.
 
-| Componente               | Resultado                               | Peso |
-| ------------------------ | --------------------------------------- | ---- |
-| Heurísticas (H1–H10)     | 12 puntos de severidad / 40 → 70 %      | 50 % |
-| Éxito de tarea           | 5 ok · 1 duda → ~92 %                   | 30 % |
-| Anti-patrones            | Limpio → 100 %                          | 20 % |
+| Componente           | Resultado                          | Peso |
+| -------------------- | ---------------------------------- | ---- |
+| Heurísticas (H1–H10) | 12 puntos de severidad / 40 → 70 % | 50 % |
+| Éxito de tarea       | 5 ok · 1 duda → ~92 %              | 30 % |
+| Anti-patrones        | Limpio → 100 %                     | 20 % |
 
 > Comparativa: 0001 = 72 (17/40 heurísticas, 1 fallo de tarea, 2 P1). El único
 > arco roto de 0001 («cambiar de documento / salir sin guardar») está **cerrado**.
@@ -119,31 +119,31 @@ escribir).
 
 ## Puntuación heurística (0 = sin problemas, 4 = catastrófico)
 
-| #   | Heurística                             | 0001 | Hoy | Hallazgo clave                                                                 |
-| --- | -------------------------------------- | ---- | --- | ------------------------------------------------------------------------------ |
-| H1  | Visibilidad del estado                 | 2    | 1   | Guardado/Deshecho/conflicto con versión; asterisco de dirty fiable (ya no miente al deshacer) |
-| H2  | Lenguaje del mundo real                | 1    | 1   | Lenguaje de dominio intacto; copia de diálogos precisa                         |
-| H3  | Control y libertad del usuario         | 2    | 1   | Guardas en los 4 caminos + undo byte-exacto + batch atómico                    |
-| H4  | Consistencia y estándares              | 2    | 1   | Sin `confirm` nativo; diálogos Radix propios en todo el ciclo                  |
-| H5  | Prevención de errores                  | 2    | 1   | Validación XSD antes de escribir; guardas proporcionales al riesgo             |
-| H6  | Reconocer antes que recordar           | 1    | 1   | Paleta en reposo, jerarquía, breadcrumb y tooltips; iconos de alinear sin texto |
-| H7  | Flexibilidad y eficiencia              | 1    | 1   | Ctrl+S/Shift+S/N/O, zoom, z-order, lote con `batch`; falta marcos y ayuda       |
-| H8  | Estético y minimalista                 | 2    | 2   | Lienzo protagonista; toolbar y estado cargados (deuda de agrupación)           |
-| H9  | Diagnóstico y recuperación de errores  | 2    | 1   | Conflicto con 3 salidas y banner persistente hasta resolver; error auto-descartable |
-| H10 | Ayuda y documentación                  | 2    | 1   | Textos inline excelentes; sigue faltando una referencia de atajos              |
+| #   | Heurística                            | 0001 | Hoy | Hallazgo clave                                                                                |
+| --- | ------------------------------------- | ---- | --- | --------------------------------------------------------------------------------------------- |
+| H1  | Visibilidad del estado                | 2    | 1   | Guardado/Deshecho/conflicto con versión; asterisco de dirty fiable (ya no miente al deshacer) |
+| H2  | Lenguaje del mundo real               | 1    | 1   | Lenguaje de dominio intacto; copia de diálogos precisa                                        |
+| H3  | Control y libertad del usuario        | 2    | 1   | Guardas en los 4 caminos + undo byte-exacto + batch atómico                                   |
+| H4  | Consistencia y estándares             | 2    | 1   | Sin `confirm` nativo; diálogos Radix propios en todo el ciclo                                 |
+| H5  | Prevención de errores                 | 2    | 1   | Validación XSD antes de escribir; guardas proporcionales al riesgo                            |
+| H6  | Reconocer antes que recordar          | 1    | 1   | Paleta en reposo, jerarquía, breadcrumb y tooltips; iconos de alinear sin texto               |
+| H7  | Flexibilidad y eficiencia             | 1    | 1   | Ctrl+S/Shift+S/N/O, zoom, z-order, lote con `batch`; falta marcos y ayuda                     |
+| H8  | Estético y minimalista                | 2    | 2   | Lienzo protagonista; toolbar y estado cargados (deuda de agrupación)                          |
+| H9  | Diagnóstico y recuperación de errores | 2    | 1   | Conflicto con 3 salidas y banner persistente hasta resolver; error auto-descartable           |
+| H10 | Ayuda y documentación                 | 2    | 1   | Textos inline excelentes; sigue faltando una referencia de atajos                             |
 
 **Total: 12 puntos de severidad / 40.**
 
 ## Walkthrough cognitivo
 
-| Tarea                                       | Pasos                                              | Veredicto | Dónde se rompe                                                        |
-| ------------------------------------------- | -------------------------------------------------- | --------- | --------------------------------------------------------------------- |
-| Editar y guardar sin miedo                  | editar → Ctrl+S                                    | ✅ Pasa    | Estado «Guardado (v)» y bytes idénticos cuando no hay cambios         |
-| Abrir otro informe con cambios sin guardar  | Abrir/reciente → diálogo → Guardar y abrir          | ✅ Pasa    | Ya no se pierde nada en silencio                                      |
-| Resolver un cambio externo                  | banner/diálogo → Recargar/Sobrescribir/Guardar como | ✅ Pasa    | Copia honesta y sin pérdida hasta decidir                             |
-| Editar varios elementos a la vez            | Ctrl+click → panel → Alinear → Ctrl+Z               | ⚠️ Duda   | Iconos sin etiqueta y sin marcos de estado mixto                      |
-| Navegar a un elemento dentro de una celda   | breadcrumb o Jerarquía → click                      | ✅ Pasa    | La ruta y el árbol evitan cazar bordes finos                          |
-| Duplicar/copiar varios elementos            | selección múltiple → Ctrl+D/C                       | ❌ **Fallo** | Actúa solo sobre el ancla: la expectativa del lote no se cumple      |
+| Tarea                                      | Pasos                                               | Veredicto    | Dónde se rompe                                                  |
+| ------------------------------------------ | --------------------------------------------------- | ------------ | --------------------------------------------------------------- |
+| Editar y guardar sin miedo                 | editar → Ctrl+S                                     | ✅ Pasa      | Estado «Guardado (v)» y bytes idénticos cuando no hay cambios   |
+| Abrir otro informe con cambios sin guardar | Abrir/reciente → diálogo → Guardar y abrir          | ✅ Pasa      | Ya no se pierde nada en silencio                                |
+| Resolver un cambio externo                 | banner/diálogo → Recargar/Sobrescribir/Guardar como | ✅ Pasa      | Copia honesta y sin pérdida hasta decidir                       |
+| Editar varios elementos a la vez           | Ctrl+click → panel → Alinear → Ctrl+Z               | ⚠️ Duda      | Iconos sin etiqueta y sin marcos de estado mixto                |
+| Navegar a un elemento dentro de una celda  | breadcrumb o Jerarquía → click                      | ✅ Pasa      | La ruta y el árbol evitan cazar bordes finos                    |
+| Duplicar/copiar varios elementos           | selección múltiple → Ctrl+D/C                       | ❌ **Fallo** | Actúa solo sobre el ancla: la expectativa del lote no se cumple |
 
 ---
 

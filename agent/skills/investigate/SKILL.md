@@ -10,13 +10,14 @@ description: >
   or any question about  understanding users through evidence.
 version: 1.6.0
 ---
+
 # Investigate
 
 ## Overview
 
-Research is the foundation of intentional design. Without evidence, design is decoration — it might look right, but it won't *be* right. This skill guides the full research lifecycle: planning what to learn, choosing the right method, executing with rigor, synthesizing into actionable insights, and communicating findings that drive decisions.
+Research is the foundation of intentional design. Without evidence, design is decoration — it might look right, but it won't _be_ right. This skill guides the full research lifecycle: planning what to learn, choosing the right method, executing with rigor, synthesizing into actionable insights, and communicating findings that drive decisions.
 
-The gap this fills is specific: `/strategize` identifies *what* needs to be understood through the five foundational questions, but doesn't guide *how* to understand it. `/investigate` owns that how. You plan the study, write the interview guide, design the test protocol, structure the survey, run the synthesis, and deliver findings in a format that feeds directly back into the strategic frame.
+The gap this fills is specific: `/strategize` identifies _what_ needs to be understood through the five foundational questions, but doesn't guide _how_ to understand it. `/investigate` owns that how. You plan the study, write the interview guide, design the test protocol, structure the survey, run the synthesis, and deliver findings in a format that feeds directly back into the strategic frame.
 
 Research is not a phase you pass through once. It's a practice you return to whenever assumptions stack up, confidence erodes, or the design conversation drifts from evidence into opinion.
 
@@ -32,7 +33,7 @@ Research is not a phase you pass through once. It's a practice you return to whe
 - **`/organize`**: Card sort and tree test results are direct inputs for information architecture. Share clustering patterns, mental models, and navigation expectations.
 - **`/articulate`**: Interview language, terminology patterns, and content comprehension findings inform content strategy. Share how users actually talk about the problem.
 - **`/evaluate`**: Your findings inform their assessment criteria. When `/evaluate` identifies usability issues, you may be called back to investigate root causes through targeted research.
-- **`/measure`**: The quantitative complement to your qualitative work. Survey data and analytics review bridge the two skills. When their metrics reveal behavioral patterns, you investigate the *why* behind the numbers.
+- **`/measure`**: The quantitative complement to your qualitative work. Survey data and analytics review bridge the two skills. When their metrics reveal behavioral patterns, you investigate the _why_ behind the numbers.
 - **`/philosopher`**: Enter when research findings surprise you, contradict team assumptions, or reveal that you've been asking the wrong questions. The philosopher helps you sit with uncomfortable findings before rushing to reframe them.
 
 ---
@@ -45,17 +46,17 @@ The most common research mistake is choosing a method before defining the questi
 
 **Method framework:**
 
-| Method | Purpose | Sample size | Duration | Best for |
-|---|---|---|---|---|
-| **Interviews** | Generative understanding | 5-8 for thematic saturation | 45-60 min each | Motivations, mental models, unmet needs, context |
-| **Usability tests** | Evaluative assessment | 5 per round catches ~85% of issues | 30-60 min each | Task completion, error patterns, learnability |
-| **Surveys** | Quantitative validation | 100+ for statistical significance | 5-15 min to complete | Prevalence, preference, satisfaction, demographics |
-| **Diary studies** | Longitudinal behavior | 10-15 participants | 1-4 weeks | Habits, context shifts, real-world usage over time |
-| **Contextual inquiry** | In-situ observation | 4-6 sessions | 60-90 min each | Actual workflows, environment factors, workarounds |
-| **Card sorts** | Mental model mapping | 15+ open / 30+ closed | 15-30 min each | Category expectations, labeling, grouping logic |
-| **Tree tests** | Navigation validation | 50+ participants | 10-15 min each | Findability, hierarchy effectiveness |
-| **Analytics review** | Behavioral patterns | Requires existing product data | Varies | Drop-off points, usage frequency, feature adoption |
-| **Competitive analysis** | Market understanding | 5-10 competitors | Days to weeks | Positioning, feature gaps, differentiation opportunities |
+| Method                   | Purpose                  | Sample size                        | Duration             | Best for                                                 |
+| ------------------------ | ------------------------ | ---------------------------------- | -------------------- | -------------------------------------------------------- |
+| **Interviews**           | Generative understanding | 5-8 for thematic saturation        | 45-60 min each       | Motivations, mental models, unmet needs, context         |
+| **Usability tests**      | Evaluative assessment    | 5 per round catches ~85% of issues | 30-60 min each       | Task completion, error patterns, learnability            |
+| **Surveys**              | Quantitative validation  | 100+ for statistical significance  | 5-15 min to complete | Prevalence, preference, satisfaction, demographics       |
+| **Diary studies**        | Longitudinal behavior    | 10-15 participants                 | 1-4 weeks            | Habits, context shifts, real-world usage over time       |
+| **Contextual inquiry**   | In-situ observation      | 4-6 sessions                       | 60-90 min each       | Actual workflows, environment factors, workarounds       |
+| **Card sorts**           | Mental model mapping     | 15+ open / 30+ closed              | 15-30 min each       | Category expectations, labeling, grouping logic          |
+| **Tree tests**           | Navigation validation    | 50+ participants                   | 10-15 min each       | Findability, hierarchy effectiveness                     |
+| **Analytics review**     | Behavioral patterns      | Requires existing product data     | Varies               | Drop-off points, usage frequency, feature adoption       |
+| **Competitive analysis** | Market understanding     | 5-10 competitors                   | Days to weeks        | Positioning, feature gaps, differentiation opportunities |
 
 **Choosing the right method — decision framework:**
 
@@ -66,6 +67,7 @@ The most common research mistake is choosing a method before defining the questi
 - **"We need to size the opportunity"** → Surveys, analytics review. Qualitative research reveals patterns; quantitative research reveals prevalence.
 
 **Trade-offs to make explicit:**
+
 - **Time vs. depth:** Interviews take weeks to recruit, conduct, and synthesize. Surveys can launch in days. But surveys can only ask about what you already know to ask about.
 - **Sample size vs. richness:** 5 interviews will give you richer understanding than 500 survey responses for generative questions. But 5 interviews won't tell you whether a pattern is common or rare.
 - **Generative vs. evaluative:** Generative research (interviews, contextual inquiry) explores the problem space. Evaluative research (usability tests, surveys) assesses specific solutions. Don't evaluate before you've generated; don't generate when you need to evaluate.
@@ -78,18 +80,21 @@ A great interview guide feels like a conversation outline, not a questionnaire. 
 **Structure:**
 
 **Opening (5-10 minutes):**
+
 - Introduce yourself and the purpose (honest but not leading)
 - Obtain informed consent — recording permission, data usage, right to stop
 - Establish rapport: "Tell me a bit about your role / your typical day"
 - Set context: "We're interested in learning about [domain], not testing you — there are no wrong answers"
 
 **Core questions (30-40 minutes):**
+
 - Open with broad, behavior-focused questions: "Walk me through the last time you [activity]"
 - Move from general to specific — let participants set the direction first
 - Use scenario-based questions grounded in past behavior: "Think about the most recent time you struggled with X. What happened?"
 - Follow the participant's thread, not your script. The guide is a safety net, not a railroad.
 
 **Probing techniques:**
+
 - **Silence.** The most underrated probe. Wait 5-7 seconds after an answer. Participants often fill silence with the most revealing detail.
 - **"Tell me more about that."** Open-ended, non-directive. Works in almost any situation.
 - **"Walk me through that step by step."** Forces specificity. Turns "I usually just figure it out" into a detailed process description.
@@ -97,12 +102,14 @@ A great interview guide feels like a conversation outline, not a questionnaire. 
 - **Reflecting back.** "So if I understand correctly, you [paraphrase]. Is that right?" Confirms understanding and shows you're listening, which encourages deeper sharing.
 
 **Closing (5-10 minutes):**
+
 - Summarize key themes you heard — give participants a chance to correct or add
 - "Is there anything about [topic] that I should have asked about but didn't?"
 - Explain next steps and timeline
 - Thank them genuinely
 
 **Interview anti-patterns — what to never do:**
+
 - **Leading questions.** "Don't you find that X is frustrating?" tells the participant what you want to hear. Ask "How do you feel about X?" instead.
 - **Hypothetical scenarios.** "Would you use a tool that does X?" People are terrible at predicting future behavior. Ask about past behavior: "When was the last time you needed to do X? What did you do?"
 - **Asking what people "would" do.** "Would" questions get aspirational answers. "Did" questions get truthful ones. "What would you do if..." → "What did you do last time..."
@@ -115,6 +122,7 @@ A great interview guide feels like a conversation outline, not a questionnaire. 
 Usability testing answers one question: can people use this thing to accomplish what they need to? Everything in the test plan serves that question.
 
 **Task design:**
+
 - Write tasks as realistic scenarios, not instructions. Not "Click the Settings button" but "You want to change your notification preferences. How would you do that?"
 - Include the user's goal, not the system's path. Let the participant find the path — that's the test.
 - Start with an easy task to build confidence. End with the most complex task while attention is still present.
@@ -122,12 +130,14 @@ Usability testing answers one question: can people use this thing to accomplish 
 - Pilot test every task with a colleague first. If the task wording confuses the pilot, it will confuse participants.
 
 **Think-aloud protocol:**
+
 - Explain before starting: "As you work through these tasks, please say out loud what you're thinking — what you notice, what you expect, what confuses you."
 - Demonstrate with a brief example (navigate a simple website while narrating your thoughts).
 - Prompt gently when participants go silent: "What are you thinking right now?" or "What are you looking for?"
 - Do not help. Do not hint. Do not answer questions with answers. Redirect: "What would you normally do if I weren't here?"
 
 **Severity rating framework:**
+
 - **Cosmetic (1):** Noticed but doesn't affect task completion. Fix when convenient.
 - **Minor (2):** Causes slight delay or confusion but participants recover. Fix in next release.
 - **Major (3):** Causes significant difficulty; some participants fail the task. Fix before launch.
@@ -136,14 +146,17 @@ Usability testing answers one question: can people use this thing to accomplish 
 Rate each finding independently by two people. Discuss disagreements — they reveal assumptions about user tolerance.
 
 **Moderated vs. unmoderated:**
-- **Moderated:** You're present, can probe on confusion, observe body language, adapt on the fly. Best for complex tasks, early concepts, and when you need to understand *why* someone struggled.
+
+- **Moderated:** You're present, can probe on confusion, observe body language, adapt on the fly. Best for complex tasks, early concepts, and when you need to understand _why_ someone struggled.
 - **Unmoderated:** Participants complete tasks on their own (via tool like UserTesting, Maze, Lookback). Faster, cheaper, larger sample. Best for straightforward evaluative tasks on stable prototypes.
 
 **Remote vs. in-person:**
+
 - **Remote:** Broader participant pool, faster scheduling, screen sharing captures the interaction. Miss environmental context and body language nuance.
 - **In-person:** See the full picture — environment, posture, peripheral behavior. Better for physical products, complex workflows, or when context is critical to the task.
 
 **Observer guidelines:**
+
 - Observers watch, they don't moderate. No gasping, no whispering, no "that's not how it works."
 - Provide a structured note-taking template: timestamp, observation, severity, which task.
 - Debrief with observers after each session — fresh observations fade fast.
@@ -153,6 +166,7 @@ Rate each finding independently by two people. Discuss disagreements — they re
 Surveys are deceptively easy to write and deceptively hard to write well. A poorly designed survey generates data that feels authoritative but misleads. Every question must earn its place.
 
 **Question types and when to use them:**
+
 - **Likert scales** (Strongly disagree → Strongly agree): Attitudes, satisfaction, agreement. Use 5 or 7 points — avoid 4 or 6 (forced choice without a midpoint distorts data from genuinely neutral respondents).
 - **Multiple choice:** Discrete categories, behaviors, preferences. Include "Other" with a text field when you can't guarantee exhaustive options.
 - **Open-ended:** Exploratory, explanation, context. Use sparingly — response rates drop with every open-ended question. Place them after the related closed question, not before (the closed question primes context, not bias).
@@ -160,6 +174,7 @@ Surveys are deceptively easy to write and deceptively hard to write well. A poor
 - **Matrix questions:** Multiple items on the same scale. Efficient but cause "straightlining" (same answer for every row) when overused. Maximum 7 rows.
 
 **Bias avoidance:**
+
 - **Order effects:** Randomize answer options. Randomize question order within sections (not across sections — section flow should be logical).
 - **Social desirability:** People overreport positive behaviors and underreport negative ones. Ask about specific behaviors, not self-assessments. "How many times did you exercise last week?" not "Do you exercise regularly?"
 - **Acquiescence bias:** People tend to agree. Mix positively and negatively worded items. Don't make "Agree" always the desirable answer.
@@ -167,6 +182,7 @@ Surveys are deceptively easy to write and deceptively hard to write well. A poor
 - **Double-barreled questions:** "The onboarding was clear and fast" — what if it was clear but slow? Ask one thing per question, always.
 
 **Survey flow:**
+
 1. Screener questions first (qualify participants, filter out non-targets)
 2. Easy, engaging questions early (build momentum)
 3. Most important questions in the first third (response quality degrades over time)
@@ -174,6 +190,7 @@ Surveys are deceptively easy to write and deceptively hard to write well. A poor
 5. Open-ended questions placed thoughtfully — never more than 2-3 in a survey
 
 **Sample size guidance:**
+
 - For descriptive statistics (percentages, means): 100+ responses minimum. 300+ for segment-level analysis.
 - For statistical comparisons between groups: 30+ per group minimum. Use power analysis for precision.
 - For exploratory surveys: 50+ can reveal patterns worth investigating qualitatively.
@@ -186,12 +203,14 @@ Surveys are deceptively easy to write and deceptively hard to write well. A poor
 Raw data isn't insight. Synthesis is where research becomes useful — and where most research projects lose their way. The discipline is in moving from observations to patterns to insights to implications without skipping steps or injecting opinions.
 
 **Affinity mapping:**
+
 - Write one observation per sticky note (physical or digital). One finding, one note. No summaries, no interpretations yet.
 - Cluster bottom-up. Do NOT start with categories. Let the data create the structure. If you pre-make categories, you'll force data into your existing mental model and miss what the research is actually telling you.
 - Move notes between clusters until the groupings feel stable. Name each cluster after the pattern it represents, not a pre-existing category.
 - Look for the clusters that surprise you. The expected clusters confirm what you knew; the unexpected ones are where the insight lives.
 
 **Thematic analysis (Braun & Clarke framework):**
+
 1. **Familiarize:** Read all data twice. Note initial impressions. Don't code yet.
 2. **Generate initial codes:** Label specific observations. Stay close to the data. "P3 described workaround for notification overload" not "Users hate notifications."
 3. **Search for themes:** Group codes into candidate themes. A theme captures something meaningful about the data in relation to your research question.
@@ -210,6 +229,7 @@ Structure every insight as: **[Observation]** + **[Inference]** + **[Implication
 - **Implication:** "A dashboard view showing project health at the portfolio level — updated in real time — could eliminate the spreadsheet workaround and reduce the 2-3 hours per week participants reported spending on manual tracking."
 
 **Evidence strength indicators:**
+
 - **Strong:** Triangulated across 3+ sources (interviews + analytics + survey). Consistent pattern. High confidence.
 - **Moderate:** Observed in 2 sources or in a majority of participants within one method. Likely pattern but not fully validated.
 - **Weak:** Single source, small sample, or conflicting signals. Worth noting but not worth building on alone. Recommend further investigation.
@@ -227,6 +247,7 @@ Example: "We observed that 6 of 8 enterprise participants abandoned the setup wi
 
 **Evidence pyramids:**
 Present findings in layers:
+
 1. **Top-line insight** (one sentence — the "so what")
 2. **Supporting evidence** (the specific observations that ground it)
 3. **Raw data** (available for anyone who wants to dig deeper)
@@ -234,6 +255,7 @@ Present findings in layers:
 Most stakeholders read layer 1. Skeptics and decision-makers read layer 2. Researchers and auditors read layer 3. Structure your report so each layer is accessible without reading the others.
 
 **Uncertainty flagging:**
+
 - State sample sizes in every finding.
 - Distinguish between what you observed and what you infer.
 - Use calibrated language: "All eight participants..." is different from "Most participants..." is different from "Some participants..." Never use "users" as a monolith — specify which participants, from which segment, in which context.
@@ -243,6 +265,7 @@ Most stakeholders read layer 1. Skeptics and decision-makers read layer 2. Resea
 Tie every recommendation to a specific design decision, not a vague direction. Not "Improve onboarding" but "Move team permission configuration from step 3 of setup to a contextual prompt triggered by the first team-related action, based on finding that upfront permission complexity causes 75% wizard abandonment at that step."
 
 **What NOT to do:**
+
 - **Cherry-picking:** Presenting only findings that support a preferred direction. Report what surprised you and what contradicted expectations — those findings are usually the most valuable.
 - **Over-generalizing from small samples.** "Users want X" from 5 interviews is a hypothesis, not a finding. Say "The pattern we observed suggests..." and flag the sample size.
 - **Presenting opinions as findings.** "I think users would prefer..." is not research. If you believe it, design a study to test it.
@@ -408,12 +431,14 @@ Research involves real people giving you their time, attention, and trust. Treat
 ## Scope boundaries
 
 **You own:**
+
 - Research planning — choosing methods, designing protocols, defining sample criteria
 - Execution guidance — interview guides, test plans, survey instruments, diary study structures
 - Synthesis — affinity mapping, thematic analysis, insight extraction, evidence grading
 - Findings communication — reports, presentations, evidence pyramids, actionable recommendations
 
 **You don't own:**
+
 - Strategic framing — that's `/strategize`. You provide evidence; they frame the problem.
 - Design decisions based on findings — that's `/journey`, `/organize`, `/articulate`, and the broader design team. You inform; they decide.
 - Metrics definition — that's `/measure`. You contribute qualitative understanding; they define the measurement framework.

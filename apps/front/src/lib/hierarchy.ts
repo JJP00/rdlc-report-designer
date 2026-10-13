@@ -11,8 +11,7 @@ import { tablixLayout } from './tablix';
  */
 
 export type HierarchyTarget =
-  | { kind: 'item'; id: string }
-  | { kind: 'cell'; id: string; row: number; col: number };
+  { kind: 'item'; id: string } | { kind: 'cell'; id: string; row: number; col: number };
 
 export interface BreadcrumbEntry {
   label: string;
@@ -39,7 +38,10 @@ const REGIONS: { key: 'pageHeader' | 'body' | 'pageFooter'; label: string }[] = 
   { key: 'pageFooter', label: 'Pie' },
 ];
 
-function regionItems(projection: ProjectionDto, key: 'pageHeader' | 'body' | 'pageFooter'): ItemDto[] {
+function regionItems(
+  projection: ProjectionDto,
+  key: 'pageHeader' | 'body' | 'pageFooter',
+): ItemDto[] {
   const byKey = {
     pageHeader: projection.page.header,
     body: projection.page.body,
@@ -118,11 +120,7 @@ export function breadcrumbEntries(
 
   for (const region of REGIONS) {
     const items = regionItems(projection, region.key);
-    const path = id
-      ? pathInItems(items, id)
-      : cell
-        ? pathToCell(items, cell)
-        : undefined;
+    const path = id ? pathInItems(items, id) : cell ? pathToCell(items, cell) : undefined;
     if (path) return [root, { label: region.label }, ...path];
   }
   return [root];

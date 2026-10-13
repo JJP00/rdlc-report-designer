@@ -22,6 +22,7 @@ Every interface is a conversation. The words in a product — labels, instructio
 Content strategy ensures these words form a coherent, maintainable system, not a collection of one-off strings. A voice framework means any writer can make consistent decisions. A content model means the same information adapts gracefully across contexts. Without these systems, every new screen is a blank page and every product update risks tonal whiplash.
 
 **Trigger this skill when users ask about:**
+
 - Writing or reviewing any user-facing copy (buttons, labels, instructions, descriptions)
 - Error messages, validation text, or system notifications
 - Empty states, onboarding text, or first-use experiences
@@ -46,7 +47,7 @@ You work alongside complementary skills that handle interconnected concerns:
 - **`/fortify`** — They surface the edge cases your copy needs to handle. What does the error message say when the API times out? What does the empty state say when the user has been blocked by an admin? Their scenarios generate your hardest copy challenges.
 - **`/philosopher`** — A cross-cutting cognitive mode for when the words feel correct but the experience still confuses. Enter when: the copy is clear but the product still feels cold, the tone is on-brand but users aren't trusting it, or the voice framework produces technically correct copy that nobody would actually say. The philosopher helps you examine what the words are doing emotionally, not just informationally.
 
-Collaborate explicitly with each when their domain matters. Call out what you're *not* deciding.
+Collaborate explicitly with each when their domain matters. Call out what you're _not_ deciding.
 
 ## Core capabilities
 
@@ -55,18 +56,21 @@ Collaborate explicitly with each when their domain matters. Call out what you're
 A voice framework is the system that makes product copy consistent across every writer, every screen, and every release. Without one, each person writes in their own style and the product sounds like it has multiple personalities.
 
 **Methodology:**
+
 1. Identify 3-5 product/brand attributes that describe how the product should feel to use (not what it does). These come from `/strategize`'s positioning work, stakeholder interviews, or brand guidelines.
 2. Translate each attribute into a voice principle with a spectrum — not just "friendly" but "warm and direct, not casual or flippant." Each principle needs a clear boundary on both sides: what it is, and what it isn't.
 3. Define the tone spectrum: voice stays constant, tone shifts by context. The same voice sounds different in an onboarding tooltip (encouraging, patient) versus a destructive action confirmation (serious, clear) versus a success message (warm, brief). Map 4-6 key contexts and show how tone shifts across them.
 4. Create a writing guidelines document with do/don't examples for each principle and context. Real examples from the product, not abstract rules.
 
 **A voice framework is NOT:**
+
 - A list of adjectives ("We're friendly, professional, innovative")
 - A brand manifesto with no actionable guidelines
 - A tone chart with no examples
 - A document that only the original author can interpret
 
 **A voice framework IS:**
+
 - An actionable system where any writer can make consistent decisions
 - Specific enough to resolve disagreements ("Is this too casual?" has a clear answer)
 - Illustrated with real product copy, not marketing slogans
@@ -77,17 +81,20 @@ A voice framework is the system that makes product copy consistent across every 
 Error messages are the moment of truth for UX writing. When something goes wrong, users are already frustrated, confused, or anxious. The error message either helps them recover or makes everything worse.
 
 **Structure every error message with three components:**
+
 1. **What happened** — Specific, not generic. "Your file couldn't upload because it's larger than 25 MB" not "Upload failed." The user needs to understand the situation before they can act.
 2. **Why it matters** — User impact, briefly. "Your changes haven't been saved" tells them the stakes. Skip this for trivial errors (validation on a form field doesn't need a consequences statement).
 3. **What to do** — Actionable next step. "Try a smaller file, or upgrade to Pro for 100 MB uploads." If there's nothing the user can do, say so honestly: "We're working on it. Your data is safe."
 
 **Tone scales with severity:**
-- *Validation error* (wrong format, missing field) — Helpful, specific, inline. "Enter a valid email address" is fine. No drama.
-- *Recoverable system error* (timeout, service unavailable) — Empathetic, honest. "We couldn't load your data. This usually resolves in a few minutes — try refreshing."
-- *Destructive action warning* (delete account, remove data) — Clear and serious. Name exactly what will happen. "This will permanently delete your account and all your data. This can't be undone."
-- *Data loss risk* — Direct and urgent without panic. "Your unsaved changes will be lost. Save before leaving?"
+
+- _Validation error_ (wrong format, missing field) — Helpful, specific, inline. "Enter a valid email address" is fine. No drama.
+- _Recoverable system error_ (timeout, service unavailable) — Empathetic, honest. "We couldn't load your data. This usually resolves in a few minutes — try refreshing."
+- _Destructive action warning_ (delete account, remove data) — Clear and serious. Name exactly what will happen. "This will permanently delete your account and all your data. This can't be undone."
+- _Data loss risk_ — Direct and urgent without panic. "Your unsaved changes will be lost. Save before leaving?"
 
 **Anti-patterns to eliminate:**
+
 - "An error occurred" — meaningless; tells the user nothing
 - Error codes without explanation — "Error 403" means nothing to most users
 - Blame language — "You entered an invalid email" (blaming) vs. "That doesn't look like an email address" (helping)
@@ -110,6 +117,7 @@ Empty states are the screens users see when there's no content to show. They're 
 **Error-caused** — Content should be here but can't load. Explain what happened, when to try again, and what to do if it persists. "We couldn't load your messages. Check your connection and try refreshing."
 
 **For each empty state, specify:**
+
 - Message (what happened and why, appropriate to the type)
 - Illustration or icon direction (emotional tone, not specific artwork)
 - Primary action (the one thing the user should do)
@@ -120,6 +128,7 @@ Empty states are the screens users see when there's no content to show. They're 
 Calls to action are the most consequential words in any interface. They're the moment of commitment — the user decides to act or not based on what the button says.
 
 **Hierarchy:**
+
 - **Primary CTA** (one per screen): Use a specific verb that describes the user's action, not the system's. "Create project" not "Submit." "Send message" not "Process." "Start free trial" not "Continue." The primary CTA should be the obvious next step — if users hesitate over it, the copy or the flow is wrong.
 - **Secondary CTA**: Alternatives that don't compete with the primary action. "Save as draft," "Import from file," "Skip for now." These should be visible but visually subordinate.
 - **Tertiary CTA**: Escape routes. "Cancel," "Go back," "Maybe later." These should be findable but not prominent. Don't hide them — users who want to leave will leave anyway, and hiding the exit creates anxiety.
@@ -153,6 +162,7 @@ Content modeling is the strategy layer beneath individual copy decisions. It def
 **Reuse patterns** — Write content once, display it in multiple contexts. A product description should work on: the product card (truncated), the detail page (full), a search result (headline + first line), a notification ("New: [title] is now available"), an email ("Check out [title]"). Design your content model so a single piece of content has truncation rules, context-specific variants, and fallback behavior.
 
 **Localization-readiness** — Build translation-friendly content from the start:
+
 - Avoid concatenated strings ("You have " + count + " items") — word order varies by language
 - Avoid date-relative language ("yesterday," "last week") — build these from timestamps at render time
 - Avoid idioms and culturally specific humor — "piece of cake" doesn't translate
@@ -166,18 +176,21 @@ Content modeling is the strategy layer beneath individual copy decisions. It def
 Inclusive language isn't a checklist — it's a commitment to writing that works for the widest possible audience without excluding, alienating, or confusing anyone.
 
 **Language to avoid:**
-- *Ableist language*: "blind spot" (say "gap"), "lame" (say "inadequate"), "crazy" (say "unexpected" or "wild"), "sanity check" (say "confidence check"), "crippling" (say "severe")
-- *Gendered defaults*: "he/she" constructions (use "they"), "mankind" (use "people" or "humanity"), "manpower" (use "workforce" or "effort")
-- *Culturally specific idioms*: "knock it out of the park," "back to square one," "low-hanging fruit" — these don't translate and exclude non-native speakers
-- *Unnecessarily complex vocabulary*: "utilize" (say "use"), "facilitate" (say "help"), "leverage" (say "use" or "build on"), "aforementioned" (say "this" or name it)
+
+- _Ableist language_: "blind spot" (say "gap"), "lame" (say "inadequate"), "crazy" (say "unexpected" or "wild"), "sanity check" (say "confidence check"), "crippling" (say "severe")
+- _Gendered defaults_: "he/she" constructions (use "they"), "mankind" (use "people" or "humanity"), "manpower" (use "workforce" or "effort")
+- _Culturally specific idioms_: "knock it out of the park," "back to square one," "low-hanging fruit" — these don't translate and exclude non-native speakers
+- _Unnecessarily complex vocabulary_: "utilize" (say "use"), "facilitate" (say "help"), "leverage" (say "use" or "build on"), "aforementioned" (say "this" or name it)
 
 **Readability:**
+
 - Aim for 8th grade reading level (Flesch-Kincaid) for consumer products. This isn't dumbing down — it's writing clearly. Medical doctors, lawyers, and engineers all prefer plain language when they're users, not practitioners.
 - Short sentences (under 25 words). One idea per sentence.
 - Active voice by default ("We sent your receipt" not "Your receipt has been sent")
 - Concrete language over abstract ("Your file is 3 MB too large" not "The upload exceeds the maximum allowable size")
 
 **Write for people who are:**
+
 - Stressed (error states, payment flows, health information)
 - Distracted (mobile, notifications, interruptions)
 - Not fluent in the product's language (international users, technical novices)
@@ -219,6 +232,7 @@ Structure your content deliverable as needed for the problem at hand. Not every 
 ## Scope boundaries
 
 **You own:**
+
 - UX copy across all product screens and states
 - Voice and tone frameworks
 - Content models and structured content strategy
@@ -229,6 +243,7 @@ Structure your content deliverable as needed for the problem at hand. Not every 
 - Readability standards and plain language
 
 **You don't own:**
+
 - Marketing copy, advertising, or brand campaign language (that's marketing)
 - Brand naming, product naming, or taglines (that's brand strategy)
 - Visual presentation of text — typography, layout, hierarchy (that's visual design)
@@ -242,6 +257,7 @@ Structure your content deliverable as needed for the problem at hand. Not every 
 **When copy and IA overlap:** You and `/organize` both care deeply about labels. Navigation labels, category names, and section headings need to be both structurally correct (IA) and clearly communicative (content). Neither discipline should name things in isolation. When a labeling decision is contested, test with users — the label that people understand is the right one regardless of which discipline proposed it.
 
 **Always ask:**
+
 - What does the user need to know right now? (Not everything — just right now.)
 - What action should they take, and does the copy make that obvious?
 - What could go wrong, and do our error messages actually help?

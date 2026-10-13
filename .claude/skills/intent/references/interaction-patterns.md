@@ -100,13 +100,13 @@ Form fields add additional states:
 
 ### When to Validate
 
-| Timing | Use when | Example |
-|--------|----------|---------|
-| **On blur** | Most fields. Validate when the user leaves the field. | Email format, required fields |
-| **On change (after first error)** | After an error is shown, re-validate on each change so the error clears immediately when fixed. | Password requirements |
-| **On submit** | Complex cross-field validation that depends on multiple fields together. | "End date must be after start date" |
-| **Real-time** | User is building toward a visible goal. | Password strength meter, character count |
-| **Server-side (async)** | Validation requires a network call. | Username availability, address verification |
+| Timing                            | Use when                                                                                        | Example                                     |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| **On blur**                       | Most fields. Validate when the user leaves the field.                                           | Email format, required fields               |
+| **On change (after first error)** | After an error is shown, re-validate on each change so the error clears immediately when fixed. | Password requirements                       |
+| **On submit**                     | Complex cross-field validation that depends on multiple fields together.                        | "End date must be after start date"         |
+| **Real-time**                     | User is building toward a visible goal.                                                         | Password strength meter, character count    |
+| **Server-side (async)**           | Validation requires a network call.                                                             | Username availability, address verification |
 
 ### Error Message Design
 

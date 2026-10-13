@@ -110,7 +110,13 @@ async function insertTextbox(page: Page): Promise<void> {
 
 /** true si el aviso de conflicto está a la vista (diálogo o banda superior). */
 async function conflictVisible(page: Page): Promise<boolean> {
-  if (await page.getByTestId('conflict-dialog').isVisible().catch(() => false)) return true;
+  if (
+    await page
+      .getByTestId('conflict-dialog')
+      .isVisible()
+      .catch(() => false)
+  )
+    return true;
   return page
     .getByText(/cambió por fuera y hay cambios sin guardar/)
     .isVisible()

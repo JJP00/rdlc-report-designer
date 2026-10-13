@@ -239,10 +239,7 @@ export class CommandService implements ICommandService {
   ): Either<DomainError, CommandOutcome> {
     const target = this.sessions.getEditTarget(sessionId);
     if (target.isLeft()) return left(target.value);
-    return applyCommand(
-      { root: target.value.document.root, index: target.value.index },
-      command,
-    );
+    return applyCommand({ root: target.value.document.root, index: target.value.index }, command);
   }
 
   /** Aplica un comando al documento, lo apunta en el journal y toca la sesión. */

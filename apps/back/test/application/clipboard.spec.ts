@@ -61,7 +61,7 @@ function ancestorName(node: RdlcNode): string | undefined {
 
 describe('F1 · portapapeles (copy / cut / paste)', () => {
   it('copiar + pegar crea un clon con nombre nuevo y el undo lo quita', async () => {
-    const { commands, service, sessionId, index } = await openFixture();
+    const { commands, sessionId, index } = await openFixture();
 
     const copied = commands.copy(sessionId, ['Textbox23']);
     expect(copied.isRight()).toBe(true);

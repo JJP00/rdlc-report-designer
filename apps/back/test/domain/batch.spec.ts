@@ -65,10 +65,12 @@ describe('U3 · batch (edición en lote)', () => {
     const { commands, service, sessionId } = await openFixture();
 
     expect(
-      commands.execute(sessionId, {
-        cmd: 'batch',
-        commands: [styled('Textbox25', '#ff0000'), styled('Textbox28', '#00ff00')],
-      }).isRight(),
+      commands
+        .execute(sessionId, {
+          cmd: 'batch',
+          commands: [styled('Textbox25', '#ff0000'), styled('Textbox28', '#00ff00')],
+        })
+        .isRight(),
     ).toBe(true);
     expect(commands.undo(sessionId).isRight()).toBe(true);
     expect(commands.redo(sessionId).isRight()).toBe(true);

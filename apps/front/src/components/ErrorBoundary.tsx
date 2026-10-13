@@ -36,8 +36,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       >
         <h1 className="text-sm font-semibold">La interfaz ha fallado</h1>
         <p className="max-w-md text-xs text-muted-foreground">
-          Tus cambios sin guardar siguen en memoria del editor: «Recargar la interfaz» reconecta
-          con ellos.
+          Tus cambios sin guardar siguen en memoria del editor: «Recargar la interfaz» reconecta con
+          ellos.
         </p>
         <p className="max-w-md text-xs text-muted-foreground/80">{error.message}</p>
         <button

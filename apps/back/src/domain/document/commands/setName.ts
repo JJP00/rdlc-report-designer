@@ -33,7 +33,9 @@ export function applySetName(
   // puede ser el de un grupo existente.
   const collision = ctx.index.has(name) || hasGroupNamed(ctx.root, name);
   if (collision && name.toLowerCase() !== command.id.toLowerCase()) {
-    return left(CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${name}'`));
+    return left(
+      CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${name}'`),
+    );
   }
 
   const inverse: DomainCommand[] = [];

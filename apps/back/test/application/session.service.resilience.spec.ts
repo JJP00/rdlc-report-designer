@@ -7,10 +7,7 @@ import {
   type FileMissingChangedEvent,
 } from '@rdlc-designer/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type {
-  FileStat,
-  FileSystemPort,
-} from '../../src/application/ports/out/FileSystemPort.js';
+import type { FileStat, FileSystemPort } from '../../src/application/ports/out/FileSystemPort.js';
 import { NodeFileSystemAdapter } from '../../src/infrastructure/fs/NodeFileSystemAdapter.js';
 import { cleanupTempDirs, makeService, writeFixture } from './test-utils.js';
 
@@ -118,7 +115,9 @@ describe('Resiliencia · cambio externo no recargable (BUG-53)', () => {
     watcher.trigger(path);
 
     await vi.waitFor(() => {
-      expect(events.payloads<ExternalReloadFailedEvent>(IPC_EVENTS.externalReloadFailed)).toHaveLength(1);
+      expect(
+        events.payloads<ExternalReloadFailedEvent>(IPC_EVENTS.externalReloadFailed),
+      ).toHaveLength(1);
     });
     expect(events.payloads<ExternalReloadFailedEvent>(IPC_EVENTS.externalReloadFailed)[0]).toEqual({
       sessionId,
@@ -196,10 +195,7 @@ describe('Resiliencia · operaciones por sesión (BUG-54)', () => {
     target.value.index.get('Textbox25')?.child('Width')?.setText('5cm');
     service.touch(sessionId, { snapshotOut: false });
 
-    const [first, second] = await Promise.all([
-      service.save(sessionId),
-      service.save(sessionId),
-    ]);
+    const [first, second] = await Promise.all([service.save(sessionId), service.save(sessionId)]);
 
     expect(first.isRight()).toBe(true);
     expect(second.isRight()).toBe(true);
@@ -238,7 +234,9 @@ describe('Resiliencia · fichero borrado/movido (BUG-55)', () => {
     await rm(path);
     watcher.triggerUnlink(path);
     await vi.waitFor(() => {
-      expect(events.payloads<FileMissingChangedEvent>(IPC_EVENTS.fileMissingChanged)).toHaveLength(1);
+      expect(events.payloads<FileMissingChangedEvent>(IPC_EVENTS.fileMissingChanged)).toHaveLength(
+        1,
+      );
     });
     expect(events.payloads<FileMissingChangedEvent>(IPC_EVENTS.fileMissingChanged)[0]).toEqual({
       sessionId,
@@ -356,10 +354,7 @@ describe('Resiliencia · re-adopción de sesiones (BUG-51)', () => {
     service.touch(first.value.sessionId, { snapshotOut: false });
 
     const listed = service.listSessions();
-    expect(listed.map((s) => s.sessionId)).toEqual([
-      first.value.sessionId,
-      second.value.sessionId,
-    ]);
+    expect(listed.map((s) => s.sessionId)).toEqual([first.value.sessionId, second.value.sessionId]);
     expect(listed[0]).toMatchObject({ filePath: pathA, dirty: true });
     expect(listed[0]?.projection.reportName).toBe('PalletOutput');
     expect(listed[1]).toMatchObject({ filePath: pathB, dirty: false });
@@ -392,8 +387,8 @@ describe('Resiliencia · re-adopción de sesiones (BUG-51)', () => {
     await vi.waitFor(() => {
       expect(service.listSessions()[0]?.missing).toBe(false);
     });
-    expect(events.payloads<FileMissingChangedEvent>(IPC_EVENTS.fileMissingChanged).at(-1)?.missing).toBe(
-      false,
-    );
+    expect(
+      events.payloads<FileMissingChangedEvent>(IPC_EVENTS.fileMissingChanged).at(-1)?.missing,
+    ).toBe(false);
   });
 });

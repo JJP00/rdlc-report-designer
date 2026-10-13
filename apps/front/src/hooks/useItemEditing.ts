@@ -4,7 +4,6 @@ import type {
   Length,
   NewItemSpec,
   ParagraphDto,
-  ProjectionDto,
   RdlcCommand,
   ScopeRef,
   StyleDto,

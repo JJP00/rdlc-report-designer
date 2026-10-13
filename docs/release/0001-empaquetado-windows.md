@@ -38,8 +38,11 @@ pnpm dist:portable                          # solo el portable en apps/back/rele
 
 ## CI
 
-- [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — en cada push/PR:
-  - **checks** (ubuntu): `pnpm typecheck` + `pnpm test` (unit).
+- [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) — solo en pull requests hacia `main`:
+  - **format** (ubuntu): `pnpm format:check` (Prettier).
+  - **lint** (ubuntu): `pnpm lint` (ESLint, config plana en la raíz).
+  - **typecheck** (ubuntu): `pnpm typecheck` (`tsc --noEmit` en los tres paquetes).
+  - **unit** (ubuntu): `pnpm test` (Vitest, unit tests de back / front / contracts).
   - **e2e** (windows): `pnpm --filter @rdlc-designer/back e2e` (suite completa de Playwright
     sobre Electron) con subida de trazas si falla.
 - [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — en tags `v*` o

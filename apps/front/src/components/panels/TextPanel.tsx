@@ -1,6 +1,6 @@
 import type { StylePatch, TextRunDto, TextboxDto } from '@rdlc-designer/contracts';
 import { PencilLine } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

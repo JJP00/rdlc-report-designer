@@ -19,11 +19,11 @@ El diseño de 0001 resuelve la mecánica, pero falla en tres sitios donde el usu
 
 No se suavizan en un único arco: fallan en sitios distintos.
 
-| Camino | Contexto | Dónde se rompe hoy (0001) | Qué lo arregla |
-| --- | --- | --- | --- |
-| **A · No conoce el gesto** (novato en el editor) | Clica, coge «lo equivocado», cree que la tabla no es editable o que hay un bug | Q2 visibilidad: nada le dice que hay algo debajo | Insignia en la selección + menú contextual |
-| **B · Experto / viene de Figma** | Prueba `Alt+clic` por instinto | Espera «capas» con nombre y reordenar; encuentra solapes inferidos | Lenguaje «Elementos solapados»; «Capas» reservado a Fase 2 |
-| **C · Solo teclado / lector de pantalla** | Llega por Jerarquía; no hay equivalente | Fallo total: no puede alcanzar el elemento tapado | `Alt+↓/↑` sobre la selección + anuncio |
+| Camino                                           | Contexto                                                                       | Dónde se rompe hoy (0001)                                          | Qué lo arregla                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| **A · No conoce el gesto** (novato en el editor) | Clica, coge «lo equivocado», cree que la tabla no es editable o que hay un bug | Q2 visibilidad: nada le dice que hay algo debajo                   | Insignia en la selección + menú contextual                 |
+| **B · Experto / viene de Figma**                 | Prueba `Alt+clic` por instinto                                                 | Espera «capas» con nombre y reordenar; encuentra solapes inferidos | Lenguaje «Elementos solapados»; «Capas» reservado a Fase 2 |
+| **C · Solo teclado / lector de pantalla**        | Llega por Jerarquía; no hay equivalente                                        | Fallo total: no puede alcanzar el elemento tapado                  | `Alt+↓/↑` sobre la selección + anuncio                     |
 
 Variaciones de entrada: clic en el lienzo (A, B), Jerarquía/breadcrumb (C), menú contextual (A sin modificadores). Dispositivo: solo escritorio (Electron/Windows); sin variante móvil.
 
@@ -41,13 +41,13 @@ No toca el `.rdlc`, el documento del backend ni `ZIndex`. Reutiliza `stackAtPoin
 
 ### 4.1 Flujo A — descubrir y rotar con ratón (camino A y B)
 
-| Paso | Usuario | Sistema | Por qué existe |
-| --- | --- | --- | --- |
-| 0 | Quiere editar `LinesTable` | — | Objetivo |
-| 1 | Clic sobre la tabla | Selecciona `LinesTable2` (la de arriba), como hoy | Sin cambio de comportamiento («nothing breaks») |
-| 2 | Ve la insignia junto al marco: **«1 de 2 · Alt+clic»** | La insignia solo sale si hay ≥ 2 miembros en la pila bajo el punto del clic | Responde a la pregunta Q2 justo cuando la necesita |
-| 3 | `Alt+clic` en el mismo punto | Pasa al siguiente miembro con wrap; insignia **«2 de 2»**; anuncia el nombre | Gesto estándar Figma/PowerPoint |
-| 4 | Edita (inspector, arrastre, teclas) | Selección normal, sin modo | — |
+| Paso | Usuario                                                | Sistema                                                                      | Por qué existe                                     |
+| ---- | ------------------------------------------------------ | ---------------------------------------------------------------------------- | -------------------------------------------------- |
+| 0    | Quiere editar `LinesTable`                             | —                                                                            | Objetivo                                           |
+| 1    | Clic sobre la tabla                                    | Selecciona `LinesTable2` (la de arriba), como hoy                            | Sin cambio de comportamiento («nothing breaks»)    |
+| 2    | Ve la insignia junto al marco: **«1 de 2 · Alt+clic»** | La insignia solo sale si hay ≥ 2 miembros en la pila bajo el punto del clic  | Responde a la pregunta Q2 justo cuando la necesita |
+| 3    | `Alt+clic` en el mismo punto                           | Pasa al siguiente miembro con wrap; insignia **«2 de 2»**; anuncia el nombre | Gesto estándar Figma/PowerPoint                    |
+| 4    | Edita (inspector, arrastre, teclas)                    | Selección normal, sin modo                                                   | —                                                  |
 
 Detalles:
 
@@ -80,29 +80,29 @@ Para el caso de la factura son **2 acciones** (clic derecho → elegir), sin con
 
 **Se construye solo si** tras Nivel 1 hay evidencia de más casos que la pareja `LinesTable`/`LinesTable2` (ver §8). Son las correcciones de 0003 sobre 0001 §3.2–3.5.
 
-| Tema | 0001 | Rediseño |
-| --- | --- | --- |
-| Nombre | «Capas» | **«Elementos solapados»**; «Capas» queda para las manuales con nombre de la Fase 2 |
-| Salida del modo | fila «Todas», chip y **`Esc` sin selección** | **Chip = salida principal** (botón enfocable, «Editando solo: LinesTable ×»), fila «Ver todo» y comando de paleta. **`Esc` nunca cambia de modo** (sigue subiendo al padre / deseleccionando) |
-| Insertar fuera de la capa | se ignora con aviso en la barra | **Se redirige**: se inserta en el contenedor de la pila activa, con aviso junto al elemento creado («Insertado en Rectangle2»). El drop fuera hace lo mismo. Nunca se ignora |
-| Panel | todas las pilas, mismo peso | **Orden por relevancia**: primero pilas con tabla o rectángulo; las de textos (etiqueta/valor) **colapsadas** en «N pares de textos». Rótulo = `Name` + descriptor (tabla: dataset o primera cabecera; textbox: primeros ~20 caracteres) |
-| Teclado/roles | no especificado | Panel como árbol (`role="tree"`, roving tabindex, mismas teclas que Jerarquía); entrar/salir del modo con atajo propio, no `Esc` |
-| Estado | `activeLayerId`/`showLayers` en `App` | **Por pestaña**: hook `useOverlapMode(sessionId)` desde el primer día; se limpia al cerrar la pestaña, y si undo/recarga externa elimina el item |
-| Atenuado | por defecto ON | Se mantiene ON (comunica el filtro); decidir tras probar |
+| Tema                      | 0001                                         | Rediseño                                                                                                                                                                                                                                 |
+| ------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nombre                    | «Capas»                                      | **«Elementos solapados»**; «Capas» queda para las manuales con nombre de la Fase 2                                                                                                                                                       |
+| Salida del modo           | fila «Todas», chip y **`Esc` sin selección** | **Chip = salida principal** (botón enfocable, «Editando solo: LinesTable ×»), fila «Ver todo» y comando de paleta. **`Esc` nunca cambia de modo** (sigue subiendo al padre / deseleccionando)                                            |
+| Insertar fuera de la capa | se ignora con aviso en la barra              | **Se redirige**: se inserta en el contenedor de la pila activa, con aviso junto al elemento creado («Insertado en Rectangle2»). El drop fuera hace lo mismo. Nunca se ignora                                                             |
+| Panel                     | todas las pilas, mismo peso                  | **Orden por relevancia**: primero pilas con tabla o rectángulo; las de textos (etiqueta/valor) **colapsadas** en «N pares de textos». Rótulo = `Name` + descriptor (tabla: dataset o primera cabecera; textbox: primeros ~20 caracteres) |
+| Teclado/roles             | no especificado                              | Panel como árbol (`role="tree"`, roving tabindex, mismas teclas que Jerarquía); entrar/salir del modo con atajo propio, no `Esc`                                                                                                         |
+| Estado                    | `activeLayerId`/`showLayers` en `App`        | **Por pestaña**: hook `useOverlapMode(sessionId)` desde el primer día; se limpia al cerrar la pestaña, y si undo/recarga externa elimina el item                                                                                         |
+| Atenuado                  | por defecto ON                               | Se mantiene ON (comunica el filtro); decidir tras probar                                                                                                                                                                                 |
 
 El Nivel 2 **reutiliza** todo el Nivel 1: la rotación sigue funcionando dentro del modo y es la forma de entrar en él (Alt+clic puede, opcionalmente, activar el modo, como en 0001).
 
 ## 6. Copy (para `/articulate`)
 
-| Dónde | Texto propuesto |
-| --- | --- |
-| Insignia | «1 de 2 · Alt+clic» (tooltip: «Hay otro elemento debajo. Alt+clic o Alt+↓ para seleccionarlo») |
-| Menú | «Seleccionar el de debajo» · «Seleccionar el de encima» · «Elementos aquí (2)» |
-| Anuncio | «Seleccionado LinesTable, 2 de 2 elementos solapados» |
-| Sin pila | «No hay elementos solapados con este» |
-| Nivel 2 · chip | «Editando solo: LinesTable ×» |
-| Nivel 2 · panel vacío | «No hay elementos solapados en este informe» |
-| Nivel 2 · inserción | «Insertado en Rectangle2 (fuera de LinesTable)» |
+| Dónde                 | Texto propuesto                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------- |
+| Insignia              | «1 de 2 · Alt+clic» (tooltip: «Hay otro elemento debajo. Alt+clic o Alt+↓ para seleccionarlo») |
+| Menú                  | «Seleccionar el de debajo» · «Seleccionar el de encima» · «Elementos aquí (2)»                 |
+| Anuncio               | «Seleccionado LinesTable, 2 de 2 elementos solapados»                                          |
+| Sin pila              | «No hay elementos solapados con este»                                                          |
+| Nivel 2 · chip        | «Editando solo: LinesTable ×»                                                                  |
+| Nivel 2 · panel vacío | «No hay elementos solapados en este informe»                                                   |
+| Nivel 2 · inserción   | «Insertado en Rectangle2 (fuera de LinesTable)»                                                |
 
 ## 7. Especificación de interacción
 
@@ -116,12 +116,12 @@ El Nivel 2 **reutiliza** todo el Nivel 1: la rotación sigue funcionando dentro 
 
 Instrumentación local opt-in (`/measure`), sin telemetría externa:
 
-| Señal | Qué dice |
-| --- | --- |
-| Veces que se usa «Seleccionar el de debajo» por vía (Alt+clic / menú / teclado) | Qué puerta se usa de verdad |
-| Rotaciones seguidas > 2 en el mismo punto | Pilas de 3+: el ciclo se queda corto |
-| Ediciones/movimientos tras rotar vs. abandono (rota y deselecciona) | Si la insignia basta |
-| Informes del corpus con pilas que no son la pareja de tablas (script) | ¿Hay más casos que justifiquen panel y modo? |
+| Señal                                                                           | Qué dice                                     |
+| ------------------------------------------------------------------------------- | -------------------------------------------- |
+| Veces que se usa «Seleccionar el de debajo» por vía (Alt+clic / menú / teclado) | Qué puerta se usa de verdad                  |
+| Rotaciones seguidas > 2 en el mismo punto                                       | Pilas de 3+: el ciclo se queda corto         |
+| Ediciones/movimientos tras rotar vs. abandono (rota y deselecciona)             | Si la insignia basta                         |
+| Informes del corpus con pilas que no son la pareja de tablas (script)           | ¿Hay más casos que justifiquen panel y modo? |
 
 **Criterio**: pasar a Nivel 2 si hay uso repetido de pilas de 3+ o casos reales fuera de `LinesTable`/`LinesTable2`; si no, Nivel 1 cierra Fase 1.
 
@@ -144,7 +144,7 @@ Instrumentación local opt-in (`/measure`), sin telemetría externa:
 
 1. `lib/layers.ts` + `layers.spec.ts` (sin cambios; añadir pila por selección para el teclado).
 2. **Nuevo orden**: insignia + `Alt+clic` + menú contextual + `Alt+↓/↑` + mover desde el marco + E2E de factura.
-3. *(Condicional)* panel, modo, filtro de hit-test, chip y redirección de inserción.
-4. *(Fase 2)* sin cambios.
+3. _(Condicional)_ panel, modo, filtro de hit-test, chip y redirección de inserción.
+4. _(Fase 2)_ sin cambios.
 
 Archivos Nivel 1: `lib/layers.ts` (nuevo), `components/canvas/SelectionFrame.tsx` (insignia y arrastre desde el cuerpo), `components/canvas/NodeGroup` (`altKey`), menú contextual del lienzo, `hooks/useEditorKeys.ts`, `components/StatusBar.tsx` (anuncio). Se **evitan** en Nivel 1: `hit.ts`, `ItemView`, `Paper`, `useMarqueeSelection`, `LeftPanels`, `EditorToolbar`, `App`.

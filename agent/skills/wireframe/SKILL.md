@@ -15,6 +15,7 @@ description: >
   owns the screen itself.
 version: 1.6.0
 ---
+
 # Wireframe
 
 ## Overview
@@ -24,6 +25,7 @@ You design the structural anatomy of screens. Your scope is the screen itself �
 A wireframe answers three questions about a screen: What is on it? Where does each thing sit? What is most important? It deliberately refuses to answer a fourth — what does it look like? — because answering it too early changes what stakeholders critique. Show someone a styled mockup and they discuss the font. Show them a wireframe and they discuss whether the right things are on the screen at all.
 
 **Trigger this skill when users ask about:**
+
 - Wireframing any screen, page, or view ("wireframe the dashboard", "sketch the settings page")
 - Screen layout and structure ("what goes where", "lay out this page", "how should this screen be organized")
 - Thumbnail exploration — many quick structural ideas for the same problem
@@ -62,12 +64,12 @@ Fidelity in this skill means **scope, never abstraction** — and never visual p
 
 Match the rung to the decision being asked:
 
-| The question on the table | Rung |
-|---|---|
-| "Which mechanism should solve this problem?" | Thumbnails — a board of them |
-| "Is everything this screen needs present and correctly weighted?" | Full-page wireframe |
-| "Does this sequence of screens work as a task?" | Prototype view |
-| "Does it look right?" | Not this skill — that's visual design |
+| The question on the table                                         | Rung                                  |
+| ----------------------------------------------------------------- | ------------------------------------- |
+| "Which mechanism should solve this problem?"                      | Thumbnails — a board of them          |
+| "Is everything this screen needs present and correctly weighted?" | Full-page wireframe                   |
+| "Does this sequence of screens work as a task?"                   | Prototype view                        |
+| "Does it look right?"                                             | Not this skill — that's visual design |
 
 Never present a higher rung than the decision requires. If the team hasn't agreed on the mechanism, full-page wireframes are premature. If they haven't agreed on the flow, a prototype is premature.
 
@@ -87,7 +89,7 @@ Every artifact this skill produces is built from a shared visual vocabulary with
 - `references/design-system.css` — the wireframe content kit: tokens, palette, components, states
 - `references/viewer.css` — the container chrome: stage, frames, plates, views
 - `references/viewer.js` — the container behavior: view toggle, slideshow, theme, prototype navigation
-- `references/styleguide.html` — the kit rendered as a browsable styleguide (open it to *see* the system)
+- `references/styleguide.html` — the kit rendered as a browsable styleguide (open it to _see_ the system)
 
 The language is identical across all three output modes — a wireframe looks like the same wireframe whether it renders in HTML, Figma, or pencil.
 
@@ -96,15 +98,15 @@ The language is identical across all three output modes — a wireframe looks li
 The stage every artifact sits on (source of truth: `references/viewer.css`). One vignette or a six-screen wireflow renders on the same chrome:
 
 - **Backdrop:** the Intent website's own neutrals — the container reads as a page from the same design system as the site. The chrome follows the site's language: cool-tinted tokens, the same absolute 4px grid as the kit, and the site's typography — General Sans 700 for the board title, Hanken Grotesk for notes, SF Mono for plates and labels (brand fonts referenced by name with system fallbacks, never loaded from a CDN — self-containment wins over font fidelity). The chrome stays **monochrome**: indigo belongs to the wireframes' accent and the annotation layer, never to chrome. **The stage signs its work:** the board header is an `h1` title at display size with a one-line mono provenance mark beneath — `Intent /wireframe · [month year] · [rung]` — the way a crit wall names its author and draft.
-- **Frame:** each wireframe sits in its own hairline-bordered card. A mid-fi frame's **title plate** — screen name, position when part of a set ("3/12") — floats *above* the card as a separate chrome caption, the way a canvas tool labels its frames. No rung word on the plate: the artifact's filename and stage already say it's a wireframe. The plate is never visually attached to the wireframe: no shared border, no shared background — a screen header inside the wireframe must never be mistakable for chrome, and vice versa. The plate uses a small uppercase monospace label style that never appears inside wireframe content. Lo-fi frames carry no plate — the vignette's own idea caption (index, title, description) is their label.
+- **Frame:** each wireframe sits in its own hairline-bordered card. A mid-fi frame's **title plate** — screen name, position when part of a set ("3/12") — floats _above_ the card as a separate chrome caption, the way a canvas tool labels its frames. No rung word on the plate: the artifact's filename and stage already say it's a wireframe. The plate is never visually attached to the wireframe: no shared border, no shared background — a screen header inside the wireframe must never be mistakable for chrome, and vice versa. The plate uses a small uppercase monospace label style that never appears inside wireframe content. Lo-fi frames carry no plate — the vignette's own idea caption (index, title, description) is their label.
 - **Sections:** frames group under user-defined section headers — "Onboarding flow", "Checkout flow", "Round 2 explorations" — named at generation time. Section headers are chrome, styled like plates. Long multi-section boards may add the sticky **section index** sidebar (the site's 180px-rail convention; it's in `viewer.css`).
 - **One rung per artifact.** Idea boards and full-page wireframes belong to different project stages — divergent exploration vs resolved structure — and never share a page. Lo-fi ships as its own artifact (`wireframes-<topic>-thumbnails.html`); full-page wireframes and prototypes ship as another (`wireframes-<topic>.html`). Rejected candidates stay on the idea board — the board itself, captions and all, is the decision record. **Idea boards carry no notes rail and no decision note: the numbered caption is the annotation, and the board stays a clean grid.**
 - **View modes (HTML):** the container is a viewer with a toggle in its chrome:
   - **Grid** (default) — all frames, grouped by section. In a lo-fi artifact vignettes flow several per row; in a wireframe artifact frames sit larger, one or two per row. A section's notes sit as a right sidebar beside its frames — the record reads alongside the screens, never below them.
-  - **Slideshow** — a fixed stage, not a long page: the page stops scrolling and the active frame centers and scales *down* to fit the viewport whole (plate included, never scaled up), with the notes rail as a bounded column beside it. The frame **page-centers** when its width stays clear of the rail (viewer.js decides); the stage stays bare — the frame is the only thing on it. Prev/next controls, keyboard arrows (a quiet sentence-case hint in the navigator row says so), position indicator, section-aware order; the navigator row sits between header and stage and doubles as the section header line — section name and position ("3/12") grouped on the left as one wayfinding phrase, controls on the right; the plate drops its own position copy while the row shows it. **Bounds are real:** the sequence never wraps — prev disables at the first frame, next at the last; the ends of a flow are information. The stage for design reviews — a frame must never run off the bottom of the screen.
-  - **The reviewer's place is never lost.** Clicking a frame's plate in grid opens *that* frame in slides; leaving slides restores the grid scroll position; the current view + frame mirror into `location.hash` (`#slides-2`, `#proto-1`) so any review state is linkable — "look at slide 2" is a URL, not directions.
+  - **Slideshow** — a fixed stage, not a long page: the page stops scrolling and the active frame centers and scales _down_ to fit the viewport whole (plate included, never scaled up), with the notes rail as a bounded column beside it. The frame **page-centers** when its width stays clear of the rail (viewer.js decides); the stage stays bare — the frame is the only thing on it. Prev/next controls, keyboard arrows (a quiet sentence-case hint in the navigator row says so), position indicator, section-aware order; the navigator row sits between header and stage and doubles as the section header line — section name and position ("3/12") grouped on the left as one wayfinding phrase, controls on the right; the plate drops its own position copy while the row shows it. **Bounds are real:** the sequence never wraps — prev disables at the first frame, next at the last; the ends of a flow are information. The stage for design reviews — a frame must never run off the bottom of the screen.
+  - **The reviewer's place is never lost.** Clicking a frame's plate in grid opens _that_ frame in slides; leaving slides restores the grid scroll position; the current view + frame mirror into `location.hash` (`#slides-2`, `#proto-1`) so any review state is linkable — "look at slide 2" is a URL, not directions.
   - **Theme** — a light ⇄ dark toggle. Precedence: the reviewer's own last choice (localStorage) wins, then an authored `data-theme` on `<body>` (a presenter's choice survives the room's OS), then the OS preference. The half-tone swatch leads with the current mode — it reads as state. Both ramps ship in every HTML artifact. Visually distinct from the view tabs — it's a mode switch on the stage, not a way of looking at the frames: a borderless control, separated from the view group. Figma and pencil artifacts are single-theme — the ask-first step records which.
-  - **Prototype** (only when requested) — one screen at a time on the same fitted stage, annotations hidden, and the wireframes themselves interactive: activating a trigger element (the real button, the real row — click, or Tab + Enter/Space) navigates to the screen it leads to, following the flow logic. **Navigation is flow-shaped, not document-shaped:** ←/prev steps back through *visited* screens, Restart returns to the flow's entry, and sequential paging (next, the linear position) hides — arrows that walk document order would let a reviewer traverse paths the flow never connects. Only the wired triggers are tabbable; the mock's unwired controls leave the tab order, and a dead tap flashes a hairline "nothing here" acknowledgment. Hovered triggers show the same hairline ring — wired controls distinguish themselves from decoration. The view instructs itself: the navigator row carries a one-line sentence-case hint — the demo moment must never be an unlabeled room.
+  - **Prototype** (only when requested) — one screen at a time on the same fitted stage, annotations hidden, and the wireframes themselves interactive: activating a trigger element (the real button, the real row — click, or Tab + Enter/Space) navigates to the screen it leads to, following the flow logic. **Navigation is flow-shaped, not document-shaped:** ←/prev steps back through _visited_ screens, Restart returns to the flow's entry, and sequential paging (next, the linear position) hides — arrows that walk document order would let a reviewer traverse paths the flow never connects. Only the wired triggers are tabbable; the mock's unwired controls leave the tab order, and a dead tap flashes a hairline "nothing here" acknowledgment. Hovered triggers show the same hairline ring — wired controls distinguish themselves from decoration. The view instructs itself: the navigator row carries a one-line sentence-case hint — the demo moment must never be an unlabeled room.
 - **Wireflow arrows** connecting screens render on the backdrop, between frames — flow logic lives in the container layer, never inside a screen.
 - In Figma, the container maps to sections and frame layout on canvas; in pencil, to grouped frames. Slideshow falls to those tools' native presentation modes.
 
@@ -116,16 +118,16 @@ Source of truth: `references/design-system.css`. Wireframe content uses its vari
 
 **The palette** — a five-role grayscale ramp, one working accent, one semantic exception:
 
-| Variable | Light | Dark | Used for |
-|---|---|---|---|
-| `--w-canvas` | `#ffffff` | `#1a1a20` | the screen's own background |
-| `--w-surface` | `#f4f4f6` | `#232329` | cards, panels, filled regions |
-| `--w-border` | `#d6d6dd` | `#3a3a44` | outlines, dividers, input boxes |
-| `--w-ink2` | `#62626b` | `#9a9aa6` | supporting text (guardrail: ≥4.7:1 on surface) |
-| `--w-ink1` | `#26262e` | `#e8e8ee` | headings, labels, body text |
-| `--w-accent` | `#4338ca` | `#7c6ff0` | primary actions + selection states, nothing else |
-| `--w-accent-soft` | `#edebfc` | `#2d2a4e` | tinted surfaces paired with accent/ink text |
-| `--w-error` | `#b42318` | `#f97066` | invalid states ONLY — never decorative, never emphasis |
+| Variable          | Light     | Dark      | Used for                                               |
+| ----------------- | --------- | --------- | ------------------------------------------------------ |
+| `--w-canvas`      | `#ffffff` | `#1a1a20` | the screen's own background                            |
+| `--w-surface`     | `#f4f4f6` | `#232329` | cards, panels, filled regions                          |
+| `--w-border`      | `#d6d6dd` | `#3a3a44` | outlines, dividers, input boxes                        |
+| `--w-ink2`        | `#62626b` | `#9a9aa6` | supporting text (guardrail: ≥4.7:1 on surface)         |
+| `--w-ink1`        | `#26262e` | `#e8e8ee` | headings, labels, body text                            |
+| `--w-accent`      | `#4338ca` | `#7c6ff0` | primary actions + selection states, nothing else       |
+| `--w-accent-soft` | `#edebfc` | `#2d2a4e` | tinted surfaces paired with accent/ink text            |
+| `--w-error`       | `#b42318` | `#f97066` | invalid states ONLY — never decorative, never emphasis |
 
 The Intent indigo accent marks **what is primary and what is selected** — filled primary buttons, active chips, checked checkboxes and radios, switched-on switches, focus rings, the active tab underline. It expresses interaction state, not visual design: it is the system's fixed accent, not a color choice on offer. Everything else stays in the ramp — if a tone isn't telling the user "this is the primary action", "this is selected", or "this is invalid", it stays gray. The annotation layer shares the same indigo but speaks in its own shapes (numbered markers, the notes rail), never in controls.
 
@@ -137,24 +139,24 @@ The Intent indigo accent marks **what is primary and what is selected** — fill
 
 **The component baseline** — the kit covers the real anatomy of screens, all with working states:
 
-| Element | Kit vocabulary |
-|---|---|
-| Buttons | `.btn` + `.btn-primary` (accent-filled) / `.btn-secondary` (bordered) / `.btn-ghost`, sizes `.btn-sm`/`.btn-lg`, `.btn-block`, `.btn-icon` + aria-label |
-| Form fields | `.field` > `.field-label` + `.input`/`.textarea`/`.select` + `.field-hint`; `.search` (input + leading glyph); invalid = `.error` class + `.field-error` line with `gl-alert` |
-| Choices | `.choice` rows: native checkbox / radio (accent when checked); switch = **`button.switch[role=switch]`**, never a styled checkbox |
-| Chips / tabs | `.chip` (accent-filled when active), `.tabs` > `.tab-item` (accent underline), `.tabbar` > `.tab` (mobile bottom bar) |
-| Bars | `.appbar` — back glyph, title, contextual actions |
-| Objects | `.avatar` (sm/md/lg), `.media` (light gray block — surface fill, hairline border, no crossed lines), `.badge` (+ `-muted`/`-accent`), `.link`, `.divider` |
-| Collections | `.card` (+ `.interactive`) > `.media` + `.card-body`; `.list` > `.list-row`; native `<table>` with real headers and real rows |
-| Overlays | `.scrim` + `.modal` (+ `.modal-actions`), `.sheet` + `.sheet-handle`, `.toast` — elevation is **a scrim plus a hairline border, no glow shadows** |
-| Alerts | `.callout` > `.glyph` + `.callout-body` (`.callout-title` + `.callout-text`) — persistent in-page note, the toast's standing counterpart. Neutral default, `.accent` for emphasis, `.error` for the ramp's one semantic exception. **Severity reads from glyph + copy, never hue** (the ramp has no success/warning color); never a left accent stripe |
-| Loading | `.skeleton` for content; `.spinner` only inside controls, always with an honest label ("Posting…") — the label carries the state, motion just reinforces it, and reduced-motion users get a static treatment |
-| Layout | `.row`, `.stack`, `.text-stack` (a name/title over a sub-line as one identity unit — collapses leading to a single grid step), `.grow`, `.grid-2`, `.grid-3`, `.screen-body` |
-| Vignettes | `.vignette` (+ `.dots` — a **board-level** grid option, all vignettes or none, only when the dots mean something) > `.float`; `.idea-caption` > `.idea-num` + `.idea-title` + `.idea-desc` |
+| Element      | Kit vocabulary                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Buttons      | `.btn` + `.btn-primary` (accent-filled) / `.btn-secondary` (bordered) / `.btn-ghost`, sizes `.btn-sm`/`.btn-lg`, `.btn-block`, `.btn-icon` + aria-label                                                                                                                                                                                                |
+| Form fields  | `.field` > `.field-label` + `.input`/`.textarea`/`.select` + `.field-hint`; `.search` (input + leading glyph); invalid = `.error` class + `.field-error` line with `gl-alert`                                                                                                                                                                          |
+| Choices      | `.choice` rows: native checkbox / radio (accent when checked); switch = **`button.switch[role=switch]`**, never a styled checkbox                                                                                                                                                                                                                      |
+| Chips / tabs | `.chip` (accent-filled when active), `.tabs` > `.tab-item` (accent underline), `.tabbar` > `.tab` (mobile bottom bar)                                                                                                                                                                                                                                  |
+| Bars         | `.appbar` — back glyph, title, contextual actions                                                                                                                                                                                                                                                                                                      |
+| Objects      | `.avatar` (sm/md/lg), `.media` (light gray block — surface fill, hairline border, no crossed lines), `.badge` (+ `-muted`/`-accent`), `.link`, `.divider`                                                                                                                                                                                              |
+| Collections  | `.card` (+ `.interactive`) > `.media` + `.card-body`; `.list` > `.list-row`; native `<table>` with real headers and real rows                                                                                                                                                                                                                          |
+| Overlays     | `.scrim` + `.modal` (+ `.modal-actions`), `.sheet` + `.sheet-handle`, `.toast` — elevation is **a scrim plus a hairline border, no glow shadows**                                                                                                                                                                                                      |
+| Alerts       | `.callout` > `.glyph` + `.callout-body` (`.callout-title` + `.callout-text`) — persistent in-page note, the toast's standing counterpart. Neutral default, `.accent` for emphasis, `.error` for the ramp's one semantic exception. **Severity reads from glyph + copy, never hue** (the ramp has no success/warning color); never a left accent stripe |
+| Loading      | `.skeleton` for content; `.spinner` only inside controls, always with an honest label ("Posting…") — the label carries the state, motion just reinforces it, and reduced-motion users get a static treatment                                                                                                                                           |
+| Layout       | `.row`, `.stack`, `.text-stack` (a name/title over a sub-line as one identity unit — collapses leading to a single grid step), `.grow`, `.grid-2`, `.grid-3`, `.screen-body`                                                                                                                                                                           |
+| Vignettes    | `.vignette` (+ `.dots` — a **board-level** grid option, all vignettes or none, only when the dots mean something) > `.float`; `.idea-caption` > `.idea-num` + `.idea-title` + `.idea-desc`                                                                                                                                                             |
 
 **The completeness test.** A mid-fi wireframe is a grayscale version of the full product screen — not an enlarged fragment. If the real screen would have it, the wireframe has it: status and navigation bars, tab bars, search fields, filter chips, icons (placeholders where undecided), avatars, timestamps, counts, secondary actions, footers. Density matches reality — a marketplace grid shows six listings with sellers and distances, not two bare cards; a feed shows the fold and what's below it. The test: screenshot the real product, desaturate it, strip the brand typography — your wireframe should have the same amount of stuff in the same places.
 
-**Real controls.** Wireframes are built from native interactive elements — `<button>`, `<input>`, `<textarea>` — never divs painted to look like controls. Text inputs focus and accept typing, buttons respond to hover and press, chips and switches toggle, tabs react. Interaction states are mandatory and live in the kit: hover, focus (2px accent ring), press, disabled, invalid, loading. Interactivity is not polish — it's structural truth about what the screen *does* — so it belongs at this rung; only visual styling is withheld.
+**Real controls.** Wireframes are built from native interactive elements — `<button>`, `<input>`, `<textarea>` — never divs painted to look like controls. Text inputs focus and accept typing, buttons respond to hover and press, chips and switches toggle, tabs react. Interaction states are mandatory and live in the kit: hover, focus (2px accent ring), press, disabled, invalid, loading. Interactivity is not polish — it's structural truth about what the screen _does_ — so it belongs at this rung; only visual styling is withheld.
 
 ### Layer 3 — Annotation (accent meta-layer)
 
@@ -234,7 +236,9 @@ Write **one self-contained file per rung** — `wireframes-<topic>-thumbnails.ht
     <span class="slide-section">[SECTION NAME]</span>
     <span class="slide-pos">1/1</span>
     <span class="nav-hint slides-hint">← → to page · Esc returns to grid</span>
-    <span class="nav-hint proto-hint">Tap live controls to navigate · ← steps back · Esc returns to grid</span>
+    <span class="nav-hint proto-hint"
+      >Tap live controls to navigate · ← steps back · Esc returns to grid</span
+    >
     <button data-prev aria-label="Previous"></button>
     <button data-next aria-label="Next"></button>
     <button data-restart>Restart</button>
@@ -243,7 +247,6 @@ Write **one self-contained file per rung** — `wireframes-<topic>-thumbnails.ht
   <section class="board-section" data-section="[SECTION NAME]">
     <h2 class="section-label">[SECTION NAME]</h2>
     <div class="frame-grid">
-
       <!-- mid-fi frame: plate above (an h3 — screen readers jump frame
            to frame by heading; viewer.js makes it the click-to-open-in-
            slides handle), complete interactive screen inside -->
@@ -266,7 +269,8 @@ Write **one self-contained file per rung** — `wireframes-<topic>-thumbnails.ht
       <!-- lo-fi frame: no plate — the idea caption is the label -->
       <article class="frame" style="width: 360px">
         <div class="wf">
-          <div class="vignette"><!-- or class="vignette dots" -->
+          <div class="vignette">
+            <!-- or class="vignette dots" -->
             <div class="float" style="max-width: 280px">
               <!-- the focused real-UI fragment where the idea lives -->
             </div>
@@ -278,7 +282,6 @@ Write **one self-contained file per rung** — `wireframes-<topic>-thumbnails.ht
           </div>
         </div>
       </article>
-
     </div>
     <!-- MID-FI ONLY — idea boards carry no rail; the board stays a clean grid -->
     <aside class="note-rail">
@@ -321,8 +324,8 @@ When the user picks pencil, confirm light or dark (per Ask first), call `mcp__pe
 
 The output stage enforces the doctrine:
 
-- A vignette sprawling into a whole screen (nav bars, multiple zones, content beyond its one idea) is a rung violation — say so and offer to step up: *"This idea wants a full screen — should I promote it to the wireframe artifact?"* The inverse is also a violation: a vignette going abstract (gray boxes standing in for the idea itself) gets redrawn from the kit — nothing is ever drawn vaguer to look "early".
-- A request for color palettes, typefaces, or styling inside wireframe content is a hard-stop violation — refuse and route: *"That's visual design — the wireframe stays in the locked grayscale system so the critique stays structural. Take the styled pass to your visual design tools once the structure is agreed."* The single exception is the user-configured annotation accent, which never touches content.
+- A vignette sprawling into a whole screen (nav bars, multiple zones, content beyond its one idea) is a rung violation — say so and offer to step up: _"This idea wants a full screen — should I promote it to the wireframe artifact?"_ The inverse is also a violation: a vignette going abstract (gray boxes standing in for the idea itself) gets redrawn from the kit — nothing is ever drawn vaguer to look "early".
+- A request for color palettes, typefaces, or styling inside wireframe content is a hard-stop violation — refuse and route: _"That's visual design — the wireframe stays in the locked grayscale system so the critique stays structural. Take the styled pass to your visual design tools once the structure is agreed."_ The single exception is the user-configured annotation accent, which never touches content.
 
 ## Core capabilities
 
@@ -390,6 +393,7 @@ Structure the deliverable as the work requires. The full toolkit:
 ## Scope boundaries
 
 **You own:**
+
 - Structural layout of individual screens at lo-fi and mid-fi
 - The fidelity ladder and choosing the right rung for the decision at hand
 - The wireframe language: container chrome, content kit, annotation layer — and its reference files
@@ -398,6 +402,7 @@ Structure the deliverable as the work requires. The full toolkit:
 - Annotation of structural decisions and open questions
 
 **You don't own:**
+
 - Flow logic across screens — what screens exist, in what order, with what branches (`/journey` defines it; you materialize it)
 - Information architecture, taxonomy, and navigation models (`/organize` structures it; you place it)
 - Final copy, voice, and tone (`/articulate` — your real-content placeholders are flagged for their pass)
@@ -407,6 +412,7 @@ Structure the deliverable as the work requires. The full toolkit:
 - Accessibility auditing (`/include` — but reading order, target placement, and the kit's baked-in floors: legible type, focus rings, aria-labeled icon buttons, real roles — are your structural responsibility)
 
 **Always ask:**
+
 - What is this screen's primary job — and does the structure make that job obvious?
 - What decision is the team trying to make, and what's the lowest rung that supports it?
 - What's the real content — labels, data shapes, worst-case lengths?

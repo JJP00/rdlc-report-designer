@@ -110,14 +110,17 @@ describe('breadcrumbEntries', () => {
     const entries = breadcrumbEntries(projection(), {
       cell: { id: 'Tablix1', row: 0, col: 0 },
     });
-    expect(entries.map((entry) => entry.label)).toEqual(['Informe', 'Cuerpo', 'Tablix1', 'Celda 1,1']);
+    expect(entries.map((entry) => entry.label)).toEqual([
+      'Informe',
+      'Cuerpo',
+      'Tablix1',
+      'Celda 1,1',
+    ]);
   });
 
   it('con celdas fusionadas usa la columna de rejilla del ancla', () => {
     const p = projection();
-    const tablixNode = p.page.body.items.find(
-      (item): item is TablixDto => item.kind === 'tablix',
-    )!;
+    const tablixNode = p.page.body.items.find((item): item is TablixDto => item.kind === 'tablix')!;
     tablixNode.body.columns = [
       { value: 2, unit: 'cm' },
       { value: 2, unit: 'cm' },
@@ -145,7 +148,11 @@ describe('breadcrumbEntries', () => {
 
   it('encuentra items del encabezado', () => {
     const entries = breadcrumbEntries(projection(), { itemId: 'TextboxCabecera' });
-    expect(entries.map((entry) => entry.label)).toEqual(['Informe', 'Encabezado', 'TextboxCabecera']);
+    expect(entries.map((entry) => entry.label)).toEqual([
+      'Informe',
+      'Encabezado',
+      'TextboxCabecera',
+    ]);
   });
 });
 
@@ -178,7 +185,9 @@ describe('searchHierarchy', () => {
     const filtered = searchHierarchy(hierarchyTree(projection()), 'TextboxAnidado');
     expect(filtered.map((node) => node.label)).toEqual(['Cuerpo']);
     expect(filtered[0]?.children.map((node) => node.label)).toEqual(['Rectangle1']);
-    expect(filtered[0]?.children[0]?.children.map((node) => node.label)).toEqual(['TextboxAnidado']);
+    expect(filtered[0]?.children[0]?.children.map((node) => node.label)).toEqual([
+      'TextboxAnidado',
+    ]);
   });
 
   it('un nodo que coincide conserva su subárbol (celdas de un Tablix)', () => {

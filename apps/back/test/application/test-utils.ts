@@ -17,10 +17,7 @@ import { corpusByName } from '../golden/fixtures.js';
 /** Fakes compartidos por los tests de la capa de aplicación (sin Electron). */
 
 export class FakeWatcher implements FileWatcherPort {
-  private readonly callbacks = new Map<
-    string,
-    { onChange: () => void; onUnlink?: () => void }
-  >();
+  private readonly callbacks = new Map<string, { onChange: () => void; onUnlink?: () => void }>();
 
   /** El siguiente `watch` rechaza (simula permisos/límite de descriptores, BUG-56). */
   failNextWatch = false;

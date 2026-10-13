@@ -44,6 +44,7 @@ Specify works alongside the full Intent skill system:
 ### 1. Detailed design specifications
 
 Write comprehensive, screen-by-screen (or state-by-state) specifications that document:
+
 - Visual design with specific measurements, colors, typography, spacing
 - Interaction logic: what triggers what, in what order, with what conditions
 - Copy: exact text, variants for different contexts/markets/edge cases
@@ -55,6 +56,7 @@ Output should be a living spec document (HTML or markdown) that engineers can re
 ### 2. Organized engineering handoff packages
 
 Structure deliverables so engineering knows exactly what to build and why:
+
 - Clear ownership: who decided what and when
 - Problem context: what user need or business problem does this solve
 - Design approach: constraints considered, alternatives rejected and why
@@ -65,6 +67,7 @@ Structure deliverables so engineering knows exactly what to build and why:
 ### 3. Copy and variant matrices
 
 Document all copy variations in one place:
+
 - Primary copy vs. secondary copy vs. microcopy (labels, hints, errors, empty states)
 - Market variants: tone shifts, cultural considerations, regulatory language
 - Edge cases: character limits, long strings, very short strings, numeric edge cases
@@ -73,6 +76,7 @@ Document all copy variations in one place:
 ### 4. Interactive HTML specification documentation
 
 When appropriate, produce interactive HTML specs that:
+
 - Show designs inline with explanatory text
 - Link related screens and decisions
 - Include collapsible reference sections (component specs, copy matrices, test plans)
@@ -81,6 +85,7 @@ When appropriate, produce interactive HTML specs that:
 ### 5. Use case and edge case documentation
 
 Write out specific, not generic use cases:
+
 - "First-time user creating an account" vs. "User logs in"
 - "Network timeout during payment" vs. "Error state"
 - "User has 200+ items in cart" vs. "User has items in cart"
@@ -89,6 +94,7 @@ Write out specific, not generic use cases:
 ### 6. Stakeholder presentations
 
 Structure presentations that align cross-functional teams:
+
 - Problem statement (from `/strategize`)
 - Design approach and constraints considered
 - Key decisions and what was intentionally NOT done
@@ -99,6 +105,7 @@ Structure presentations that align cross-functional teams:
 ### 7. Test plans with success criteria
 
 Write test plans that pair observations with decision-makers:
+
 - Who needs to see this work (PM, engineering lead, CEO?)
 - What success looks like: specific, measurable outcomes (connected to `/measure` GSM chains)
 - What we're learning and why we're learning it
@@ -261,6 +268,7 @@ Before marking a handoff as complete, verify:
 ## Voice and approach
 
 **Intent over inventory.**
+
 - The biggest anti-pattern in design documentation is the "real estate tour" — describing what's on screen without explaining why it's there. "There's a button with rounded corners in the top left" is inventory. "The primary CTA is positioned at the top of the viewport because research showed 68% of users abandon this flow before scrolling — the action needs to be visible on arrival" is design rationale.
 - Every element in a spec should answer: why is this here? What problem does it solve for the user? What happens if we remove it?
 - Bad: "On load, display 'Create your first project' in Headline 2 (24px, Inter Medium)."
@@ -268,21 +276,26 @@ Before marking a handoff as complete, verify:
 - If you can't articulate the intent behind a design decision, flag it as an open question rather than documenting it as settled.
 
 **Structured and thorough, never bloated.**
+
 - Say what matters. Omit generic descriptions that don't connect to user needs or design intent.
 
 **Clear cross-functional ownership.**
+
 - Explicitly state who made each decision and why.
 - Call out constraints as design inputs, not limitations.
 
 **Raise open questions explicitly.**
+
 - Don't hide uncertainty; flag it.
 - Distinguish between "design needs to decide" vs. "engineering needs to decide" vs. "requires data/research."
 
 **Visual + logical rules.**
+
 - Show designs, then explain the reasoning behind them.
 - Make copy testable and implementable.
 
 **Treat constraints as design inputs.**
+
 - Performance requirements, accessibility needs, brand guidelines — these shape the spec, so make them visible.
 
 ---
@@ -290,6 +303,7 @@ Before marking a handoff as complete, verify:
 ## Scope boundaries
 
 ### This skill does:
+
 - Document design decisions (don't make them)
 - Organize and structure existing design work for implementation
 - Write comprehensive specs, test plans, and asset packages
@@ -300,6 +314,7 @@ Before marking a handoff as complete, verify:
 - Connect specs to measurement frameworks from `/measure`
 
 ### This skill does NOT:
+
 - Make design decisions (that's the designer's work)
 - Write code or implementation details
 - Conduct user research or validation (`/investigate`)
@@ -313,6 +328,7 @@ Before marking a handoff as complete, verify:
 ## When to use this skill
 
 Trigger Specify when:
+
 - **"Write the spec"** — Comprehensive design specification needed
 - **"Prepare the handoff"** — Engineering needs everything ready to build
 - **"Document this for engineering"** — Translate design into actionable specs

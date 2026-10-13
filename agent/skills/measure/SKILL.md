@@ -13,6 +13,7 @@ description: >
   and counter-metric definition.
 version: 1.6.0
 ---
+
 # Measure — Define and Track Success
 
 ## Overview
@@ -46,30 +47,35 @@ Measure works alongside the full Intent skill system:
 Google's HEART framework provides a structured approach to selecting UX metrics. Apply it per feature, not globally — different features need different metrics.
 
 **Happiness — subjective satisfaction:**
+
 - NPS (Net Promoter Score): likelihood to recommend, 0-10 scale. Blunt but useful for trending.
 - CSAT (Customer Satisfaction): satisfaction with specific interaction, usually 1-5 scale. More actionable than NPS for feature-level decisions.
 - SUS (System Usability Scale): 10-question standardized usability questionnaire. Good for benchmarking across releases.
 - Custom surveys: specific questions tied to specific features. "How easy was it to find what you were looking for?" is more useful than "How satisfied are you?"
 
 **Engagement — behavioral depth:**
+
 - Frequency: how often users return (daily, weekly, monthly active users)
 - Intensity: depth of usage per session (features used, content consumed, actions taken)
 - Breadth: how many features a user touches (adoption breadth, not just depth)
 - Recency: when was the last interaction (early warning for churn)
 
 **Adoption — new usage:**
+
 - New user activation: percentage completing key onboarding milestones
 - Feature adoption: percentage of eligible users who try a new feature
 - Onboarding completion: funnel through first-use experience
 - Time-to-value: how quickly new users reach their first meaningful outcome
 
 **Retention — continued usage:**
+
 - Return rate: D1, D7, D30 retention (percentage returning after 1, 7, 30 days)
 - Churn rate: percentage of users who stop using the product in a period
 - Reactivation: users who left and came back (what brought them back?)
 - Cohort retention: retention curves by signup cohort (are newer users retaining better?)
 
 **Task success — effectiveness:**
+
 - Completion rate: percentage of users who finish the task they started
 - Error rate: percentage of attempts that result in errors
 - Time-on-task: how long the task takes (shorter is usually better, but not always)
@@ -90,6 +96,7 @@ The GSM framework prevents you from jumping straight to metrics without understa
 **Metric:** How do you quantify that signal? Specific formula, data source, measurement frequency, and success threshold. "Median clicks-to-content less than 3 for 80th percentile of sessions, measured weekly via analytics" is a metric.
 
 **Example GSM chain:**
+
 - Goal: Users can complete checkout without friction
 - Signal: Users proceed through checkout steps without abandoning or going back
 - Metric: Checkout completion rate > 75% for users who add items to cart; median checkout time under 90 seconds; back-navigation rate during checkout < 10%
@@ -113,13 +120,13 @@ Depends on: baseline conversion rate, MDE, statistical power (typically 80%), si
 
 **Quick reference for common scenarios** (two-sided test, 80% power, 95% significance, two variants):
 
-| Baseline rate | MDE (relative) | Sample size per variant |
-|---|---|---|
-| 5% | 20% (5% → 6%) | ~25,000 |
-| 10% | 10% (10% → 11%) | ~14,500 |
-| 10% | 20% (10% → 12%) | ~3,800 |
-| 25% | 10% (25% → 27.5%) | ~4,800 |
-| 50% | 5% (50% → 52.5%) | ~6,000 |
+| Baseline rate | MDE (relative)    | Sample size per variant |
+| ------------- | ----------------- | ----------------------- |
+| 5%            | 20% (5% → 6%)     | ~25,000                 |
+| 10%           | 10% (10% → 11%)   | ~14,500                 |
+| 10%           | 20% (10% → 12%)   | ~3,800                  |
+| 25%           | 10% (25% → 27.5%) | ~4,800                  |
+| 50%           | 5% (50% → 52.5%)  | ~6,000                  |
 
 Lower baseline rates and smaller MDEs require dramatically more traffic. If your required sample size exceeds your monthly traffic, either increase the MDE (detect only larger effects), extend the test duration, or accept that an A/B test is not the right method — use qualitative research instead. Underpowered tests produce inconclusive results that waste time.
 
@@ -133,6 +140,7 @@ Check for differential effects across user segments: new vs. returning users, mo
 Define what must NOT get worse. If testing a new checkout flow, guardrail metrics might include: revenue per user, support ticket volume, return rate. If the test variant improves conversion but increases returns, the test failed.
 
 **Common mistakes:**
+
 - Peeking at results before the test reaches statistical significance (inflates false positive rate)
 - Running too many variants without adjusting for multiple comparisons
 - Ignoring novelty effects (new things get clicked more just because they're new — wait for the effect to stabilize)
@@ -167,12 +175,14 @@ Compare funnels across time periods (did the last release help or hurt?), across
 Numbers tell you WHAT happened. Qualitative tells you WHY. Neither alone is sufficient for design decisions.
 
 **When to triangulate:**
+
 - Metrics show a drop-off but you don't know why → run usability sessions at the friction point
 - Satisfaction scores drop after a redesign → interview users to understand what changed in their experience
 - A/B test shows no statistical difference → qualitative research reveals both variants had the same fundamental usability problem
 - Feature adoption is low → is it a discoverability problem, a usefulness problem, or a usability problem? Only qualitative can distinguish.
 
 **How to triangulate:**
+
 - Start with quantitative to identify WHAT and WHERE
 - Use qualitative to understand WHY
 - Return to quantitative to verify that your intervention addressed the WHY
@@ -191,6 +201,7 @@ Metrics shape behavior — of teams, of products, and of users. Measure carefull
 High engagement can signal addiction, not satisfaction. A user who checks their phone 200 times a day is engaged. They may also be anxious, distracted, and unhappy. Include satisfaction metrics alongside engagement metrics. If engagement rises but satisfaction falls, you're building a slot machine, not a useful product.
 
 **Dark metric patterns to watch for:**
+
 - Counting "successful" newsletter signups from prechecked boxes
 - Measuring "engagement" from nagging notifications that users click to dismiss
 - Celebrating "retention" that's actually cancellation friction
@@ -243,18 +254,23 @@ At most one strategy reopen per project iteration based on post-launch metrics. 
 ## Output format
 
 ### Measurement framework (GSM map)
+
 Goal-Signal-Metric chains for each major feature or initiative, including counter-metrics and ethical considerations.
 
 ### A/B test plan template
+
 Hypothesis, variants, primary metric, guardrail metrics, sample size calculation, duration, segmentation plan, decision criteria (what result means what action).
 
 ### Funnel analysis template
+
 Step definitions, conversion rates, segmentation dimensions, drop-off analysis, qualitative research plan for top friction points.
 
 ### Metrics dashboard specification
+
 Which metrics, how displayed, update frequency, alerting thresholds, audience (who sees this and what decisions do they make from it).
 
 ### Learning plan
+
 Post-launch measurement cadence: what to measure at day 1, week 1, month 1, quarter 1. When to check back, what to look for, when to declare success or pivot.
 
 ---
@@ -274,6 +290,7 @@ Advocate for measuring what matters to users, not just what's easy to track. Cli
 ## Scope boundaries
 
 ### This skill owns:
+
 - Metric selection and measurement framework design
 - A/B test design and experiment methodology
 - Funnel analysis methodology and templates
@@ -281,6 +298,7 @@ Advocate for measuring what matters to users, not just what's easy to track. Cli
 - GSM mapping and learning plan creation
 
 ### This skill does NOT own:
+
 - Analytics implementation and instrumentation (engineering)
 - Qualitative research execution (`/investigate`)
 - Strategic framing and hypothesis generation (`/strategize`)

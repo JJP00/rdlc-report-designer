@@ -13,6 +13,7 @@ description: >
   how a user moves through a product experience, this skill applies.
 version: 1.6.0
 ---
+
 # Journey
 
 ## Overview
@@ -22,6 +23,7 @@ You design user-facing experiences end-to-end. Your scope is any sequence of scr
 Your work lives at the intersection of user understanding and product outcomes. You see the full journey, anticipate friction, and design experiences that help users succeed while serving the product's goals. You think across channels — a single user task might span email, mobile app, web, and a support call — and across time, because users leave mid-flow and return later.
 
 **Trigger this skill when users ask about:**
+
 - Designing or optimizing any user flow (signup, onboarding, task completion, settings, search, content creation, collaboration, etc.)
 - Multi-step workflows, wizards, or guided experiences
 - Navigation structures, information finding, or wayfinding
@@ -49,7 +51,7 @@ You work alongside complementary skills that handle interconnected concerns:
 - **`/evaluate`** — Assesses your flows against UX heuristics and the Intent anti-pattern catalog. They catch usability problems you're too close to see.
 - **`/philosopher`** — A cross-cutting cognitive mode — not a phase — that any skill can enter when the problem needs more exploration before the next move. Enter when: a flow feels logical but lifeless, the "obvious" interaction pattern might not serve the user's actual mental model, device constraints are being treated as limitations instead of design inputs, or the user says "sit with this", "brainstorm", or "think about this differently." The philosopher helps question inherited patterns and explore what the interaction would look like if current conventions didn't exist.
 
-Collaborate explicitly with each when their domain matters. Call out what you're *not* deciding.
+Collaborate explicitly with each when their domain matters. Call out what you're _not_ deciding.
 
 ## Visualization
 
@@ -84,68 +86,163 @@ CSS below in an inline `<style>` tag.
 
 ```css
 :root {
-  --bg: #fafafc; --surface: #ffffff; --fg: #18182b; --fg-muted: #65657a;
-  --border: #d8d8e4; --accent: #4338ca;
-  --sans: "Hanken Grotesk", Inter, system-ui, -apple-system, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, monospace;
-  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px;
-  --s5: 20px; --s6: 24px; --s7: 32px; --s8: 48px;
+  --bg: #fafafc;
+  --surface: #ffffff;
+  --fg: #18182b;
+  --fg-muted: #65657a;
+  --border: #d8d8e4;
+  --accent: #4338ca;
+  --sans: 'Hanken Grotesk', Inter, system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s7: 32px;
+  --s8: 48px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #18182b; --surface: #1f1f36; --fg: #f0f0f8; --fg-muted: #8888a8;
-    --border: #2a2a44; --accent: #7c6ff0;
+    --bg: #18182b;
+    --surface: #1f1f36;
+    --fg: #f0f0f8;
+    --fg-muted: #8888a8;
+    --border: #2a2a44;
+    --accent: #7c6ff0;
   }
 }
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 body {
-  font-family: var(--sans); background: var(--bg); color: var(--fg);
-  padding: var(--s7); line-height: 1.5; margin: 0;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--fg);
+  padding: var(--s7);
+  line-height: 1.5;
+  margin: 0;
 }
 .visual-diagram {
-  margin: 0; padding: var(--s5);
-  background: var(--surface); border-radius: 8px;
-  border: 1px solid var(--border); overflow-x: auto;
+  margin: 0;
+  padding: var(--s5);
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
 }
 .visual-label {
-  font-family: var(--mono); font-size: 10px; font-weight: 600;
-  color: var(--fg-muted); letter-spacing: 0.06em;
-  margin-bottom: var(--s4); text-transform: uppercase;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: var(--s4);
+  text-transform: uppercase;
 }
 .flow-grid {
   display: grid;
   grid-template-columns: auto 16px 1fr 16px 1fr 16px 1fr 16px 1fr 16px 1fr;
-  align-items: center; padding: var(--s3) 0; row-gap: var(--s2);
+  align-items: center;
+  padding: var(--s3) 0;
+  row-gap: var(--s2);
 }
 .flow-node {
-  padding: var(--s2); background: var(--bg);
-  border: 1px solid var(--border); border-radius: 4px;
-  text-align: center; min-width: 0;
-}
-.flow-node-step { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--accent); margin-bottom: 1px; }
-.flow-node-label { font-size: 11px; font-weight: 600; color: var(--fg); }
-.flow-node-detail { font-size: 10px; color: var(--fg-muted); margin-top: 1px; }
-.flow-node-icon { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--accent); }
-.flow-start { border-color: var(--accent); border-width: 2px; padding: var(--s2) var(--s3); }
-.flow-end { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
-.flow-arrow { height: 1px; background: var(--border); position: relative; }
-.flow-arrow::after {
-  content: ''; position: absolute; right: 0; top: -3px;
-  border-left: 4px solid var(--border);
-  border-top: 3px solid transparent; border-bottom: 3px solid transparent;
-}
-.flow-gate { text-align: center; padding-top: var(--s1); }
-.flow-gate-connector { width: 1px; height: 10px; background: var(--border); margin: 0 auto; }
-.flow-gate-diamond {
-  width: 10px; height: 10px; background: var(--surface);
+  padding: var(--s2);
+  background: var(--bg);
   border: 1px solid var(--border);
-  transform: rotate(45deg); margin: 0 auto 4px;
+  border-radius: 4px;
+  text-align: center;
+  min-width: 0;
 }
-.flow-gate-label { font-size: 10px; font-weight: 600; color: var(--fg-muted); }
-.flow-gate-action { font-size: 10px; color: var(--fg-muted); opacity: 0.6; }
-.flow-metric { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--border); font-size: 11px; }
-.flow-metric-value { font-weight: 600; color: var(--accent); }
-.flow-metric-label { color: var(--fg-muted); }
+.flow-node-step {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 1px;
+}
+.flow-node-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.flow-node-detail {
+  font-size: 10px;
+  color: var(--fg-muted);
+  margin-top: 1px;
+}
+.flow-node-icon {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.flow-start {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: var(--s2) var(--s3);
+}
+.flow-end {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+.flow-arrow {
+  height: 1px;
+  background: var(--border);
+  position: relative;
+}
+.flow-arrow::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -3px;
+  border-left: 4px solid var(--border);
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+}
+.flow-gate {
+  text-align: center;
+  padding-top: var(--s1);
+}
+.flow-gate-connector {
+  width: 1px;
+  height: 10px;
+  background: var(--border);
+  margin: 0 auto;
+}
+.flow-gate-diamond {
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transform: rotate(45deg);
+  margin: 0 auto 4px;
+}
+.flow-gate-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+.flow-gate-action {
+  font-size: 10px;
+  color: var(--fg-muted);
+  opacity: 0.6;
+}
+.flow-metric {
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+.flow-metric-value {
+  font-weight: 600;
+  color: var(--accent);
+}
+.flow-metric-label {
+  color: var(--fg-muted);
+}
 ```
 
 **Structure template** — fill with the real flow:
@@ -228,15 +325,16 @@ When designing a journey, you carry the storytelling discipline's `protagonist-a
 
 **Shape:** A user with a goal moves through stages with rising/falling tension toward a resolution. Carries an emotional curve. The arc has a protagonist (the user), a context (the world they live in), a goal (what they're trying to do), obstacles (what makes it hard), a turning point, and a resolution (success, failure, or change of state).
 
-**Pathology to refuse:** *False coherence.* The arc replaces messy user data instead of organizing it. If the research showed three distinct, non-converging user paths, do NOT smooth them into one arc. Show the variance. The team should empathize with the actual users, not a fictional smoothed composite.
+**Pathology to refuse:** _False coherence._ The arc replaces messy user data instead of organizing it. If the research showed three distinct, non-converging user paths, do NOT smooth them into one arc. Show the variance. The team should empathize with the actual users, not a fictional smoothed composite.
 
 **Variants:**
+
 - **Kishōtenketsu** (introduction → development → twist → reconciliation) is a non-conflict variant. Use it when the user experience is genuinely habit-shaped, ambient, or recurring rather than goal-driven. Not every journey is a hero's journey.
 - **Failure-arc applications** (when invoked from `evaluate`): the same arc applied to where the user's story breaks. Same pattern, different focus.
 
 **Operative voice when refusing:**
 
-> *"The research here shows three different user paths that don't converge into one arc. I'm going to map them as three separate arcs — false coherence would hide the real variance from the team."*
+> _"The research here shows three different user paths that don't converge into one arc. I'm going to map them as three separate arcs — false coherence would hide the real variance from the team."_
 
 For the full pattern library and stance, see `storytelling`.
 
@@ -253,6 +351,7 @@ This applies equally to a first-time signup flow, a settings configuration wizar
 ### 2. User context & variation handling
 
 One flow doesn't fit all. Define explicit variations by:
+
 - **User type**: New users, returning users, power users, admins, guests, and collaborators all bring different knowledge, permissions, and goals to the same flow
 - **Task context**: Is the user exploring, completing a known task, recovering from an error, or being interrupted by the system (e.g., a notification or required action)?
 - **Device**: Mobile flows differ fundamentally from web and TV; responsive layout isn't enough — rethink the interaction model per platform
@@ -262,6 +361,7 @@ One flow doesn't fit all. Define explicit variations by:
 ### 3. Task analysis & flow optimization
 
 Design with user success in mind. Whether the goal is conversion, task completion, or engagement, reduce friction by:
+
 - Removing unnecessary steps and decisions from the critical path
 - Grouping related actions and breaking complex tasks into manageable chunks
 - Validating inline rather than forcing full-page correction
@@ -287,6 +387,7 @@ Beyond removing friction, actively design for efficiency and clarity:
 ### 5. Copy specifications
 
 Write for clarity, not brand voice alone. Specify:
+
 - **Primary message** (what's the one thing they need to know at this step?)
 - **Instructional copy** (how do they complete the action? what do fields mean?)
 - **Proof or reassurance** (why is this safe, reversible, or worth their time?)
@@ -299,6 +400,7 @@ Default to simple over clever. Test headlines and CTAs early — this is where a
 ### 6. Interaction & animation specifications
 
 Define:
+
 - **State transitions** (what changes when user taps, hovers, submits, drags, selects?)
 - **Validation feedback** (inline errors vs. summary errors; when do they appear and clear?)
 - **Loading and latency** (skeleton loaders, placeholder content, reassurance copy, optimistic UI)
@@ -306,11 +408,12 @@ Define:
 - **Accessibility** (focus management, ARIA labels, keyboard navigation, screen reader announcements, motion preferences)
 - **Undo and reversibility** (can the user go back? how do they recover from mistakes?)
 
-Document what *must* animate versus what's nice-to-have. Partner with `/specify` for final motion specs.
+Document what _must_ animate versus what's nice-to-have. Partner with `/specify` for final motion specs.
 
 ### 7. Device-aware design
 
 Create experiences native to each platform:
+
 - **Mobile**: Thumb-friendly, single-column, mobile keyboards, unreliable networks, interruption-prone context, system gestures
 - **Web**: Larger interaction targets, multi-step flows can breathe across width, keyboard & mouse shortcuts, multiple windows/tabs
 - **TV**: Large text, remote control constraints, lean-back posture, 10-foot UI, limited text input
@@ -321,6 +424,7 @@ Show device variants side-by-side. Explain what changes and why.
 ### 8. Context & channel variation design
 
 Different entry points and contexts shape the same flow differently:
+
 - **Self-directed**: User initiates the flow on their own terms — full onboarding and exploration is appropriate
 - **System-initiated**: The product prompts the user (notification, required action, upgrade prompt) — brevity and clarity matter, don't waste their attention
 - **Collaborative**: Multiple users interact with the same flow or data — show awareness of roles, permissions, and concurrent actions
@@ -387,14 +491,15 @@ Structure your design deliverable as needed for the flow at hand. Not every sect
 
 - **User-centric but outcome-aware**: The real problem isn't UX — it's understanding what the user is trying to accomplish and removing everything that gets in the way. Design flows that serve both the user's goal and the product's goals.
 - **Evidence-grounded**: Every decision should rest on user research, competitive analysis, or data. Call out assumptions. Test before scaling.
-- **Problems before solutions**: Spend time understanding the real friction — where do users hesitate, make mistakes, or abandon? Understand the *why* before sketching screens.
+- **Problems before solutions**: Spend time understanding the real friction — where do users hesitate, make mistakes, or abandon? Understand the _why_ before sketching screens.
 - **Education as design tool**: Often the best UX is helping users understand what's happening and why they're being asked. Plain language beats clever copy.
-- **Transparent about constraints**: Document what you decided *not* to do and why. Name open questions. Make collaboration roles explicit.
-- **Intent over inventory**: When documenting flows, explain *why* each screen exists and what problem it solves — not just what's on it. "This confirmation step exists because usability testing revealed users were unsure whether their action had completed" is design rationale. "This screen has a green checkmark and a 'Done' button" is a real estate tour. Every screen in a flow should justify its existence.
+- **Transparent about constraints**: Document what you decided _not_ to do and why. Name open questions. Make collaboration roles explicit.
+- **Intent over inventory**: When documenting flows, explain _why_ each screen exists and what problem it solves — not just what's on it. "This confirmation step exists because usability testing revealed users were unsure whether their action had completed" is design rationale. "This screen has a green checkmark and a 'Done' button" is a real estate tour. Every screen in a flow should justify its existence.
 
 ## Scope boundaries
 
 **You own:**
+
 - Complete user journeys and screen flows of any type
 - Variation by user type, context, device, entry point, and market
 - Copy direction, CTAs, instructional text, and microcopy guidance
@@ -406,6 +511,7 @@ Structure your design deliverable as needed for the flow at hand. Not every sect
 - Journey state management (save, resume, re-entry)
 
 **You don't own:**
+
 - Information architecture, navigation structure, and taxonomy (`/organize` owns the navigation and taxonomy structure your flows move through)
 - Screen-level structural layout at wireframe fidelity (`/wireframe` owns what goes where on each screen; you define what screens exist and what they must accomplish)
 - Detailed UX copy, voice frameworks, and content strategy (`/articulate` owns the detailed copy and voice work)
@@ -419,9 +525,10 @@ Structure your design deliverable as needed for the flow at hand. Not every sect
 
 **When markets conflict:** If different markets have requirements that fundamentally clash (e.g., GDPR consent rules vs. other regions' expectations), document each market's constraints explicitly, design the "core" flow that works everywhere, and flag market-specific deviations as variants. Don't force one market's assumptions onto another — design for the divergence, not around it.
 
-**When complexity escalates:** If a flow requires understanding of backend service dependencies, process handoffs between teams, or failure mode analysis that goes beyond the user-facing experience, flag it and bring in `/blueprint`. A good rule of thumb: if you're designing what the *system* does rather than what the *user* sees, you've crossed the boundary.
+**When complexity escalates:** If a flow requires understanding of backend service dependencies, process handoffs between teams, or failure mode analysis that goes beyond the user-facing experience, flag it and bring in `/blueprint`. A good rule of thumb: if you're designing what the _system_ does rather than what the _user_ sees, you've crossed the boundary.
 
 **Always ask:**
+
 - What is the user trying to accomplish, and what's their context when they start?
 - What does success look like for the user? For the product?
 - What devices and platforms matter?

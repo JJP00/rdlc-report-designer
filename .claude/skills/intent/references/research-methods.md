@@ -7,6 +7,7 @@ Choosing the right research method depends on what you need to learn, how much t
 ### Generative Methods (What should we build?)
 
 **Contextual Inquiry**
+
 - What it is: Observe users in their natural environment while they perform real tasks. Ask questions as they work.
 - When to use: Early exploration. You don't understand the problem space well enough to ask good survey questions yet.
 - Sample size: 4-8 participants per user segment.
@@ -15,6 +16,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: Small samples, not generalizable, observer effect can alter behavior. But the depth of insight is unmatched.
 
 **Semi-Structured Interviews**
+
 - What it is: One-on-one conversations guided by a topic framework, not a rigid script. Follow interesting threads.
 - When to use: When you need to understand motivations, mental models, and experiences in depth. Works at any stage.
 - Sample size: 5-8 for pattern identification, 12-20 for saturation (Guest, Bunce & Johnson, 2006).
@@ -23,6 +25,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: Self-reported behavior differs from actual behavior. Users are not reliable predictors of their own future actions. But interviews surface the "why" that behavioral data can't.
 
 **Diary Studies**
+
 - What it is: Participants record experiences over time (days to weeks), logging entries when specific events occur.
 - When to use: When behavior unfolds over time and can't be observed in a single session. Habit formation, recurring tasks, infrequent events.
 - Sample size: 10-15 participants minimum (high dropout expected — recruit 20-30% more).
@@ -31,6 +34,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: High participant burden, significant dropout, entries are self-reported and often incomplete. But nothing else captures real behavior over time.
 
 **Surveys**
+
 - What it is: Structured questionnaires distributed to a sample population. Quantitative or mixed-method.
 - When to use: When you have specific hypotheses to validate, when you need quantitative data at scale, or when you need to measure attitudes/preferences across a population.
 - Sample size: 30 minimum for basic statistics, 100+ for segmentation, 400+ for population estimates with reasonable confidence intervals.
@@ -41,6 +45,7 @@ Choosing the right research method depends on what you need to learn, how much t
 ### Evaluative Methods (Is this working?)
 
 **Usability Testing (Moderated)**
+
 - What it is: Observe users attempting tasks with a prototype or product while thinking aloud. Facilitator guides the session.
 - When to use: Whenever you have something testable — wireframes, prototypes, live products. The single most valuable evaluative method.
 - Sample size: 5 participants catch approximately 85% of major usability issues (Nielsen & Landauer, 1993). Run 5 per round, iterate, test again.
@@ -49,6 +54,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: Small sample, not statistically generalizable, facilitator skill matters enormously. But 5 users finding the same problem is a signal, not a sample size issue.
 
 **Usability Testing (Unmoderated)**
+
 - What it is: Users complete tasks independently, recorded by software. No facilitator present.
 - When to use: When you need more participants, faster turnaround, or lower cost. Good for benchmarking and A/B comparison.
 - Sample size: 10-20 for qualitative patterns, 50+ for quantitative benchmarking.
@@ -57,6 +63,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: No ability to probe "why." Users may abandon without explanation. Technical issues go unnoticed. Thinking aloud without a facilitator is less natural and less revealing.
 
 **A/B Testing**
+
 - What it is: Randomly assign users to different versions of a design and measure behavioral differences.
 - When to use: When you have enough traffic for statistical significance (typically 1000+ users per variant), a clear metric to optimize, and a hypothesis to test.
 - Sample size: Depends on baseline conversion rate and minimum detectable effect. Use a sample size calculator — guessing is how you get inconclusive results.
@@ -65,6 +72,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: Only measures what you track. Can incentivize local optimization. Requires significant traffic. Doesn't explain why one variant wins. Ethical considerations when variants differ in user protection.
 
 **Heuristic Evaluation**
+
 - What it is: Expert reviewers assess a design against established usability principles (Nielsen's heuristics, Shneiderman's rules, or custom criteria).
 - When to use: When you need fast, low-cost feedback. Good for catching obvious issues before usability testing. Not a substitute for testing with real users.
 - Sample size: 3-5 expert reviewers. One expert finds ~35% of issues; five find ~75% (Nielsen, 1994).
@@ -75,6 +83,7 @@ Choosing the right research method depends on what you need to learn, how much t
 ### Structural Methods (How should we organize this?)
 
 **Card Sorting (Open)**
+
 - What it is: Participants organize content items into groups and name the groups. Reveals how users mentally categorize information.
 - When to use: When designing or redesigning information architecture. When you don't know what categories make sense to users.
 - Sample size: 15-20 for open sorts (Tullis & Wood, 2004). Can be done remotely.
@@ -83,6 +92,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: Only reveals grouping — not hierarchy, navigation preferences, or findability. Results can be messy — people categorize differently and that's the point.
 
 **Card Sorting (Closed)**
+
 - What it is: Participants sort content items into pre-defined categories. Tests whether your proposed structure matches user expectations.
 - When to use: When validating a proposed information architecture. After open sorts have informed the category structure.
 - Sample size: 15-30 participants.
@@ -90,6 +100,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: Only tests the categories you provide. Can't discover missing categories. Gives false confidence if the categories themselves are wrong.
 
 **Tree Testing**
+
 - What it is: Participants find items in a text-only hierarchy (no visual design, no navigation UI). Tests whether the structure itself works.
 - When to use: After card sorting has informed the structure. Before building navigation UI. The purest test of information architecture.
 - Sample size: 50+ for quantitative results (each task needs enough data to identify patterns).
@@ -98,6 +109,7 @@ Choosing the right research method depends on what you need to learn, how much t
 - Trade-offs: Text-only — doesn't test the experience of navigating a real interface. Structure works ≠ navigation works.
 
 **Analytics Review**
+
 - What it is: Analyze existing behavioral data — page views, click paths, search queries, drop-off funnels, error logs.
 - When to use: When you have a live product with traffic. As a complement to qualitative research, not a replacement.
 - Sample size: Depends on traffic. More is better for funnel analysis.
@@ -157,6 +169,7 @@ Take individual observations (quotes, behaviors, notes) and cluster them by simi
 A systematic method for identifying, analyzing, and reporting patterns across qualitative data.
 
 **Six phases:**
+
 1. **Familiarize** — Read and re-read the data. Note initial impressions.
 2. **Code** — Generate initial codes from the data. Codes are labels for interesting features.
 3. **Search** — Collate codes into candidate themes. A theme captures something important about the data in relation to the research question.
@@ -182,12 +195,12 @@ Research that doesn't change decisions is wasted research. Communication is the 
 
 Not all findings carry equal weight. Be explicit about confidence levels:
 
-| Indicator | Meaning | Example |
-|-----------|---------|---------|
-| **Strong evidence** | Multiple sources, multiple methods, consistent pattern | "7 of 8 participants failed to complete checkout. Analytics show 62% drop-off at the same step." |
-| **Moderate evidence** | Single method with clear pattern, or multiple methods with partial agreement | "Interview participants consistently mentioned confusion with pricing tiers. We haven't tested this quantitatively." |
-| **Directional evidence** | Small sample or single source, but worth noting | "Two participants mentioned this pain point. It's not a pattern yet, but it's worth monitoring." |
-| **Hypothesis** | Researcher interpretation, not directly observed | "Based on the drop-off data and interview themes, we believe the root cause is X. This needs validation." |
+| Indicator                | Meaning                                                                      | Example                                                                                                              |
+| ------------------------ | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Strong evidence**      | Multiple sources, multiple methods, consistent pattern                       | "7 of 8 participants failed to complete checkout. Analytics show 62% drop-off at the same step."                     |
+| **Moderate evidence**    | Single method with clear pattern, or multiple methods with partial agreement | "Interview participants consistently mentioned confusion with pricing tiers. We haven't tested this quantitatively." |
+| **Directional evidence** | Small sample or single source, but worth noting                              | "Two participants mentioned this pain point. It's not a pattern yet, but it's worth monitoring."                     |
+| **Hypothesis**           | Researcher interpretation, not directly observed                             | "Based on the drop-off data and interview themes, we believe the root cause is X. This needs validation."            |
 
 ### Findings Format
 

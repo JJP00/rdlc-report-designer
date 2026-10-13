@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { commandSchema, scopeRefSchema } from './commands.js';
-import type { ItemDto } from './projection.js';
 import { projectionSchema } from './projection.js';
 
 /** Canales `ipcMain.handle` / `ipcRenderer.invoke`. */

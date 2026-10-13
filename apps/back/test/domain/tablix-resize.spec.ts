@@ -2,11 +2,15 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ItemDto, Length, ScopeRef, TablixDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
-import { appliedOf, undoAll } from './command-test-utils.js';
+import { undoAll } from './command-test-utils.js';
 import { applyCommand } from '../../src/domain/document/commands/applyCommand.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import type { RdlcNode } from '../../src/domain/document/tree/RdlcNode.js';
-import { memberLeafRange, positionedCells, tablixRows } from '../../src/domain/document/commands/tablixParts.js';
+import {
+  memberLeafRange,
+  positionedCells,
+  tablixRows,
+} from '../../src/domain/document/commands/tablixParts.js';
 import { TrueFormatProjectionAdapter } from '../../src/infrastructure/rdlc/TrueFormatProjectionAdapter.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { LibXml2SchemaValidatorAdapter } from '../../src/infrastructure/validation/LibXml2SchemaValidatorAdapter.js';
@@ -208,7 +212,12 @@ describe('F2 · resizeTable (tiradores de la tabla)', () => {
 
 describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', () => {
   /** Textbox insertado con longitud declarada (lo que deja el editor al insertar). */
-  function insertTextboxIn(ctx: { root: RdlcNode; index: DocumentIndex }, scope: ScopeRef, width: number, height: number) {
+  function insertTextboxIn(
+    ctx: { root: RdlcNode; index: DocumentIndex },
+    scope: ScopeRef,
+    width: number,
+    height: number,
+  ) {
     const applied = applyCommand(ctx, {
       cmd: 'insertItem',
       scope,
@@ -249,7 +258,12 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
     const del = applyCommand(ctx, { cmd: 'deleteItem', id: originalId });
     expect(del.isRight()).toBe(true);
     if (!del.isRight()) return;
-    const inserted = insertTextboxIn(ctx, { kind: 'tablixCell', id: 'Tablix2', row: 0, col: 0 }, 2, 0.6);
+    const inserted = insertTextboxIn(
+      ctx,
+      { kind: 'tablixCell', id: 'Tablix2', row: 0, col: 0 },
+      2,
+      0.6,
+    );
 
     const applied = applyCommand(ctx, {
       cmd: 'resizeColumn',
@@ -282,7 +296,12 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
     const del = applyCommand(ctx, { cmd: 'deleteItem', id: originalId });
     expect(del.isRight()).toBe(true);
     if (!del.isRight()) return;
-    const inserted = insertTextboxIn(ctx, { kind: 'tablixCell', id: 'Tablix2', row: 0, col: 0 }, 2, 0.6);
+    const inserted = insertTextboxIn(
+      ctx,
+      { kind: 'tablixCell', id: 'Tablix2', row: 0, col: 0 },
+      2,
+      0.6,
+    );
 
     const applied = applyCommand(ctx, {
       cmd: 'resizeRow',
@@ -313,12 +332,22 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
 
     // Vacía las dos primeras celdas y deja un textbox en la primera.
     for (const positioned of positionedCells(row).slice(0, 2)) {
-      const del = applyCommand(ctx, { cmd: 'deleteItem', id: contentOfCell(positioned.cell)!.attribute('Name')! });
+      const del = applyCommand(ctx, {
+        cmd: 'deleteItem',
+        id: contentOfCell(positioned.cell)!.attribute('Name')!,
+      });
       expect(del.isRight()).toBe(true);
     }
-    const inserted = insertTextboxIn(ctx, { kind: 'tablixCell', id: 'LinesTable2', row: 0, col: 0 }, 2, 0.6);
+    insertTextboxIn(ctx, { kind: 'tablixCell', id: 'LinesTable2', row: 0, col: 0 }, 2, 0.6);
 
-    const merged = applyCommand(ctx, { cmd: 'mergeCells', id: 'LinesTable2', row: 0, col: 0, rowSpan: 1, colSpan: 2 });
+    const merged = applyCommand(ctx, {
+      cmd: 'mergeCells',
+      id: 'LinesTable2',
+      row: 0,
+      col: 0,
+      rowSpan: 1,
+      colSpan: 2,
+    });
     expect(merged.isRight()).toBe(true);
 
     const before = columnWidths(tablix!);
@@ -353,11 +382,19 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
 
     // Sustituye el contenido canónico de la cabecera por un textbox declarado.
     const headerCell = member!.child('TablixHeader')!.child('CellContents')!;
-    const originalId = headerCell.children().find((child) => !['ColSpan', 'RowSpan'].includes(child.tagName))!.attribute('Name')!;
+    const originalId = headerCell
+      .children()
+      .find((child) => !['ColSpan', 'RowSpan'].includes(child.tagName))!
+      .attribute('Name')!;
     const del = applyCommand(ctx, { cmd: 'deleteItem', id: originalId });
     expect(del.isRight()).toBe(true);
     if (!del.isRight()) return;
-    const inserted = insertTextboxIn(ctx, { kind: 'tablixHeader', id: 'Tablix7', axis: 'column', path: [0] }, 2, 0.6);
+    const inserted = insertTextboxIn(
+      ctx,
+      { kind: 'tablixHeader', id: 'Tablix7', axis: 'column', path: [0] },
+      2,
+      0.6,
+    );
 
     const applied = applyCommand(ctx, {
       cmd: 'resizeColumn',
@@ -373,7 +410,9 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
     expect(range).toBeDefined();
     if (!range) return;
     const widths = columnWidths(tablix!);
-    const expected = widths.slice(range.start, range.end + 1).reduce((acc, value) => acc + value, 0);
+    const expected = widths
+      .slice(range.start, range.end + 1)
+      .reduce((acc, value) => acc + value, 0);
     expect(readCm(content.child('Width')?.text())).toBeCloseTo(expected, 3);
 
     expect(undoAll(ctx, applied.value).isRight()).toBe(true);
@@ -392,7 +431,12 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
     const del = applyCommand(ctx, { cmd: 'deleteItem', id: originalId });
     expect(del.isRight()).toBe(true);
     if (!del.isRight()) return;
-    const inserted = insertTextboxIn(ctx, { kind: 'tablixCell', id: 'Tablix2', row: 0, col: 0 }, 2, 0.6);
+    const inserted = insertTextboxIn(
+      ctx,
+      { kind: 'tablixCell', id: 'Tablix2', row: 0, col: 0 },
+      2,
+      0.6,
+    );
 
     const applied = applyCommand(ctx, {
       cmd: 'resizeTable',
@@ -423,8 +467,18 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
     const originalId = contentOfCell(cell)!.attribute('Name')!;
     applyCommand(ctx, { cmd: 'deleteItem', id: originalId });
     insertTextboxIn(ctx, { kind: 'tablixCell', id: 'Tablix2', row: 0, col: 0 }, 2, 0.6);
-    applyCommand(ctx, { cmd: 'resizeColumn', id: 'Tablix2', column: 0, width: { value: 5, unit: 'cm' } });
-    applyCommand(ctx, { cmd: 'resizeRow', id: 'Tablix2', row: 0, height: { value: 1.5, unit: 'cm' } });
+    applyCommand(ctx, {
+      cmd: 'resizeColumn',
+      id: 'Tablix2',
+      column: 0,
+      width: { value: 5, unit: 'cm' },
+    });
+    applyCommand(ctx, {
+      cmd: 'resizeRow',
+      id: 'Tablix2',
+      row: 0,
+      height: { value: 1.5, unit: 'cm' },
+    });
 
     const result = validator.validate(adapter.serialize(doc));
     expect(result.problems, result.problems.join(' | ')).toEqual([]);
@@ -438,8 +492,14 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
 
     // Contenido canónico sin longitudes declaradas: tras el resize la proyección
     // lo presenta con el tamaño de la celda (el fallback manda).
-    applyCommand(ctx, { cmd: 'resizeColumn', id: 'Tablix2', column: 0, width: { value: 5, unit: 'cm' } });
-    const canonical = tablixOf(projectAll('SalesInvoiceESP.rdlc', doc), 'Tablix2')!.body.rows[0]!.cells[0]!.content;
+    applyCommand(ctx, {
+      cmd: 'resizeColumn',
+      id: 'Tablix2',
+      column: 0,
+      width: { value: 5, unit: 'cm' },
+    });
+    const canonical = tablixOf(projectAll('SalesInvoiceESP.rdlc', doc), 'Tablix2')!.body.rows[0]!
+      .cells[0]!.content;
     expect(canonical?.width && readLengthCm(canonical.width)).toBeCloseTo(5, 3);
 
     // Con longitud declarada la proyección usa el valor declarado (y el sync
@@ -447,8 +507,14 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
     const originalId = contentOfCell(cell)!.attribute('Name')!;
     applyCommand(ctx, { cmd: 'deleteItem', id: originalId });
     insertTextboxIn(ctx, { kind: 'tablixCell', id: 'Tablix2', row: 0, col: 0 }, 2, 0.6);
-    applyCommand(ctx, { cmd: 'resizeColumn', id: 'Tablix2', column: 0, width: { value: 6, unit: 'cm' } });
-    const declared = tablixOf(projectAll('SalesInvoiceESP.rdlc', doc), 'Tablix2')!.body.rows[0]!.cells[0]!.content;
+    applyCommand(ctx, {
+      cmd: 'resizeColumn',
+      id: 'Tablix2',
+      column: 0,
+      width: { value: 6, unit: 'cm' },
+    });
+    const declared = tablixOf(projectAll('SalesInvoiceESP.rdlc', doc), 'Tablix2')!.body.rows[0]!
+      .cells[0]!.content;
     expect(declared?.width && readLengthCm(declared.width)).toBeCloseTo(6, 3);
   });
 });

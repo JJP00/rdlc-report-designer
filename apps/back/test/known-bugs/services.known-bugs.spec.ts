@@ -476,9 +476,7 @@ describe('BUG-27 reload / cambio externo aceptan esquemas no soportados', () => 
           .payloads<{ reason?: string }>(IPC_EVENTS.documentChanged)
           .some((e) => e.reason === 'external');
         expect(external).toBe(false);
-        const failed = events
-          .payloads<{ reason?: string }>(IPC_EVENTS.externalReloadFailed)
-          .at(-1);
+        const failed = events.payloads<{ reason?: string }>(IPC_EVENTS.externalReloadFailed).at(-1);
         expect(failed?.reason).toBe('unsupportedSchema');
       },
       { timeout: 1000 },
