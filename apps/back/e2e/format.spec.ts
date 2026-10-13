@@ -293,8 +293,13 @@ test.describe('Formato (`<Format>`, 0003)', () => {
     await expect(formatSelect(page)).toHaveValue('expression');
     const editor = formatExpression(page);
     await expect(editor).toBeVisible({ timeout: 15_000 });
-    const shown = (await editor.locator('.view-lines').innerText()).replace(/\s+/g, ' ');
-    expect(shown, 'Monaco muestra la expresión del run').toContain(candidate!.format.slice(0, 10));
+    // Monaco pinta el texto en un fotograma posterior a ser visible: se sondea
+    // el contenido en vez de leerlo una vez (con el runner cargado tarda).
+    await expect
+      .poll(async () => (await editor.locator('.view-lines').innerText()).replace(/\s+/g, ' '), {
+        message: 'Monaco muestra la expresión del run',
+      })
+      .toContain(candidate!.format.slice(0, 10));
 
     // Cambio con el editor (cadena personalizada, sin escapar comillas ni `;`).
     await editor.click();

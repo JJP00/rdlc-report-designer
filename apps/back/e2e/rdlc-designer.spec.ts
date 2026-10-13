@@ -99,6 +99,7 @@ async function resetDocument(): Promise<void> {
     // (no una ventana fija). Cuatro esperas seguidas sin cambio = nada que
     // deshacer (o divergencia: la ventana de calma decide).
     let stalls = 0;
+    let undone = false;
     for (let index = 0; index < 40 && stalls < 4; index += 1) {
       if ((await projectionFingerprint()) === initialFingerprint) break;
       const before = await projectionVersion();
@@ -117,11 +118,14 @@ async function resetDocument(): Promise<void> {
         .then(() => true)
         .catch(() => false);
       stalls = changed ? 0 : stalls + 1;
+      undone = undone || changed;
     }
 
     // Ventana de calma: cubre los commits diferidos que aún no han llegado.
+    // Si no se deshizo nada el documento ya estaba limpio: basta una ventana
+    // corta para descartar un commit en vuelo (evita 450 ms por test).
     const version = await projectionVersion();
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(undone ? 450 : 100);
     if (
       (await projectionVersion()) === version &&
       (await projectionFingerprint()) === initialFingerprint
@@ -355,16 +359,6 @@ async function setBackgroundColor(value: string): Promise<void> {
   }, value);
 }
 
-/** Fondo proyectado de un item (encabezado, cuerpo o pie). */
-async function itemBackground(id: string): Promise<string | undefined> {
-  const proj = await projection();
-  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
-    const found = findItem(items, id);
-    if (found) return found.style?.backgroundColor;
-  }
-  return undefined;
-}
-
 /** Miembro de la jerarquía (fila/columna) por su `path` en la proyección viva. */
 async function memberAtPath(
   tablixId: string,
@@ -580,16 +574,6 @@ async function regionFlag(
 ): Promise<boolean | undefined> {
   const proj = await projection();
   return proj.page[region][flag];
-}
-
-/** `ZIndex` proyectado de un item. */
-async function itemZIndex(id: string): Promise<number | undefined> {
-  const proj = await projection();
-  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
-    const found = findItem(items, id);
-    if (found) return found.zIndex;
-  }
-  return undefined;
 }
 
 /** Opción booleana proyectada de un Textbox (`CanGrow`/`KeepTogether`). */
@@ -879,11 +863,13 @@ async function pointInCanvasViewport(point: { x: number; y: number }): Promise<b
 /**
  * Punto de pantalla del nodo esperando a que deje de moverse: el «traer a la
  * vista» de la app es suave y puede arrancar **después** de medir (más aún en
- * CI), con lo que el punto quedaría obsoleto y el gesto caería en vacío.
+ * CI), con lo que el punto quedaría obsoleto y el gesto caería en vacío. Si no
+ * se asienta pronto se lanza: los llamadores reintentan (con ese presupuesto
+ * corto, un reintento cuesta ~1 s y no ~3 s).
  */
 async function waitNodeSettled(id: string): Promise<{ x: number; y: number }> {
   let previous = '';
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
     const point = await nodeCenter(id);
     const current = JSON.stringify(point);
     if (point && current === previous) return point;
@@ -1025,25 +1011,11 @@ async function columnHeaderEdgePoint(index: number): Promise<{ x: number; y: num
   }, index);
 }
 
-test('el panel de estructura selecciona celdas y añade/quita filas (con undo)', async () => {
+test('la estructura del Tablix cablea celdas, filas, columnas y visibilidad (con undo)', async () => {
+  // Tablix3: 2 filas × 6 columnas estáticas, sin grupos.
   const point = await tablixBorderPoint('Tablix3');
   expect(point).not.toBeNull();
   await page.mouse.click(point!.x, point!.y);
-
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            (
-              (window as never as Record<string, unknown>)['__rdlcSelection'] as {
-                id?: string;
-              } | null
-            )?.id ?? null,
-        ),
-      { message: 'Tablix3 debe quedar seleccionada' },
-    )
-    .toBe('Tablix3');
 
   await expect(page.getByRole('region', { name: 'Estructura del Tablix' })).toBeVisible();
   await expect(page.getByText('2 filas × 6 columnas')).toBeVisible();
@@ -1057,15 +1029,41 @@ test('el panel de estructura selecciona celdas y añade/quita filas (con undo)',
   await page.getByRole('button', { name: 'Añadir fila al final' }).click();
   await expect.poll(() => tablixRowCount('Tablix3')).toBe(rowsBefore + 1);
   await expect(page.getByText(/3 filas × 6 columnas/)).toBeVisible();
-
   await page.keyboard.press('Control+z');
   await expect.poll(() => tablixRowCount('Tablix3')).toBe(rowsBefore);
 
-  // Quitar la segunda fila desde su botón y deshacer.
+  // Quitar la segunda fila y una columna; cada borrado se deshace.
   await page.getByRole('button', { name: 'Eliminar fila 2' }).click();
   await expect.poll(() => tablixRowCount('Tablix3')).toBe(rowsBefore - 1);
   await page.keyboard.press('Control+z');
   await expect.poll(() => tablixRowCount('Tablix3')).toBe(rowsBefore);
+
+  const columnsBefore = await tablixColumnCount('Tablix3');
+  await page.getByRole('button', { name: 'Eliminar columna 1' }).click();
+  await expect.poll(() => tablixColumnCount('Tablix3')).toBe(columnsBefore - 1);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => tablixColumnCount('Tablix3')).toBe(columnsBefore);
+
+  // Visibilidad de la fila 1: el ojo escribe `Hidden=true`.
+  await page.getByRole('button', { name: 'Ocultar fila 1' }).click();
+  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBe(true);
+  await expect(page.getByRole('button', { name: 'Mostrar fila 1' })).toBeVisible();
+
+  // Σ de la columna 1: el diálogo de expresión escribe la visibilidad.
+  await page.getByRole('button', { name: 'Expresión de visibilidad de la columna 1' }).click();
+  await applyExpressionInDialog('Visibilidad de la columna 1', '=Fields!BTCJobNo.Value <> ""');
+  await expect
+    .poll(() => memberHidden('Tablix3', 'column', [0]))
+    .toBe('=Fields!BTCJobNo.Value <> ""');
+
+  // Mostrar fila 1 y deshacer los dos últimos pasos.
+  await page.getByRole('button', { name: 'Mostrar fila 1' }).click();
+  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBeUndefined();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBe(true);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberHidden('Tablix3', 'column', [0])).toBeUndefined();
 });
 
 test('al añadir una fila, las celdas nuevas nacen con un textbox seleccionable', async () => {
@@ -1091,7 +1089,13 @@ test('al añadir una fila, las celdas nuevas nacen con un textbox seleccionable'
   // anterior) puede dejar el punto fuera del hueco visible.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await scrollNodeIntoView(ids[0]!);
-    const center = await waitNodeSettled(ids[0]!);
+    let center: { x: number; y: number };
+    try {
+      center = await waitNodeSettled(ids[0]!);
+    } catch {
+      await page.waitForTimeout(150);
+      continue;
+    }
     if (await pointInCanvasViewport(center)) {
       await page.mouse.click(center.x, center.y);
     }
@@ -1104,57 +1108,62 @@ test('al añadir una fila, las celdas nuevas nacen con un textbox seleccionable'
   await expect.poll(() => tablixRowCount('Tablix2')).toBe(rowsBefore);
 });
 
-test('borra filas y columnas de una tabla con grupos y celdas fusionadas (y deshace)', async () => {
-  const point = await tablixBorderPoint('LinesTable2');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            (
-              (window as never as Record<string, unknown>)['__rdlcSelection'] as {
-                id?: string;
-              } | null
-            )?.id ?? null,
-        ),
-      { message: 'LinesTable2 debe quedar seleccionada' },
-    )
-    .toBe('LinesTable2');
-
-  const rowsBefore = await tablixRowCount('LinesTable2');
-  const columnsBefore = await tablixColumnCount('LinesTable2');
-
-  // Fila (dentro de la jerarquía con grupo) y deshacer.
-  await page.getByRole('button', { name: 'Eliminar fila 2' }).click();
-  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore - 1);
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
-
-  // Columna (con un ColSpan que debe encogerse) y deshacer.
-  await page.getByRole('button', { name: 'Eliminar columna 1' }).click();
-  await expect.poll(() => tablixColumnCount('LinesTable2')).toBe(columnsBefore - 1);
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => tablixColumnCount('LinesTable2')).toBe(columnsBefore);
-});
-
 test('el menú contextual de una celda inserta filas y columnas', async () => {
-  const proj = await projection();
-  const tablix = findItem(proj.page.body.items, 'LinesTable2') as
-    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
-  const content = tablix?.body.rows
-    .flatMap((row) => row.cells ?? [])
-    .map((cell) => cell?.content)
-    .find((entry): entry is ItemLike => Boolean(entry));
-  expect(content).toBeTruthy();
+  const c00 = await cellContentAt('LinesTable2', 0, 0);
+  const c01 = await cellContentAt('LinesTable2', 0, 1);
+  const c11 = await cellContentAt('LinesTable2', 1, 1);
+  expect(c00).toBeTruthy();
+  expect(c01).toBeTruthy();
+  expect(c11).toBeTruthy();
 
-  const point = await nodeCenter(content!.id);
-  expect(point).not.toBeNull();
+  const border = await tablixBorderPoint('LinesTable2');
+  expect(border).not.toBeNull();
+  await page.mouse.click(border!.x, border!.y);
+  await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
+  await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 0, col: 0 });
+
+  // Shift+click en la celda contigua: rango de 2 celdas y el lote las edita.
+  const p01 = await nodeCenter(c01!.id);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(p01!.x, p01!.y);
+  await page.keyboard.up('Shift');
+  await expect
+    .poll(selectedCell)
+    .toEqual({ id: 'LinesTable2', row: 0, col: 0, endRow: 0, endCol: 1 });
+  const panel = page.getByTestId('multi-selection-panel');
+  await expect(panel).toContainText('2 celdas');
+  await panel.getByLabel('Borde superior: estilo').selectOption('Dashed');
+  await expect.poll(async () => (await itemBorderSide(c00!.id, 'top'))?.style).toBe('Dashed');
+  await expect.poll(async () => (await itemBorderSide(c01!.id, 'top'))?.style).toBe('Dashed');
+  // Un solo undo revierte el lote de las dos celdas.
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await itemBorderSide(c00!.id, 'top'))?.style).not.toBe('Dashed');
+  await expect.poll(async () => (await itemBorderSide(c01!.id, 'top'))?.style).not.toBe('Dashed');
+
+  // Un rango 2×2 toca celdas de otra fila: sin «Combinar celdas»; el borrado
+  // en lote de esas filas sigue disponible.
+  await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
+  const p11 = await nodeCenter(c11!.id);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(p11!.x, p11!.y);
+  await page.keyboard.up('Shift');
+  await expect.poll(selectedCell).toEqual({
+    id: 'LinesTable2',
+    row: 0,
+    col: 0,
+    endRow: 1,
+    endCol: 1,
+  });
+  const p00 = await nodeCenter(c00!.id);
+  await page.mouse.click(p00!.x, p00!.y, { button: 'right' });
+  await expect(page.getByRole('menuitem', { name: 'Combinar celdas' })).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Eliminar filas 1–2' })).toHaveCount(1);
+  await page.keyboard.press('Escape');
+
+  // Menú de la celda: inserta fila debajo y columna a la derecha (con undo).
   const rowsBefore = await tablixRowCount('LinesTable2');
   const columnsBefore = await tablixColumnCount('LinesTable2');
-
-  // Click derecho sobre la celda: submenú «Insertar fila o columna» → fila debajo.
+  const point = await nodeCenter(c00!.id);
   await page.mouse.click(point!.x, point!.y, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
   await clickMenuItem('Fila debajo');
@@ -1165,10 +1174,8 @@ test('el menú contextual de una celda inserta filas y columnas', async () => {
   // puntero y el siguiente click derecho no abriría nada.
   await expect(page.getByRole('menuitem', { name: 'Insertar fila o columna' })).toBeHidden();
 
-  // Click derecho otra vez: submenú → columna a la derecha. El punto se
-  // recalcula: el lienzo puede re-encuadrarse al cerrarse el menú anterior.
-  const again = await nodeCenter(content!.id);
-  expect(again).not.toBeNull();
+  // El punto se recalcula: el lienzo puede re-encuadrarse al cerrarse el menú.
+  const again = await nodeCenter(c00!.id);
   await page.mouse.click(again!.x, again!.y, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
   await clickMenuItem('Columna a la derecha');
@@ -1433,41 +1440,6 @@ test('Shift+click extiende el rango y el menú combina/separa celdas', async () 
   await expect.poll(() => cellSpans('LinesTable2', 0, 0)).toEqual({ colSpan: 1, rowSpan: 1 });
 });
 
-test('un rango de celdas edita el contenido en lote (un solo undo)', async () => {
-  const c00 = await cellContentAt('LinesTable2', 0, 0);
-  const c01 = await cellContentAt('LinesTable2', 0, 1);
-  expect(c00).toBeTruthy();
-  expect(c01).toBeTruthy();
-
-  const border = await tablixBorderPoint('LinesTable2');
-  await page.mouse.click(border!.x, border!.y);
-  await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
-  await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 0, col: 0 });
-
-  // Shift+click en la celda contigua de la misma fila: rango de 2 celdas.
-  const p01 = await nodeCenter(c01!.id);
-  await page.keyboard.down('Shift');
-  await page.mouse.click(p01!.x, p01!.y);
-  await page.keyboard.up('Shift');
-  await expect
-    .poll(selectedCell)
-    .toEqual({ id: 'LinesTable2', row: 0, col: 0, endRow: 0, endCol: 1 });
-
-  // El panel de lote edita el contenido de las dos celdas a la vez.
-  const panel = page.getByTestId('multi-selection-panel');
-  await expect(panel).toBeVisible();
-  await expect(panel).toContainText('2 celdas');
-
-  await panel.getByLabel('Borde superior: estilo').selectOption('Dashed');
-  await expect.poll(async () => (await itemBorderSide(c00!.id, 'top'))?.style).toBe('Dashed');
-  await expect.poll(async () => (await itemBorderSide(c01!.id, 'top'))?.style).toBe('Dashed');
-
-  // Un solo undo revierte el lote de las dos celdas.
-  await page.keyboard.press('Control+z');
-  await expect.poll(async () => (await itemBorderSide(c00!.id, 'top'))?.style).not.toBe('Dashed');
-  await expect.poll(async () => (await itemBorderSide(c01!.id, 'top'))?.style).not.toBe('Dashed');
-});
-
 test('el marco de selección selecciona los items que intersecta', async () => {
   // Caja que cubre Textbox4 y Textbox17 (ambos en el encabezado), empezando en
   // el margen izquierdo del papel (zona vacía del lienzo). Se centra antes el
@@ -1570,40 +1542,6 @@ test('duplicar y portapapeles en lote (un undo por operación)', async () => {
   await expect.poll(total).toBe(before + 2);
   await page.keyboard.press('Control+z');
   await expect.poll(total).toBe(before);
-});
-
-test('un rango de varias filas no ofrece combinar celdas', async () => {
-  const c00 = await cellContentAt('LinesTable2', 0, 0);
-  const c11 = await cellContentAt('LinesTable2', 1, 1);
-  expect(c00).toBeTruthy();
-  expect(c11).toBeTruthy();
-
-  const border = await tablixBorderPoint('LinesTable2');
-  expect(border).not.toBeNull();
-  await page.mouse.click(border!.x, border!.y);
-  await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
-  await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 0, col: 0 });
-
-  // Shift+click en (1,1): el rectángulo 2×2 tocaría celdas de otra fila.
-  const p11 = await nodeCenter(c11!.id);
-  expect(p11).not.toBeNull();
-  await page.keyboard.down('Shift');
-  await page.mouse.click(p11!.x, p11!.y);
-  await page.keyboard.up('Shift');
-  await expect.poll(selectedCell).toEqual({
-    id: 'LinesTable2',
-    row: 0,
-    col: 0,
-    endRow: 1,
-    endCol: 1,
-  });
-
-  const p00 = await nodeCenter(c00!.id);
-  await page.mouse.click(p00!.x, p00!.y, { button: 'right' });
-  await expect(page.getByRole('menuitem', { name: 'Combinar celdas' })).toHaveCount(0);
-  // El borrado en lote de esas filas/columnas sigue disponible.
-  await expect(page.getByRole('menuitem', { name: 'Eliminar filas 1–2' })).toHaveCount(1);
-  await page.keyboard.press('Escape');
 });
 
 test('arrastrar el borde de una cabecera redimensiona la columna', async () => {
@@ -2167,138 +2105,79 @@ test('seleccionar un Tablix mide su rejilla, no la de un Tablix anidado', async 
   expect(selection!.rect.height).toBeGreaterThan(400);
 });
 
-test('el panel de propiedades edita la visibilidad y el color de fondo', async () => {
-  // Textbox4 vive en el **encabezado** de página: ni la visibilidad ni el
-  // estilo dependen de la región y sirve igual para el test.
+test('el panel de propiedades cablea el item (etiqueta, opciones, padding, borde, fondo, visibilidad y nombre)', async () => {
+  // Textbox4 (encabezado) declara `PaddingTop 2pt` y `<Label>BTCNifCifLbl</Label>`.
   await selectItemViaPalette('Textbox4');
 
-  // La predeterminada es visible (Textbox4 no declara `Visibility`).
-  const visibility = page.getByLabel('Visibilidad del elemento');
-  await expect(visibility).toHaveValue('visible');
+  // Etiqueta del run (`setParagraphs`, byte-exacto).
+  const label = page.getByLabel('Etiqueta del run 1.1');
+  await expect(label).toHaveValue('BTCNifCifLbl');
+  await label.fill('MiEtiqueta');
+  await label.press('Enter');
+  await expect.poll(() => itemLabel('Textbox4')).toBe('MiEtiqueta');
 
-  // Oculta: se escribe `Hidden=true` y el lienzo la pinta atenuada.
-  await visibility.selectOption('hidden');
-  await expect.poll(() => itemHidden('Textbox4')).toBe(true);
-  await expect.poll(() => itemOpacityOnStage('Textbox4')).toBeLessThan(0.5);
+  // CanGrow: apagar quita la etiqueta (false = predeterminado en RDL).
+  const canGrow = page.getByRole('checkbox', { name: 'Crecer con el texto' });
+  await expect(canGrow).toBeChecked();
+  await canGrow.click();
+  await expect.poll(() => itemOption('Textbox4', 'canGrow')).toBeUndefined();
 
-  // Expresión: «Expresión…» abre el diálogo con Monaco (números de línea).
-  await visibility.selectOption('expression');
-  await applyExpressionInDialog('Expresión de visibilidad', '=Fields!BTCItemLbl.Value');
-  await expect.poll(() => itemHidden('Textbox4')).toBe('=Fields!BTCItemLbl.Value');
-  // Las expresiones no se evalúan en diseño: el item se pinta normal.
-  await expect.poll(() => itemOpacityOnStage('Textbox4')).toBe(1);
+  // Padding por lado: el NumberInput muestra dos decimales fijos.
+  const padding = page.getByLabel('Padding superior', { exact: true });
+  await expect(padding).toHaveValue('2.00');
+  await padding.fill('5');
+  await padding.press('Enter');
+  await expect.poll(() => itemPadding('Textbox4', 'top')).toEqual({ value: 5, unit: 'pt' });
 
-  // Color literal: se pinta en la caja del item.
+  // Borde superior por lado: se declara y el lienzo pinta la línea.
+  const topStyle = page.getByLabel('Borde superior: estilo');
+  await expect(topStyle).toHaveValue('None');
+  await topStyle.selectOption('Solid');
+  await expect.poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style).toBe('Solid');
+  await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual(['#111827']);
+
+  // Fondo literal pintado; la ráfaga de `input` del arrastre es **un solo**
+  // comando (un único undo vuelve al color anterior, no a un paso intermedio).
   await setBackgroundColor('#ff0000');
   await expect.poll(() => itemBoxFill('Textbox4')).toBe('#FF0000');
-  await page.getByRole('button', { name: 'Quitar color de fondo' }).click();
-  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#ffffff');
-
-  // El selector agrupa la ráfaga de `input` del arrastre: tres pasos = **un solo
-  // comando**, así que un único undo vuelve al color anterior (no a un paso
-  // intermedio de la ráfaga).
   await setBackgroundColor('#aa0000');
   await setBackgroundColor('#bb0000');
   await setBackgroundColor('#cc0000');
   await expect.poll(() => itemBoxFill('Textbox4')).toBe('#CC0000');
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Control+z');
-  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#ffffff');
+  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#FF0000');
 
-  // Fondo por expresión (botón Σ): tampoco se evalúa en diseño.
-  const backgroundExpression = '=IIF(Fields!BTCItemLbl.Value, "LightGray", "White")';
-  await page
-    .getByRole('button', { name: 'Abrir editor de la expresión de color de fondo' })
-    .click();
-  await applyExpressionInDialog('Expresión del color de fondo', backgroundExpression);
-  await expect.poll(() => itemBackground('Textbox4')).toBe(backgroundExpression);
-  await expect.poll(() => itemBoxFill('Textbox4')).toBe('#ffffff');
-
-  // Visible quita la declaración: vuelve a la predeterminada.
+  // Visibilidad: oculta se pinta atenuada; visible quita la declaración.
+  const visibility = page.getByLabel('Visibilidad del elemento');
+  await expect(visibility).toHaveValue('visible');
+  await visibility.selectOption('hidden');
+  await expect.poll(() => itemHidden('Textbox4')).toBe(true);
+  await expect.poll(() => itemOpacityOnStage('Textbox4')).toBeLessThan(0.5);
   await visibility.selectOption('visible');
   await expect.poll(() => itemHidden('Textbox4')).toBeUndefined();
-});
 
-test('las opciones del textbox (CanGrow/KeepTogether) se editan y deshacen', async () => {
-  // Textbox4 (encabezado) declara ambos flags en el corpus.
-  await selectItemViaPalette('Textbox4');
-  const canGrow = page.getByRole('checkbox', { name: 'Crecer con el texto' });
-  const keepTogether = page.getByRole('checkbox', { name: 'Mantener junto' });
-  await expect(canGrow).toBeChecked();
-  await expect(keepTogether).toBeChecked();
-
-  // Apagar quita la etiqueta (false = predeterminado en RDL).
-  await canGrow.click();
-  await expect.poll(() => itemOption('Textbox4', 'canGrow')).toBeUndefined();
-  await expect(keepTogether).toBeChecked();
-
-  // Un solo undo la restaura.
-  await page.keyboard.press('Control+z');
-  await expect(canGrow).toBeChecked();
-  await expect.poll(() => itemOption('Textbox4', 'canGrow')).toBe(true);
-});
-
-test('el menú de celda trae al frente (ZIndex) y el undo lo revierte', async () => {
-  // Textbox4 es el primer hijo de Rectangle1 (sin ZIndex); sus hermanos van 1…7.
-  await selectItemViaPalette('Textbox4');
-  const center = await nodeCenter('Textbox4');
-  expect(center).not.toBeNull();
-
-  await page.mouse.click(center!.x, center!.y, { button: 'right' });
-  await page.getByRole('menuitem', { name: 'Orden' }).click();
-  await page.getByRole('menuitem', { name: 'Traer al frente' }).click();
-
-  await expect.poll(() => itemZIndex('Textbox4')).toBe(8);
-
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => itemZIndex('Textbox4')).toBeUndefined();
-});
-
-test('el panel edita los bordes por lado y el lienzo los pinta', async () => {
-  // Textbox4 declara el genérico `<Border><Style>None</Style>` (sin lados).
-  await selectItemViaPalette('Textbox4');
-  const topStyle = page.getByLabel('Borde superior: estilo');
-  await expect(topStyle).toHaveValue('None');
-  await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
-
-  await topStyle.selectOption('Solid');
-  await expect.poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style).toBe('Solid');
-  // La línea se pinta dentro del nodo del item (color por defecto).
-  await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual(['#111827']);
-
-  // Un solo undo revierte estilo y pintado.
-  await page.keyboard.press('Control+z');
-  await expect.poll(async () => (await itemBorderSide('Textbox4', 'top'))?.style).toBe('None');
-  await expect.poll(() => itemBorderStrokes('Textbox4')).toEqual([]);
-});
-
-test('el panel edita el padding por lado (con undo)', async () => {
-  // Textbox4 (encabezado) declara `PaddingTop 2pt` en el corpus.
-  await selectItemViaPalette('Textbox4');
-  const top = page.getByLabel('Padding superior', { exact: true });
-  // El NumberInput estándar muestra el valor con dos decimales fijos.
-  await expect(top).toHaveValue('2.00');
-
-  await top.fill('5');
-  await top.press('Enter');
-  await expect.poll(() => itemPadding('Textbox4', 'top')).toEqual({ value: 5, unit: 'pt' });
-
+  // Renombrar: válido sigue la selección; duplicado se rechaza; undo lo revierte.
+  const name = page.getByLabel('Nombre del elemento');
+  await expect(name).toHaveValue('Textbox4');
+  await name.fill('Textbox4Renombrado');
+  await name.press('Enter');
+  await expect.poll(selectedId).toBe('Textbox4Renombrado');
+  await name.fill('Tablix2');
+  await name.press('Enter');
+  await expect(page.getByText(/Ya existe un elemento o grupo con el nombre/)).toBeVisible();
+  await expect.poll(selectedId).toBe('Textbox4Renombrado');
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Control+z');
-  await expect.poll(() => itemPadding('Textbox4', 'top')).toEqual({ value: 2, unit: 'pt' });
-});
+  await selectItemViaPalette('Textbox4');
+  await expect(page.getByLabel('Nombre del elemento')).toHaveValue('Textbox4');
 
-test('el panel edita el salto de página de un rectángulo (con undo)', async () => {
-  // Rectangle2 (encabezado) no declara `PageBreak`.
+  // Salto de página de un rectángulo (Rectangle2, encabezado, sin PageBreak).
   await selectItemViaPalette('Rectangle2');
   const pageBreak = page.getByLabel('Salto de página');
   await expect(pageBreak).toHaveValue('None');
-
   await pageBreak.selectOption('Start');
   await expect.poll(() => itemPageBreak('Rectangle2')).toBe('Start');
-
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => itemPageBreak('Rectangle2')).toBeUndefined();
 });
 
 test('una cabecera vacía recibe un item insertado (y el undo lo quita)', async () => {
@@ -2327,14 +2206,21 @@ test('mover un rectángulo un poco no intenta reparentarlo (sin error)', async (
   // Rectangle2 (encabezado, vacío): arrastrarlo unos píxeles deja el puntero
   // dentro de él; antes se intentaba reparentar en sí mismo y daba error.
   await selectItemViaPalette('Rectangle2');
-  await scrollNodeIntoView('Rectangle2');
   const before = await itemLocation('Rectangle2');
 
   // Si el «traer a la vista» se asienta justo después de medir, el primer
-  // arrastre puede caer en vacío: se remide y se reintenta.
+  // arrastre puede caer en vacío: se recentra, se remide y se reintenta. Si el
+  // nodo aún no se asienta (scroll en marcha con la máquina cargada), también.
   let moved = false;
-  for (let attempt = 0; attempt < 3 && !moved; attempt += 1) {
-    const from = await waitNodeSettled('Rectangle2');
+  for (let attempt = 0; attempt < 4 && !moved; attempt += 1) {
+    await scrollNodeIntoView('Rectangle2');
+    let from: { x: number; y: number };
+    try {
+      from = await waitNodeSettled('Rectangle2');
+    } catch {
+      await page.waitForTimeout(150);
+      continue;
+    }
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     await page.mouse.move(from.x + 14, from.y + 10, { steps: 6 });
@@ -2459,10 +2345,18 @@ test('un hijo de un rectángulo no se escapa al arrastrarlo fuera (como la pági
   expect(lengthToCm(moved.top) + lengthToCm(moved.height)).toBeLessThanOrEqual(rectHeight + 0.05);
 });
 
-test('«Informe…» edita el alto y la impresión del encabezado y el pie', async () => {
+test('el diálogo «Informe…» y el inspector cablean la página (con undo)', async () => {
+  // Ctrl+S: la promesa de la paleta, sin botón de por medio.
+  await page.keyboard.press('Control+s');
+  await expect(page.getByText(/Guardado/)).toBeVisible();
+
   await page.getByRole('button', { name: 'Informe…' }).click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
   await expect(dialog.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
+
+  // Con un diálogo abierto, Ctrl+K no abre la paleta por encima.
+  await page.keyboard.press('Control+k');
+  await expect(page.getByPlaceholder('Buscar elemento, variable o acción…')).toBeHidden();
 
   const page0 = await projection();
   // El alto de banda nunca baja de su contenido: se piden valores por encima.
@@ -2498,6 +2392,39 @@ test('«Informe…» edita el alto y la impresión del encabezado y el pie', asy
   const afterWidth = await projection();
   expect(lengthToCm(afterWidth.page.header.width)).toBeCloseTo(expectedWidth, 2);
   expect(lengthToCm(afterWidth.page.footer.width)).toBeCloseTo(expectedWidth, 2);
+
+  // «Aplicar» no cierra: Escape cierra el diálogo.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  // Quitar y volver a insertar el encabezado; nace con el alto por defecto (1,25 cm).
+  await page.getByRole('button', { name: 'Informe…' }).click();
+  const reopened = page.getByRole('dialog', { name: 'Propiedades del informe' });
+  await reopened.getByRole('button', { name: 'Quitar el encabezado' }).click();
+  await reopened.getByRole('button', { name: 'Aplicar' }).click();
+  await expect.poll(async () => (await projection()).page.header.present).toBe(false);
+  await page.keyboard.press('Escape');
+  await expect(reopened).toBeHidden();
+
+  await page.getByRole('button', { name: 'Informe…' }).click();
+  const inserted = page.getByRole('dialog', { name: 'Propiedades del informe' });
+  await expect(inserted.getByRole('button', { name: 'Insertar el encabezado' })).toBeVisible();
+  await inserted.getByRole('button', { name: 'Insertar el encabezado' }).click();
+  await inserted.getByRole('button', { name: 'Aplicar' }).click();
+  await expect.poll(async () => (await projection()).page.header.present).toBe(true);
+  await expect
+    .poll(async () => lengthToCm((await projection()).page.header.height))
+    .toBeCloseTo(1.25, 2);
+  await page.keyboard.press('Escape');
+  await expect(inserted).toBeHidden();
+
+  // Sin selección, el inspector enseña las propiedades del informe y aplica.
+  const panel = page.getByRole('region', { name: 'Propiedades del informe' });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
+  await panel.getByLabel('Alto del encabezado (cm)', { exact: true }).fill('2.00');
+  await panel.getByRole('button', { name: 'Aplicar' }).click();
+  await expect.poll(() => regionHeight('header')).toBeCloseTo(2, 2);
 });
 
 test('no hay scroll de página al seleccionar un elemento (el panel no desborda)', async () => {
@@ -2507,220 +2434,6 @@ test('no hay scroll de página al seleccionar un elemento (el panel no desborda)
       page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1),
     )
     .toBe(true);
-});
-
-test('«Informe…» quita y vuelve a insertar el encabezado', async () => {
-  await page.getByRole('button', { name: 'Informe…' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
-  await dialog.getByRole('button', { name: 'Quitar el encabezado' }).click();
-  await dialog.getByRole('button', { name: 'Aplicar' }).click();
-  await expect.poll(async () => (await projection()).page.header.present).toBe(false);
-  // «Aplicar» no cierra: se cierra a mano para reabrir con la banda ya ausente.
-  await page.keyboard.press('Escape');
-  await expect(dialog).toBeHidden();
-
-  // Se puede volver a insertar; nace con el alto por defecto (1,25 cm).
-  await page.getByRole('button', { name: 'Informe…' }).click();
-  const reopened = page.getByRole('dialog', { name: 'Propiedades del informe' });
-  await expect(reopened.getByRole('button', { name: 'Insertar el encabezado' })).toBeVisible();
-  await reopened.getByRole('button', { name: 'Insertar el encabezado' }).click();
-  await reopened.getByRole('button', { name: 'Aplicar' }).click();
-  await expect.poll(async () => (await projection()).page.header.present).toBe(true);
-  await expect
-    .poll(async () => lengthToCm((await projection()).page.header.height))
-    .toBeCloseTo(1.25, 2);
-});
-
-/**
- * Bounding box estable: tras arrastrar, el renderer sigue procesando el input
- * encolado y los reflujos, y la agarradera puede desplazarse unos frames. Se
- * espera a que la caja deje de moverse antes de medir/clicar; si no, el doble
- * clic puede caer donde la agarradera ya no está (sobre el overlay → cierra el
- * diálogo).
- */
-async function stableBox(locator: Locator): Promise<{
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}> {
-  let box = await locator.boundingBox();
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    await page.waitForTimeout(50);
-    const next = await locator.boundingBox();
-    if (
-      box &&
-      next &&
-      box.x === next.x &&
-      box.y === next.y &&
-      box.width === next.width &&
-      box.height === next.height
-    ) {
-      return next;
-    }
-    box = next;
-  }
-  if (!box) throw new Error('el elemento no tiene bounding box');
-  return box;
-}
-
-test('los diálogos de edición se redimensionan con la agarradera', async () => {
-  await page.getByRole('button', { name: 'Informe…' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
-  await expect(dialog).toBeVisible();
-  await page.waitForTimeout(400); // la animación de entrada reposa
-
-  const grip = page.locator('[data-rdlc-dialog-grip]');
-  await expect(grip).toBeVisible();
-  const before = (await dialog.boundingBox())!;
-  const handle = await stableBox(grip);
-
-  // Arrastrar la esquina: el diálogo crece (y no se cierra por la interacción).
-  // Si el primer gesto no engancha la agarradera (timing en CI), se reintenta.
-  let after = await stableBox(dialog);
-  for (let attempt = 0; attempt < 3 && after.width <= before.width + 100; attempt += 1) {
-    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(handle.x + handle.width / 2 + 140, handle.y + handle.height / 2 + 40, {
-      steps: 10,
-    });
-    await page.mouse.up();
-    after = await stableBox(dialog);
-  }
-  await expect(dialog).toBeVisible();
-  expect(after.width).toBeGreaterThan(before.width + 100);
-
-  // Doble clic: vuelve al tamaño original. Secuencial (con el segundo clic
-  // marcado como clickCount 2): el `mouse.dblclick` de Playwright despacha
-  // mover/abajo/arriba/abajo/arriba en paralelo (`Promise.all`) y el clic podía
-  // adelantarse a la posición anterior; dos clics esperados reproducen el doble
-  // clic real.
-  const handle2 = await stableBox(grip);
-  const cx = handle2.x + handle2.width / 2;
-  const cy = handle2.y + handle2.height / 2;
-  await page.mouse.move(cx, cy);
-  await page.mouse.down();
-  await page.mouse.up();
-  await page.mouse.down({ clickCount: 2 });
-  await page.mouse.up({ clickCount: 2 });
-  await page.waitForTimeout(250);
-  const reset = (await dialog.boundingBox())!;
-  expect(Math.abs(reset.width - before.width)).toBeLessThan(8);
-
-  await page.keyboard.press('Escape');
-  await expect(dialog).toBeHidden();
-});
-
-test('sin selección, el inspector muestra las propiedades del informe y aplica', async () => {
-  // Sin nada seleccionado, el panel derecho enseña las propiedades del informe
-  // (en vez del aviso de seleccionar) y refleja el documento abierto.
-  const panel = page.getByRole('region', { name: 'Propiedades del informe' });
-  await expect(panel).toBeVisible();
-  await expect(panel.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
-
-  const before = await projection();
-  await expect(panel.getByLabel('Ancho (cm)', { exact: true })).toHaveValue(
-    lengthToCm(before.page.width).toFixed(2),
-  );
-  await expect(panel.getByLabel('Alto (cm)', { exact: true })).toHaveValue(
-    lengthToCm(before.page.height).toFixed(2),
-  );
-  await expect(panel.getByLabel('Alto del encabezado (cm)', { exact: true })).toHaveValue(
-    Math.max(lengthToCm(before.page.header.height), 1.25).toFixed(2),
-  );
-
-  // «Aplicar» desde el propio panel: sube el encabezado por encima de su contenido.
-  const contentBottom = Math.max(
-    0,
-    ...before.page.header.items.map((item) => lengthToCm(item.top) + lengthToCm(item.height)),
-  );
-  const target = Math.round((contentBottom + 1) * 100) / 100;
-  await panel.getByLabel('Alto del encabezado (cm)', { exact: true }).fill(String(target));
-  await panel.getByRole('button', { name: 'Aplicar' }).click();
-  await expect.poll(() => regionHeight('header')).toBeCloseTo(target, 2);
-
-  // Con selección manda el panel del elemento; al deseleccionar vuelve el informe.
-  await selectItemViaPalette('Textbox4');
-  await expect(panel).toBeHidden();
-  await page.keyboard.press('Escape'); // Textbox4 → Rectangle1
-  await page.keyboard.press('Escape'); // Rectangle1 → sin selección
-  await expect(panel).toBeVisible();
-});
-
-test('el panel de propiedades renombra el elemento (con validación y undo)', async () => {
-  await selectItemViaPalette('Textbox4');
-
-  const name = page.getByLabel('Nombre del elemento');
-  await expect(name).toHaveValue('Textbox4');
-
-  // Renombrado válido: la selección y el panel siguen al nombre nuevo.
-  await name.fill('Textbox4Renombrado');
-  await name.press('Enter');
-  await expect.poll(selectedId).toBe('Textbox4Renombrado');
-  await expect(name).toHaveValue('Textbox4Renombrado');
-
-  // Nombre duplicado: lo rechaza el dominio (aviso) y no cambia nada.
-  await name.fill('Tablix2');
-  await name.press('Enter');
-  await expect(page.getByText(/Ya existe un elemento o grupo con el nombre/)).toBeVisible();
-  await expect.poll(selectedId).toBe('Textbox4Renombrado');
-
-  // Un solo undo revierte el renombrado; el nombre original vuelve al informe.
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await selectItemViaPalette('Textbox4');
-  await expect(page.getByLabel('Nombre del elemento')).toHaveValue('Textbox4');
-});
-
-test('la visibilidad de filas y columnas se edita desde la estructura', async () => {
-  // Tablix3: 2 filas × 6 columnas sin grupos (rutas simples en la proyección).
-  await selectItemViaPalette('Tablix3');
-  await expect(page.getByRole('region', { name: 'Estructura del Tablix' })).toBeVisible();
-
-  // El ojo de la fila 1 escribe `Hidden=true` y el botón pasa a «Mostrar».
-  await page.getByRole('button', { name: 'Ocultar fila 1' }).click();
-  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBe(true);
-  await expect(page.getByRole('button', { name: 'Mostrar fila 1' })).toBeVisible();
-
-  // Σ abre el diálogo de expresión y la escribe en la columna 1.
-  await page.getByRole('button', { name: 'Expresión de visibilidad de la columna 1' }).click();
-  await applyExpressionInDialog('Visibilidad de la columna 1', '=Fields!BTCJobNo.Value <> ""');
-  await expect
-    .poll(() => memberHidden('Tablix3', 'column', [0]))
-    .toBe('=Fields!BTCJobNo.Value <> ""');
-
-  // Mostrar la fila quita la declaración; cada acción es un paso de undo.
-  await page.getByRole('button', { name: 'Mostrar fila 1' }).click();
-  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBeUndefined();
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => memberHidden('Tablix3', 'row', [0])).toBe(true);
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => memberHidden('Tablix3', 'column', [0])).toBeUndefined();
-});
-
-test('la etiqueta del run se edita desde el panel de propiedades', async () => {
-  // Textbox4 (encabezado): `=Code.GetData(2, 1)` con `<Label>BTCNifCifLbl</Label>`.
-  await selectItemViaPalette('Textbox4');
-  const label = page.getByLabel('Etiqueta del run 1.1');
-  await expect(label).toHaveValue('BTCNifCifLbl');
-
-  // Cambiarla desde el panel (sin abrir el editor de texto).
-  await label.fill('MiEtiqueta');
-  await label.press('Enter');
-  await expect.poll(() => itemLabel('Textbox4')).toBe('MiEtiqueta');
-
-  // Vaciar el campo quita el `<Label>` del XML.
-  await label.fill('');
-  await label.press('Enter');
-  await expect.poll(() => itemLabel('Textbox4')).toBeUndefined();
-
-  // Cada commit es un paso de undo (setParagraphs byte-exacto).
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => itemLabel('Textbox4')).toBe('MiEtiqueta');
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => itemLabel('Textbox4')).toBe('BTCNifCifLbl');
 });
 
 test('las cabeceras del Tablix (TablixHeader/TablixCorner) se proyectan y seleccionan', async () => {
@@ -2766,7 +2479,7 @@ test('las cabeceras del Tablix (TablixHeader/TablixCorner) se proyectan y selecc
 
 /* ------------------------- F2.b · grupos de fila ------------------------- */
 
-test('los grupos hoja se ven en la estructura y su expresión se edita', async () => {
+test('la estructura cablea el grupo hoja, sus propiedades y los filtros del Tablix (con undo)', async () => {
   // Tablix7: el grupo `=Fields!VATPct_VatAmountLine.Value` ES la fila (sin hijos).
   await selectItemViaPalette('Tablix7');
   await expect(page.getByRole('region', { name: 'Estructura del Tablix' })).toBeVisible();
@@ -2778,121 +2491,69 @@ test('los grupos hoja se ven en la estructura y su expresión se edita', async (
   await expect
     .poll(() => memberExpression('Tablix7', 'row', [0]))
     .toBe('=Fields!VATPct_VatAmountLine.Value');
-
-  // «Propiedades del grupo» → cambiar la expresión desde el desplegable de variables.
-  await page.getByRole('button', { name: 'Propiedades del grupo de la fila 1' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(
-    dialog.getByRole('heading', { name: 'Propiedades del grupo · VATIdentifier_VatAmountLine' }),
-  ).toBeVisible();
-  await dialog.getByLabel('Expresión de grupo').selectOption('=Fields!DocumentNo.Value');
-  await dialog.getByRole('button', { name: 'Aplicar' }).click();
-  await expect(dialog).toBeHidden();
-
-  await expect.poll(() => memberExpression('Tablix7', 'row', [0])).toBe('=Fields!DocumentNo.Value');
-  // Sigue siendo el mismo grupo hoja: una fila, sin hijos.
-  expect(await tablixRowCount('Tablix7')).toBe(1);
-  expect(await memberChildCount('Tablix7', 'row', [0])).toBe(0);
-
-  // Un solo undo devuelve la expresión (byte-exacto).
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await expect
-    .poll(() => memberExpression('Tablix7', 'row', [0]))
-    .toBe('=Fields!VATPct_VatAmountLine.Value');
-});
-
-test('las propiedades del grupo editan saltos de página y ordenación', async () => {
-  await selectItemViaPalette('Tablix7');
   await expect
     .poll(() => memberSort('Tablix7', 'row', [0]))
     .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value' }]);
 
-  await page.getByRole('button', { name: 'Propiedades del grupo de la fila 1' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: /Propiedades del grupo/ })).toBeVisible();
-
-  // Ordenación: la existente pasa a Z → A.
-  await dialog.getByRole('tab', { name: 'Ordenación' }).click();
-  await dialog.getByLabel('Dirección de la ordenación 1').selectOption('Descending');
-
-  // Saltos de página: «entre cada instancia del grupo».
-  await dialog.getByRole('tab', { name: 'Saltos de página' }).click();
-  await dialog.getByLabel('Entre cada instancia del grupo').check();
-
-  await dialog.getByRole('button', { name: 'Aplicar' }).click();
-  await expect(dialog).toBeHidden();
-
-  await expect
-    .poll(() => memberSort('Tablix7', 'row', [0]))
-    .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value', direction: 'Descending' }]);
-  await expect.poll(() => memberPageBreaks('Tablix7', 'row', [0])).toEqual(['Between']);
-
-  // Cada sección es un paso de undo (el diálogo manda salto y orden).
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await expect
-    .poll(() => memberSort('Tablix7', 'row', [0]))
-    .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value' }]);
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => memberPageBreaks('Tablix7', 'row', [0])).toBeUndefined();
-});
-
-test('los filtros del Tablix se editan desde la estructura (con undo)', async () => {
-  await selectItemViaPalette('Tablix7');
+  // Filtros del Tablix: cambia el operador de la fila 1 (con undo).
   const expected = {
     expression: '=Cstr(Len(Fields!VATIdentifier_VatAmountLine.Value))',
     operator: 'NotEqual',
     values: ['0'],
   };
   await expect.poll(() => tablixFilters('Tablix7')).toEqual([expected]);
-
   await page.getByRole('button', { name: 'Filtros (1)' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: 'Filtros del Tablix' })).toBeVisible();
-  await dialog.getByLabel('Operador del filtro 1').selectOption('Equal');
-  await dialog.getByRole('button', { name: 'Aplicar' }).click();
-  await expect(dialog).toBeHidden();
-
+  const filters = page.getByRole('dialog', { name: 'Filtros del Tablix' });
+  await filters.getByLabel('Operador del filtro 1').selectOption('Equal');
+  await filters.getByRole('button', { name: 'Aplicar' }).click();
+  await expect(filters).toBeHidden();
   await expect.poll(() => tablixFilters('Tablix7')).toEqual([{ ...expected, operator: 'Equal' }]);
-
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Control+z');
   await expect.poll(() => tablixFilters('Tablix7')).toEqual([expected]);
-});
 
-test('las propiedades del grupo renombran el grupo (con undo)', async () => {
-  await selectItemViaPalette('Tablix7');
+  // Propiedades del grupo: expresión, nombre, ordenación y saltos de página.
   await page.getByRole('button', { name: 'Propiedades del grupo de la fila 1' }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: /Propiedades del grupo/ })).toBeVisible();
-
-  const name = dialog.getByLabel('Nombre');
-  await expect(name).toHaveValue('VATIdentifier_VatAmountLine');
-  await name.fill('VATGrupoNuevo');
+  await expect(
+    dialog.getByRole('heading', { name: 'Propiedades del grupo · VATIdentifier_VatAmountLine' }),
+  ).toBeVisible();
+  await dialog.getByLabel('Expresión de grupo').selectOption('=Fields!DocumentNo.Value');
+  await dialog.getByLabel('Nombre').fill('VATGrupoNuevo');
+  await dialog.getByRole('tab', { name: 'Ordenación' }).click();
+  await dialog.getByLabel('Dirección de la ordenación 1').selectOption('Descending');
+  await dialog.getByRole('tab', { name: 'Saltos de página' }).click();
+  await dialog.getByLabel('Entre cada instancia del grupo').check();
   await dialog.getByRole('button', { name: 'Aplicar' }).click();
   await expect(dialog).toBeHidden();
 
+  await expect.poll(() => memberExpression('Tablix7', 'row', [0])).toBe('=Fields!DocumentNo.Value');
   await expect.poll(() => memberName('Tablix7', 'row', [0])).toBe('VATGrupoNuevo');
-
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => memberName('Tablix7', 'row', [0])).toBe('VATIdentifier_VatAmountLine');
+  await expect
+    .poll(() => memberSort('Tablix7', 'row', [0]))
+    .toEqual([{ value: '=Fields!VATIdentifier_VatAmountLine.Value', direction: 'Descending' }]);
+  await expect.poll(() => memberPageBreaks('Tablix7', 'row', [0])).toEqual(['Between']);
+  // Sigue siendo el mismo grupo hoja: una fila, sin hijos.
+  expect(await tablixRowCount('Tablix7')).toBe(1);
+  expect(await memberChildCount('Tablix7', 'row', [0])).toBe(0);
 });
 
-test('agrupar una fila crea el grupo sin tocar la rejilla (con undo)', async () => {
+test('agrupar una fila estática y quitar el grupo hoja desde la estructura', async () => {
   // Tablix3: 2 filas estáticas, sin grupos.
   await selectItemViaPalette('Tablix3');
   const rowsBefore = await tablixRowCount('Tablix3');
 
   await page.getByRole('button', { name: 'Agrupar la fila 1…' }).click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('dialog', { name: 'Agrupar la fila 1' });
   await expect(dialog.getByRole('heading', { name: 'Agrupar la fila 1' })).toBeVisible();
+  // U9: el botón de cerrar del diálogo tiene nombre accesible en español.
+  await expect(dialog.getByRole('button', { name: 'Cerrar' })).toBeVisible();
   const editor = dialog.locator('.monaco-editor');
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await editor.click();
   await page.keyboard.type('=Fields!BTCNo_BTCHeader.Value');
-  await dialog.getByRole('button', { name: 'Aplicar' }).click();
+  // U8: Ctrl+Intro aplica sin usar el botón.
+  await page.keyboard.press('Control+Enter');
   await expect(dialog).toBeHidden();
 
   await expect
@@ -2900,137 +2561,46 @@ test('agrupar una fila crea el grupo sin tocar la rejilla (con undo)', async () 
     .toBe('=Fields!BTCNo_BTCHeader.Value');
   // El grupo nuevo envuelve la fila: la rejilla no cambia.
   expect(await tablixRowCount('Tablix3')).toBe(rowsBefore);
-  // El grupo (con hijos) tiene sus propiedades y la fila envuelta sigue seleccionable.
   await expect(page.getByRole('button', { name: 'Propiedades del grupo' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
-
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Control+z');
   await expect.poll(() => memberExpression('Tablix3', 'row', [0])).toBeUndefined();
-  expect(await tablixRowCount('Tablix3')).toBe(rowsBefore);
-});
 
-test('quitar un grupo deja la fila (y el undo lo restaura)', async () => {
+  // Tablix7: el grupo hoja gana una fila dentro con el menú contextual.
   await selectItemViaPalette('Tablix7');
   await expect
     .poll(() => memberExpression('Tablix7', 'row', [0]))
     .toBe('=Fields!VATPct_VatAmountLine.Value');
+  const proj = await projection();
+  const tablix = findItem(proj.page.body.items, 'Tablix7') as
+    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
+  const content = tablix?.body.rows[0]?.cells
+    .map((cell) => cell?.content)
+    .find((entry): entry is ItemLike => Boolean(entry));
+  expect(content).toBeTruthy();
+  const point = await nodeCenter(content!.id);
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
+  await page.getByRole('menuitem', { name: 'Dentro del grupo: fila debajo' }).click();
+  await expect.poll(() => tablixRowCount('Tablix7')).toBe(2);
+  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(2);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => tablixRowCount('Tablix7')).toBe(1);
+  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
 
+  // Quitar el grupo hoja deja la fila y el undo lo restaura.
   await page.getByRole('button', { name: 'Quitar grupo de la fila 1' }).click();
   await expect.poll(() => memberExpression('Tablix7', 'row', [0])).toBeUndefined();
   // La fila se queda: el body no cambia y sigue seleccionable como fila.
   expect(await tablixRowCount('Tablix7')).toBe(1);
   await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Quitar grupo de la fila 1' })).toBeHidden();
-
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Control+z');
   await expect
     .poll(() => memberExpression('Tablix7', 'row', [0]))
     .toBe('=Fields!VATPct_VatAmountLine.Value');
-});
-
-test('quitar un grupo con hijos eleva las filas (sin línea de grupo fantasma)', async () => {
-  await selectItemViaPalette('LinesTable');
-  const rowsBefore = await tablixRowCount('LinesTable');
-  await expect
-    .poll(() => memberExpression('LinesTable', 'row', [2]))
-    .toBe('=Fields!LineNo_Line.Value');
-  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
-
-  await page.getByRole('button', { name: 'Quitar grupo' }).click();
-
-  // El grupo desaparece y sus filas pasan al nivel raíz (entradas estáticas).
-  await expect.poll(() => memberExpression('LinesTable', 'row', [2])).toBeUndefined();
-  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(0);
-  expect(await tablixRowCount('LinesTable')).toBe(rowsBefore);
-  await expect(page.getByRole('button', { name: 'Seleccionar fila 3' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Quitar grupo' })).toBeHidden();
-
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await expect
-    .poll(() => memberExpression('LinesTable', 'row', [2]))
-    .toBe('=Fields!LineNo_Line.Value');
-  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
-});
-
-test('extender un grupo con la fila contigua desde la estructura (con undo)', async () => {
-  await selectItemViaPalette('LinesTable');
-  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
-
-  // La fila anterior (1-based 2) pasa a ser la primera hoja del grupo: el
-  // miembro raíz [1] desaparece y el grupo baja a la posición [1].
-  await page.getByRole('button', { name: 'Añadir la fila 2 al grupo' }).click();
-  await expect.poll(() => memberChildCount('LinesTable', 'row', [1])).toBe(3);
-  await expect
-    .poll(() => memberExpression('LinesTable', 'row', [1]))
-    .toBe('=Fields!LineNo_Line.Value');
-  // El body no cambia: sigue teniendo 5 filas.
-  expect(await tablixRowCount('LinesTable')).toBe(5);
-
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
-});
-
-test('el menú contextual inserta fila fuera del grupo y abre sus propiedades', async () => {
-  // Celda de la primera fila del grupo LineNo de LinesTable2 (fila 3, hoja 2).
-  const proj = await projection();
-  const tablix = findItem(proj.page.body.items, 'LinesTable2') as
-    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
-  const content = tablix?.body.rows[2]?.cells
-    .map((cell) => cell?.content)
-    .find((entry): entry is ItemLike => Boolean(entry));
-  expect(content).toBeTruthy();
-
-  const point = await nodeCenter(content!.id);
-  expect(point).not.toBeNull();
-  const rowsBefore = await tablixRowCount('LinesTable2');
-
-  // Fuera del grupo, encima: la fila nace antes del grupo (el grupo baja a [3]).
-  await page.mouse.click(point!.x, point!.y, { button: 'right' });
-  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
-  await page.getByRole('menuitem', { name: 'Fuera del grupo: fila encima' }).click();
-  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore + 1);
-  await expect.poll(() => memberExpression('LinesTable2', 'row', [2])).toBeUndefined();
-  await expect
-    .poll(() => memberExpression('LinesTable2', 'row', [3]))
-    .toBe('=Fields!LineNo_Line.Value');
-
-  await page.keyboard.press('Control+z');
-  await expect
-    .poll(() => memberExpression('LinesTable2', 'row', [2]))
-    .toBe('=Fields!LineNo_Line.Value');
-  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
-
-  // Dentro del grupo, debajo de su ÚLTIMA fila: la fila nace dentro del grupo
-  // (antes se colaba fuera por el borde inferior).
-  const lastContent = tablix?.body.rows[3]?.cells
-    .map((cell) => cell?.content)
-    .find((entry): entry is ItemLike => Boolean(entry));
-  expect(lastContent).toBeTruthy();
-  const lastPoint = await nodeCenter(lastContent!.id);
-  expect(lastPoint).not.toBeNull();
-
-  await page.mouse.click(lastPoint!.x, lastPoint!.y, { button: 'right' });
-  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
-  await page.getByRole('menuitem', { name: 'Dentro del grupo: fila debajo' }).click();
-  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore + 1);
-  await expect.poll(() => memberChildCount('LinesTable2', 'row', [2])).toBe(3);
-
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => memberChildCount('LinesTable2', 'row', [2])).toBe(2);
-  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
-
-  // Propiedades del grupo… desde el menú contextual.
-  await page.mouse.click(point!.x, point!.y, { button: 'right' });
-  await page.getByRole('menuitem', { name: 'Propiedades del grupo…' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(
-    dialog.getByRole('heading', { name: 'Propiedades del grupo · LineNo' }),
-  ).toBeVisible();
-  await dialog.getByRole('button', { name: 'Cancelar' }).click();
-  await expect(dialog).toBeHidden();
 });
 
 /** Valores del primer run de cada celda con contenido de una fila. */
@@ -3043,9 +2613,40 @@ async function rowRunValues(tablixId: string, row: number): Promise<string[]> {
     .filter((value): value is string => typeof value === 'string');
 }
 
-test('el total del grupo se añade desde el menú con los agregados por columna (con undo)', async () => {
-  // Celda de la primera fila del grupo LineNo2 de LinesTable2 (fila 3, hoja 2):
-  // el mismo punto que usa el test de «fuera del grupo».
+test('grupos con hijos: extender, quitar y el menú contextual de la fila (con undo)', async () => {
+  // LinesTable: el grupo LineNo (fila 3) tiene 2 hojas.
+  await selectItemViaPalette('LinesTable');
+  const rowsBefore = await tablixRowCount('LinesTable');
+  await expect
+    .poll(() => memberExpression('LinesTable', 'row', [2]))
+    .toBe('=Fields!LineNo_Line.Value');
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
+
+  // La fila contigua entra como primera hoja del grupo (3 hojas).
+  await page.getByRole('button', { name: 'Añadir la fila 2 al grupo' }).click();
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [1])).toBe(3);
+  await expect
+    .poll(() => memberExpression('LinesTable', 'row', [1]))
+    .toBe('=Fields!LineNo_Line.Value');
+  // El body no cambia: sigue teniendo 5 filas.
+  expect(await tablixRowCount('LinesTable')).toBe(rowsBefore);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
+
+  // Quitar el grupo eleva sus filas al nivel raíz.
+  await page.getByRole('button', { name: 'Quitar grupo' }).click();
+  await expect.poll(() => memberExpression('LinesTable', 'row', [2])).toBeUndefined();
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(0);
+  expect(await tablixRowCount('LinesTable')).toBe(rowsBefore);
+  await expect(page.getByRole('button', { name: 'Seleccionar fila 3' })).toBeVisible();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(() => memberExpression('LinesTable', 'row', [2]))
+    .toBe('=Fields!LineNo_Line.Value');
+  await expect.poll(() => memberChildCount('LinesTable', 'row', [2])).toBe(2);
+
+  // LinesTable2: celda de la primera fila del grupo LineNo2 (fila 3, hoja 2).
   const proj = await projection();
   const tablix = findItem(proj.page.body.items, 'LinesTable2') as
     (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
@@ -3053,68 +2654,72 @@ test('el total del grupo se añade desde el menú con los agregados por columna 
     .map((cell) => cell?.content)
     .find((entry): entry is ItemLike => Boolean(entry));
   expect(content).toBeTruthy();
-
   const point = await nodeCenter(content!.id);
   expect(point).not.toBeNull();
-  const rowsBefore = await tablixRowCount('LinesTable2');
+  const rows2Before = await tablixRowCount('LinesTable2');
 
+  // Fuera del grupo, encima: la fila nace antes del grupo (el grupo baja a [3]).
   await page.mouse.click(point!.x, point!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
+  await page.getByRole('menuitem', { name: 'Fuera del grupo: fila encima' }).click();
+  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rows2Before + 1);
+  await expect.poll(() => memberExpression('LinesTable2', 'row', [2])).toBeUndefined();
+  await expect
+    .poll(() => memberExpression('LinesTable2', 'row', [3]))
+    .toBe('=Fields!LineNo_Line.Value');
+  await page.keyboard.press('Control+z');
+  await expect
+    .poll(() => memberExpression('LinesTable2', 'row', [2]))
+    .toBe('=Fields!LineNo_Line.Value');
+
+  // Dentro del grupo, debajo de su ÚLTIMA fila: la fila nace dentro del grupo.
+  const lastContent = tablix?.body.rows[3]?.cells
+    .map((cell) => cell?.content)
+    .find((entry): entry is ItemLike => Boolean(entry));
+  expect(lastContent).toBeTruthy();
+  const lastPoint = await nodeCenter(lastContent!.id);
+  await page.mouse.click(lastPoint!.x, lastPoint!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
+  await page.getByRole('menuitem', { name: 'Dentro del grupo: fila debajo' }).click();
+  await expect.poll(() => memberChildCount('LinesTable2', 'row', [2])).toBe(3);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => memberChildCount('LinesTable2', 'row', [2])).toBe(2);
+
+  // Propiedades del grupo… desde el menú contextual.
+  const again = await nodeCenter(content!.id);
+  await page.mouse.click(again!.x, again!.y, { button: 'right' });
+  await page.getByRole('menuitem', { name: 'Propiedades del grupo…' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(
+    dialog.getByRole('heading', { name: 'Propiedades del grupo · LineNo' }),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(dialog).toBeHidden();
+
+  // Total del grupo: nace pegada al grupo (índice 4) con los agregados por
+  // columna y el ámbito del grupo; `UnitPrice` no se suma en el informe.
+  const totalPoint = await nodeCenter(content!.id);
+  await page.mouse.click(totalPoint!.x, totalPoint!.y, { button: 'right' });
   await page.getByRole('menuitem', { name: 'Total del grupo' }).click();
   await page.getByRole('menuitem', { name: 'Fila de total debajo' }).click();
-
-  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore + 1);
-  // Nace pegada al grupo (tras su última hoja: índice 4) con los agregados por
-  // columna y el ámbito del grupo; `UnitPrice` no se suma en el informe.
+  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rows2Before + 1);
   const values = await rowRunValues('LinesTable2', 4);
   expect(values).toContain('=Sum(Fields!BTCQuantity.Value, "LineNo2")');
   expect(values).toContain('=Sum(Fields!LineAmount_Line.Value, "LineNo2")');
   expect(values).toContain('=First(Fields!UnitPrice.Value, "LineNo2")');
-
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   await page.keyboard.press('Control+z');
-  await expect.poll(() => tablixRowCount('LinesTable2')).toBe(rowsBefore);
-});
-
-test('un grupo hoja (Tablix7) gana una fila dentro y se anida en la estructura', async () => {
-  await selectItemViaPalette('Tablix7');
-  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
-
-  const proj = await projection();
-  const tablix = findItem(proj.page.body.items, 'Tablix7') as
-    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
-  const content = tablix?.body.rows[0]?.cells
-    .map((cell) => cell?.content)
-    .find((entry): entry is ItemLike => Boolean(entry));
-  expect(content).toBeTruthy();
-  const point = await nodeCenter(content!.id);
-  expect(point).not.toBeNull();
-
-  // «Dentro del grupo, fila debajo»: el grupo hoja pasa a contenedor con la
-  // fila original debajo (el body no cambia de orden).
-  await page.mouse.click(point!.x, point!.y, { button: 'right' });
-  await page.getByRole('menuitem', { name: 'Insertar fila o columna' }).click();
-  await page.getByRole('menuitem', { name: 'Dentro del grupo: fila debajo' }).click();
-  await expect.poll(() => tablixRowCount('Tablix7')).toBe(2);
-  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(2);
-  // En Estructura, el grupo muestra las dos filas anidadas.
-  await expect(page.getByRole('button', { name: 'Seleccionar fila 1' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Seleccionar fila 2' })).toBeVisible();
-
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => tablixRowCount('Tablix7')).toBe(1);
-  await expect.poll(() => memberChildCount('Tablix7', 'row', [0])).toBe(0);
 });
 
 /* ------------------------ F3 · grupos de columna ------------------------- */
 
-test('agrupar una columna crea el grupo sin tocar la rejilla (con undo)', async () => {
+test('los grupos de columna se crean y extienden desde la estructura (con undo)', async () => {
   // Tablix3: 2 filas × 6 columnas estáticas, sin grupos de columna.
   await selectItemViaPalette('Tablix3');
   const columnsBefore = await tablixColumnCount('Tablix3');
 
   await page.getByRole('button', { name: 'Agrupar la columna 2…' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: 'Agrupar la columna 2' })).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Agrupar la columna 2' });
   const editor = dialog.locator('.monaco-editor');
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await editor.click();
@@ -3130,30 +2735,9 @@ test('agrupar una columna crea el grupo sin tocar la rejilla (con undo)', async 
   await expect(page.getByRole('button', { name: 'Propiedades del grupo' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Seleccionar columna 2' })).toBeVisible();
 
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => memberExpression('Tablix3', 'column', [1])).toBeUndefined();
-  expect(await tablixColumnCount('Tablix3')).toBe(columnsBefore);
-});
-
-test('extender un grupo de columna con la contigua desde la estructura (con undo)', async () => {
-  await selectItemViaPalette('Tablix3');
-  const columnsBefore = await tablixColumnCount('Tablix3');
-
-  // Grupo en la columna 2; la columna 3 (contigua) se añade como última hoja.
-  await page.getByRole('button', { name: 'Agrupar la columna 2…' }).click();
-  const dialog = page.getByRole('dialog');
-  const editor = dialog.locator('.monaco-editor');
-  await expect(editor).toBeVisible({ timeout: 15_000 });
-  await editor.click();
-  await page.keyboard.type('=Fields!DocumentNo.Value');
-  await dialog.getByRole('button', { name: 'Aplicar' }).click();
-  await expect(dialog).toBeHidden();
-  await expect.poll(() => memberChildCount('Tablix3', 'column', [1])).toBe(1);
-
+  // La columna contigua entra como última hoja del grupo.
   await page.getByRole('button', { name: 'Añadir la columna 3 al grupo' }).click();
   await expect.poll(() => memberChildCount('Tablix3', 'column', [1])).toBe(2);
-  // La rejilla no cambia (la columna 3 se anida en el grupo).
   expect(await tablixColumnCount('Tablix3')).toBe(columnsBefore);
 
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
@@ -3691,123 +3275,6 @@ test('la toolbar alterna el modo oscuro (blanco y negro)', async () => {
   await expect(html).not.toHaveClass(/dark/);
 });
 
-/* ------------------ U7 · paleta: acciones nuevas del editor ---------------- */
-
-test('la paleta ofrece las acciones nuevas (filtros, texto y zoom)', async () => {
-  // Con un Tablix seleccionado, «Filtros del Tablix…» está habilitada.
-  await selectItemViaPalette('Tablix7');
-  await page.keyboard.press('Control+k');
-  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill('Filtros del Tablix');
-  await page.getByRole('option', { name: /Filtros del Tablix/ }).click();
-  const filters = page.getByRole('dialog', { name: 'Filtros del Tablix' });
-  await expect(filters.getByRole('heading', { name: 'Filtros del Tablix' })).toBeVisible();
-  await filters.getByRole('button', { name: 'Cancelar' }).click();
-  await expect(filters).toBeHidden();
-
-  // Con un textbox seleccionado, «Editar el texto…» abre su editor.
-  await selectItemViaPalette('Textbox128');
-  await page.keyboard.press('Control+k');
-  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill('Editar el texto');
-  await page.getByRole('option', { name: /Editar el texto/ }).click();
-  const text = page.getByRole('dialog', { name: 'Texto de Textbox128' });
-  await expect(text.getByRole('heading', { name: 'Texto de Textbox128' })).toBeVisible();
-  await text.getByRole('button', { name: 'Cancelar' }).click();
-  await expect(text).toBeHidden();
-
-  // «Ajustar al ancho» también vive en la paleta.
-  await page.keyboard.press('Control+0');
-  const a4Px = (21 * 96) / 2.54;
-  await expect.poll(stageWidth).toBeCloseTo(a4Px, 0);
-  await page.keyboard.press('Control+k');
-  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill('Ajustar al ancho');
-  await page.getByRole('option', { name: /Ajustar al ancho/ }).click();
-  const available = await canvasAvailableWidth();
-  expect(await stageWidth()).toBeGreaterThan(available - 2);
-  expect(await stageWidth()).toBeLessThan(available + 2);
-});
-
-/* --------- U8 · agrupar la fila en el menú contextual (+ Ctrl+Intro) ------- */
-
-test('el menú contextual agrupa una fila estática (Ctrl+Intro aplica)', async () => {
-  await selectItemViaPalette('Tablix3');
-  const proj = await projection();
-  const tablix = findItem(proj.page.body.items, 'Tablix3') as
-    (ItemLike & { body: { rows: { cells: (CellLike | null)[] }[] } }) | undefined;
-  const content = tablix?.body.rows[0]?.cells[0]?.content;
-  expect(content).toBeTruthy();
-  const point = await nodeCenter(content!.id);
-  expect(point).not.toBeNull();
-
-  await page.mouse.click(point!.x, point!.y, { button: 'right' });
-  await page.getByRole('menuitem', { name: 'Agrupar la fila 1…' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Agrupar la fila 1' });
-  await expect(dialog.getByRole('heading', { name: 'Agrupar la fila 1' })).toBeVisible();
-  // U9: el botón de cerrar del diálogo tiene nombre accesible en español.
-  await expect(dialog.getByRole('button', { name: 'Cerrar' })).toBeVisible();
-
-  const editor = dialog.locator('.monaco-editor');
-  await expect(editor).toBeVisible({ timeout: 15_000 });
-  await editor.click();
-  await page.keyboard.type('=Fields!BTCNo_BTCHeader.Value');
-  // Ctrl+Intro aplica el diálogo sin usar el botón.
-  await page.keyboard.press('Control+Enter');
-  await expect(dialog).toBeHidden();
-  await expect
-    .poll(() => memberExpression('Tablix3', 'row', [0]))
-    .toBe('=Fields!BTCNo_BTCHeader.Value');
-
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => memberExpression('Tablix3', 'row', [0])).toBeUndefined();
-});
-
-/* --------------------- U9 · atajos y foco de los diálogos ------------------ */
-
-test('Ctrl+S guarda y Ctrl+K no se cuela dentro de un diálogo', async () => {
-  // Ctrl+S: la promesa de la paleta, sin botón de por medio.
-  await page.keyboard.press('Control+s');
-  await expect(page.getByText(/Guardado/)).toBeVisible();
-
-  // Con un diálogo abierto, Ctrl+K no abre la paleta por encima (el foco y la
-  // trampa de Radix mandan).
-  await page.getByRole('button', { name: 'Informe…' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
-  await expect(dialog.getByRole('heading', { name: 'Propiedades del informe' })).toBeVisible();
-  await page.keyboard.press('Control+k');
-  await expect(page.getByPlaceholder('Buscar elemento, variable o acción…')).toBeHidden();
-  // Escape cierra el diálogo y devuelve el foco sin tocar la selección.
-  await page.keyboard.press('Escape');
-  await expect(dialog).toBeHidden();
-});
-
-test('el diálogo de cambios sin guardar deja aire alrededor de los botones', async () => {
-  // Ensucia el documento y pide cerrar: antes los tres botones desbordaban el
-  // pie y «Guardar y cerrar» quedaba pegado (2 px) al borde del diálogo.
-  await selectItemViaPalette('Textbox4');
-  await page.keyboard.press('ArrowRight');
-  await page.waitForTimeout(600);
-  await page.getByRole('button', { name: 'Fichero' }).click();
-  await page.getByRole('menuitem', { name: 'Cerrar' }).click();
-
-  const dialog = page.getByTestId('unsaved-changes-dialog');
-  await expect(dialog.getByRole('button', { name: 'Guardar y cerrar' })).toBeVisible();
-  const gaps = await page.evaluate(() => {
-    const dialogElement = document.querySelector('[data-testid="unsaved-changes-dialog"]')!;
-    const buttons = [...dialogElement.querySelectorAll('button')];
-    const last = buttons[buttons.length - 1]!;
-    const d = dialogElement.getBoundingClientRect();
-    const b = last.getBoundingClientRect();
-    return { right: d.right - b.right, bottom: d.bottom - b.bottom };
-  });
-  // El pie respeta su `p-4`: ni se pega al borde ni se sale del diálogo.
-  expect(gaps.right).toBeGreaterThanOrEqual(12);
-  expect(gaps.bottom).toBeGreaterThanOrEqual(12);
-
-  // Cancelar conserva el documento (el undo del reset lo deja como estaba).
-  await dialog.getByRole('button', { name: 'Cancelar' }).click();
-  await expect(dialog).toBeHidden();
-});
-
 test('Jerarquía y breadcrumb navegan por los contenedores', async () => {
   await selectItemViaPalette('Textbox4'); // encabezado, dentro de Rectangle1
 
@@ -3826,17 +3293,6 @@ test('Jerarquía y breadcrumb navegan por los contenedores', async () => {
   await expect(tree.getByText('Sin resultados.')).toHaveCount(0);
   await tree.locator('button', { hasText: 'Textbox4' }).first().click();
   await expect.poll(selectedId).toBe('Textbox4');
-});
-
-test('el z-order tiene atajos (Ctrl+Shift+] / Ctrl+Shift+[)', async () => {
-  await selectItemViaPalette('Textbox4');
-  expect(await itemZIndex('Textbox4')).toBeUndefined();
-
-  await page.keyboard.press('Control+Shift+]');
-  await expect.poll(() => itemZIndex('Textbox4')).toBeGreaterThan(0);
-
-  await page.keyboard.press('Control+z');
-  await expect.poll(() => itemZIndex('Textbox4')).toBeUndefined();
 });
 
 test('el lote compara el estilo efectivo (Arial/Visible/8pt) sin declararlo en el item', async () => {

@@ -775,7 +775,12 @@ async function dragGrip(page: Page, dx: number, dy: number): Promise<void> {
   await stableBox(page, gripLocator); // la agarradera deja de moverse
 }
 
-/** Cambia el tamaño del área de contenido de la ventana (px CSS). */
+/**
+ * Cambia el tamaño de la ventana (borde exterior, px CSS). Con `setSize` el
+ * viewport queda algo por debajo del valor pedido; `setContentSize` da un
+ * tamaño de contenido poco fiable en la ventana e2e (sin foco y fuera de
+ * pantalla), así que el test pide "una ventana pequeña", no un cliente exacto.
+ */
 async function resizeWindow(
   app: ElectronApplication,
   width: number,
@@ -783,7 +788,7 @@ async function resizeWindow(
 ): Promise<void> {
   await app.evaluate(
     ({ BrowserWindow }, size) => {
-      BrowserWindow.getAllWindows()[0]?.setContentSize(size.width, size.height);
+      BrowserWindow.getAllWindows()[0]?.setSize(size.width, size.height);
     },
     { width, height },
   );
@@ -803,8 +808,14 @@ async function resizeWindow(
  * así que el tamaño crece el doble del delta en vez de fijar la esquina.
  * Remove `test.fail()` when fixing; the test must then pass.
  */
-test.describe('BUG-60 la agarradera no sigue al cursor al redimensionar', () => {
+test.describe('BUG-60…65 los diálogos redimensionables comparten la agarradera', () => {
   const ctx = useApp('SalesCreditMemoESP.rdlc');
+
+  // La app es compartida por todo el `describe`: cada test cierra su diálogo.
+  test.afterEach(async () => {
+    const { page } = ctx();
+    await page.keyboard.press('Escape');
+  });
 
   test('arrastrar 100 px mueve los bordes 100 px y deja el diálogo centrado', async () => {
     const { page } = ctx();
@@ -840,24 +851,20 @@ test.describe('BUG-60 la agarradera no sigue al cursor al redimensionar', () => 
       'borde inferior a 100 px del cursor',
     ).toBeLessThanOrEqual(1);
   });
-});
 
-/* -------------------------------- BUG-61 -------------------------------- */
+  /* -------------------------------- BUG-61 -------------------------------- */
 
-/**
- * BUG-61 — La agarradera se pintaba en un portal a `document.body` y su
- * posición salía de un `ResizeObserver` + `setTimeout(200)`: durante la
- * animación de entrada medía el rectángulo escalado y quedaba descolocada (una
- * vuelta de render por detrás del marco).
- * Origen: `dialog.tsx` (portal + `corner` + observer + timer).
- * Correcto: la agarradera es parte del marco y está pegada a su esquina desde
- * el primer fotograma, animación incluida.
- * Remove `test.fail()` when fixing; the test must then pass.
- */
-test.describe('BUG-61 la agarradera va retrasada respecto al diálogo', () => {
-  const ctx = useApp('SalesCreditMemoESP.rdlc');
-
-  test('es parte del diálogo y sigue su esquina durante la animación de entrada', async () => {
+  /**
+   * BUG-61 — La agarradera se pintaba en un portal a `document.body` y su
+   * posición salía de un `ResizeObserver` + `setTimeout(200)`: durante la
+   * animación de entrada medía el rectángulo escalado y quedaba descolocada (una
+   * vuelta de render por detrás del marco).
+   * Origen: `dialog.tsx` (portal + `corner` + observer + timer).
+   * Correcto: la agarradera es parte del marco y está pegada a su esquina desde
+   * el primer fotograma, animación incluida.
+   * Remove `test.fail()` when fixing; the test must then pass.
+   */
+  test('BUG-61: es parte del diálogo y sigue su esquina durante la animación de entrada', async () => {
     const { page } = ctx();
     await page.getByRole('button', { name: 'Informe…' }).click();
     const dialog = page.getByRole('dialog', { name: 'Propiedades del informe' });
@@ -880,23 +887,19 @@ test.describe('BUG-61 la agarradera va retrasada respecto al diálogo', () => {
       await page.waitForTimeout(50);
     }
   });
-});
 
-/* -------------------------------- BUG-62 -------------------------------- */
+  /* -------------------------------- BUG-62 -------------------------------- */
 
-/**
- * BUG-62 — El tamaño en píxeles se recorta solo dentro del arrastre; después
- * se queda con `maxWidth/maxHeight: none`. Al encoger la ventana el diálogo
- * sigue más grande que el viewport y sus botones quedan fuera de alcance.
- * Origen: `dialog.tsx` (`clampSize` solo en el arrastre y estilos en línea).
- * Correcto: el tamaño es una preferencia con tope de viewport (`min(px, 95vw)`
- * / `min(px, 90vh)`): al encoger se recorta y al crecer se recupera.
- * Remove `test.fail()` when fixing; the test must then pass.
- */
-test.describe('BUG-62 el tamaño no se recalcula al cambiar la ventana', () => {
-  const ctx = useApp('SalesCreditMemoESP.rdlc');
-
-  test('encoger la ventana deja el diálogo dentro del viewport y al crecer recupera el tamaño', async () => {
+  /**
+   * BUG-62 — El tamaño en píxeles se recorta solo dentro del arrastre; después
+   * se queda con `maxWidth/maxHeight: none`. Al encoger la ventana el diálogo
+   * sigue más grande que el viewport y sus botones quedan fuera de alcance.
+   * Origen: `dialog.tsx` (`clampSize` solo en el arrastre y estilos en línea).
+   * Correcto: el tamaño es una preferencia con tope de viewport (`min(px, 95vw)`
+   * / `min(px, 90vh)`): al encoger se recorta y al crecer se recupera.
+   * Remove `test.fail()` when fixing; the test must then pass.
+   */
+  test('BUG-62: encoger la ventana deja el diálogo dentro del viewport y al crecer recupera el tamaño', async () => {
     const { app, page } = ctx();
     const dialog = await openReportProperties(page);
     await dragGrip(page, 400, 60); // «demasiado grande» para 960×600
@@ -939,24 +942,20 @@ test.describe('BUG-62 el tamaño no se recalcula al cambiar la ventana', () => {
     expect(Math.abs(recovered.width - oversized.width), 'ancho recuperado').toBeLessThanOrEqual(2);
     expect(Math.abs(recovered.height - oversized.height), 'alto recuperado').toBeLessThanOrEqual(2);
   });
-});
 
-/* -------------------------------- BUG-64 -------------------------------- */
+  /* -------------------------------- BUG-64 -------------------------------- */
 
-/**
- * BUG-64 — En «Propiedades del informe» el contenido entero (cabecera y pie
- * incluidos) es el contenedor de scroll (`max-h-[85vh] overflow-y-auto`): al
- * encoger el diálogo, «Aplicar» queda por debajo del pliegue.
- * Origen: `ReportPropertiesDialog.tsx` + `ReportPropertiesForm.tsx` (el
- * `DialogFooter` va al final del formulario, dentro del scroll).
- * Correcto: marco en columna con el cuerpo con scroll propio y el pie fijo
- * (como TextEditorDialog, GroupPropertiesDialog y TablixFiltersDialog).
- * Remove `test.fail()` when fixing; the test must then pass.
- */
-test.describe('BUG-64 el pie del diálogo se va con el scroll', () => {
-  const ctx = useApp('SalesCreditMemoESP.rdlc');
-
-  test('con el diálogo al mínimo, el título y «Aplicar» siguen a la vista', async () => {
+  /**
+   * BUG-64 — En «Propiedades del informe» el contenido entero (cabecera y pie
+   * incluidos) es el contenedor de scroll (`max-h-[85vh] overflow-y-auto`): al
+   * encoger el diálogo, «Aplicar» queda por debajo del pliegue.
+   * Origen: `ReportPropertiesDialog.tsx` + `ReportPropertiesForm.tsx` (el
+   * `DialogFooter` va al final del formulario, dentro del scroll).
+   * Correcto: marco en columna con el cuerpo con scroll propio y el pie fijo
+   * (como TextEditorDialog, GroupPropertiesDialog y TablixFiltersDialog).
+   * Remove `test.fail()` when fixing; the test must then pass.
+   */
+  test('BUG-64: con el diálogo al mínimo, el título y «Aplicar» siguen a la vista', async () => {
     const { page } = ctx();
     const dialog = await openReportProperties(page);
     await dragGrip(page, 0, -700); // hasta el alto mínimo (220 px)
@@ -982,23 +981,19 @@ test.describe('BUG-64 el pie del diálogo se va con el scroll', () => {
       viewport.height + 1,
     );
   });
-});
 
-/* -------------------------------- BUG-65 -------------------------------- */
+  /* -------------------------------- BUG-65 -------------------------------- */
 
-/**
- * BUG-65 — El tamaño elegido sobrevive al cierre: `size` es estado de
- * `DialogContent`, que el padre mantiene montado (Radix desmonta solo su
- * contenido), así que al reabrir el diálogo aparece con el tamaño anterior.
- * Origen: `dialog.tsx` (`useState` de `size` sin reinicio).
- * Correcto: al cerrar se vuelve al tamaño original (reiniciar es el defecto
- * seguro elegido por el documento).
- * Remove `test.fail()` when fixing; the test must then pass.
- */
-test.describe('BUG-65 el tamaño sobrevive al cerrar y reabrir', () => {
-  const ctx = useApp('SalesCreditMemoESP.rdlc');
-
-  test('cerrar y reabrir devuelve el diálogo a su tamaño original', async () => {
+  /**
+   * BUG-65 — El tamaño elegido sobrevive al cierre: `size` es estado de
+   * `DialogContent`, que el padre mantiene montado (Radix desmonta solo su
+   * contenido), así que al reabrir el diálogo aparece con el tamaño anterior.
+   * Origen: `dialog.tsx` (`useState` de `size` sin reinicio).
+   * Correcto: al cerrar se vuelve al tamaño original (reiniciar es el defecto
+   * seguro elegido por el documento).
+   * Remove `test.fail()` when fixing; the test must then pass.
+   */
+  test('BUG-65: cerrar y reabrir devuelve el diálogo a su tamaño original', async () => {
     const { page } = ctx();
     const dialog = await openReportProperties(page);
     const original = await stableBox(page, dialog);
@@ -1015,49 +1010,50 @@ test.describe('BUG-65 el tamaño sobrevive al cerrar y reabrir', () => {
     expect(Math.abs(after.width - original.width), 'ancho original').toBeLessThanOrEqual(2);
     expect(Math.abs(after.height - original.height), 'alto original').toBeLessThanOrEqual(2);
   });
-});
 
-/* -------------------------------- BUG-63 -------------------------------- */
+  /* -------------------------------- BUG-63 -------------------------------- */
 
-/** Ejecuta una acción de la paleta (Ctrl+K) por su texto. */
-async function runPaletteAction(page: Page, query: string, name: RegExp): Promise<void> {
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
-  await page.keyboard.press('Control+k');
-  await page.getByPlaceholder('Buscar elemento, variable o acción…').fill(query);
-  await page.waitForTimeout(250);
-  await page.getByRole('option', { name }).click();
-}
+  /** Ejecuta una acción de la paleta (Ctrl+K) por su texto. */
+  async function runPaletteAction(page: Page, query: string, name: RegExp): Promise<void> {
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+    await page.keyboard.press('Control+k');
+    await page.getByPlaceholder('Buscar elemento, variable o acción…').fill(query);
+    await page.waitForTimeout(250);
+    await page.getByRole('option', { name }).click();
+  }
 
-/**
- * Arrastra la agarradera de un diálogo concreto (no la primera del DOM): con
- * diálogos anidados (una expresión dentro de propiedades) hay más de una.
- */
-async function dragDialogGrip(page: Page, dialog: Locator, dx: number, dy: number): Promise<void> {
-  const grip = dialog.locator('[data-rdlc-dialog-grip]');
-  await expect(grip).toBeVisible();
-  const gripBox = await boxOf(grip);
-  const x = gripBox.x + gripBox.width / 2;
-  const y = gripBox.y + gripBox.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x + dx, y + dy, { steps: 10 });
-  await page.mouse.up();
-  await stableBox(page, dialog); // la agarradera deja de moverse
-}
+  /**
+   * Arrastra la agarradera de un diálogo concreto (no la primera del DOM): con
+   * diálogos anidados (una expresión dentro de propiedades) hay más de una.
+   */
+  async function dragDialogGrip(
+    page: Page,
+    dialog: Locator,
+    dx: number,
+    dy: number,
+  ): Promise<void> {
+    const grip = dialog.locator('[data-rdlc-dialog-grip]');
+    await expect(grip).toBeVisible();
+    const gripBox = await boxOf(grip);
+    const x = gripBox.x + gripBox.width / 2;
+    const y = gripBox.y + gripBox.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + dx, y + dy, { steps: 10 });
+    await page.mouse.up();
+    await stableBox(page, dialog); // la agarradera deja de moverse
+  }
 
-/**
- * BUG-63 — La agarradera (con su marco de mínimo 320×220, máximo el viewport,
- * doble clic para volver al tamaño original y cabecera/pie fijos con el scroll
- * solo en el cuerpo) existía únicamente en «Propiedades del informe»; cada
- * diálogo tenía topes distintos y `ExpressionDialog` no tenía scroll interno.
- * Correcto: el editor de texto, el diálogo de expresión, las propiedades del
- * grupo y los filtros del Tablix comparten `ResizableDialogContent` +
- * `DialogBody`; las guardas (cambios sin guardar) siguen fijas y sin agarradera.
- */
-test.describe('BUG-63 el marco redimensionable es el mismo en todos los diálogos', () => {
-  const ctx = useApp('SalesCreditMemoESP.rdlc');
-
-  test('el editor de texto se arrastra 1:1 y con el alto mínimo título y acciones siguen a la vista', async () => {
+  /**
+   * BUG-63 — La agarradera (con su marco de mínimo 320×220, máximo el viewport,
+   * doble clic para volver al tamaño original y cabecera/pie fijos con el scroll
+   * solo en el cuerpo) existía únicamente en «Propiedades del informe»; cada
+   * diálogo tenía topes distintos y `ExpressionDialog` no tenía scroll interno.
+   * Correcto: el editor de texto, el diálogo de expresión, las propiedades del
+   * grupo y los filtros del Tablix comparten `ResizableDialogContent` +
+   * `DialogBody`; las guardas (cambios sin guardar) siguen fijas y sin agarradera.
+   */
+  test('BUG-63: el editor de texto se arrastra 1:1 y con el alto mínimo título y acciones siguen a la vista', async () => {
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox128');
     await runPaletteAction(page, 'Editar el texto', /Editar el texto/);
@@ -1116,7 +1112,7 @@ test.describe('BUG-63 el marco redimensionable es el mismo en todos los diálogo
     await expect(dialog).toBeHidden();
   });
 
-  test('el diálogo de expresión se arrastra 1:1 y con el alto mínimo título y acciones siguen a la vista', async () => {
+  test('BUG-63: el diálogo de expresión se arrastra 1:1 y con el alto mínimo título y acciones siguen a la vista', async () => {
     const { page } = ctx();
     await selectItemViaPalette(page, 'Textbox4');
     await page.getByRole('button', { name: 'Abrir editor de la expresión de visibilidad' }).click();
@@ -1176,7 +1172,7 @@ test.describe('BUG-63 el marco redimensionable es el mismo en todos los diálogo
     await expect(dialog).toBeHidden();
   });
 
-  test('propiedades del grupo y filtros del Tablix comparten la agarradera', async () => {
+  test('BUG-63: propiedades del grupo y filtros del Tablix comparten la agarradera', async () => {
     const { page } = ctx();
     await selectItemViaPalette(page, 'Tablix7');
 
@@ -1218,7 +1214,7 @@ test.describe('BUG-63 el marco redimensionable es el mismo en todos los diálogo
     await expect(filters).toBeHidden();
   });
 
-  test('la guarda de cambios sin guardar sigue fija, sin agarradera', async () => {
+  test('BUG-63: la guarda de cambios sin guardar sigue fija, sin agarradera', async () => {
     const { app, page } = ctx();
     // Un cambio real hace que cerrar la ventana pida confirmación.
     const before = (await projection(page))!.page.body.items.length;

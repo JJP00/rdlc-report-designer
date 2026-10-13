@@ -17,7 +17,9 @@ import { fileURLToPath } from 'node:url';
  * (BUG-53) y re-adopción de la sesión viva tras recargar la interfaz (BUG-51).
  *
  * Cada `describe` lanza su **propia** instancia sobre una copia temporal de la
- * fixture: los tests no comparten estado y pueden mutar el fichero.
+ * fixture y agrupa los tests que comparten interacción (edición de la sesión /
+ * cambios externos del fichero); cada test deja la sesión limpia para el
+ * siguiente.
  */
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -125,10 +127,10 @@ async function conflictVisible(page: Page): Promise<boolean> {
 
 /* ------------------------------- BUG-59 --------------------------------- */
 
-test.describe('BUG-59 el título de la ventana', () => {
+test.describe('BUG-59/58/51 la sesión y sus cambios sin guardar', () => {
   const ctx = useApp('PalletOutput.rdlc');
 
-  test('muestra el informe y el * de cambios sin guardar', async () => {
+  test('BUG-59: el título muestra el informe y el * de cambios sin guardar', async () => {
     const { page, file } = ctx();
     const original = readFileSync(file);
     await expect.poll(() => page.title(), { message: 'título tras abrir' }).toBe(TITLE);
@@ -143,15 +145,10 @@ test.describe('BUG-59 el título de la ventana', () => {
     await expect.poll(() => page.title(), { message: 'título tras guardar' }).toBe(TITLE);
     expect(readFileSync(file).equals(original), 'el guardado debe escribir el textbox').toBe(false);
   });
-});
 
-/* ------------------------------- BUG-58 --------------------------------- */
-
-test.describe('BUG-58 los comandos rutinarios no ensucian el pie', () => {
-  const ctx = useApp('PalletOutput.rdlc');
-
-  test('insertar un textbox no deja insertItem/Comando/aplicado en el pie', async () => {
+  test('BUG-58: insertar un textbox no deja insertItem/Comando/aplicado en el pie', async () => {
     const { page } = ctx();
+    const before = await itemCount(page);
     await insertTextbox(page);
     // El pie ya no recibe un mensaje por el comando; se le da un instante por si
     // una regresión lo escribiera algo más tarde que la proyección.
@@ -161,67 +158,14 @@ test.describe('BUG-58 los comandos rutinarios no ensucian el pie', () => {
     expect(footer).not.toContain('insertItem');
     expect(footer).not.toContain('Comando');
     expect(footer).not.toContain('aplicado');
+
+    // Limpieza: el siguiente test de este `describe` parte de la sesión limpia.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+    await page.keyboard.press('Control+z');
+    await expect.poll(() => itemCount(page)).toBe(before);
   });
-});
 
-/* ------------------------------- BUG-55 --------------------------------- */
-
-test.describe('BUG-55 el fichero desaparecido de disco', () => {
-  const ctx = useApp('PalletOutput.rdlc');
-
-  test('avisa en ámbar y retira el aviso cuando el fichero vuelve', async () => {
-    const { page, file } = ctx();
-    const original = readFileSync(file);
-
-    unlinkSync(file);
-    const banner = page.getByTestId('file-missing-banner');
-    await expect(banner, 'el borrado externo debe avisarse').toBeVisible({ timeout: 15_000 });
-    await expect(banner).toContainText('ya no existe en disco');
-    expect(await conflictVisible(page), 'un borrado no es un conflicto').toBe(false);
-
-    // El fichero vuelve (la misma copia): el aviso desaparece solo.
-    writeFileSync(file, original);
-    await expect(banner, 'el aviso debe retirarse al volver el fichero').toBeHidden({
-      timeout: 15_000,
-    });
-    expect(await conflictVisible(page), 'seguir sin conflicto tras volver').toBe(false);
-  });
-});
-
-/* ------------------------------- BUG-53 --------------------------------- */
-
-test.describe('BUG-53 cambio externo ilegible con la sesión limpia', () => {
-  const ctx = useApp('PalletOutput.rdlc');
-
-  test('avisa en suave, sin conflicto, y se recupera con un XML válido', async () => {
-    const { page, file } = ctx();
-    const original = readFileSync(file);
-    const versionBefore = await projectionVersion(page);
-
-    // XML a medias: no se pudo recargar, pero la sesión sigue intacta.
-    writeFileSync(file, 'esto no es XML <Report', 'utf8');
-    await expect.poll(() => statusText(page), { timeout: 15_000 }).toContain('no se pudo leer');
-    expect(await conflictVisible(page), 'un fichero ilegible no es un conflicto').toBe(false);
-
-    // Vuelve un XML válido: se recarga solo (la versión avanza) y sigue sin
-    // conflicto.
-    writeFileSync(file, original);
-    await expect
-      .poll(() => statusText(page), { timeout: 15_000 })
-      .toContain('Recargado desde disco');
-    await expect
-      .poll(() => projectionVersion(page), { message: 'la recarga externa avanza la versión' })
-      .toBeGreaterThan(versionBefore);
-    expect(await conflictVisible(page), 'sin conflicto tras recuperarse').toBe(false);
-  });
-});
-
-/* ------------------------------- BUG-51 --------------------------------- */
-
-test.describe('BUG-51 recargar la interfaz re-adopta la sesión viva', () => {
-  const ctx = useApp('PalletOutput.rdlc');
-
-  test('conserva el documento sucio, su versión y el título tras page.reload()', async () => {
+  test('BUG-51: recargar la interfaz re-adopta la sesión viva', async () => {
     const { page } = ctx();
     const before = await itemCount(page);
     await insertTextbox(page);
@@ -243,5 +187,51 @@ test.describe('BUG-51 recargar la interfaz re-adopta la sesión viva', () => {
     // Deja la sesión limpia para que el cierre de afterAll no pregunte.
     await page.keyboard.press('Control+s');
     await expect.poll(() => page.title()).toBe(TITLE);
+  });
+});
+
+/* ---------------------------- cambios externos --------------------------- */
+
+test.describe('BUG-55/53 el fichero cambia por fuera', () => {
+  const ctx = useApp('PalletOutput.rdlc');
+
+  test('BUG-55: el fichero desaparecido avisa en ámbar y retira el aviso al volver', async () => {
+    const { page, file } = ctx();
+    const original = readFileSync(file);
+
+    unlinkSync(file);
+    const banner = page.getByTestId('file-missing-banner');
+    await expect(banner, 'el borrado externo debe avisarse').toBeVisible({ timeout: 15_000 });
+    await expect(banner).toContainText('ya no existe en disco');
+    expect(await conflictVisible(page), 'un borrado no es un conflicto').toBe(false);
+
+    // El fichero vuelve (la misma copia): el aviso desaparece solo.
+    writeFileSync(file, original);
+    await expect(banner, 'el aviso debe retirarse al volver el fichero').toBeHidden({
+      timeout: 15_000,
+    });
+    expect(await conflictVisible(page), 'seguir sin conflicto tras volver').toBe(false);
+  });
+
+  test('BUG-53: un cambio externo ilegible avisa en suave, sin conflicto, y se recupera', async () => {
+    const { page, file } = ctx();
+    const original = readFileSync(file);
+    const versionBefore = await projectionVersion(page);
+
+    // XML a medias: no se pudo recargar, pero la sesión sigue intacta.
+    writeFileSync(file, 'esto no es XML <Report', 'utf8');
+    await expect.poll(() => statusText(page), { timeout: 15_000 }).toContain('no se pudo leer');
+    expect(await conflictVisible(page), 'un fichero ilegible no es un conflicto').toBe(false);
+
+    // Vuelve un XML válido: se recarga solo (la versión avanza) y sigue sin
+    // conflicto.
+    writeFileSync(file, original);
+    await expect
+      .poll(() => statusText(page), { timeout: 15_000 })
+      .toContain('Recargado desde disco');
+    await expect
+      .poll(() => projectionVersion(page), { message: 'la recarga externa avanza la versión' })
+      .toBeGreaterThan(versionBefore);
+    expect(await conflictVisible(page), 'sin conflicto tras recuperarse').toBe(false);
   });
 });
