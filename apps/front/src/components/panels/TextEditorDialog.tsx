@@ -16,11 +16,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogContent,
+  DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ResizableDialogContent,
 } from '@/components/ui/dialog';
 import { useAvailableFonts } from '@/hooks/useAvailableFonts';
 import {
@@ -56,6 +57,9 @@ export interface TextEditorDialogProps {
  * línea y las expresiones entre marcadores `⟨=…⟩`) y, debajo, el bloque del
  * párrafo en el que está el cursor (runs con su formato). El borrador se monta
  * **al abrir** y se aplica de una vez (`setParagraphs`, un solo undo).
+ *
+ * El marco es el estándar redimensionable (BUG-63): `ResizableDialogContent` +
+ * `DialogBody`, con la cabecera y el pie fijos y el scroll en el cuerpo.
  */
 export function TextEditorDialog({
   item,
@@ -64,10 +68,7 @@ export function TextEditorDialog({
 }: TextEditorDialogProps): ReactNode {
   return (
     <Dialog open={item !== undefined} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="flex max-h-[85vh] w-full max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
-        resizable
-      >
+      <ResizableDialogContent className="max-h-[90vh] w-full max-w-4xl gap-0 p-0 sm:max-w-4xl">
         {item ? (
           <TextEditorBody
             key={item.id}
@@ -79,7 +80,7 @@ export function TextEditorDialog({
             }}
           />
         ) : null}
-      </DialogContent>
+      </ResizableDialogContent>
     </Dialog>
   );
 }
@@ -158,7 +159,7 @@ function TextEditorBody({
 
   return (
     <>
-      <DialogHeader className="border-b px-4 py-3 pr-12">
+      <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12">
         <div className="flex items-center justify-between gap-3">
           <DialogTitle>Texto de {item.id}</DialogTitle>
           <Badge variant="outline">
@@ -180,8 +181,8 @@ function TextEditorBody({
         ))}
       </datalist>
 
-      <div
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+      <DialogBody
+        className="flex flex-col gap-3 p-4"
         onKeyDown={(event) => {
           // Ctrl+Intro = Aplicar, como en el diálogo de expresiones (el textarea
           // necesita Enter para párrafos). Dentro de un editor Monaco manda su
@@ -337,7 +338,7 @@ function TextEditorBody({
         <Button variant="outline" size="xs" className="self-start" onClick={addParagraph}>
           <Plus /> Añadir párrafo
         </Button>
-      </div>
+      </DialogBody>
 
       <DialogFooter className="mx-0 mb-0 shrink-0 border-t bg-transparent p-4">
         <Button variant="ghost" onClick={onCancel}>

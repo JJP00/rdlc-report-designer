@@ -1,5 +1,27 @@
 # RDLC Report Designer — Puntos pendientes (gaps del plan)
 
+> **Diálogos redimensionables y formato numérico · 2026-10-13** — solo documentación, sin
+> código ni app ejecutada (revisión estática del código y del corpus de `.rdlc`).
+>
+> - **Bugs de los diálogos** (`docs/bugs/0003-dialogos-redimensionado-2026-10-13.md`,
+>   BUG-60…65, todos abiertos y sin test): la esquina de arrastre se aleja del cursor
+>   porque el diálogo está centrado con `translate` (BUG-60, P1); el tamaño en px solo se
+>   acota al arrastrar y una ventana más pequeña lo deja fuera de pantalla (BUG-62, P1);
+>   «Informe…» desplaza su pie al hacer scroll y desaparecen Guardar/Cancelar (BUG-64, P1);
+>   la agarradera va en un portal y se retrasa (BUG-61); solo «Informe…» es redimensionable
+>   (BUG-63); el tamaño quizá sobrevive al cerrar (BUG-65, por verificar). Causas
+>   **hipótesis**; falta reproducir con la app. Pregunta abierta: ¿salta al arrastrar o se
+>   sale de pantalla al achicar la ventana?
+> - **Formato numérico/fecha** (`docs/features/0003-formato-numerico.md`, propuesto):
+>   el contrato y `setStyle` ya aceptan `format`, pero el front no lo muestra ni edita.
+>   Hallazgos del corpus: casi todos los `<Format>` son **expresiones** (`=Fields!…Format…`,
+>   que BC entrega como campo) y viven en el `<Style>` del **run**, donde `setStyle` no los
+>   replica (`Format` no está en `RUN_TEXT_TAGS`): un valor escrito en el item quedaría
+>   sombreado. Diseño: campo con presets + expresión en `TextPanel`/`RunEditor`, escritura
+>   a nivel de run, sin formatear en el lienzo. Tamaño S–M.
+> - **Orden sugerido**: BUG-60/62/64 en el componente común (un commit con E2E) → BUG-61/63
+>   → formato numérico (el campo cabe en el editor de texto, uno de los diálogos afectados).
+
 > **Re-auditoría Intent del front · 2026-10-09** — `/evaluate`, `/include`, `/organize` +
 > `/articulate` y `/fortify` + `/transpose` sobre el árbol de trabajo con las correcciones
 > del otro agente (aún sin commitear; suite E2E 118/118 sobre un build recompilado).

@@ -9,6 +9,7 @@ import { useDeferredColor } from '@/hooks/useDeferredColor';
 import { isExpressionRun } from '@/lib/textEditor';
 import { toPt } from '@/lib/style';
 import { ExpressionEditor } from './ExpressionEditor';
+import { FormatField } from './FormatField';
 
 export interface RunEditorProps {
   /** Posición 1-based para la etiqueta. */
@@ -221,6 +222,15 @@ export function RunEditor({
           fallback="#ffffff"
           highlight
           onChange={(backgroundColor) => onStyle({ backgroundColor })}
+        />
+
+        {/* Formato (`<Format>`) del run; vacío = heredar del párrafo/item. */}
+        <FormatField
+          className="min-w-[13.5rem] flex-1"
+          value={style?.format}
+          onChange={(format) => onStyle({ format })}
+          ariaLabel={`Formato del run ${position}`}
+          placeholder="(heredado)"
         />
       </div>
     </div>

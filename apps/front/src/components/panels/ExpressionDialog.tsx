@@ -2,11 +2,12 @@ import { useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogContent,
+  DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ResizableDialogContent,
 } from '@/components/ui/dialog';
 import { ExpressionEditor } from './ExpressionEditor';
 
@@ -23,7 +24,9 @@ export interface ExpressionDialogProps {
 /**
  * Diálogo para editar una expresión RDL con Monaco **con números de línea y
  * todo** (plegado, scroll, autocompletado): lo que en el panel va inline aquí se
- * edita cómodo. Se monta al abrir, así el borrador nace del valor actual.
+ * edita cómodo. Se monta al abrir, así el borrador nace del valor actual. Marco
+ * redimensionable estándar (BUG-63): cabecera y pie fijos, scroll en el cuerpo
+ * para que Monaco tenga sitio.
  */
 export function ExpressionDialog({
   title,
@@ -42,32 +45,31 @@ export function ExpressionDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent
-        className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-3 sm:max-w-2xl"
-        resizable
-      >
-        <DialogHeader>
+      <ResizableDialogContent className="max-h-[90vh] max-w-2xl sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             Expresión RDL con resaltado y autocompletado. Ctrl+Intro o «Aplicar» para confirmar.
           </DialogDescription>
         </DialogHeader>
-        <ExpressionEditor
-          value={value}
-          mode="code"
-          ariaLabel={`Editor de ${title}`}
-          onSubmit={(value) => onApply(value)}
-          onCommit={(next) => {
-            draftRef.current = next;
-          }}
-        />
-        <DialogFooter>
+        <DialogBody className="pr-1">
+          <ExpressionEditor
+            value={value}
+            mode="code"
+            ariaLabel={`Editor de ${title}`}
+            onSubmit={(value) => onApply(value)}
+            onCommit={(next) => {
+              draftRef.current = next;
+            }}
+          />
+        </DialogBody>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
           <Button onClick={() => onApply(draftRef.current)}>Aplicar</Button>
         </DialogFooter>
-      </DialogContent>
+      </ResizableDialogContent>
     </Dialog>
   );
 }

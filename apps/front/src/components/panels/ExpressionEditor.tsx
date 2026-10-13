@@ -21,6 +21,11 @@ export interface ExpressionEditorProps {
   ariaLabel: string;
   /** Alto en px (por defecto: 2 líneas en expresión, 380 en código). */
   height?: number;
+  /**
+   * Pone el foco en cuanto Monaco termina de cargar. Se lee **al montar**: úsalo
+   * solo cuando el montaje responde a una acción del usuario (cambio de modo).
+   */
+  autoFocus?: boolean;
 }
 
 /**
@@ -38,9 +43,12 @@ export function ExpressionEditor({
   onSubmit,
   ariaLabel,
   height,
+  autoFocus = false,
 }: ExpressionEditorProps): ReactNode {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<ExpressionEditorHandles | null>(null);
+  // Se captura al montar: el foco es de la acción que provocó el montaje.
+  const autoFocusRef = useRef(autoFocus);
   const commitRef = useRef(onCommit);
   const submitRef = useRef(onSubmit);
 
@@ -54,6 +62,7 @@ export function ExpressionEditor({
     if (!container) return;
 
     let cancelled = false;
+    let disposed = false;
     let handles: ExpressionEditorHandles | null = null;
     void (async () => {
       const host = await import('@/lib/monacoSetup');
@@ -64,10 +73,12 @@ export function ExpressionEditor({
         { value, mode, ariaLabel },
         {
           onCommit: () => {
+            if (disposed) return;
             const current = handles?.getValue();
             if (current !== undefined) commitRef.current(current);
           },
           onSubmit: () => {
+            if (disposed) return;
             // Primero el commit (los borradores quedan al día) y después el
             // envío, con el valor recién leído del editor.
             const current = handles?.getValue();
@@ -76,15 +87,18 @@ export function ExpressionEditor({
             submitRef.current?.(current);
           },
           onFocus: () => {
+            if (disposed) return;
             setExpressionInserter((expression) => handles?.insertAtCursor(expression));
           },
         },
       );
       editorRef.current = handles;
+      if (autoFocusRef.current) handles.focus();
     })();
 
     return () => {
       cancelled = true;
+      disposed = true;
       setExpressionInserter(null);
       editorRef.current = null;
       handles?.dispose();

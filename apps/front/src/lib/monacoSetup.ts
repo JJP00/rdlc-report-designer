@@ -225,6 +225,8 @@ export interface ExpressionEditorHandles {
   updateValue(value: string): void;
   hasTextFocus(): boolean;
   insertAtCursor(text: string): void;
+  /** Pone el foco en el editor (transición desde un campo literal). */
+  focus(): void;
   dispose(): void;
 }
 
@@ -308,6 +310,7 @@ export function createExpressionEditor(
     },
     hasTextFocus: () => editor.hasTextFocus(),
     insertAtCursor: (expression: string) => insertAtCursor(editor, expression),
+    focus: () => editor.focus(),
     dispose: () => {
       blurSubscription.dispose();
       editor.dispose();

@@ -4,11 +4,12 @@ import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogContent,
+  DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ResizableDialogContent,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,7 +35,8 @@ import { ExpressionDialog } from './ExpressionDialog';
  * **Visibilidad** (mostrar/ocultar + expresión, y `ToggleItem`).
  *
  * El formulario se monta al abrir y «Aplicar» manda **solo las secciones que
- * cambiaron** (cada una es un paso de undo).
+ * cambiaron** (cada una es un paso de undo). Marco redimensionable estándar
+ * (BUG-63): cabecera y pie fijos, scroll en `DialogBody`.
  */
 export interface GroupPropertiesDialogProps {
   tablixId: string;
@@ -73,9 +75,8 @@ export function GroupPropertiesDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 overflow-hidden sm:max-w-3xl"
-        resizable
+      <ResizableDialogContent
+        className="max-h-[90vh] max-w-3xl sm:max-w-3xl"
         onKeyDown={(event) => {
           // Ctrl+Intro = Aplicar (teclado completo en el diálogo).
           if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && valid) {
@@ -84,7 +85,7 @@ export function GroupPropertiesDialog({
           }
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Propiedades del grupo{member.name ? ` · ${member.name}` : ''}</DialogTitle>
           <DialogDescription>
             Expresiones, saltos de página, ordenación y visibilidad del grupo. «Aplicar» envía solo
@@ -99,7 +100,7 @@ export function GroupPropertiesDialog({
             <TabsTrigger value="sorting">Ordenación</TabsTrigger>
             <TabsTrigger value="visibility">Visibilidad</TabsTrigger>
           </TabsList>
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <DialogBody className="pr-1">
             <TabsContent value="general">
               <GeneralTab member={member} variables={variables} draft={draft} setDraft={setDraft} />
             </TabsContent>
@@ -112,10 +113,10 @@ export function GroupPropertiesDialog({
             <TabsContent value="visibility">
               <VisibilityTab draft={draft} setDraft={setDraft} itemNames={itemNames} />
             </TabsContent>
-          </div>
+          </DialogBody>
         </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
@@ -123,7 +124,7 @@ export function GroupPropertiesDialog({
             Aplicar
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </ResizableDialogContent>
     </Dialog>
   );
 }

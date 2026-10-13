@@ -4,11 +4,12 @@ import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogContent,
+  DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ResizableDialogContent,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +19,8 @@ import { Textarea } from '@/components/ui/textarea';
  * Filtros del Tablix (`Filters > Filter`, G10). Cada filtro es una expresión,
  * un operador y una lista de valores (**uno por línea**, así una expresión con
  * comas no se parte). «Aplicar» reemplaza el bloque entero: un paso de undo.
+ * Marco redimensionable estándar (BUG-63): cabecera y pie fijos, scroll en el
+ * cuerpo.
  */
 
 const OPERATORS: { value: TablixFilterOperator; label: string }[] = [
@@ -96,9 +99,8 @@ export function TablixFiltersDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent
-        className="flex max-h-[85vh] w-full max-w-2xl flex-col gap-3 overflow-hidden sm:max-w-2xl"
-        resizable
+      <ResizableDialogContent
+        className="max-h-[90vh] max-w-2xl sm:max-w-2xl"
         onKeyDown={(event) => {
           // Ctrl+Intro = Aplicar (teclado completo en el diálogo).
           if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && valid) {
@@ -107,7 +109,7 @@ export function TablixFiltersDialog({
           }
         }}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>Filtros del Tablix</DialogTitle>
           <DialogDescription>
             Se evalúan por fila del dataset antes de agrupar. Los valores van uno por línea (permite
@@ -115,7 +117,7 @@ export function TablixFiltersDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+        <DialogBody className="flex flex-col gap-3 pr-1">
           {drafts.length === 0 ? (
             <p className="text-xs text-muted-foreground">Sin filtros.</p>
           ) : null}
@@ -167,9 +169,9 @@ export function TablixFiltersDialog({
               />
             </div>
           ))}
-        </div>
+        </DialogBody>
 
-        <DialogFooter className="sm:justify-between">
+        <DialogFooter className="shrink-0 sm:justify-between">
           <Button
             variant="outline"
             onClick={() =>
@@ -195,7 +197,7 @@ export function TablixFiltersDialog({
             </Button>
           </div>
         </DialogFooter>
-      </DialogContent>
+      </ResizableDialogContent>
     </Dialog>
   );
 }

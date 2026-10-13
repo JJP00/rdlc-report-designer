@@ -3,7 +3,7 @@ import { Plus, RectangleHorizontal, RectangleVertical, Trash2 } from 'lucide-rea
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { DialogFooter } from '@/components/ui/dialog';
+import { DialogBody, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { NumberInput } from '@/components/ui/number-input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -267,198 +267,206 @@ export function ReportPropertiesForm({
     if (applyRequest > 0) applyPageRef.current();
   }, [applyRequest]);
 
-  return (
-    <Tabs
-      value={activeTab}
-      onValueChange={changeTab}
-      className={variant === 'panel' ? 'gap-3 p-3' : undefined}
-    >
-      <TabsList>
-        <TabsTrigger value="page">Configurar página</TabsTrigger>
-        <TabsTrigger value="code">Código</TabsTrigger>
-      </TabsList>
-
-      <TabsContent
-        value="page"
-        className="flex flex-col gap-4 pt-2"
-        onKeyDown={(event) => {
-          // Ctrl+Intro = Aplicar la página (teclado completo en el diálogo).
-          // Diferido: el campo enfocado confirma su borrador en este mismo
-          // keydown; aplicar en el acto mandaría el valor viejo (BUG-34).
-          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-            event.preventDefault();
-            setApplyRequest((request) => request + 1);
-          }
+  /** Botón «Aplicar» de la pestaña activa: el pie del diálogo es común. */
+  const applyButton =
+    activeTab === 'code' ? (
+      <Button
+        title="Aplicar (Ctrl+Intro)"
+        onClick={() => {
+          onSetReportCode(code);
         }}
       >
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs text-muted-foreground">Papel</Label>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="grid w-44 gap-1">
-              <Label htmlFor={`${uid}-paper-size`} className="text-[11px] text-muted-foreground">
-                Tamaño
-              </Label>
-              <select
-                id={`${uid}-paper-size`}
-                className="h-8 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
-                aria-label="Tamaño de papel"
-                value={selectedPaper}
-                onChange={(event) => selectPaper(event.target.value)}
-              >
-                {PAPER_PRESETS.map((preset) => (
-                  <option key={preset.name} value={preset.name}>
-                    {preset.name}
-                  </option>
-                ))}
-                <option value="custom">Custom</option>
-              </select>
-            </div>
+        Aplicar
+      </Button>
+    ) : (
+      <Button onClick={applyPage}>Aplicar</Button>
+    );
 
-            <div className="grid gap-1">
-              <span className="text-[11px] text-muted-foreground">Orientación</span>
-              <div
-                role="radiogroup"
-                aria-label="Orientación del papel"
-                className="flex h-8 items-center gap-3"
-              >
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs">
-                  <input
-                    type="radio"
-                    name={orientationName}
-                    className="accent-primary"
-                    checked={!landscape}
-                    onChange={() => setOrientation(false)}
-                    aria-label="Vertical"
-                  />
-                  <RectangleVertical className="size-4 text-muted-foreground" />
-                  Vertical
-                </label>
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs">
-                  <input
-                    type="radio"
-                    name={orientationName}
-                    className="accent-primary"
-                    checked={landscape}
-                    onChange={() => setOrientation(true)}
-                    aria-label="Horizontal"
-                  />
-                  <RectangleHorizontal className="size-4 text-muted-foreground" />
-                  Horizontal
-                </label>
-              </div>
+  const pageTab = (
+    <TabsContent
+      value="page"
+      className="flex flex-col gap-4 pt-2"
+      onKeyDown={(event) => {
+        // Ctrl+Intro = Aplicar la página (teclado completo en el diálogo).
+        // Diferido: el campo enfocado confirma su borrador en este mismo
+        // keydown; aplicar en el acto mandaría el valor viejo (BUG-34).
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault();
+          setApplyRequest((request) => request + 1);
+        }
+      }}
+    >
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs text-muted-foreground">Papel</Label>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="grid w-44 gap-1">
+            <Label htmlFor={`${uid}-paper-size`} className="text-[11px] text-muted-foreground">
+              Tamaño
+            </Label>
+            <select
+              id={`${uid}-paper-size`}
+              className="h-8 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
+              aria-label="Tamaño de papel"
+              value={selectedPaper}
+              onChange={(event) => selectPaper(event.target.value)}
+            >
+              {PAPER_PRESETS.map((preset) => (
+                <option key={preset.name} value={preset.name}>
+                  {preset.name}
+                </option>
+              ))}
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+
+          <div className="grid gap-1">
+            <span className="text-[11px] text-muted-foreground">Orientación</span>
+            <div
+              role="radiogroup"
+              aria-label="Orientación del papel"
+              className="flex h-8 items-center gap-3"
+            >
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+                <input
+                  type="radio"
+                  name={orientationName}
+                  className="accent-primary"
+                  checked={!landscape}
+                  onChange={() => setOrientation(false)}
+                  aria-label="Vertical"
+                />
+                <RectangleVertical className="size-4 text-muted-foreground" />
+                Vertical
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+                <input
+                  type="radio"
+                  name={orientationName}
+                  className="accent-primary"
+                  checked={landscape}
+                  onChange={() => setOrientation(true)}
+                  aria-label="Horizontal"
+                />
+                <RectangleHorizontal className="size-4 text-muted-foreground" />
+                Horizontal
+              </label>
             </div>
           </div>
         </div>
+      </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <NumberField label="Ancho (cm)" value={width} onChange={setWidth} axis="x" />
+        <NumberField label="Alto (cm)" value={height} onChange={setHeight} axis="y" />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs text-muted-foreground">Márgenes (cm)</Label>
         <div className="grid grid-cols-2 gap-3">
-          <NumberField label="Ancho (cm)" value={width} onChange={setWidth} axis="x" />
-          <NumberField label="Alto (cm)" value={height} onChange={setHeight} axis="y" />
+          <NumberField
+            label="Superior"
+            value={margins.top}
+            axis="y"
+            onChange={(value) => setMargins((m) => ({ ...m, top: value }))}
+          />
+          <NumberField
+            label="Inferior"
+            value={margins.bottom}
+            axis="y"
+            onChange={(value) => setMargins((m) => ({ ...m, bottom: value }))}
+          />
+          <NumberField
+            label="Izquierdo"
+            value={margins.left}
+            axis="x"
+            onChange={(value) => setMargins((m) => ({ ...m, left: value }))}
+          />
+          <NumberField
+            label="Derecho"
+            value={margins.right}
+            axis="x"
+            onChange={(value) => setMargins((m) => ({ ...m, right: value }))}
+          />
         </div>
+      </div>
 
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs text-muted-foreground">Márgenes (cm)</Label>
-          <div className="grid grid-cols-2 gap-3">
-            <NumberField
-              label="Superior"
-              value={margins.top}
-              axis="y"
-              onChange={(value) => setMargins((m) => ({ ...m, top: value }))}
-            />
-            <NumberField
-              label="Inferior"
-              value={margins.bottom}
-              axis="y"
-              onChange={(value) => setMargins((m) => ({ ...m, bottom: value }))}
-            />
-            <NumberField
-              label="Izquierdo"
-              value={margins.left}
-              axis="x"
-              onChange={(value) => setMargins((m) => ({ ...m, left: value }))}
-            />
-            <NumberField
-              label="Derecho"
-              value={margins.right}
-              axis="x"
-              onChange={(value) => setMargins((m) => ({ ...m, right: value }))}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs text-muted-foreground">Encabezado y pie</Label>
-          {/* En el inspector (320 px) las tarjetas van en vertical: en dos
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs text-muted-foreground">Encabezado y pie</Label>
+        {/* En el inspector (320 px) las tarjetas van en vertical: en dos
               columnas la etiqueta larga saltaba de línea y descuadraba el campo. */}
-          <div
-            className={variant === 'panel' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}
-          >
-            <RegionFields
-              idPrefix={`${uid}-header`}
-              title="Encabezado"
-              present={headerPresent}
-              onTogglePresent={() => setHeaderPresent((value) => !value)}
-              height={headerHeight}
-              onHeight={setHeaderHeight}
-              first={headerFirst}
-              onFirst={setHeaderFirst}
-              last={headerLast}
-              onLast={setHeaderLast}
-            />
-            <RegionFields
-              idPrefix={`${uid}-footer`}
-              title="Pie"
-              present={footerPresent}
-              onTogglePresent={() => setFooterPresent((value) => !value)}
-              height={footerHeight}
-              onHeight={setFooterHeight}
-              first={footerFirst}
-              onFirst={setFooterFirst}
-              last={footerLast}
-              onLast={setFooterLast}
-            />
-          </div>
+        <div className={variant === 'panel' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
+          <RegionFields
+            idPrefix={`${uid}-header`}
+            title="Encabezado"
+            present={headerPresent}
+            onTogglePresent={() => setHeaderPresent((value) => !value)}
+            height={headerHeight}
+            onHeight={setHeaderHeight}
+            first={headerFirst}
+            onFirst={setHeaderFirst}
+            last={headerLast}
+            onLast={setHeaderLast}
+          />
+          <RegionFields
+            idPrefix={`${uid}-footer`}
+            title="Pie"
+            present={footerPresent}
+            onTogglePresent={() => setFooterPresent((value) => !value)}
+            height={footerHeight}
+            onHeight={setFooterHeight}
+            first={footerFirst}
+            onFirst={setFooterFirst}
+            last={footerLast}
+            onLast={setFooterLast}
+          />
         </div>
+      </div>
 
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs text-muted-foreground">Cuerpo</Label>
-          <div className="grid grid-cols-2 gap-3">
-            <NumberField
-              label="Ancho del cuerpo (cm)"
-              value={bodyWidth}
-              axis="x"
-              onChange={setBodyWidth}
-            />
-            <NumberField
-              label="Alto del cuerpo (cm)"
-              value={bodyHeight}
-              axis="y"
-              onChange={setBodyHeight}
-            />
-          </div>
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs text-muted-foreground">Cuerpo</Label>
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField
+            label="Ancho del cuerpo (cm)"
+            value={bodyWidth}
+            axis="x"
+            onChange={setBodyWidth}
+          />
+          <NumberField
+            label="Alto del cuerpo (cm)"
+            value={bodyHeight}
+            axis="y"
+            onChange={setBodyHeight}
+          />
         </div>
+      </div>
 
-        <FormFooter variant={variant}>
+      {variant === 'panel' ? (
+        <PanelFooter>
           <Button onClick={applyPage}>Aplicar</Button>
-        </FormFooter>
-      </TabsContent>
+        </PanelFooter>
+      ) : null}
+    </TabsContent>
+  );
 
-      <TabsContent value="code" className="flex flex-col gap-2 pt-2">
-        <p className="text-xs text-muted-foreground">
-          Bloque <code>&lt;Code&gt;</code> VB (funciones <code>Code.</code>). Se reemplaza como un
-          todo: un paso de undo.
-        </p>
-        <ExpressionEditor
-          value={code}
-          mode="code"
-          ariaLabel="Código VB del informe"
-          onCommit={setCode}
-          onSubmit={(value) => {
-            // Ctrl+Intro: commit + aplicar el código recién leído del editor.
-            setCode(value);
-            onSetReportCode(value);
-          }}
-        />
-        <FormFooter variant={variant}>
+  const codeTab = (
+    <TabsContent value="code" className="flex flex-col gap-2 pt-2">
+      <p className="text-xs text-muted-foreground">
+        Bloque <code>&lt;Code&gt;</code> VB (funciones <code>Code.</code>). Se reemplaza como un
+        todo: un paso de undo.
+      </p>
+      <ExpressionEditor
+        value={code}
+        mode="code"
+        ariaLabel="Código VB del informe"
+        onCommit={setCode}
+        onSubmit={(value) => {
+          // Ctrl+Intro: commit + aplicar el código recién leído del editor.
+          setCode(value);
+          onSetReportCode(value);
+        }}
+      />
+      {variant === 'panel' ? (
+        <PanelFooter>
           <Button
             title="Aplicar (Ctrl+Intro)"
             onClick={() => {
@@ -467,21 +475,43 @@ export function ReportPropertiesForm({
           >
             Aplicar
           </Button>
-        </FormFooter>
-      </TabsContent>
+        </PanelFooter>
+      ) : null}
+    </TabsContent>
+  );
+
+  return (
+    <Tabs
+      value={activeTab}
+      onValueChange={changeTab}
+      className={variant === 'panel' ? 'gap-3 p-3' : 'min-h-0 flex-1 flex-col gap-3'}
+    >
+      <TabsList>
+        <TabsTrigger value="page">Configurar página</TabsTrigger>
+        <TabsTrigger value="code">Código</TabsTrigger>
+      </TabsList>
+
+      {variant === 'dialog' ? (
+        <DialogBody className="pr-1">
+          {pageTab}
+          {codeTab}
+        </DialogBody>
+      ) : (
+        <>
+          {pageTab}
+          {codeTab}
+        </>
+      )}
+
+      {variant === 'dialog' ? (
+        <DialogFooter className="shrink-0">{applyButton}</DialogFooter>
+      ) : null}
     </Tabs>
   );
 }
 
-/** Pie del formulario: en el diálogo, el pie estándar; en el panel, fijo abajo. */
-function FormFooter({
-  variant,
-  children,
-}: {
-  variant: 'dialog' | 'panel';
-  children: ReactNode;
-}): ReactNode {
-  if (variant === 'dialog') return <DialogFooter>{children}</DialogFooter>;
+/** Pie del panel del inspector: fijo abajo al recorrerlo. */
+function PanelFooter({ children }: { children: ReactNode }): ReactNode {
   // `sticky bottom-0`: «Aplicar» sigue a la vista al recorrer el inspector.
   // Fondo opaco: el contenido que queda debajo del pie no se transparenta.
   return (

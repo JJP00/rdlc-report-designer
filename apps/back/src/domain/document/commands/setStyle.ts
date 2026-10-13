@@ -71,6 +71,9 @@ const SUPPORTED_KEYS = new Set<string>([
  * párrafo o un run ya declara esa propiedad (lo sombrea), así que el comando
  * **quita los overrides equivalentes** de los niveles inferiores. Sin eso el
  * cambio se vería en el diseñador pero BC lo ignoraría.
+ *
+ * `Format` es la excepción: BC lo escribe en los **runs**, no en el item
+ * (ver `applyFormat`).
  */
 export function applySetStyle(
   ctx: CommandContext,
@@ -86,23 +89,45 @@ export function applySetStyle(
     );
   }
 
-  const styleExisted = node.child('Style') !== undefined;
-  const style = childOrCreate(node, 'Style');
   // `ListStyle` no es una propiedad de `<Style>`: se escribe como hijo directo
-  // de cada `<Paragraph>` (donde lo espera el XSD).
-  const { listStyle, ...stylePatch } = command.style as StylePatch & {
+  // de cada `<Paragraph>` (donde lo espera el XSD). `Format` (F1 · formato
+  // numérico) tampoco sigue la vía genérica del item: BC lo escribe en el
+  // `<Style>` de cada run (ver `applyFormat`). Se separan antes de tocar nada.
+  const { listStyle, format, ...stylePatch } = command.style as StylePatch & {
     listStyle?: 'None' | 'Bulleted' | 'Numbered' | null;
   };
+  const runs = textRuns(node);
+
+  // El `<Style>` del item solo se crea si algo lo necesita: un `format` que va
+  // a los runs no debe dejar un `<Style />` vacío en el fichero.
+  const styleExisted = node.child('Style') !== undefined;
+  let style = node.child('Style');
+  if (Object.keys(stylePatch).length > 0 && !style) style = childOrCreate(node, 'Style');
+
   // Índices prístinos compartidos por todos los borrados del comando.
   const indexesOf = createOriginalIndexes();
-  const { previous, removed, changes } = writeStylePatch(
-    style,
-    stylePatch as StylePatch,
-    indexesOf,
-  );
+  const { previous, removed, changes } = style
+    ? writeStylePatch(style, stylePatch, indexesOf)
+    : {
+        previous: {} as StylePatch,
+        removed: [] as RemovedStyleNode[],
+        changes: [] as DomainCommand[],
+      };
   if (listStyle !== undefined) writeListStyle(node, listStyle, changes, removed, indexesOf);
 
-  const restored = syncShadowingStyles(node, stylePatch as StylePatch);
+  const restored = syncShadowingStyles(node, stylePatch);
+
+  if (format !== undefined) {
+    if (format === null || format === '') {
+      // «General»: quitar el tag de los runs no basta si un párrafo o el item
+      // lo declaran (run > párrafo > item): se limpian los tres niveles.
+      clearFormat(node, removed, indexesOf);
+    } else {
+      restored.push(...applyFormat(node, runs, format, style));
+      // `applyFormat` crea el `<Style>` del item en el fallback sin runs.
+      style ??= node.child('Style');
+    }
+  }
 
   // Los nodos quitados se reinsertan en su índice exacto (el orden canónico no
   // tiene por qué coincidir con el del fichero original). Se listan de mayor a
@@ -129,16 +154,20 @@ export function applySetStyle(
     // estaban. Al revés, la sincronización del `setStyle` inverso pisaría el
     // override restaurado (p. ej. el run a 8pt volvía a 10pt).
     inverse: [
-      ...(styleExisted ? [] : [{ cmd: 'removeNode', node: style } as const]),
+      ...(style && !styleExisted ? [{ cmd: 'removeNode', node: style } as const] : []),
       ...reinsert,
       ...restored,
       { cmd: 'setStyle', id: command.id, style: previous },
       ...changes,
     ],
-    applied: [{ id: command.id, values: { style: readStyle(style) } }],
-    // Con overrides o `ListStyle` tocados el front necesita la proyección nueva
-    // (párrafos y runs no viajan en `applied`).
-    ...(restored.length > 0 || listStyle !== undefined ? { snapshotOut: true } : {}),
+    // El item no se toca cuando el formato va a los runs: `applied` no puede
+    // expresar el resultado, pero el front refresca la proyección.
+    applied: [{ id: command.id, values: style ? { style: readStyle(style) } : {} }],
+    // Con overrides, `ListStyle` o `format` tocados el front necesita la
+    // proyección nueva (párrafos y runs no viajan en `applied`).
+    ...(restored.length > 0 || listStyle !== undefined || format !== undefined
+      ? { snapshotOut: true }
+      : {}),
   });
 }
 
@@ -186,11 +215,7 @@ export function writeStylePatch(
   const changes: DomainCommand[] = [];
 
   const removeTag = (parent: RdlcNode, tag: string): void => {
-    const child = parent.child(tag);
-    const index = indexesOf(parent).get(tag);
-    if (!child || index === undefined) return;
-    child.remove();
-    removed.push({ style: parent, node: child, index });
+    removeTagNode(parent, tag, removed, indexesOf);
   };
 
   for (const [key, value] of Object.entries(patch)) {
@@ -239,6 +264,24 @@ export function writeStylePatch(
   }
 
   return { previous, removed, changes };
+}
+
+/**
+ * Quita el tag del contenedor recordando el nodo y su índice **prístino** (el
+ * vivo se desplaza con cada borrado anterior del mismo contenedor): el undo lo
+ * reinserta en su sitio exacto y los bytes cuadran.
+ */
+function removeTagNode(
+  parent: RdlcNode,
+  tag: string,
+  removed: RemovedStyleNode[],
+  indexesOf: OriginalIndexes,
+): void {
+  const child = parent.child(tag);
+  const index = indexesOf(parent).get(tag);
+  if (!child || index === undefined) return;
+  child.remove();
+  removed.push({ style: parent, node: child, index });
 }
 
 /**
@@ -404,6 +447,12 @@ function shadowedTags(patch: StylePatch): string[] {
  * Tags de texto que BC escribe en el **run** (y RB resuelve ahí, no en el
  * `<Style>` del item): un textbox con la fuente solo en el item se ve a Arial
  * 10 en Report Builder. Se replican en cada run al aplicar el estilo.
+ *
+ * `Format` **no** está aquí a propósito (aunque BC también lo escriba en el
+ * run): este conjunto materializa en los runs lo que el item declara con
+ * **cualquier** parche, y un cambio de fuente no debe copiar ni pisar el
+ * formato (ni al revés: el item no declara `Format`, así que no hay nada que
+ * materializar). El formato tiene reglas propias (`applyFormat`).
  */
 const RUN_TEXT_TAGS = new Set([
   'FontFamily',
@@ -428,9 +477,7 @@ function paragraphStyles(item: RdlcNode): RdlcNode[] {
 function rewriteTag(style: RdlcNode, tag: string, value: string): DomainCommand[] {
   const child = style.child(tag);
   if (!child || child.text() === value) return [];
-  const inverse: DomainCommand[] = [
-    { cmd: 'setNodeText', node: child, value: child.text() ?? '' },
-  ];
+  const inverse: DomainCommand[] = [{ cmd: 'setNodeText', node: child, value: child.text() ?? '' }];
   child.setText(value);
   return inverse;
 }
@@ -452,6 +499,65 @@ function ensureStyle(run: RdlcNode, inverse: DomainCommand[]): RdlcNode {
   insertCanonical(run, 'Style', style);
   inverse.push({ cmd: 'removeNode', node: style });
   return style;
+}
+
+/* -------------------------------- Format --------------------------------- */
+
+/**
+ * `Format` (F1 · formato numérico/de fecha). BC lo escribe en el `<Style>` de
+ * **cada `TextRun`**, no en el del item: RDL resuelve run > párrafo > item, así
+ * que un formato escrito solo en el item quedaría sombreado por el run y BC lo
+ * ignoraría (lo mismo que ya pasó con la fuente). Se escribe en todos los runs
+ * con el valor tal cual (expresión incluida: aquí no se evalúa ni se valida
+ * sintaxis .NET). El item se queda intacto.
+ *
+ * Un item **sin runs** (Rectangle, textbox vacío…) no tiene nivel inferior al
+ * que escribir: el valor cae al `<Style>` del item para no perderlo en
+ * silencio. Es el único caso en que `format` toca el item.
+ */
+function applyFormat(
+  item: RdlcNode,
+  runs: RdlcNode[],
+  value: string,
+  itemStyle: RdlcNode | undefined,
+): DomainCommand[] {
+  if (runs.length === 0) {
+    const style = itemStyle ?? childOrCreate(item, 'Style');
+    return writeTag(style, 'Format', value);
+  }
+
+  const inverse: DomainCommand[] = [];
+  for (const run of runs) {
+    const style = run.child('Style') ?? ensureStyle(run, inverse);
+    inverse.push(...writeTag(style, 'Format', value));
+  }
+  return inverse;
+}
+
+/**
+ * «General»: quita `<Format>` de los **tres** niveles (runs, párrafos e item).
+ * Quitarlo solo de los runs no bastaría: un párrafo o el propio item que
+ * declaren el tag lo heredarían los runs sin formato y la retirada no surtiría
+ * efecto. Cada nodo se reinserta en su índice prístino al deshacer.
+ */
+function clearFormat(
+  item: RdlcNode,
+  removed: RemovedStyleNode[],
+  indexesOf: OriginalIndexes,
+): void {
+  const itemStyle = item.child('Style');
+  for (const style of [...(itemStyle ? [itemStyle] : []), ...paragraphAndRunStyles(item)]) {
+    removeTagNode(style, 'Format', removed, indexesOf);
+  }
+}
+
+/** Todos los `TextRun` del item (de todos sus párrafos, en orden). */
+function textRuns(item: RdlcNode): RdlcNode[] {
+  const runs: RdlcNode[] = [];
+  for (const paragraph of item.child('Paragraphs')?.children('Paragraph') ?? []) {
+    runs.push(...(paragraph.child('TextRuns')?.children('TextRun') ?? []));
+  }
+  return runs;
 }
 
 /* ------------------------------ ListStyle -------------------------------- */

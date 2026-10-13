@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { commonEffectiveFormat } from '@/lib/textFormat';
 import { isSimpleText } from '@/lib/textEditor';
 import { ExpressionEditor } from './ExpressionEditor';
+import { FormatField } from './FormatField';
 
 interface TextPanelProps {
   item: TextboxDto;
@@ -43,7 +45,8 @@ export function TextPanel({
           <span className="text-sm font-semibold">Texto y expresión</span>
           <Badge variant="outline">
             {item.paragraphs.length} párr. ·{' '}
-            {item.paragraphs.reduce((acc, paragraph) => acc + paragraph.runs.length, 0)} fragmento(s)
+            {item.paragraphs.reduce((acc, paragraph) => acc + paragraph.runs.length, 0)}{' '}
+            fragmento(s)
           </Badge>
         </div>
 
@@ -58,8 +61,8 @@ export function TextPanel({
         ) : (
           <>
             <p className="text-xs text-muted-foreground">
-              Este textbox tiene texto mixto (varios párrafos o fragmentos). Ábrelo en el editor de texto
-              para escribir, insertar expresiones o cambiar el formato de cada fragmento.
+              Este textbox tiene texto mixto (varios párrafos o fragmentos). Ábrelo en el editor de
+              texto para escribir, insertar expresiones o cambiar el formato de cada fragmento.
             </p>
             <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
               {item.paragraphs.slice(0, 4).map((paragraph, p) => (
@@ -72,6 +75,18 @@ export function TextPanel({
             </ul>
           </>
         )}
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[11px] text-muted-foreground">Formato</span>
+          {/* Efectivo (run > párrafo > item); con runs distintos muestra «Mixto»
+              y el cambio lo aplica el comando a todos los runs. Las expresiones
+              se editan con Monaco; las cadenas .NET, con el campo simple. */}
+          <FormatField
+            value={commonEffectiveFormat(item.paragraphs, item.style)}
+            onChange={(format) => onSetStyle({ format })}
+            ariaLabel="Formato del textbox"
+          />
+        </div>
 
         <Button variant="outline" size="xs" className="self-start" onClick={onOpenEditor}>
           <PencilLine /> Abrir editor de texto

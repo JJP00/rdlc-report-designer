@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { cn } from 'cn';
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import { createPortal } from 'react-dom';
 
 import { Button } from '@/components/ui/button';
 import { XIcon } from 'lucide-react';
@@ -38,29 +37,39 @@ function DialogOverlay({
   );
 }
 
-/** Lado de la agarradera de la esquina (px). */
-const GRIP_SIZE = 16;
 /** Tamaño mínimo de un diálogo redimensionable (px). */
 const MIN_DIALOG_WIDTH = 320;
 const MIN_DIALOG_HEIGHT = 220;
-/** Proporción máxima del viewport al redimensionar. */
+/** Proporción máxima del viewport que puede ocupar un diálogo redimensionado. */
 const MAX_DIALOG_WIDTH_RATIO = 0.95;
 const MAX_DIALOG_HEIGHT_RATIO = 0.9;
 
-/** ¿El evento viene de la agarradera (portal fuera del contenido)? */
-function isGripEvent(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('[data-rdlc-dialog-grip]') !== null;
+interface DialogSize {
+  width: number;
+  height: number;
 }
 
+/**
+ * Contenido de un diálogo, opcionalmente **redimensionable**.
+ *
+ * Con `resizable`, el marco no scrollea: la agarradera vive en su esquina
+ * inferior derecha (dentro del propio contenido, BUG-61) y el scroll es
+ * responsabilidad del cuerpo (`DialogBody`, ver `ResizableDialogContent`).
+ *
+ * El diálogo no pierde el centro al redimensionar (decisión del usuario,
+ * 2026-10-13): como ambos lados crecen por igual, el delta del puntero se
+ * aplica **doblado** para que el borde agarrado siga al cursor 1:1 mientras el
+ * centro y la esquina opuesta se mueven simétricamente (BUG-60). El tamaño es
+ * una *preferencia* recortada por el viewport (`min(px, 95vw/90vh)`), así que
+ * al encoger la ventana se recorta y al crecer se recupera (BUG-62); al cerrar
+ * se vuelve al estado original (BUG-65).
+ */
 function DialogContent({
   className,
   children,
   showCloseButton = true,
   resizable = false,
   style,
-  onPointerDownOutside,
-  onInteractOutside,
-  onFocusOutside,
   onOpenAutoFocus,
   onCloseAutoFocus,
   ...props
@@ -72,50 +81,25 @@ function DialogContent({
   const contentRef = React.useRef<HTMLDivElement | null>(null);
   /** Elemento que tenía el foco al abrir: al cerrar se le devuelve (UX 20). */
   const returnFocusRef = React.useRef<HTMLElement | null>(null);
-  /** Elemento real del contenido (callback ref): dispara la medición al montar. */
-  const [contentEl, setContentEl] = React.useState<HTMLDivElement | null>(null);
-  const setContent = React.useCallback((node: HTMLDivElement | null): void => {
-    contentRef.current = node;
-    setContentEl(node);
-  }, []);
+  /** Rectángulo y puntero al empezar el arrastre de la agarradera. */
   const dragRef = React.useRef<{
     x: number;
     y: number;
     width: number;
     height: number;
   } | null>(null);
-  const [size, setSize] = React.useState<{ width: number; height: number } | null>(null);
-  /** Esquina inferior derecha del diálogo en coordenadas de pantalla (px). */
-  const [corner, setCorner] = React.useState<{ x: number; y: number } | null>(null);
+  /** Tamaño preferido por el usuario (px); el viewport lo recorta (BUG-62). */
+  const [size, setSize] = React.useState<DialogSize | null>(null);
 
-  // La agarradera vive en un portal (si estuviera dentro del contenido, el
-  // scroll del diálogo se la llevaría): se recoloca midiendo la esquina real.
-  React.useLayoutEffect(() => {
-    if (!resizable || !contentEl) return;
-    const update = (): void => {
-      const rect = contentEl.getBoundingClientRect();
-      setCorner({
-        x: Math.min(rect.right, window.innerWidth) - GRIP_SIZE + 2,
-        y: Math.min(rect.bottom, window.innerHeight) - GRIP_SIZE + 2,
-      });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(contentEl);
-    window.addEventListener('resize', update);
-    // La animación de entrada es `transform` (no dispara el observer).
-    const settle = window.setTimeout(update, 200);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', update);
-      window.clearTimeout(settle);
-      // El diálogo cerró (Radix desmonta su contenido, no este componente):
-      // la agarradera se va con él para no quedar flotando sobre la app.
-      setCorner(null);
-    };
-  }, [resizable, contentEl]);
+  // Al cerrar, Radix desmonta el contenido (este contenedor sigue montado): el
+  // tamaño vuelve al estado original, así el diálogo reabre como la primera vez
+  // (BUG-65). El diálogo está siempre centrado: no hay posición que reiniciar.
+  const setContent = React.useCallback((node: HTMLDivElement | null): void => {
+    contentRef.current = node;
+    if (node === null) setSize(null);
+  }, []);
 
-  const clampSize = (width: number, height: number): { width: number; height: number } => ({
+  const clampSize = (width: number, height: number): DialogSize => ({
     width: Math.min(Math.max(width, MIN_DIALOG_WIDTH), window.innerWidth * MAX_DIALOG_WIDTH_RATIO),
     height: Math.min(
       Math.max(height, MIN_DIALOG_HEIGHT),
@@ -123,23 +107,103 @@ function DialogContent({
     ),
   });
 
+  /** Redimensiona con el teclado (flechas en la agarradera). */
   const resizeBy = (dx: number, dy: number): void => {
     const rect = contentRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setSize(clampSize(rect.width + dx, rect.height + dy));
+    const base = size ?? clampSize(rect.width, rect.height);
+    setSize(clampSize(base.width + dx, base.height + dy));
   };
 
-  // La agarradera es un botón de la esquina: su conducta no debe cerrar el
-  // diálogo (Radix lo trata como interacción «fuera» al ser un portal).
-  const keepGrip = (event: { target: EventTarget | null; preventDefault(): void }): boolean => {
-    if (!isGripEvent(event.target)) return false;
+  const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return;
+    const rect = contentRef.current?.getBoundingClientRect();
+    if (!rect) return;
     event.preventDefault();
-    return true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    // El tamaño actual se congela como preferencia explícita; a partir de ahí
+    // manda el delta del puntero.
+    const start = clampSize(rect.width, rect.height);
+    setSize(start);
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      width: start.width,
+      height: start.height,
+    };
   };
 
-  const grip =
-    resizable && corner
-      ? createPortal(
+  /**
+   * BUG-60: el diálogo está centrado, así que cada píxel del puntero se
+   * reparte entre los dos lados. Para que el borde agarrado siga al cursor 1:1
+   * sin que el centro se mueva, el tamaño crece el **doble** del delta: el
+   * borde agarrado avanza `dx` y el opuesto retrocede `dx`.
+   */
+  const continueResize = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const start = dragRef.current;
+    if (!start) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    setSize(clampSize(start.width + dx * 2, start.height + dy * 2));
+  };
+
+  // El tamaño preferido con tope de viewport va en CSS: al encoger la ventana
+  // se recorta solo y al crecer vuelve la preferencia (BUG-62). Los topes en
+  // línea (`maxWidth`/`maxHeight: none`) siguen anulando las clases `max-w`/`max-h`.
+  const sizeStyle: React.CSSProperties = size
+    ? {
+        width: `min(${size.width}px, ${MAX_DIALOG_WIDTH_RATIO * 100}vw)`,
+        height: `min(${size.height}px, ${MAX_DIALOG_HEIGHT_RATIO * 100}vh)`,
+        maxWidth: 'none',
+        maxHeight: 'none',
+      }
+    : {};
+
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        ref={setContent}
+        data-slot="dialog-content"
+        style={{ ...style, ...sizeStyle }}
+        className={cn(
+          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+          // Marco sin scroll: la agarradera es un hijo absoluto y no puede
+          // irse con el scroll (BUG-61); el cuerpo es quien scrollea.
+          resizable && 'overflow-hidden',
+          className,
+        )}
+        // El disparador se captura antes de que Radix mueva el foco al
+        // diálogo; al cerrar con Esc o con un botón se le devuelve, en vez
+        // de dejarlo en `body` (hallazgo UX 20).
+        onOpenAutoFocus={(event) => {
+          const active = document.activeElement;
+          returnFocusRef.current = active instanceof HTMLElement ? active : null;
+          onOpenAutoFocus?.(event);
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          const target = returnFocusRef.current;
+          if (target?.isConnected) target.focus();
+          onCloseAutoFocus?.(event);
+        }}
+        {...props}
+      >
+        {children}
+        {showCloseButton && (
+          <DialogPrimitive.Close data-slot="dialog-close" asChild>
+            <Button
+              variant="ghost"
+              className="absolute top-2 right-2"
+              size="icon-sm"
+              aria-label="Cerrar"
+            >
+              <XIcon />
+              <span className="sr-only">Cerrar</span>
+            </Button>
+          </DialogPrimitive.Close>
+        )}
+        {resizable && (
           <div
             data-rdlc-dialog-grip=""
             role="separator"
@@ -147,44 +211,19 @@ function DialogContent({
             aria-orientation="horizontal"
             title="Arrastra para redimensionar (doble clic: tamaño original)"
             tabIndex={-1}
-            style={{
-              position: 'fixed',
-              left: corner.x,
-              top: corner.y,
-              zIndex: 60,
-              pointerEvents: 'auto',
-            }}
-            className="flex size-4 cursor-se-resize items-end justify-end text-muted-foreground/70 outline-none hover:text-foreground"
-            onPointerDown={(event) => {
-              if (event.button !== 0) return;
-              const rect = contentRef.current?.getBoundingClientRect();
-              if (!rect) return;
-              event.preventDefault();
-              event.currentTarget.setPointerCapture(event.pointerId);
-              dragRef.current = {
-                x: event.clientX,
-                y: event.clientY,
-                width: rect.width,
-                height: rect.height,
-              };
-            }}
-            onPointerMove={(event) => {
-              const start = dragRef.current;
-              if (!start) return;
-              setSize(
-                clampSize(
-                  start.width + (event.clientX - start.x),
-                  start.height + (event.clientY - start.y),
-                ),
-              );
-            }}
+            className="absolute right-0 bottom-0 z-10 flex size-4 cursor-se-resize items-end justify-end text-muted-foreground/70 outline-none select-none hover:text-foreground"
+            onPointerDown={startResize}
+            onPointerMove={continueResize}
             onPointerUp={() => {
               dragRef.current = null;
             }}
             onPointerCancel={() => {
               dragRef.current = null;
             }}
-            onDoubleClick={() => setSize(null)}
+            // Doble clic: vuelve al tamaño original (el diálogo ya está centrado).
+            onDoubleClick={() => {
+              setSize(null);
+            }}
             onKeyDown={(event) => {
               const step = event.shiftKey ? 48 : 16;
               const delta: [number, number] | undefined = (
@@ -208,86 +247,45 @@ function DialogContent({
                 strokeLinecap="round"
               />
             </svg>
-          </div>,
-          document.body,
-        )
-      : null;
+          </div>
+        )}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+}
 
+/**
+ * Marco estándar de un diálogo redimensionable (BUG-63): columna con la
+ * cabecera y el pie fijos y **solo el cuerpo** con scroll. La agarradera de la
+ * esquina la pinta `DialogContent` dentro del marco.
+ *
+ * Uso:
+ * ```tsx
+ * <ResizableDialogContent className="max-h-[90vh] max-w-3xl sm:max-w-3xl">
+ *   <DialogHeader className="shrink-0">…</DialogHeader>
+ *   <DialogBody className="pr-1">…</DialogBody>
+ *   <DialogFooter>…</DialogFooter>
+ * </ResizableDialogContent>
+ * ```
+ */
+function ResizableDialogContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogContent>) {
+  return <DialogContent {...props} resizable className={cn('flex flex-col', className)} />;
+}
+
+/**
+ * Cuerpo de un diálogo redimensionable: el único contenedor con scroll (el
+ * marco no scrollea para que la agarradera no se mueva, BUG-61).
+ */
+function DialogBody({ className, ...props }: React.ComponentProps<'div'>) {
   return (
-    <>
-      <DialogPortal>
-        <DialogOverlay />
-        <DialogPrimitive.Content
-          ref={setContent}
-          data-slot="dialog-content"
-          // Al redimensionar, los topes `max-w`/`max-h` (con breakpoints) se
-          // anulan en línea: son clases y `max-w-none` no gana a `sm:max-w-sm`.
-          style={
-            size
-              ? {
-                  ...style,
-                  width: size.width,
-                  height: size.height,
-                  maxWidth: 'none',
-                  maxHeight: 'none',
-                }
-              : style
-          }
-          className={cn(
-            'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-            // Al redimensionar, el contenido scrollea si no cabe. Los diálogos
-            // con scroll propio (editor de texto) lo sobreescriben con su clase.
-            resizable && 'overflow-y-auto',
-            className,
-          )}
-          onPointerDownOutside={(event) => {
-            if (keepGrip(event)) return;
-            onPointerDownOutside?.(event);
-          }}
-          onInteractOutside={(event) => {
-            if (keepGrip(event)) return;
-            onInteractOutside?.(event);
-          }}
-          onFocusOutside={(event) => {
-            if (keepGrip(event)) return;
-            onFocusOutside?.(event);
-          }}
-          // El disparador se captura antes de que Radix mueva el foco al
-          // diálogo; al cerrar con Esc o con un botón se le devuelve, en vez
-          // de dejarlo en `body` (hallazgo UX 20).
-          onOpenAutoFocus={(event) => {
-            const active = document.activeElement;
-            returnFocusRef.current = active instanceof HTMLElement ? active : null;
-            onOpenAutoFocus?.(event);
-          }}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            const target = returnFocusRef.current;
-            if (target?.isConnected) target.focus();
-            onCloseAutoFocus?.(event);
-          }}
-          {...props}
-        >
-          {children}
-          {showCloseButton && (
-            <DialogPrimitive.Close data-slot="dialog-close" asChild>
-              <Button
-                variant="ghost"
-                className="absolute top-2 right-2"
-                size="icon-sm"
-                aria-label="Cerrar"
-              >
-                <XIcon />
-                <span className="sr-only">Cerrar</span>
-              </Button>
-            </DialogPrimitive.Close>
-          )}
-        </DialogPrimitive.Content>
-      </DialogPortal>
-      {/* Fuera de `DialogPortal`: Radix envuelve cada hijo suyo en un Slot y un
-          portal de React no es un elemento válido para él (rompía el render). */}
-      {grip}
-    </>
+    <div
+      data-slot="dialog-body"
+      className={cn('min-h-0 flex-1 overflow-y-auto', className)}
+      {...props}
+    />
   );
 }
 
@@ -352,6 +350,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -361,4 +360,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  ResizableDialogContent,
 };
