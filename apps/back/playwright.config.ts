@@ -11,6 +11,9 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,
+  // En CI el runner es más lento y compartido: se reintenta antes de dar por
+  // roto un gesto puntual (un fallo real falla también en los reintentos).
+  retries: process.env.CI ? 2 : 0,
   reporter: [['list']],
   use: {
     trace: 'retain-on-failure',

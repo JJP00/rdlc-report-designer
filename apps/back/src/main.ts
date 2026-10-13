@@ -12,11 +12,24 @@ import { IpcController } from './presentation/ipc/IpcController.js';
 import { createWindowLifecycle, type WindowLifecycle } from './lifecycle/windowLifecycle.js';
 import { isNavigationAllowed, isPermissionAllowed } from './security/navigation.js';
 
+declare global {
+  interface ImportMeta {
+    /** Definido por electron-vite en el main: modo del build (`e2e` en pruebas). */
+    readonly env: { readonly MODE: string };
+  }
+}
+
 log.initialize();
 
 /** Tamaño mínimo de la ventana en px CSS (hallazgo UX 5). */
 const MIN_WIDTH_CSS_PX = 960;
 const MIN_HEIGHT_CSS_PX = 600;
+
+/**
+ * Build de e2e (Playwright): la ventana se muestra **sin robar el foco** para
+ * que la suite pueda correr mientras se usa el PC (`showInactive`).
+ */
+const E2E_MODE = import.meta.env.MODE === 'e2e';
 
 let mainWindow: BrowserWindow | null = null;
 /** URL con la que se carga el renderer: la única navegación permitida (T2). */
@@ -92,7 +105,20 @@ async function createWindow(): Promise<BrowserWindow> {
   window.webContents.on('did-finish-load', applyMinimumSize);
   window.on('resize', applyMinimumSize);
 
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    if (!E2E_MODE) {
+      window.show();
+      return;
+    }
+    // La suite corre en segundo plano sin estorbar: la ventana queda fuera de
+    // pantalla, sin foco y fuera de la barra de tareas, así el usuario puede
+    // seguir usando el PC sin robarle el foco ni poder interferir con clics o
+    // teclas (Playwright inyecta los eventos por CDP, no por el SO).
+    window.setSkipTaskbar(true);
+    window.setFocusable(false);
+    window.setPosition(-20000, -20000);
+    window.showInactive();
+  });
   window.on('closed', () => {
     mainWindow = null;
   });

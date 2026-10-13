@@ -1,0 +1,5 @@
+# El corpus son informes reales de Business Central (CRLF): se descargan en
+# CRLF también en Linux/CI para que el golden test verifique la preservación
+# byte a byte (BOM + CRLF) sea cual sea la plataforma. En el repo (index) se
+# guardan normalizados a LF y el diff sigue siendo legible.
+*.rdlc text eol=crlf
