@@ -182,7 +182,17 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
         return {
           ...base,
           kind: 'rectangle',
-          children: this.items(el.getFirstElementByName('ReportItems'), geometry),
+          // Las coordenadas de un item son **relativas a su contenedor**: un
+          // hijo sin `Top`/`Left` va al origen del rectángulo (RB muestra 0cm),
+          // no a la posición que el rectángulo ocupa en su propio contenedor
+          // (heredarla lo dibujaría y mostraría desplazado: BUG de VATSpec/
+          // Tablix3 en BTCSalesQuote). El tamaño sí se hereda como respaldo.
+          children: this.items(el.getFirstElementByName('ReportItems'), {
+            top: ZERO,
+            left: ZERO,
+            width: geometry.width,
+            height: geometry.height,
+          }),
         };
       case 'Line':
         return { ...base, kind: 'line' };
