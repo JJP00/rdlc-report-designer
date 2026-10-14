@@ -46,13 +46,16 @@ pnpm dist:portable                          # solo el portable en apps/back/rele
   - **unit** (ubuntu): `pnpm test` (Vitest, unit tests de back / front / contracts).
   - **e2e** (windows): `pnpm --filter @rdlc-designer/back e2e` (suite completa de Playwright
     sobre Electron) con subida de trazas si falla.
-- [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — en tags `v*` o
-  `workflow_dispatch` (solo el propietario `JJP00`, vía `github.triggering_actor`): compila
-  NSIS + MSI + portable + zip, los sube como artefacto y los adjunta a la release de GitHub.
-  Usa el environment `release` (sus secretos `CSC_LINK`/`CSC_KEY_PASSWORD` y sus reglas de
-  protección; si tiene restricción de despliegue, debe permitir tags `v*`). El tag debe ser
-  `v<version>` con la **misma versión** que `apps/back/package.json` (se verifica antes de
-  compilar; los nombres de los artefactos salen del `package.json`, no del tag).
+- [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — release de Windows
+  (solo el propietario `JJP00`, vía `github.triggering_actor`). La versión la manda
+  `apps/back/package.json` (también da nombre a los artefactos):
+  - `workflow_dispatch`: crea el tag `v<versión>` si no existe (falla si ya existe apuntando
+    a otro commit), compila NSIS + MSI + portable + zip y publica la release sobre ese tag.
+  - push de tag `v*`: verifica que el tag coincide con la versión del `package.json` y publica.
+  - La release se publica con cabecera propia (tabla de instaladores) y notas automáticas de
+    GitHub (`generate_release_notes`).
+  - Usa el environment `release` (sus secretos `CSC_LINK`/`CSC_KEY_PASSWORD` y sus reglas de
+    protección; si tiene restricción de despliegue, debe permitir tags `v*`).
 
 ## Verificación (2026-10-02)
 

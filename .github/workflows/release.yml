@@ -12,7 +12,8 @@ jobs:
   windows:
     name: Windows installers (NSIS + MSI + portable + zip)
     # Solo el propietario (JJP00) puede disparar el release: workflow_dispatch
-    # o push de un tag `v*`. Cualquier otro actor deja el workflow en skipped.
+    # (crea el tag `v<versión>` desde apps/back/package.json) o push de un tag
+    # `v*` (se verifica que coincide con la versión). Otro actor = skipped.
     if: github.triggering_actor == 'JJP00'
     # Environment `release`: de aquí salen los secretos de firma (CSC_LINK /
     # CSC_KEY_PASSWORD) y aplican sus reglas de protección (aprobación, tags).
@@ -39,19 +40,41 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # El tag debe ser `v<version>` con la misma versión que la app: los nombres
-      # de los artefactos salen de `apps/back/package.json`, no del tag.
-      - name: Verify tag matches app version
-        if: startsWith(github.ref, 'refs/tags/')
+      # La versión la manda `apps/back/package.json`:
+      # - `workflow_dispatch`: se crea el tag `v<versión>` si no existe (apuntando
+      #   a este commit) y la release se publica sobre él.
+      # - push de tag: se verifica que el tag sea exactamente `v<versión>`.
+      - name: Resolve version and tag
+        id: release-meta
         shell: bash
         run: |
-          tag="${GITHUB_REF_NAME#v}"
-          pkg="$(node -p "require('./apps/back/package.json').version")"
-          if [ "$tag" != "$pkg" ]; then
-            echo "::error::El tag v$tag no coincide con la versión de la app (apps/back/package.json = $pkg). Sube la versión antes de taggear."
-            exit 1
+          version="$(node -p "require('./apps/back/package.json').version")"
+          tag="v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF_NAME" != "$tag" ]; then
+              echo "::error::El tag $GITHUB_REF_NAME no coincide con la versión de la app (apps/back/package.json = $version). Sube la versión antes de taggear."
+              exit 1
+            fi
+            echo "Tag $GITHUB_REF_NAME == apps/back/package.json ($version)"
+            exit 0
           fi
-          echo "Tag v$tag == apps/back/package.json ($pkg)"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git fetch --force --quiet origin "+refs/tags/$tag:refs/tags/$tag"
+            existing="$(git rev-parse "$tag^{commit}")"
+            if [ "$existing" != "$GITHUB_SHA" ]; then
+              echo "::error::El tag $tag ya existe apuntando a $existing (distinto de $GITHUB_SHA). Sube la versión en apps/back/package.json o borra el tag."
+              exit 1
+            fi
+            echo "El tag $tag ya existe y apunta a este commit"
+          else
+            git tag "$tag"
+            git push origin "$tag"
+            echo "Tag $tag creado sobre $GITHUB_SHA (versión $version)"
+          fi
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -69,10 +92,25 @@ jobs:
             apps/back/release/*.zip
           if-no-files-found: error
 
-      - name: Attach to GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release-meta.outputs.tag }}
+          # Cabecera propia; GitHub antepone las notas automáticas ("What's Changed").
+          body: |
+            ## RDLC Report Designer v${{ steps.release-meta.outputs.version }}
+
+            Instaladores para Windows:
+
+            | Fichero | Uso |
+            | --- | --- |
+            | `RDLC-Report-Designer-${{ steps.release-meta.outputs.version }}-setup.exe` | Instalador clásico (NSIS) |
+            | `RDLC-Report-Designer-${{ steps.release-meta.outputs.version }}.msi` | Despliegue corporativo |
+            | `RDLC-Report-Designer-${{ steps.release-meta.outputs.version }}-portable.exe` | Sin instalación |
+            | `RDLC-Report-Designer-${{ steps.release-meta.outputs.version }}-win-unpacked.zip` | Carpeta lista para ejecutar |
+
+            > Sin certificado de firma, Windows puede mostrar el aviso de SmartScreen.
+          generate_release_notes: true
           files: |
             apps/back/release/*.exe
             apps/back/release/*.msi
