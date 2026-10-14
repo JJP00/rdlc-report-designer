@@ -9,8 +9,9 @@
 ## Decisión
 
 - **Targets**: `nsis` (instalador clásico, no one-click: permite elegir carpeta), `msi`
-  (para despliegue corporativo) y `portable` (un solo `.exe` sin instalación, se
-  autoextrae en `%TEMP%`). Salida en `apps/back/release/`.
+  (para despliegue corporativo), `portable` (un solo `.exe` sin instalación, se
+  autoextrae en `%TEMP%`) y `zip` (el contenido de `win-unpacked` comprimido, sin
+  instalador). Salida en `apps/back/release/`.
 - **Sin auto-update**: fuera del MVP (el ejecutable se distribuye a mano / por política
   interna). `publish: null` evita publicaciones accidentales.
 - **asar**: activo. El **XSD oficial** se lee con `readFileSync` en runtime, así que viaja
@@ -32,7 +33,7 @@
 ```bash
 pnpm --filter @rdlc-designer/back build     # solo compila out/
 pnpm dist:dir                               # app desempaquetada en release/win-unpacked (smoke)
-pnpm dist                                   # NSIS + MSI + portable en apps/back/release/
+pnpm dist                                   # NSIS + MSI + portable + zip en apps/back/release/
 pnpm dist:portable                          # solo el portable en apps/back/release/
 ```
 
@@ -46,8 +47,12 @@ pnpm dist:portable                          # solo el portable en apps/back/rele
   - **e2e** (windows): `pnpm --filter @rdlc-designer/back e2e` (suite completa de Playwright
     sobre Electron) con subida de trazas si falla.
 - [`.github/workflows/release.yml`](../../.github/workflows/release.yml) — en tags `v*` o
-  `workflow_dispatch`: compila los instaladores, los sube como artefacto y los adjunta a la
-  release de GitHub.
+  `workflow_dispatch` (solo el propietario `JJP00`, vía `github.triggering_actor`): compila
+  NSIS + MSI + portable + zip, los sube como artefacto y los adjunta a la release de GitHub.
+  Usa el environment `release` (sus secretos `CSC_LINK`/`CSC_KEY_PASSWORD` y sus reglas de
+  protección; si tiene restricción de despliegue, debe permitir tags `v*`). El tag debe ser
+  `v<version>` con la **misma versión** que `apps/back/package.json` (se verifica antes de
+  compilar; los nombres de los artefactos salen del `package.json`, no del tag).
 
 ## Verificación (2026-10-02)
 

@@ -263,7 +263,12 @@ async function nodeCenter(page: Page, id: string): Promise<{ x: number; y: numbe
   }, id);
 }
 
-/** Punto del borde superior de un Tablix (anillo de hit) para seleccionarlo. */
+/**
+ * Punto del borde superior de un Tablix (anillo de hit) para seleccionarlo,
+ * **medio px de papel dentro** del borde: el anillo mide 4 px de papel hacia
+ * fuera y 1 hacia dentro, y con zoom 60 % un offset fijo de 2 px de pantalla
+ * queda a 0,25 px del borde exterior (el redondeo lo saca del anillo).
+ */
 async function tablixBorderPoint(page: Page, id: string): Promise<{ x: number; y: number } | null> {
   return page.evaluate((tablixId) => {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
@@ -277,6 +282,7 @@ async function tablixBorderPoint(page: Page, id: string): Promise<{ x: number; y
         ) => boolean,
       ): (KonvaLike & { getParent(): KonvaLike })[];
       container(): HTMLElement;
+      scaleX(): number;
     };
     const borders = stage.find(
       (node) => node.className === 'Rect' && typeof node.getAttr('hitFunc') === 'function',
@@ -285,11 +291,40 @@ async function tablixBorderPoint(page: Page, id: string): Promise<{ x: number; y
     if (!border) return null;
     const container = stage.container().getBoundingClientRect();
     const point = border.getAbsoluteTransform().point({ x: border.width() / 2, y: 0 });
-    return { x: container.left + point.x, y: container.top + point.y - 2 };
+    return { x: container.left + point.x, y: container.top + point.y + stage.scaleX() / 2 };
   }, id);
 }
 
+/**
+ * Limpia la selección pinchando la esquina del papel (dentro del margen, sin
+ * items): el clic cae en el `Stage` y el lienzo deselecciona. Los manejadores y
+ * bandas de la selección anterior tapan los bordes vecinos (a veces a 4 px,
+ * como `Tablix2` sobre `LinesTable2`) y el clic no cambiaría la selección.
+ */
+async function clearSelection(page: Page): Promise<void> {
+  const point = await page.evaluate(() => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      container(): HTMLElement;
+      scaleX(): number;
+    };
+    const container = stage.container().getBoundingClientRect();
+    const zoom = stage.scaleX();
+    return { x: container.left + 4 * zoom, y: container.top + 4 * zoom };
+  });
+  await page.mouse.click(point.x, point.y);
+  await page
+    .waitForFunction(
+      () =>
+        !((window as never as Record<string, unknown>)['__rdlcSelection'] as { id?: string } | null)
+          ?.id,
+      undefined,
+      { timeout: 2000 },
+    )
+    .catch(() => undefined);
+}
+
 async function selectTablix(page: Page, id: string): Promise<void> {
+  await clearSelection(page);
   const point = await tablixBorderPoint(page, id);
   expect(point, `borde de ${id}`).not.toBeNull();
   await page.mouse.click(point!.x, point!.y);
@@ -906,8 +941,12 @@ test.describe('BUG-60…65 los diálogos redimensionables comparten la agarrader
     const oversized = await stableBox(page, dialog);
 
     await resizeWindow(app, 960, 600);
-    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThanOrEqual(960);
-    await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeLessThanOrEqual(600);
+    // La app impone un mínimo de **contenido** de 960×600 (`applyMinimumSize`
+    // en `main.ts`): al pedir 960×600 exteriores el cliente queda en el mínimo
+    // más el marco/redondeo de la ventana e2e (medido 602), no por debajo. Se
+    // comprueba que quedó en el mínimo, no un tamaño de cliente exacto.
+    await expect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThanOrEqual(968);
+    await expect.poll(() => page.evaluate(() => window.innerHeight)).toBeLessThanOrEqual(608);
     const viewport = await page.evaluate(() => ({
       width: window.innerWidth,
       height: window.innerHeight,

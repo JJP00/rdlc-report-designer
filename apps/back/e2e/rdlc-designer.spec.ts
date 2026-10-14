@@ -264,12 +264,19 @@ async function tablixColumns(id: string): Promise<number[]> {
   return columns.map((column) => column.value);
 }
 
-/** Punto de pantalla del borde superior del Tablix (dentro del anillo de hit). */
+/**
+ * Punto de pantalla del borde superior del Tablix, **medio px de papel dentro**
+ * del anillo de hit (4 px de papel hacia fuera y 1 hacia dentro). Un offset
+ * fijo en px de pantalla queda a 0,25 px del borde exterior con zoom 60 % y el
+ * redondeo de píxel lo saca del anillo: el clic caía en la tabla vecina o en el
+ * contenido de debajo y la selección no cambiaba.
+ */
 async function tablixBorderPoint(id: string): Promise<{ x: number; y: number } | null> {
   return page.evaluate((tablixId) => {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
       find(selector: (node: KonvaLike) => boolean): KonvaLike[];
       container(): HTMLElement;
+      scaleX(): number;
     };
     const borders = stage.find(
       (node) => node.className === 'Rect' && typeof node.getAttr('hitFunc') === 'function',
@@ -278,28 +285,78 @@ async function tablixBorderPoint(id: string): Promise<{ x: number; y: number } |
     if (!border) return null;
     const container = stage.container().getBoundingClientRect();
     const point = border.getAbsoluteTransform().point({ x: border.width() / 2, y: 0 });
-    return { x: container.left + point.x, y: container.top + point.y - 2 };
+    return { x: container.left + point.x, y: container.top + point.y + stage.scaleX() / 2 };
   }, id);
 }
 
-/** Punto de pantalla del centro de un nodo Konva por id. */
-async function nodeCenter(id: string): Promise<{ x: number; y: number } | null> {
-  return page.evaluate((nodeId) => {
+/**
+ * Limpia la selección pinchando la esquina del papel (dentro del margen, sin
+ * items): el clic cae en el `Stage` y el lienzo deselecciona. Es necesario
+ * antes de pinchar un borde: los manejadores y bandas de la selección anterior
+ * (a veces a 4 px, como `Tablix2` sobre `LinesTable2`) tapan el anillo de la
+ * tabla vecina y el clic no cambia la selección.
+ */
+async function clearSelection(): Promise<void> {
+  const point = await page.evaluate(() => {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
-      findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
       container(): HTMLElement;
       scaleX(): number;
     };
-    const node = stage.findOne((candidate) => candidate.id() === nodeId);
-    if (!node) return null;
-    const box = node.getClientRect({ relativeTo: stage as unknown as never });
     const container = stage.container().getBoundingClientRect();
     const zoom = stage.scaleX();
-    return {
-      x: container.left + (box.x + box.width / 2) * zoom,
-      y: container.top + (box.y + box.height / 2) * zoom,
-    };
-  }, id);
+    return { x: container.left + 4 * zoom, y: container.top + 4 * zoom };
+  });
+  await page.mouse.click(point.x, point.y);
+  await page
+    .waitForFunction(
+      () =>
+        !((window as never as Record<string, unknown>)['__rdlcSelection'] as { id?: string } | null)
+          ?.id,
+      undefined,
+      { timeout: 2000 },
+    )
+    .catch(() => undefined);
+}
+
+/** Selecciona un Tablix pinchando su borde (limpia antes la selección). */
+async function selectTablix(id: string): Promise<void> {
+  await clearSelection();
+  const point = await tablixBorderPoint(id);
+  expect(point, `borde de ${id}`).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+  await expect.poll(selectedId, { message: `${id} debe quedar seleccionada` }).toBe(id);
+}
+
+/**
+ * Punto de pantalla de un nodo Konva por id. Por defecto su centro; con `fx`/`fy`
+ * (fracción del ancho/alto) se evita el centro: en items **bajos** los tiradores
+ * n/s de la selección (8 px) casi lo cubren y el gesto acaba siendo un
+ * redimensionado en vez de un arrastre.
+ */
+async function nodeCenter(
+  id: string,
+  fx = 0.5,
+  fy = 0.5,
+): Promise<{ x: number; y: number } | null> {
+  return page.evaluate(
+    ({ nodeId, fx, fy }) => {
+      const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+        findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+        container(): HTMLElement;
+        scaleX(): number;
+      };
+      const node = stage.findOne((candidate) => candidate.id() === nodeId);
+      if (!node) return null;
+      const box = node.getClientRect({ relativeTo: stage as unknown as never });
+      const container = stage.container().getBoundingClientRect();
+      const zoom = stage.scaleX();
+      return {
+        x: container.left + (box.x + box.width * fx) * zoom,
+        y: container.top + (box.y + box.height * fy) * zoom,
+      };
+    },
+    { nodeId: id, fx, fy },
+  );
 }
 
 interface KonvaLike {
@@ -649,9 +706,7 @@ test('ningún color del lienzo es una expresión RDL (no se pintan en negro)', a
 });
 
 test('selecciona la tabla por su borde y muestra los separadores de la rejilla', async () => {
-  const point = await tablixBorderPoint('LinesTable2');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  await selectTablix('LinesTable2');
 
   await expect
     .poll(
@@ -1013,9 +1068,7 @@ async function columnHeaderEdgePoint(index: number): Promise<{ x: number; y: num
 
 test('la estructura del Tablix cablea celdas, filas, columnas y visibilidad (con undo)', async () => {
   // Tablix3: 2 filas × 6 columnas estáticas, sin grupos.
-  const point = await tablixBorderPoint('Tablix3');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  await selectTablix('Tablix3');
 
   await expect(page.getByRole('region', { name: 'Estructura del Tablix' })).toBeVisible();
   await expect(page.getByText('2 filas × 6 columnas')).toBeVisible();
@@ -1069,9 +1122,7 @@ test('la estructura del Tablix cablea celdas, filas, columnas y visibilidad (con
 test('al añadir una fila, las celdas nuevas nacen con un textbox seleccionable', async () => {
   // Tablix2 es la única tabla de primer nivel del informe: su fila nueva no
   // queda tapada por las tablas anidadas que van encima.
-  const point = await tablixBorderPoint('Tablix2');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  await selectTablix('Tablix2');
   await expect.poll(selectedId).toBe('Tablix2');
 
   const rowsBefore = await tablixRowCount('Tablix2');
@@ -1116,9 +1167,7 @@ test('el menú contextual de una celda inserta filas y columnas', async () => {
   expect(c01).toBeTruthy();
   expect(c11).toBeTruthy();
 
-  const border = await tablixBorderPoint('LinesTable2');
-  expect(border).not.toBeNull();
-  await page.mouse.click(border!.x, border!.y);
+  await selectTablix('LinesTable2');
   await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
   await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 0, col: 0 });
 
@@ -1216,9 +1265,7 @@ test('el contenido de una celda está anclado: no se arrastra ni se sale de la c
 });
 
 test('la selección de la tabla mide su rejilla (el contenido no la infla)', async () => {
-  const point = await tablixBorderPoint('LinesTable2');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  await selectTablix('LinesTable2');
   await expect
     .poll(
       () =>
@@ -1258,9 +1305,7 @@ test('la selección de la tabla mide su rejilla (el contenido no la infla)', asy
 });
 
 test('la rejilla renderizada se actualiza al añadir y deshacer una columna', async () => {
-  const point = await tablixBorderPoint('LinesTable2');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  await selectTablix('LinesTable2');
   await expect
     .poll(
       () =>
@@ -1325,9 +1370,7 @@ test('la rejilla renderizada se actualiza al añadir y deshacer una columna', as
 });
 
 test('las cabeceras del Tablix seleccionan columnas y el menú borra en lote', async () => {
-  const point = await tablixBorderPoint('LinesTable2');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  await selectTablix('LinesTable2');
   await expect
     .poll(
       () =>
@@ -1403,9 +1446,7 @@ test('Shift+click extiende el rango y el menú combina/separa celdas', async () 
   expect(c01).toBeTruthy();
 
   // La tabla debe estar seleccionada para que el panel de estructura exista.
-  const border = await tablixBorderPoint('LinesTable2');
-  expect(border).not.toBeNull();
-  await page.mouse.click(border!.x, border!.y);
+  await selectTablix('LinesTable2');
   await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
   await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 0, col: 0 });
 
@@ -1545,9 +1586,7 @@ test('duplicar y portapapeles en lote (un undo por operación)', async () => {
 });
 
 test('arrastrar el borde de una cabecera redimensiona la columna', async () => {
-  const point = await tablixBorderPoint('LinesTable2');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  await selectTablix('LinesTable2');
   await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
   await expect.poll(selectedCell).toEqual({ id: 'LinesTable2', row: 0, col: 0 });
 
@@ -1596,9 +1635,7 @@ test('arrastrar el borde de una cabecera redimensiona la columna', async () => {
 
 test('el panel Estructura edita el tamaño con flechas, arrastre y tecleo', async () => {
   // Selecciona el Tablix para que el panel muestre su estructura.
-  const point = await tablixBorderPoint('LinesTable2');
-  expect(point).not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  await selectTablix('LinesTable2');
   await expect
     .poll(() =>
       page.evaluate(
@@ -1942,9 +1979,7 @@ test('la alineación del párrafo se refleja en el lienzo', async () => {
 
 test('el click derecho sobre una celda suelta no pierde la selección', async () => {
   // La tabla debe estar seleccionada para que el panel de estructura exista.
-  const border = await tablixBorderPoint('LinesTable2');
-  expect(border).not.toBeNull();
-  await page.mouse.click(border!.x, border!.y);
+  await selectTablix('LinesTable2');
 
   // Ancla (0,0) y Ctrl+click en la celda (0,2): la suelta vive en `extra`.
   await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
@@ -1982,9 +2017,7 @@ test('el click derecho sobre una celda suelta no pierde la selección', async ()
 
 test('Ctrl+click en celdas contiguas de una fila permite combinar', async () => {
   // La tabla debe estar seleccionada para que el panel de estructura exista.
-  const border = await tablixBorderPoint('LinesTable2');
-  expect(border).not.toBeNull();
-  await page.mouse.click(border!.x, border!.y);
+  await selectTablix('LinesTable2');
 
   // Ancla (0,0) y Ctrl+click en (0,1): contiguas y de la misma fila.
   await page.getByRole('button', { name: 'Seleccionar fila 1' }).click();
@@ -3358,9 +3391,12 @@ test('multiselección: Ctrl+click, alinear en lote y un solo undo', async () => 
 
 test('multiselección: arrastrar y mover con flechas desplaza todos; suprimir borra todos', async () => {
   await selectItemViaPalette('Textbox4');
-  const center17 = await nodeCenter('Textbox17');
+  // Textbox17 mide 0,49 cm: los tiradores n/s de la selección (8 px de pantalla)
+  // casi cubren su centro y el gesto acabaría en un redimensionado. Se agarra a
+  // un cuarto del ancho (mismo alto), libre de tiradores.
+  const grab17 = await nodeCenter('Textbox17', 0.25, 0.5);
   await page.keyboard.down('Control');
-  await page.mouse.click(center17!.x, center17!.y);
+  await page.mouse.click(grab17!.x, grab17!.y);
   await page.keyboard.up('Control');
   await expect(page.getByTestId('multi-selection-panel')).toContainText('2 elementos');
 
@@ -3381,7 +3417,7 @@ test('multiselección: arrastrar y mover con flechas desplaza todos; suprimir bo
   // Arrastre de uno de ellos: la multiselección sobrevive y el otro acompaña.
   const mid4 = await itemLocation('Textbox4');
   const mid17 = await itemLocation('Textbox17');
-  const start = await nodeCenter('Textbox17');
+  const start = await nodeCenter('Textbox17', 0.25, 0.5);
   await page.mouse.move(start!.x, start!.y);
   await page.mouse.down();
   await page.mouse.move(start!.x, start!.y - 24, { steps: 6 });

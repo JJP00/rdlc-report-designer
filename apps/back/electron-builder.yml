@@ -1,7 +1,7 @@
 # Empaquetado Windows (T1).
 #
 #   pnpm --filter @rdlc-designer/back dist:dir          # carpeta sin instalador (smoke test)
-#   pnpm --filter @rdlc-designer/back dist              # NSIS + MSI + portable en `release/`
+#   pnpm --filter @rdlc-designer/back dist              # NSIS + MSI + portable + zip en `release/`
 #   pnpm --filter @rdlc-designer/back dist:portable     # solo el portable
 #
 # Firma: electron-builder firma si `CSC_LINK` (ruta/base64 del .pfx) y
@@ -36,6 +36,8 @@ win:
     - msi
     # Portable: un solo .exe sin instalación (se autoextrae en %TEMP%).
     - portable
+    # Zip: comprime el contenido de `win-unpacked` (carpeta lista para ejecutar).
+    - zip
   # Icono placeholder (azul con hoja) en `build/icon.ico`: sustituible por el definitivo.
   icon: build/icon.ico
 
@@ -52,3 +54,7 @@ msi:
 
 portable:
   artifactName: RDLC-Report-Designer-${version}-portable.${ext}
+
+zip:
+  # Mismo contenido que `release/win-unpacked`, listo para descomprimir y ejecutar.
+  artifactName: RDLC-Report-Designer-${version}-win-unpacked.${ext}
