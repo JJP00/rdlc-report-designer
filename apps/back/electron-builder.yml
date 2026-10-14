@@ -38,6 +38,9 @@ win:
     - portable
     # Zip: comprime el contenido de `win-unpacked` (carpeta lista para ejecutar).
     - zip
+  # `zip` no tiene sección de configuración propia (a diferencia de nsis/msi/
+  # portable): hereda este artifactName, que los otros tres sobreescriben.
+  artifactName: RDLC-Report-Designer-${version}-win-unpacked.${ext}
   # Icono placeholder (azul con hoja) en `build/icon.ico`: sustituible por el definitivo.
   icon: build/icon.ico
 
@@ -54,7 +57,3 @@ msi:
 
 portable:
   artifactName: RDLC-Report-Designer-${version}-portable.${ext}
-
-zip:
-  # Mismo contenido que `release/win-unpacked`, listo para descomprimir y ejecutar.
-  artifactName: RDLC-Report-Designer-${version}-win-unpacked.${ext}
