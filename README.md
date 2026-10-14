@@ -57,11 +57,12 @@ El Report Builder está obsoleto y los `.rdlc` de Business Central se editan hoy
 
 Descarga el instalador desde la sección **Releases** del repositorio:
 
-| Fichero                                       | Uso                       |
-| --------------------------------------------- | ------------------------- |
-| `RDLC-Report-Designer-<versión>-setup.exe`    | Instalador clásico (NSIS) |
-| `RDLC-Report-Designer-<versión>.msi`          | Despliegue corporativo    |
-| `RDLC-Report-Designer-<versión>-portable.exe` | Sin instalación           |
+| Fichero                                           | Uso                         |
+| ------------------------------------------------- | --------------------------- |
+| `RDLC-Report-Designer-<versión>-setup.exe`        | Instalador clásico (NSIS)   |
+| `RDLC-Report-Designer-<versión>.msi`              | Despliegue corporativo      |
+| `RDLC-Report-Designer-<versión>-portable.exe`     | Sin instalación             |
+| `RDLC-Report-Designer-<versión>-win-unpacked.zip` | Carpeta lista para ejecutar |
 
 > Los instaladores se firman solo si el pipeline dispone del certificado; una build sin firmar muestra el aviso de SmartScreen de Windows. Detalle en [docs/release](./docs/release/0001-empaquetado-windows.md).
 

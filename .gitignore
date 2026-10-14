@@ -14,8 +14,8 @@ apps/back/release/
 .vite/
 coverage/
 
-# índice local de CodeGraph
-.codegraph/
+# índice local de graphify
+graphify-out/
 
 # local env
 .env
@@ -50,3 +50,9 @@ blob-report/
 
 # scripts sueltos de depuración del back
 apps/back/tmp-*.mjs
+
+# relacionado a la ia
+.opencode/
+.claude/
+AGENTS.md
+CLAUDE.md

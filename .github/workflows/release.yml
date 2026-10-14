@@ -10,7 +10,13 @@ permissions:
 
 jobs:
   windows:
-    name: Windows installers (NSIS + MSI)
+    name: Windows installers (NSIS + MSI + portable + zip)
+    # Solo el propietario (JJP00) puede disparar el release: workflow_dispatch
+    # o push de un tag `v*`. Cualquier otro actor deja el workflow en skipped.
+    if: github.triggering_actor == 'JJP00'
+    # Environment `release`: de aquí salen los secretos de firma (CSC_LINK /
+    # CSC_KEY_PASSWORD) y aplican sus reglas de protección (aprobación, tags).
+    environment: release
     runs-on: windows-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -33,6 +39,20 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # El tag debe ser `v<version>` con la misma versión que la app: los nombres
+      # de los artefactos salen de `apps/back/package.json`, no del tag.
+      - name: Verify tag matches app version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./apps/back/package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::El tag v$tag no coincide con la versión de la app (apps/back/package.json = $pkg). Sube la versión antes de taggear."
+            exit 1
+          fi
+          echo "Tag v$tag == apps/back/package.json ($pkg)"
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -46,6 +66,7 @@ jobs:
           path: |
             apps/back/release/*.exe
             apps/back/release/*.msi
+            apps/back/release/*.zip
           if-no-files-found: error
 
       - name: Attach to GitHub release
@@ -55,3 +76,4 @@ jobs:
           files: |
             apps/back/release/*.exe
             apps/back/release/*.msi
+            apps/back/release/*.zip
