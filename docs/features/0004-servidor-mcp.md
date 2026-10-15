@@ -41,33 +41,42 @@ validación contra el XSD RDL 2016 al guardar.
 Los avisos que en la GUI son diálogos (conflicto, fichero borrado, recarga externa) llegan al agente
 como `notices` en la siguiente respuesta de esa sesión (`HeadlessEventBus`).
 
-## 4. Uso
+## 4. Distribución y uso
+
+El servidor funciona **sin la app**: no usa Electron ni abre ventana. Se distribuye como paquete
+npm [`@rdlc-designer/mcp`](../../packages/rdlc-mcp) (bundle de ~280 KB + el XSD; las dependencias de
+terceros las instala npm). Requiere Node 22.
 
 ```bash
-pnpm install
-pnpm --filter @rdlc-designer/back build:mcp     # → apps/back/out/mcp/server.mjs
+# usuario final (cuando esté publicado)
+claude mcp add rdlc-designer -- npx -y @rdlc-designer/mcp
+claude mcp add rdlc-designer -- cmd /c npx -y @rdlc-designer/mcp   # Windows nativo (no WSL)
 ```
 
-Registrarlo en Claude Code (ajusta la ruta):
+Configuración para otros agentes (Claude Desktop, Cursor, VS Code, Codex…): ver el
+[README del paquete](../../packages/rdlc-mcp/README.md).
+
+**Desarrollo (desde el repo, sin publicar):**
 
 ```bash
+pnpm --filter @rdlc-designer/back build:mcp     # → apps/back/out/mcp/server.mjs
 claude mcp add rdlc-designer -- node C:/ruta/a/ReportDesigner/apps/back/out/mcp/server.mjs
 ```
 
-o en un `.mcp.json`:
+**Paquete npm:**
 
-```json
-{
-  "mcpServers": {
-    "rdlc-designer": {
-      "command": "node",
-      "args": ["C:/ruta/a/ReportDesigner/apps/back/out/mcp/server.mjs"]
-    }
-  }
-}
+```bash
+pnpm --filter @rdlc-designer/mcp build          # → packages/rdlc-mcp/dist + resources
+pnpm --filter @rdlc-designer/mcp smoke          # npm pack + instalar el tarball en limpio + stdio
+npm publish --workspace @rdlc-designer/mcp      # publicar (requiere ser dueño del scope @rdlc-designer)
 ```
 
-`RDLC_SCHEMA_PATH` sobrescribe la ruta del XSD (por defecto `apps/back/resources/rdl2016/`).
+El smoke empaqueta y lo instala como lo haría un usuario (descarga las dependencias de npm) y
+comprueba `create → apply → save` con el XSD empaquetado. `RDLC_SCHEMA_PATH` sobrescribe el XSD.
+
+> **Pendiente**: el nombre/scope npm y la publicación (`NPM_TOKEN` en el workflow de release). No
+> se ha publicado nada. Para quien tenga instalada la app de escritorio no hace falta el paquete:
+> basta cualquier Node 22.
 
 ## 5. Límites conocidos (v1)
 

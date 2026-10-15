@@ -3,13 +3,19 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createMcpServer } from './createServer.js';
 import { createHeadlessContext } from './headlessContext.js';
 
+/** Versión del paquete npm, inyectada por esbuild (`define`); ausente al correr desde el repo. */
+declare const __RDLC_MCP_VERSION__: string | undefined;
+
 /**
  * Punto de entrada stdio: `node out/mcp/server.mjs`. En stdio **stdout es el
  * canal del protocolo**: todo diagnóstico va a stderr.
  */
 async function main(): Promise<void> {
   const ctx = createHeadlessContext();
-  const server = createMcpServer(ctx);
+  const server = createMcpServer(
+    ctx,
+    typeof __RDLC_MCP_VERSION__ === 'string' ? __RDLC_MCP_VERSION__ : undefined,
+  );
 
   let closing = false;
   const shutdown = async (): Promise<void> => {

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FileSystemPort } from '../application/ports/out/FileSystemPort.js';
 import type { FileWatcherPort } from '../application/ports/out/FileWatcherPort.js';
@@ -14,13 +15,19 @@ import { LibXml2SchemaValidatorAdapter } from '../infrastructure/validation/LibX
 import { HeadlessEventBus } from './HeadlessEventBus.js';
 
 /**
- * Esquema oficial RDL 2016/01. `RDLC_SCHEMA_PATH` lo sobrescribe; por defecto
- * `apps/back/resources/` (tanto desde `src/mcp` como desde `out/mcp`).
+ * Esquema oficial RDL 2016/01. Orden de búsqueda: `RDLC_SCHEMA_PATH`, junto al
+ * paquete npm (`dist/server.mjs` → `../resources`) y en el repo
+ * (`apps/back/{src,out}/mcp` → `../../resources`).
  */
-const DEFAULT_SCHEMA_PATH = join(
-  import.meta.dirname,
-  '../../resources/rdl2016/ReportDefinition2016.xsd',
-);
+function resolveSchemaPath(): string {
+  const fromEnv = process.env['RDLC_SCHEMA_PATH'];
+  if (fromEnv) return fromEnv;
+  const candidates = [
+    join(import.meta.dirname, '../resources/rdl2016/ReportDefinition2016.xsd'),
+    join(import.meta.dirname, '../../resources/rdl2016/ReportDefinition2016.xsd'),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[1]!;
+}
 
 export interface HeadlessOverrides {
   fileSystem?: FileSystemPort;
@@ -48,8 +55,7 @@ export function createHeadlessContext(overrides: HeadlessOverrides = {}): Headle
     xml,
     xml,
     new TrueFormatProjectionAdapter(),
-    overrides.schemaValidator ??
-      new LibXml2SchemaValidatorAdapter(process.env['RDLC_SCHEMA_PATH'] ?? DEFAULT_SCHEMA_PATH),
+    overrides.schemaValidator ?? new LibXml2SchemaValidatorAdapter(resolveSchemaPath()),
     events,
   );
   const commands = new CommandService(sessions);
