@@ -24,8 +24,10 @@ export const SERVER_INSTRUCTIONS = [
   'Items are addressed by their RDL `Name` (the `id`). Lengths are {"value": number, "unit": "cm"|"mm"|"in"|"pt"}.',
   'Positions (top/left) are relative to the containing region, rectangle or tablix cell.',
   'Call rdlc_list_commands to see the command catalog; pass `names` to get the exact JSON Schema of the ones you need.',
+  'Long expressions are shortened in rdlc_get_outline ("…[+N chars]"): read the full text with rdlc_get_item before editing it.',
+  'If the .rdlc was regenerated on disk (e.g. after compiling the AL), call rdlc_open on the same path again: a session without unsaved edits is re-read from disk; otherwise use rdlc_reload (discards unsaved edits).',
   'Saving validates against the official RDL 2016 schema and refuses to write an invalid report.',
-  'Dataset fields and parameters are read-only here: expressions can reference the fields listed by rdlc_get_report (e.g. =Fields!No.Value).',
+  'Dataset fields and parameters are read-only here. In Business Central they come from the AL report dataset: add the column in AL, compile, and the .rdlc is regenerated with the new field (then re-open it here). Expressions can reference the fields listed by rdlc_get_report (e.g. =Fields!No.Value).',
 ].join('\n');
 
 const MAX_COMMANDS_PER_CALL = 200;
@@ -143,12 +145,31 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
 
       const existing = openPaths.get(pathKey(path));
       if (existing) {
+        // Abrir de nuevo es la forma natural de pedir «el estado actual del disco»
+        // (p. ej. tras recompilar el AL, que regenera el .rdlc): sin ediciones
+        // sin guardar es seguro releerlo; con ellas no se pisa nada.
+        const dirty = sessions.listSessions().find((s) => s.sessionId === existing)?.dirty ?? true;
+        let refreshed = false;
+        if (!dirty) {
+          const reloaded = await sessions.reload(existing);
+          if (reloaded.isRight()) {
+            commands.drop(existing);
+            refreshed = true;
+          }
+        }
         const projection = unwrap(sessions.projectionOf(existing));
         if ('value' in projection) {
           return reply(
             {
               ok: true,
               alreadyOpen: true,
+              refreshedFromDisk: refreshed,
+              ...(dirty
+                ? {
+                    unsavedChanges: true,
+                    note: 'Session has unsaved edits, so it was NOT re-read from disk. Use rdlc_reload to discard them and pick up the disk version.',
+                  }
+                : {}),
               sessionId: existing,
               report: describeReport(projection.value),
             },
@@ -386,11 +407,16 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
       title: 'Report outline',
       description:
         'Compact text map of the layout: one line per item with kind, id, position/size, and a text preview; tablixes list their columns/rows, row/column groups (with member paths) and cell contents. ' +
+        'Long texts and expressions are shortened to ~60 chars and marked "…[+N chars]": use rdlc_get_item for the full text. ' +
         'Narrow it with `region` or `id` on large reports.',
       inputSchema: {
         sessionId,
         region: z.enum(['pageHeader', 'body', 'pageFooter']).optional(),
         id: z.string().min(1).optional().describe('Outline only this item and its subtree'),
+        fullText: z
+          .boolean()
+          .optional()
+          .describe('Do not shorten long texts/expressions (more tokens; prefer rdlc_get_item)'),
         maxLines: z
           .number()
           .int()
@@ -401,13 +427,14 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
       },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    guard(({ sessionId: id, region, id: itemId, maxLines }) => {
+    guard(({ sessionId: id, region, id: itemId, maxLines, fullText }) => {
       const projection = unwrap(sessions.projectionOf(id));
       if ('reply' in projection) return projection.reply;
       const outline = outlineOf(projection.value, {
         ...(region ? { region } : {}),
         ...(itemId !== undefined ? { id: itemId } : {}),
         maxLines: maxLines ?? DEFAULT_OUTLINE_LINES,
+        ...(fullText ? { fullText } : {}),
       });
       if (outline === undefined) return toolError('E_NOT_FOUND', `No item named "${itemId}"`);
       const notices = events.drain(id);
@@ -552,10 +579,15 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
     [
       'rdlc_undo',
       'Undo',
-      'Undoes the last applied command (or batch). Returns the new version.',
+      'Undoes the last applied command (or batch). Returns the new version; `changed: false` means there was nothing to undo.',
       commands.undo.bind(commands),
     ],
-    ['rdlc_redo', 'Redo', 'Redoes the last undone command.', commands.redo.bind(commands)],
+    [
+      'rdlc_redo',
+      'Redo',
+      'Redoes the last undone command. `changed: false` means there was nothing to redo.',
+      commands.redo.bind(commands),
+    ],
   ] as const) {
     server.registerTool(
       name,
@@ -566,12 +598,16 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
         annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       },
       guard(({ sessionId: id }) => {
+        const versionBefore = sessions.versionOf(id);
         const outcome = unwrap(step(id));
         if ('reply' in outcome) return outcome.reply;
         if (!outcome.value.ok) {
           return toolError(outcome.value.code, outcome.value.message ?? 'Nothing to do');
         }
-        return reply({ ok: true, version: outcome.value.version }, id);
+        // Con el journal vacío el dominio devuelve OK sin hacer nada: el agente
+        // debe saber que no se deshizo/rehízo nada (la versión no se movió).
+        const changed = outcome.value.version !== versionBefore;
+        return reply({ ok: true, changed, version: outcome.value.version }, id);
       }),
     );
   }

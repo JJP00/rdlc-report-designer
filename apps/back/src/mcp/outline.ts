@@ -20,11 +20,6 @@ const fmt = (length: Length): string => `${Number(length.value.toFixed(4))}${len
 const box = (item: ItemDto): string =>
   `top=${fmt(item.top)} left=${fmt(item.left)} w=${fmt(item.width)} h=${fmt(item.height)}`;
 
-const preview = (text: string, max = 60): string => {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
-};
-
 function regionOf(projection: ProjectionDto, region: RegionName): RegionDto {
   return region === 'pageHeader'
     ? projection.page.header
@@ -119,8 +114,21 @@ export function describeReport(projection: ProjectionDto): Record<string, unknow
 class Lines {
   readonly out: string[] = [];
   truncated = false;
+  /** Textos/expresiones recortados: el agente debe saberlo, no inferirlo de un «…». */
+  clipped = 0;
 
-  constructor(private readonly max: number) {}
+  constructor(
+    private readonly max: number,
+    private readonly fullText: boolean,
+  ) {}
+
+  /** Una línea de texto: aplana espacios y, salvo `fullText`, recorta marcando cuánto falta. */
+  clip(text: string, max = 60): string {
+    const flat = text.replace(/\s+/g, ' ').trim();
+    if (this.fullText || flat.length <= max) return flat;
+    this.clipped += 1;
+    return `${flat.slice(0, max - 1)}…[+${flat.length - max + 1} chars]`;
+  }
 
   add(depth: number, text: string): void {
     if (this.out.length >= this.max) {
@@ -140,7 +148,9 @@ function describeMembers(
   for (const member of members) {
     const parts = [`${axis}[${member.path.join(',')}]`];
     if (member.expression !== undefined) {
-      parts.push(`group${member.name ? ` "${member.name}"` : ''} on ${preview(member.expression)}`);
+      parts.push(
+        `group${member.name ? ` "${member.name}"` : ''} on ${lines.clip(member.expression)}`,
+      );
     } else {
       parts.push('static');
     }
@@ -161,7 +171,7 @@ function outlineTablix(lines: Lines, depth: number, item: TablixDto): void {
   if (item.filters?.length) {
     lines.add(
       depth + 1,
-      `filters: ${item.filters.map((f) => `${preview(f.expression)} ${f.operator} ${f.values.map((v) => preview(v, 30)).join('|')}`).join('; ')}`,
+      `filters: ${item.filters.map((f) => `${lines.clip(f.expression)} ${f.operator} ${f.values.map((v) => lines.clip(v, 30)).join('|')}`).join('; ')}`,
     );
   }
   item.body.rows.forEach((row, r) => {
@@ -206,13 +216,13 @@ function outlineItem(lines: Lines, depth: number, item: ItemDto, prefix = ''): v
   switch (item.kind) {
     case 'textbox': {
       const text = textOf(item);
-      lines.add(depth, text ? `${head} text: ${preview(text)}` : head);
+      lines.add(depth, text ? `${head} text: ${lines.clip(text)}` : head);
       break;
     }
     case 'image':
       lines.add(
         depth,
-        `${head} source=${item.source ?? '?'}${item.value ? ` value=${preview(item.value, 40)}` : ''}`,
+        `${head} source=${item.source ?? '?'}${item.value ? ` value=${lines.clip(item.value, 40)}` : ''}`,
       );
       break;
     case 'rectangle':
@@ -237,10 +247,12 @@ export interface OutlineOptions {
   /** Esquema de un solo item (y su subárbol) en vez de las regiones. */
   id?: string;
   maxLines: number;
+  /** No recortar textos ni expresiones largas. */
+  fullText?: boolean;
 }
 
 export function outlineOf(projection: ProjectionDto, options: OutlineOptions): string | undefined {
-  const lines = new Lines(options.maxLines);
+  const lines = new Lines(options.maxLines, options.fullText === true);
 
   if (options.id !== undefined) {
     const item = findItem(projection, options.id);
@@ -261,6 +273,11 @@ export function outlineOf(projection: ProjectionDto, options: OutlineOptions): s
     }
   }
 
+  if (lines.clipped > 0) {
+    lines.out.push(
+      `… ${lines.clipped} text(s)/expression(s) shortened ("…[+N chars]"): get the full text with rdlc_get_item {id}, or pass fullText: true.`,
+    );
+  }
   if (lines.truncated) {
     lines.out.push(
       `… output truncated to ${options.maxLines} lines: ask for a specific region or item id.`,

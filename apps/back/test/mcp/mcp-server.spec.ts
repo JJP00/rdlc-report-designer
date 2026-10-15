@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -180,6 +180,61 @@ describe('servidor MCP rdlc', () => {
     expect((await call('rdlc_get_outline', { sessionId }))['text']).toContain('"A"');
   });
 
+  it('undo/redo sin historial avisan de que no cambiaron nada', async () => {
+    const { sessionId } = await createBlank();
+    expect((await call('rdlc_undo', { sessionId }))['changed']).toBe(false);
+    expect((await call('rdlc_redo', { sessionId }))['changed']).toBe(false);
+
+    await call('rdlc_apply_commands', { sessionId, commands: [textbox('A', 'one')] });
+    expect((await call('rdlc_undo', { sessionId }))['changed']).toBe(true);
+    expect((await call('rdlc_redo', { sessionId }))['changed']).toBe(true);
+  });
+
+  it('el outline marca lo que recorta y fullText lo da entero', async () => {
+    const { sessionId } = await createBlank();
+    const long = `=IIF(Fields!Carrier.Value = "", "none", ${'Fields!X.Value & '.repeat(12)}"end")`;
+    await call('rdlc_apply_commands', { sessionId, commands: [textbox('Long', long)] });
+
+    const short = String((await call('rdlc_get_outline', { sessionId }))['text']);
+    expect(short).toMatch(/…\[\+\d+ chars\]/);
+    expect(short).toContain('rdlc_get_item');
+    expect(short).not.toContain('"end")');
+
+    const full = String((await call('rdlc_get_outline', { sessionId, fullText: true }))['text']);
+    expect(full).toContain('"end")');
+    expect(full).not.toMatch(/…\[\+/);
+
+    // rdlc_get_item siempre trae el texto íntegro.
+    const item = await call('rdlc_get_item', { sessionId, id: 'Long' });
+    expect(JSON.stringify(item['item'])).toContain('\\"end\\")');
+  });
+
+  it('reabrir una sesión limpia relee el disco; con cambios sin guardar no pisa nada', async () => {
+    const a = await createBlank('a.rdlc');
+    const b = await createBlank('b.rdlc');
+    await call('rdlc_apply_commands', {
+      sessionId: b.sessionId,
+      commands: [textbox('FromDisk', 'x')],
+    });
+    await call('rdlc_save', { sessionId: b.sessionId });
+
+    // El .rdlc «se regenera» en disco por fuera (p. ej. tras compilar el AL).
+    await copyFile(b.path, a.path);
+    const refreshed = await call('rdlc_open', { path: a.path });
+    expect(refreshed['sessionId']).toBe(a.sessionId);
+    expect(refreshed['refreshedFromDisk']).toBe(true);
+    const outline = String((await call('rdlc_get_outline', { sessionId: a.sessionId }))['text']);
+    expect(outline).toContain('"FromDisk"');
+
+    // Con ediciones sin guardar, no se relee: se avisa.
+    await call('rdlc_apply_commands', { sessionId: a.sessionId, commands: [textbox('Mine', 'y')] });
+    const kept = await call('rdlc_open', { path: a.path });
+    expect(kept['refreshedFromDisk']).toBe(false);
+    expect(kept['unsavedChanges']).toBe(true);
+    const after = String((await call('rdlc_get_outline', { sessionId: a.sessionId }))['text']);
+    expect(after).toContain('"Mine"');
+  });
+
   it('cerrar con cambios pide guardar o forzar', async () => {
     const { sessionId } = await createBlank();
     await call('rdlc_apply_commands', { sessionId, commands: [textbox('A', 'one')] });
@@ -214,7 +269,11 @@ describe('servidor MCP rdlc', () => {
       sessionId: opened['sessionId'],
       maxLines: 30,
     });
-    expect(String(outline['text']).split('\n').length).toBeLessThanOrEqual(31);
+    // maxLines acota las líneas de contenido; los avisos finales empiezan por «…».
+    const content = String(outline['text'])
+      .split('\n')
+      .filter((line) => !line.startsWith('…'));
+    expect(content.length).toBeLessThanOrEqual(30);
   });
 
   it('rdlc_list_commands da firmas y esquemas exactos', async () => {
