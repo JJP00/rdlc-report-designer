@@ -34,7 +34,7 @@ A modern alternative to Report Builder: edit the layout with your mouse and get 
 
 ## Why
 
-Report Builder is deprecated and Business Central `.rdlc` files are edited by hand today or with tools that rewrite the whole file. RDLC Report Designer:
+Microsoft Report Builder in my point of view is old, that lacks basic user experience features. With RDLC Report Designer i try to fill some gaps that i find in my day a day working with rdlc/rdl reports. The core idea behind this software are:
 
 - opens real BC reports and **saves them byte for byte identical** except for what you changed.
 - validates against the official **RDL 2016/01 XSD** before saving.
@@ -44,16 +44,16 @@ Report Builder is deprecated and Business Central `.rdlc` files are edited by ha
 
 | Area                         | What it includes                                                                                                                                                                   |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Faithful to the file**     | _Lossless_ XML as the source of truth: byte-for-byte round-trip (10/10 corpus reports), byte-exact undo, XSD validation on import and save.                                        |
+| **Faithful to the file**     | _Lossless_ XML as the source of truth: byte-for-byte.                                        |
 | **Canvas**                   | Paper, margins and bands, mm/cm rulers, snapping, 1 pt / 10 pt arrows, zoom up to 400 %, multi-selection, 8 handles, z-order, viewport culling (≈60 fps with ~1000 textboxes).     |
-| **Full Tablix**              | Cells, rows and columns, merge/split cells, row and column groups (Matrix), totals, visibility, filters, Report Builder-style headers, headers and corner.                         |
+| **Full Tablix**              | Cells, rows and columns, merge/split cells, row and column groups (Matrix), visibility, filters...                         |
 | **Text and style**           | Runs and paragraphs with `run > paragraph > item` precedence, format bar, fonts available in BC, per-side borders, padding, literal or expression background color, number format. |
-| **Expressions**              | Monaco with highlighting and autocomplete for expressions and for the `<Code>` block (VB), variable panel with search.                                                             |
-| **Productivity**             | Command palette <kbd>Ctrl</kbd>+<kbd>K</kbd>, context menu, copy/cut/paste, duplicate, drag-to-insert from the toolbar, light/dark theme.                                          |
-| **Multiple reports at once** | One tab per report with independent undo, _dirty_ state and conflict; reorder, batch close and "Save all".                                                                         |
-| **Resilient**                | Live reload if the file changes outside, recovery after a UI crash, conflict warning when saving and deleted-file warning.                                                         |
-| **Secure**                   | Electron with sandbox, `contextIsolation`, navigation/windows/permissions blocked and trusted file paths only if the user chose them.                                              |
+| **Expressions**              | Highlighting and autocomplete for expressions and code.                                                             |
+| **Productivity**             | Command palette <kbd>Ctrl</kbd>+<kbd>K</kbd> and search tablix, textbox, rectangles, images in the report. 2 new panels list variables and hierarchy.                                |
+| **Multiple reports at once** | One tab per report. Work with multiples tabs in the same instance instead of opening multiple times the same app.                                                                    |
+| **Resilient**                | Live reload if the file changes outside, conflict warning when saving and deleted-file warning.                                                         |
 | **Formats**                  | Business Central `.rdlc` and SSRS `.rdl` (2016/01 schema).                                                                                                                         |
+| **Agent connection**         | MCP server for code agents. Instead of reading and editing the `.rdlc`/`.rdl` files which is token expensive, the mcp exposes the right tools that lets the agent understand and efficiently edit the report. |
 
 ## Installation
 
@@ -65,8 +65,6 @@ Download the installer from the repository's **Releases** section:
 | `RDLC-Report-Designer-<version>.msi`              | Corporate deployment     |
 | `RDLC-Report-Designer-<version>-portable.exe`     | No installation          |
 | `RDLC-Report-Designer-<version>-win-unpacked.zip` | Ready-to-run folder      |
-
-> Installers are only signed if the pipeline has the certificate; an unsigned build shows the Windows SmartScreen warning. Details in [docs/release](./docs/release/0001-empaquetado-windows.md).
 
 You can also open a report from the command line or by dragging it onto the window:
 
@@ -225,17 +223,6 @@ pnpm --filter @rdlc-designer/back dev
 In dev (and in the `--mode e2e` build) the renderer exposes hooks for scripts: `__rdlcSelection`, `__rdlcCell`, `__rdlcMenuHit`, `__rdlcResizeHandle`, `__rdlcStage` and `__rdlcProjection`. Interaction tests live in Playwright (`pnpm e2e`).
 
 </details>
-
-## Documentation
-
-> The linked docs are currently in Spanish.
-
-- [Functional documentation](./RDLC%20Report%20Designer.md)
-- [Architecture](./RDLC%20Report%20Designer%20-%20arquitectura.md)
-- [Development status](./docs/estado-desarrollo.md): phases, sessions and recent changes
-- [Backlog](./RDLC%20Report%20Designer%20-%20Pendientes.md)
-- [Packaging and CI](./docs/release/0001-empaquetado-windows.md)
-- [MCP server](./docs/features/0004-servidor-mcp.md): edit `.rdlc` from an agent (Claude Code…)
 
 ## License
 
