@@ -6,26 +6,24 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows:
     name: Windows installers (NSIS + MSI + portable + zip)
-    # Solo el propietario (JJP00) puede disparar el release: workflow_dispatch
-    # (crea el tag `v<versión>` desde apps/back/package.json) o push de un tag
-    # `v*` (se verifica que coincide con la versión). Otro actor = skipped.
-    if: github.triggering_actor == 'JJP00'
-    # Environment `release`: de aquí salen los secretos de firma (CSC_LINK /
-    # CSC_KEY_PASSWORD) y aplican sus reglas de protección (aprobación, tags).
+
+    if: >-
+      github.triggering_actor == 'JJP00' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+   
     environment: release
+    permissions:
+      contents: write 
     runs-on: windows-latest
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      # Firma (opcional): define los secretos CSC_LINK (ruta/base64 del .pfx)
-      # y CSC_KEY_PASSWORD y electron-builder firmará el ejecutable.
-      CSC_LINK: ${{ secrets.CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
     steps:
+    
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -40,10 +38,6 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # La versión la manda `apps/back/package.json`:
-      # - `workflow_dispatch`: se crea el tag `v<versión>` si no existe (apuntando
-      #   a este commit) y la release se publica sobre él.
-      # - push de tag: se verifica que el tag sea exactamente `v<versión>`.
       - name: Resolve version and tag
         id: release-meta
         shell: bash
@@ -80,6 +74,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build installers
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: pnpm --filter @rdlc-designer/back dist
 
       - name: Upload installers
@@ -96,7 +93,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release-meta.outputs.tag }}
-          # Cabecera propia; GitHub antepone las notas automáticas ("What's Changed").
           body: |
             ## RDLC Report Designer v${{ steps.release-meta.outputs.version }}
 
@@ -115,3 +111,79 @@ jobs:
             apps/back/release/*.exe
             apps/back/release/*.msi
             apps/back/release/*.zip
+
+  npm:
+    name: npm publish (@rdlc-designer/mcp)
+    needs: windows
+    if: >-
+      github.triggering_actor == 'JJP00' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+
+    environment: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false 
+
+      - name: pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check npm version
+        id: npm-meta
+        run: |
+          version="$(node -p "require('./packages/rdlc-mcp/package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if curl -fsS -o /dev/null "https://registry.npmjs.org/@rdlc-designer%2Fmcp/$version"; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::@rdlc-designer/mcp@$version ya está en npm; se omite el publish."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build package
+        if: steps.npm-meta.outputs.published == 'false'
+        run: pnpm --filter @rdlc-designer/mcp build
+
+      - name: Smoke test
+        if: steps.npm-meta.outputs.published == 'false'
+        run: pnpm --filter @rdlc-designer/mcp smoke
+
+      - name: Publish to npm
+        if: steps.npm-meta.outputs.published == 'false'
+        working-directory: packages/rdlc-mcp
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance
+
+# ---------------------------------------------------------------------------
+# Configuración del repositorio que complementa este workflow (no se puede
+# hacer desde el YAML):
+#
+# 1. Settings → Environments → release
+#    - Required reviewers: solo JJP00.
+#    - Deployment branches and tags: "Selected branches and tags" → main y v*.
+#    - Environment secrets: CSC_LINK, CSC_KEY_PASSWORD, NPM_TOKEN.
+#    - Borrar esos mismos secretos del nivel de repositorio.
+# 2. Ruleset sobre main: exigir PR + "Require review from Code Owners", con un
+#    .github/CODEOWNERS que contenga:  /.github/workflows/ @JJP00
+# 3. Ruleset de tags v*: restringir creación/borrado a JJP00. Ojo: el job
+#    `windows` hace `git push origin "$tag"` con GITHUB_TOKEN y un ruleset de
+#    tags podría bloquearlo; pruébalo con un tag de prueba.
+# 4. Settings → Actions → General: limitar las actions permitidas.
+# ---------------------------------------------------------------------------
