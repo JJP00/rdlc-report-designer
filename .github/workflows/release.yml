@@ -171,9 +171,7 @@ jobs:
       - name: Publish to npm
         if: steps.npm-meta.outputs.published == 'false'
         working-directory: packages/rdlc-mcp
-        env:
-          NPM_CONFIG_PROVENANCE: 'false'
-        run: npm publish
+        run: npm publish --provenance
 
 # ---------------------------------------------------------------------------
 # Configuración del repositorio que complementa este workflow (no se puede
