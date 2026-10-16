@@ -44,13 +44,13 @@ como `notices` en la siguiente respuesta de esa sesión (`HeadlessEventBus`).
 ## 4. Distribución y uso
 
 El servidor funciona **sin la app**: no usa Electron ni abre ventana. Se distribuye como paquete
-npm [`@rdlc-designer/mcp`](../../packages/rdlc-mcp) (bundle de ~280 KB + el XSD; las dependencias de
+npm [`@jjp00/rdlc-designer-mcp`](../../packages/rdlc-mcp) (bundle de ~280 KB + el XSD; las dependencias de
 terceros las instala npm). Requiere Node 22.
 
 ```bash
 # usuario final (cuando esté publicado)
-claude mcp add rdlc-designer -- npx -y @rdlc-designer/mcp
-claude mcp add rdlc-designer -- cmd /c npx -y @rdlc-designer/mcp   # Windows nativo (no WSL)
+claude mcp add rdlc-designer -- npx -y @jjp00/rdlc-designer-mcp
+claude mcp add rdlc-designer -- cmd /c npx -y @jjp00/rdlc-designer-mcp   # Windows nativo (no WSL)
 ```
 
 Configuración para otros agentes (Claude Desktop, Cursor, VS Code, Codex…): ver el
@@ -66,17 +66,17 @@ claude mcp add rdlc-designer -- node C:/ruta/a/ReportDesigner/apps/back/out/mcp/
 **Paquete npm:**
 
 ```bash
-pnpm --filter @rdlc-designer/mcp build          # → packages/rdlc-mcp/dist + resources
-pnpm --filter @rdlc-designer/mcp smoke          # npm pack + instalar el tarball en limpio + stdio
-npm publish --workspace @rdlc-designer/mcp      # publicar (requiere ser dueño del scope @rdlc-designer)
+pnpm --filter @jjp00/rdlc-designer-mcp build          # → packages/rdlc-mcp/dist + resources
+pnpm --filter @jjp00/rdlc-designer-mcp smoke          # npm pack + instalar el tarball en limpio + stdio
+cd packages/rdlc-mcp && npm publish              # publicar (cuenta npm dueña del scope @jjp00)
 ```
 
 El smoke empaqueta y lo instala como lo haría un usuario (descarga las dependencias de npm) y
 comprueba `create → apply → save` con el XSD empaquetado. `RDLC_SCHEMA_PATH` sobrescribe el XSD.
 
-> **Pendiente**: el nombre/scope npm y la publicación (`NPM_TOKEN` en el workflow de release). No
-> se ha publicado nada. Para quien tenga instalada la app de escritorio no hace falta el paquete:
-> basta cualquier Node 22.
+> **Pendiente**: publicar en npm (scope: `@jjp00`; la primera publicación es manual). El workflow de
+> release aún usa `NPM_TOKEN`: migrarlo a trusted publishing (OIDC). Para quien tenga instalada la app
+> de escritorio no hace falta el paquete: basta cualquier Node 22.
 
 ## 5. Límites conocidos (v1)
 
