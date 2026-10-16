@@ -2,10 +2,12 @@
 
 # RDLC Report Designer
 
-**Editor visual de informes `.rdlc` de Business Central y `.rdl` de SSRS.**
-Una alternativa moderna al Report Builder: edita el layout con el ratón y obtén un XML que se guarda **sin alterar nada de lo que no tocaste**.
+**Visual editor for Business Central `.rdlc` and SSRS `.rdl` reports.**
+A modern alternative to Report Builder: edit the layout with your mouse and get XML that saves **without altering anything you didn't touch**.
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+**RDCL Report Designer MCP server:** let an AI agent (Claude Code, Claude Desktop, Cursor…) create and edit reports without opening the app — [setup](#mcp-server--edit-reports-from-an-agent).
+
+![Version](https://img.shields.io/badge/version-0.6.1-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
@@ -23,135 +25,218 @@ Una alternativa moderna al Report Builder: edita el layout con el ratón y obté
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshot-dark.png">
-  <img alt="RDLC Report Designer: lienzo con un informe de factura, pestañas y panel de propiedades" src="docs/assets/screenshot-light.png" width="920">
+  <img alt="RDLC Report Designer: canvas with an invoice report, tabs and properties panel" src="docs/assets/screenshot-light.png" width="920">
 </picture>
 
 </div>
 
 ---
 
-## Por qué
+## Why
 
-El Report Builder está obsoleto y los `.rdlc` de Business Central se editan hoy a mano o con herramientas que reescriben el fichero entero. RDLC Report Designer:
+Report Builder is deprecated and Business Central `.rdlc` files are edited by hand today or with tools that rewrite the whole file. RDLC Report Designer:
 
-- abre informes reales de BC y los **guarda byte a byte igual** salvo lo que cambies.
-- valida contra el **XSD oficial RDL 2016/01** antes de guardar.
-- es compatible con lo que **Report Builder y BC** esperan al abrir el informe.
+- opens real BC reports and **saves them byte for byte identical** except for what you changed.
+- validates against the official **RDL 2016/01 XSD** before saving.
+- is compatible with what **Report Builder and BC** expect when opening the report.
 
-## Características
+## Features
 
-| Área                         | Qué incluye                                                                                                                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fiel al fichero**          | XML _lossless_ como fuente de verdad: round-trip byte a byte (10/10 informes del corpus), undo byte-exacto, validación XSD al importar y al guardar.                                      |
-| **Lienzo**                   | Papel, márgenes y bandas, reglas mm/cm, imán, flechas de 1 pt / 10 pt, zoom hasta 400 %, multiselección, 8 tiradores, z-order, culling por ventana visible (≈60 fps con ~1000 textboxes). |
-| **Tablix completo**          | Celdas, filas y columnas, combinar/separar celdas, grupos de fila y de columna (Matrix), totales, visibilidad, filtros, cabeceras estilo Report Builder, cabeceras y esquina.             |
-| **Texto y estilo**           | Runs y párrafos con precedencia `run > párrafo > item`, barra de formato, fuentes disponibles en BC, bordes por lado, relleno, color de fondo literal o expresión, formato numérico.      |
-| **Expresiones**              | Monaco con resaltado y autocompletado para expresiones y para el bloque `<Code>` (VB), panel de variables con búsqueda.                                                                   |
-| **Productividad**            | Paleta de comandos <kbd>Ctrl</kbd>+<kbd>K</kbd>, menú contextual, copiar/cortar/pegar, duplicar, insertar arrastrando desde la barra, tema claro/oscuro.                                  |
-| **Varios informes a la vez** | Una pestaña por informe con undo, _dirty_ y conflicto independientes; reordenar, cerrar en lote y «Guardar todas».                                                                        |
-| **Resiliente**               | Recarga en vivo si el fichero cambia por fuera, recuperación tras caída de la interfaz, aviso de conflicto al guardar y de fichero borrado.                                               |
-| **Seguro**                   | Electron con sandbox, `contextIsolation`, navegación/ventanas/permisos bloqueados y rutas de fichero confiables solo si el usuario las eligió.                                            |
-| **Formatos**                 | `.rdlc` de Business Central y `.rdl` de SSRS (esquema 2016/01).                                                                                                                           |
+| Area                         | What it includes                                                                                                                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Faithful to the file**     | _Lossless_ XML as the source of truth: byte-for-byte round-trip (10/10 corpus reports), byte-exact undo, XSD validation on import and save.                                        |
+| **Canvas**                   | Paper, margins and bands, mm/cm rulers, snapping, 1 pt / 10 pt arrows, zoom up to 400 %, multi-selection, 8 handles, z-order, viewport culling (≈60 fps with ~1000 textboxes).     |
+| **Full Tablix**              | Cells, rows and columns, merge/split cells, row and column groups (Matrix), totals, visibility, filters, Report Builder-style headers, headers and corner.                         |
+| **Text and style**           | Runs and paragraphs with `run > paragraph > item` precedence, format bar, fonts available in BC, per-side borders, padding, literal or expression background color, number format. |
+| **Expressions**              | Monaco with highlighting and autocomplete for expressions and for the `<Code>` block (VB), variable panel with search.                                                             |
+| **Productivity**             | Command palette <kbd>Ctrl</kbd>+<kbd>K</kbd>, context menu, copy/cut/paste, duplicate, drag-to-insert from the toolbar, light/dark theme.                                          |
+| **Multiple reports at once** | One tab per report with independent undo, _dirty_ state and conflict; reorder, batch close and "Save all".                                                                         |
+| **Resilient**                | Live reload if the file changes outside, recovery after a UI crash, conflict warning when saving and deleted-file warning.                                                         |
+| **Secure**                   | Electron with sandbox, `contextIsolation`, navigation/windows/permissions blocked and trusted file paths only if the user chose them.                                              |
+| **Formats**                  | Business Central `.rdlc` and SSRS `.rdl` (2016/01 schema).                                                                                                                         |
 
-## Instalación
+## Installation
 
-Descarga el instalador desde la sección **Releases** del repositorio:
+Download the installer from the repository's **Releases** section:
 
-| Fichero                                           | Uso                         |
-| ------------------------------------------------- | --------------------------- |
-| `RDLC-Report-Designer-<versión>-setup.exe`        | Instalador clásico (NSIS)   |
-| `RDLC-Report-Designer-<versión>.msi`              | Despliegue corporativo      |
-| `RDLC-Report-Designer-<versión>-portable.exe`     | Sin instalación             |
-| `RDLC-Report-Designer-<versión>-win-unpacked.zip` | Carpeta lista para ejecutar |
+| File                                              | Use                      |
+| ------------------------------------------------- | ------------------------ |
+| `RDLC-Report-Designer-<version>-setup.exe`        | Classic installer (NSIS) |
+| `RDLC-Report-Designer-<version>.msi`              | Corporate deployment     |
+| `RDLC-Report-Designer-<version>-portable.exe`     | No installation          |
+| `RDLC-Report-Designer-<version>-win-unpacked.zip` | Ready-to-run folder      |
 
-> Los instaladores se firman solo si el pipeline dispone del certificado; una build sin firmar muestra el aviso de SmartScreen de Windows. Detalle en [docs/release](./docs/release/0001-empaquetado-windows.md).
+> Installers are only signed if the pipeline has the certificate; an unsigned build shows the Windows SmartScreen warning. Details in [docs/release](./docs/release/0001-empaquetado-windows.md).
 
-También puedes abrir un informe desde la línea de comandos o arrastrándolo a la ventana:
+You can also open a report from the command line or by dragging it onto the window:
 
 ```bash
-"RDLC Report Designer.exe" C:\ruta\al\informe.rdlc
+"RDLC Report Designer.exe" C:\path\to\report.rdlc
 ```
 
-## Desarrollo
+## MCP server — edit reports from an agent
 
-**Requisitos:** Node.js ≥ 22 y pnpm 9 (`npm install -g pnpm@9.15.4`).
+The repo ships a [Model Context Protocol](https://modelcontextprotocol.io) server (stdio) that lets an AI agent (Claude Code, Claude Desktop, Cursor…) create and edit `.rdlc`/`.rdl` layouts **without opening the app**: no GUI, no Electron. It runs the same editing engine as the desktop app, so the agent works with the same typed commands as the UI and keeps every guarantee: byte-for-byte round-trip, byte-exact undo, measure normalization and RDL 2016 XSD validation on save.
+
+Published on npm as [`@jjp00/rdlc-designer-mcp`](https://www.npmjs.com/package/@jjp00/rdlc-designer-mcp) (requires Node.js 22+).
+
+### Setup
+
+**Claude Code:**
+
+```bash
+claude mcp add rdlc-designer -- npx -y @jjp00/rdlc-designer-mcp
+claude mcp add rdlc-designer -- cmd /c npx -y @jjp00/rdlc-designer-mcp   # native Windows (not WSL)
+```
+
+Add `--scope user` for all your projects, or `--scope project` to write a shared `.mcp.json`.
+
+**Other agents** (Claude Desktop, Cursor, VS Code, Codex…):
+
+```jsonc
+// Claude Desktop (claude_desktop_config.json), Cursor (.cursor/mcp.json)
+{
+  "mcpServers": {
+    "rdlc-designer": { "command": "npx", "args": ["-y", "@jjp00/rdlc-designer-mcp"] },
+  },
+}
+```
+
+```jsonc
+// VS Code (.vscode/mcp.json)
+{
+  "servers": {
+    "rdlc-designer": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@jjp00/rdlc-designer-mcp"],
+    },
+  },
+}
+```
+
+```toml
+# Codex CLI (~/.codex/config.toml)
+[mcp_servers.rdlc-designer]
+command = "npx"
+args = ["-y", "@jjp00/rdlc-designer-mcp"]
+```
+
+### Tools
+
+| Tool                         | Purpose                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `rdlc_open` / `rdlc_create`  | Open an existing `.rdlc`/`.rdl` or create a blank one (won't overwrite unless `overwrite`) |
+| `rdlc_list_sessions`         | Open sessions, dirty state, version                                                        |
+| `rdlc_get_report`            | Page, regions, item counts, dataset fields, parameters, VB code (`includeCode`)            |
+| `rdlc_get_outline`           | Layout map (`region`, `id`, `maxLines` to bound it)                                        |
+| `rdlc_get_item`              | Full JSON of one item                                                                      |
+| `rdlc_list_commands`         | Signatures of all commands, or the exact JSON Schema of the named ones (`names`)           |
+| `rdlc_apply_commands`        | Apply a list of commands in order (`atomic`)                                               |
+| `rdlc_undo` / `rdlc_redo`    | Session journal                                                                            |
+| `rdlc_save` / `rdlc_save_as` | Save (validates the schema) or save a copy                                                 |
+| `rdlc_reload` / `rdlc_close` | Re-read from disk discarding changes / close (`force` discards changes)                    |
+
+Edits live in memory until `rdlc_save`. Dataset fields and parameters are read-only: in Business Central they come from the AL report dataset, so add the column in AL, compile, and re-open the regenerated `.rdlc`. Warnings that are dialogs in the GUI (conflict, deleted file, external reload) reach the agent as `notices` in the session's next response.
+
+> Notes: only `.rdlc`/`.rdl` (2016/01 schema) files are accepted; the server has the file access of the process that launches it, so work on copies until you trust it; `RDLC_SCHEMA_PATH` overrides the bundled XSD. More in [docs/features/0004-servidor-mcp.md](./docs/features/0004-servidor-mcp.md) and the [package README](./packages/rdlc-mcp/README.md).
+
+<details>
+<summary><b>From the repo (development, no publish needed)</b></summary>
+
+```bash
+pnpm --filter @rdlc-designer/back build:mcp     # → apps/back/out/mcp/server.mjs
+claude mcp add rdlc-designer -- node C:/path/to/ReportDesigner/apps/back/out/mcp/server.mjs
+
+pnpm --filter @jjp00/rdlc-designer-mcp build    # → packages/rdlc-mcp/dist + resources
+pnpm --filter @jjp00/rdlc-designer-mcp smoke    # npm pack + clean install + stdio check
+```
+
+</details>
+
+## Development
+
+**Requirements:** Node.js ≥ 22 and pnpm 9 (`npm install -g pnpm@9.15.4`).
 
 ```bash
 pnpm install
-pnpm --filter @rdlc-designer/back dev     # Electron en modo dev (HMR del renderer)
+pnpm --filter @rdlc-designer/back dev     # Electron in dev mode (renderer HMR)
 ```
 
-| Comando                                   | Qué hace                                                                |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
-| `pnpm test`                               | Tests unitarios (Vitest): golden round-trip, dominio, aplicación, front |
-| `pnpm e2e`                                | Playwright sobre la app Electron (compila `out/` y lanza los E2E)       |
-| `pnpm typecheck`                          | `tsc` en todos los paquetes                                             |
-| `pnpm lint` · `pnpm format:check`         | Lint y formato                                                          |
-| `pnpm --filter @rdlc-designer/back build` | Build de producción (main + preload + renderer)                         |
-| `pnpm dist`                               | Instaladores Windows (NSIS + MSI) en `apps/back/release/`               |
-| `pnpm dist:dir`                           | App desempaquetada, para un _smoke test_ sin instalador                 |
+| Command                                   | What it does                                                          |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| `pnpm test`                               | Unit tests (Vitest): golden round-trip, domain, application, frontend |
+| `pnpm e2e`                                | Playwright against the Electron app (builds `out/` and runs the E2E)  |
+| `pnpm typecheck`                          | `tsc` across all packages                                             |
+| `pnpm lint` · `pnpm format:check`         | Lint and format                                                       |
+| `pnpm --filter @rdlc-designer/back build` | Production build (main + preload + renderer)                          |
+| `pnpm dist`                               | Windows installers (NSIS + MSI) in `apps/back/release/`               |
+| `pnpm dist:dir`                           | Unpacked app, for a smoke test without an installer                   |
 
-### Arquitectura
+### Architecture
 
 ```
-apps/back/            Electron main + NestJS (hexágono: dominio / aplicación / presentación / infraestructura)
+apps/back/            Electron main + NestJS (hexagon: domain / application / presentation / infrastructure)
 apps/front/           React 19 — Tailwind v4 + shadcn/ui (radix-nova) + Konva
-packages/contracts/   zod: comandos, proyección e IPC compartidos
-fixtures/corpus/      10 informes reales para los golden tests
-docs/                 ADR, rendimiento, empaquetado, UX, bugs y diseño de funcionalidades
+packages/contracts/   zod: shared commands, projection and IPC
+packages/rdlc-mcp/    MCP server package (@jjp00/rdlc-designer-mcp)
+fixtures/corpus/      10 real reports for the golden tests
+docs/                 ADRs, performance, packaging, UX, bugs and feature designs
 ```
 
-El renderer nunca toca el XML: envía **comandos** tipados al backend, que los aplica al árbol _lossless_ (con su inverso para el undo) y devuelve una **proyección** para pintar. Más en la [documentación de arquitectura](./RDLC%20Report%20Designer%20-%20arquitectura.md) y en los ADR: [parser XML lossless](./docs/adr/0001-parser-xml-lossless.md) · [NestJS en el proceso main](./docs/adr/0002-nest-en-electron-main.md).
+The renderer never touches the XML: it sends typed **commands** to the backend, which applies them to the _lossless_ tree (with their inverse for undo) and returns a **projection** to paint. More in the [architecture documentation](./RDLC%20Report%20Designer%20-%20arquitectura.md) and the ADRs: [lossless XML parser](./docs/adr/0001-parser-xml-lossless.md) · [NestJS in the main process](./docs/adr/0002-nest-en-electron-main.md).
 
 <details>
-<summary><b>Solución de problemas</b></summary>
+<summary><b>Troubleshooting</b></summary>
 
-- **`Error: Electron uninstall` al arrancar en dev:** pnpm no ejecutó el postinstall de Electron. Descarga el binario a mano: `node apps/back/node_modules/electron/install.js`.
-- **La app arranca como Node y falla con `does not provide an export named 'BrowserWindow'`:** la variable de entorno `ELECTRON_RUN_AS_NODE` está definida en tu terminal. Quítala (`Remove-Item Env:ELECTRON_RUN_AS_NODE`) y vuelve a lanzar.
+- **`Error: Electron uninstall` when starting in dev:** pnpm didn't run Electron's postinstall. Download the binary manually: `node apps/back/node_modules/electron/install.js`.
+- **The app starts as Node and fails with `does not provide an export named 'BrowserWindow'`:** the `ELECTRON_RUN_AS_NODE` environment variable is set in your terminal. Remove it (`Remove-Item Env:ELECTRON_RUN_AS_NODE`) and launch again.
 
 </details>
 
 <details>
-<summary><b>Benchmark del lienzo</b></summary>
+<summary><b>Canvas benchmark</b></summary>
 
 ```bash
-# 3 pasadas del escenario de 972 textboxes sobre el build de producción
+# 3 passes of the 972-textbox scenario on the production build
 pnpm --filter @rdlc-designer/back bench
-# Otro tamaño / nº de pasadas: node apps/back/scripts/bench.mjs 5000 5
+# Different size / number of passes: node apps/back/scripts/bench.mjs 5000 5
 ```
 
-Resultado actual: **59,5–59,9 fps p50** con 972 textboxes (presupuesto 60). Detalle en [docs/perf](./docs/perf/0001-baseline-lienzo.md).
+Current result: **59.5–59.9 fps p50** with 972 textboxes (budget 60). Details in [docs/perf](./docs/perf/0001-baseline-lienzo.md).
 
 </details>
 
 <details>
-<summary><b>Modo QA: capturas y guiones sobre la app real</b></summary>
+<summary><b>QA mode: screenshots and scripts against the real app</b></summary>
 
-Electron puede abrir un informe, ejecutar un guion en el renderer y sacar una captura sin tocar nada a mano. Es como se generaron las capturas de este README.
+Electron can open a report, run a script in the renderer and take a screenshot without touching anything by hand. That's how the screenshots in this README were generated.
 
 ```powershell
-$env:RDLC_OPEN='C:\ruta\al\informe.rdlc'    # fichero a abrir al arrancar
-$env:RDLC_SHOT='C:\ruta\salida.png'         # captura al terminar
-$env:RDLC_SHOT_DELAY='6000'                 # ms antes de ejecutar el guion
-$env:RDLC_SHOT_DRAG='x1,y1,x2,y2'           # arrastre/click previo (px de ventana)
-$env:RDLC_SHOT_SCRIPT='...'                 # JS a evaluar en el renderer
-$env:RDLC_SHOT_QUIT='1'                     # cerrar al acabar
+$env:RDLC_OPEN='C:\path\to\report.rdlc'     # file to open at startup
+$env:RDLC_SHOT='C:\path\to\output.png'      # screenshot when done
+$env:RDLC_SHOT_DELAY='6000'                 # ms before running the script
+$env:RDLC_SHOT_DRAG='x1,y1,x2,y2'           # previous drag/click (window px)
+$env:RDLC_SHOT_SCRIPT='...'                 # JS to evaluate in the renderer
+$env:RDLC_SHOT_QUIT='1'                     # quit when done
 pnpm --filter @rdlc-designer/back dev
 ```
 
-En dev (y en el build `--mode e2e`) el renderer expone ganchos para los guiones: `__rdlcSelection`, `__rdlcCell`, `__rdlcMenuHit`, `__rdlcResizeHandle`, `__rdlcStage` y `__rdlcProjection`. Los tests de interacción viven en Playwright (`pnpm e2e`).
+In dev (and in the `--mode e2e` build) the renderer exposes hooks for scripts: `__rdlcSelection`, `__rdlcCell`, `__rdlcMenuHit`, `__rdlcResizeHandle`, `__rdlcStage` and `__rdlcProjection`. Interaction tests live in Playwright (`pnpm e2e`).
 
 </details>
 
-## Documentación
+## Documentation
 
-- [Documentación funcional](./RDLC%20Report%20Designer.md)
-- [Arquitectura](./RDLC%20Report%20Designer%20-%20arquitectura.md)
-- [Estado de desarrollo](./docs/estado-desarrollo.md): fases, sesiones y cambios recientes
-- [Pendientes y backlog](./RDLC%20Report%20Designer%20-%20Pendientes.md)
-- [Empaquetado y CI](./docs/release/0001-empaquetado-windows.md)
-- [Servidor MCP](./docs/features/0004-servidor-mcp.md): editar `.rdlc` desde un agente (Claude Code…)
+> The linked docs are currently in Spanish.
 
-## Licencia
+- [Functional documentation](./RDLC%20Report%20Designer.md)
+- [Architecture](./RDLC%20Report%20Designer%20-%20arquitectura.md)
+- [Development status](./docs/estado-desarrollo.md): phases, sessions and recent changes
+- [Backlog](./RDLC%20Report%20Designer%20-%20Pendientes.md)
+- [Packaging and CI](./docs/release/0001-empaquetado-windows.md)
+- [MCP server](./docs/features/0004-servidor-mcp.md): edit `.rdlc` from an agent (Claude Code…)
+
+## License
 
 [MIT](./LICENSE) © 2026 JunPeng Jin
