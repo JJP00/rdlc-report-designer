@@ -17,8 +17,8 @@
     "dist": "pnpm --filter @rdlc-designer/back dist",
     "dist:dir": "pnpm --filter @rdlc-designer/back dist:dir",
     "lint": "turbo run lint",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --write \"**/*.{ts,tsx,mjs,js,jsx,cjs,css,html}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,mjs,js,jsx,cjs,css,html}\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -123,7 +123,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -164,12 +163,13 @@ jobs:
         if: steps.npm-meta.outputs.published == 'false'
         run: pnpm --filter @rdlc-designer/mcp smoke
 
+      # Sin `--provenance`: npm solo lo soporta desde repos públicos (privado = 422).
       - name: Publish to npm
         if: steps.npm-meta.outputs.published == 'false'
         working-directory: packages/rdlc-mcp
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance
+        run: npm publish
 
 # ---------------------------------------------------------------------------
 # Configuración del repositorio que complementa este workflow (no se puede
