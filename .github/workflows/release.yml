@@ -47,28 +47,11 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
-            if [ "$GITHUB_REF_NAME" != "$tag" ]; then
-              echo "::error::El tag $GITHUB_REF_NAME no coincide con la versión de la app (apps/back/package.json = $version). Sube la versión antes de taggear."
-              exit 1
-            fi
-            echo "Tag $GITHUB_REF_NAME == apps/back/package.json ($version)"
-            exit 0
+          if [ "$GITHUB_REF_TYPE" != "tag" ] || [ "$GITHUB_REF_NAME" != "$tag" ]; then
+            echo "::error::Este workflow debe ejecutarse sobre el tag $tag (versión de apps/back/package.json = $version). Crea y sube el tag antes de lanzarlo."
+            exit 1
           fi
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
-            git fetch --force --quiet origin "+refs/tags/$tag:refs/tags/$tag"
-            existing="$(git rev-parse "$tag^{commit}")"
-            if [ "$existing" != "$GITHUB_SHA" ]; then
-              echo "::error::El tag $tag ya existe apuntando a $existing (distinto de $GITHUB_SHA). Sube la versión en apps/back/package.json o borra el tag."
-              exit 1
-            fi
-            echo "El tag $tag ya existe y apunta a este commit"
-          else
-            git tag "$tag"
-            git push origin "$tag"
-            echo "Tag $tag creado sobre $GITHUB_SHA (versión $version)"
-          fi
+          echo "Tag $GITHUB_REF_NAME == apps/back/package.json ($version)"
 
       - name: Install
         run: pnpm install --frozen-lockfile
