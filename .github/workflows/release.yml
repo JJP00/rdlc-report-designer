@@ -113,7 +113,7 @@ jobs:
             apps/back/release/*.zip
 
   npm:
-    name: npm publish (@rdlc-designer/mcp)
+    name: npm publish (@jjp00/rdlc-designer-mcp)
     needs: windows
     if: >-
       github.triggering_actor == 'JJP00' &&
@@ -123,6 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write # trusted publishing (OIDC) de npm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -138,37 +139,40 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
 
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      - name: npm >= 11.5.1 (lo exige trusted publishing)
+        run: npm install -g npm@latest
 
       - name: Check npm version
         id: npm-meta
         run: |
           version="$(node -p "require('./packages/rdlc-mcp/package.json').version")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if curl -fsS -o /dev/null "https://registry.npmjs.org/@rdlc-designer%2Fmcp/$version"; then
+          if curl -fsS -o /dev/null "https://registry.npmjs.org/@jjp00%2Frdlc-designer-mcp/$version"; then
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::@rdlc-designer/mcp@$version ya está en npm; se omite el publish."
+            echo "::notice::@jjp00/rdlc-designer-mcp@$version ya está en npm; se omite el publish."
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build package
         if: steps.npm-meta.outputs.published == 'false'
-        run: pnpm --filter @rdlc-designer/mcp build
+        run: pnpm --filter @jjp00/rdlc-designer-mcp build
 
       - name: Smoke test
         if: steps.npm-meta.outputs.published == 'false'
-        run: pnpm --filter @rdlc-designer/mcp smoke
+        run: pnpm --filter @jjp00/rdlc-designer-mcp smoke
 
-      # Sin `--provenance`: npm solo lo soporta desde repos públicos (privado = 422).
+      # Trusted publishing (OIDC): sin NPM_TOKEN ni registry-url. Provenance no está
+      # soportado desde repos privados (422), así que se desactiva explícitamente.
       - name: Publish to npm
         if: steps.npm-meta.outputs.published == 'false'
         working-directory: packages/rdlc-mcp
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'false'
         run: npm publish
 
 # ---------------------------------------------------------------------------
@@ -178,8 +182,13 @@ jobs:
 # 1. Settings → Environments → release
 #    - Required reviewers: solo JJP00.
 #    - Deployment branches and tags: "Selected branches and tags" → main y v*.
-#    - Environment secrets: CSC_LINK, CSC_KEY_PASSWORD, NPM_TOKEN.
+#    - Environment secrets: CSC_LINK, CSC_KEY_PASSWORD.
+#      (NPM_TOKEN ya no se usa: el publish va por trusted publishing / OIDC.)
 #    - Borrar esos mismos secretos del nivel de repositorio.
+# 1b. npmjs.com → @jjp00/rdlc-designer-mcp → Settings → Trusted Publisher → GitHub Actions:
+#    JJP00 / rdlc-report-designer / release.yml / environment: release / marcar "Allow npm publish".
+#    Caduca a los 2 días sin una publicación correcta: configúralo justo antes del release
+#    que vaya a publicar una versión nueva del MCP.
 # 2. Ruleset sobre main: exigir PR + "Require review from Code Owners", con un
 #    .github/CODEOWNERS que contenga:  /.github/workflows/ @JJP00
 # 3. Ruleset de tags v*: restringir creación/borrado a JJP00. Ojo: el job

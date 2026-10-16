@@ -1,4 +1,4 @@
-# @rdlc-designer/mcp
+# @jjp00/rdlc-designer-mcp
 
 [MCP](https://modelcontextprotocol.io) server (stdio) that lets an AI agent create and edit
 Business Central **RDLC / RDL (2016)** report layouts. It runs the same editing engine as the
@@ -14,7 +14,7 @@ Requires Node.js 22+.
 ## Use
 
 ```bash
-npx -y @rdlc-designer/mcp
+npx -y @jjp00/rdlc-designer-mcp
 ```
 
 You normally don't run it by hand: you register it in your agent (below).
@@ -22,13 +22,13 @@ You normally don't run it by hand: you register it in your agent (below).
 ### Claude Code
 
 ```bash
-claude mcp add rdlc-designer -- npx -y @rdlc-designer/mcp
+claude mcp add rdlc-designer -- npx -y @jjp00/rdlc-designer-mcp
 ```
 
 On native Windows (not WSL), wrap `npx` with `cmd /c`:
 
 ```bash
-claude mcp add rdlc-designer -- cmd /c npx -y @rdlc-designer/mcp
+claude mcp add rdlc-designer -- cmd /c npx -y @jjp00/rdlc-designer-mcp
 ```
 
 Add `--scope user` for all your projects, or `--scope project` to write a shared `.mcp.json`.
@@ -40,14 +40,14 @@ client's docs, they change):
 
 ```jsonc
 // Claude Desktop (claude_desktop_config.json), Cursor (.cursor/mcp.json)
-{ "mcpServers": { "rdlc-designer": { "command": "npx", "args": ["-y", "@rdlc-designer/mcp"] } } }
+{ "mcpServers": { "rdlc-designer": { "command": "npx", "args": ["-y", "@jjp00/rdlc-designer-mcp"] } } }
 ```
 
 ```jsonc
 // VS Code (.vscode/mcp.json)
 {
   "servers": {
-    "rdlc-designer": { "type": "stdio", "command": "npx", "args": ["-y", "@rdlc-designer/mcp"] },
+    "rdlc-designer": { "type": "stdio", "command": "npx", "args": ["-y", "@jjp00/rdlc-designer-mcp"] },
   },
 }
 ```
@@ -56,7 +56,7 @@ client's docs, they change):
 # Codex CLI (~/.codex/config.toml)
 [mcp_servers.rdlc-designer]
 command = "npx"
-args = ["-y", "@rdlc-designer/mcp"]
+args = ["-y", "@jjp00/rdlc-designer-mcp"]
 ```
 
 ## Tools

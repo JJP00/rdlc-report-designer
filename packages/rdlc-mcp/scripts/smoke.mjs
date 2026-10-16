@@ -1,6 +1,6 @@
 // Smoke del paquete tal y como lo recibiría un usuario: `npm pack`, instalar el
 // tarball en un directorio limpio y hablar con su binario por stdio.
-//   pnpm --filter @rdlc-designer/mcp build && pnpm --filter @rdlc-designer/mcp smoke
+//   pnpm --filter @jjp00/rdlc-designer-mcp build && pnpm --filter @jjp00/rdlc-designer-mcp smoke
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -34,7 +34,7 @@ try {
   const { Client } = await load('client/index.js');
   const { StdioClientTransport } = await load('client/stdio.js');
 
-  const bin = join(consumer, 'node_modules/@rdlc-designer/mcp/dist/server.mjs');
+  const bin = join(consumer, 'node_modules/@jjp00/rdlc-designer-mcp/dist/server.mjs');
   const client = new Client({ name: 'smoke', version: '0' });
   await client.connect(
     new StdioClientTransport({ command: process.execPath, args: [bin], stderr: 'ignore' }),
