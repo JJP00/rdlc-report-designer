@@ -150,6 +150,7 @@ En dev (y en el build `--mode e2e`) el renderer expone ganchos para los guiones:
 - [Estado de desarrollo](./docs/estado-desarrollo.md): fases, sesiones y cambios recientes
 - [Pendientes y backlog](./RDLC%20Report%20Designer%20-%20Pendientes.md)
 - [Empaquetado y CI](./docs/release/0001-empaquetado-windows.md)
+- [Servidor MCP](./docs/features/0004-servidor-mcp.md): editar `.rdlc` desde un agente (Claude Code…)
 
 ## Licencia
 

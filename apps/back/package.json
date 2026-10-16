@@ -1,6 +1,6 @@
 {
   "name": "@rdlc-designer/back",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Electron main + NestJS — el hexágono (dominio, aplicación, presentación, infraestructura)",
   "author": "RDLC Report Designer",
@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:mcp": "node scripts/build-mcp.mjs",
+    "mcp": "node out/mcp/server.mjs",
     "preview": "electron-vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -23,6 +25,7 @@
     "dist:portable": "electron-vite build && electron-builder --win portable"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
     "@rdlc-designer/contracts": "workspace:*",
@@ -31,7 +34,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "xml-trueformat": "^0.9.5",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -40,6 +44,7 @@
     "electron": "^44.3.0",
     "electron-builder": "26.15.3",
     "electron-vite": "^5.0.0",
+    "esbuild": "^0.25.12",
     "fast-xml-parser": "^4.5.1",
     "libxml2-wasm": "^0.7.2",
     "vite": "^7.3.6",
