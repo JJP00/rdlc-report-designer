@@ -36,9 +36,9 @@ A modern alternative to Report Builder: edit the layout with your mouse and get 
 
 Microsoft Report Builder in my point of view is old, that lacks basic user experience features. With RDLC Report Designer i try to fill some gaps that i find in my day a day working with rdlc/rdl reports. The core idea behind this software are:
 
-- opens real BC reports and **saves them byte for byte identical** except for what you changed.
-- validates against the official **RDL 2016/01 XSD** before saving.
-- is compatible with what **Report Builder and BC** expect when opening the report.
+- Offer modern features that greatly improve the user experience while designing reports, features like tabs, VB IntelliSense, elements hierarchy and so on...
+- Offer coding agents a MCP that saves tokens and improves agents understanding of the report.
+- Compability with what **Report Builder and BC** expect when opening the report.
 
 ## Features
 
