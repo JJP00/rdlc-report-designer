@@ -129,6 +129,49 @@ describe('servidor MCP rdlc', () => {
     expect(JSON.stringify(item['item'])).toContain('=Fields!No.Value');
   });
 
+  it('setRunLabel escribe la etiqueta <Label> del run y null la quita', async () => {
+    const { sessionId, path } = await createBlank();
+    await call('rdlc_apply_commands', {
+      sessionId,
+      commands: [textbox('Title', '=Fields!No.Value')],
+    });
+
+    type Runs = { paragraphs: { runs: { value: string; label?: string }[] }[] };
+    const runOf = async (): Promise<{ value: string; label?: string }> => {
+      const item = await call('rdlc_get_item', { sessionId, id: 'Title' });
+      return ((item['item'] as Runs).paragraphs[0]?.runs[0] ?? { value: '' }) as {
+        value: string;
+        label?: string;
+      };
+    };
+
+    const labeled = await call('rdlc_apply_commands', {
+      sessionId,
+      commands: [{ cmd: 'setRunLabel', id: 'Title', p: 0, r: 0, label: 'OrderDate' }],
+    });
+    expect(labeled.isError).toBe(false);
+    expect((await runOf()).label).toBe('OrderDate');
+
+    // `null` la quita; el undo la recupera (journal de la sesión).
+    expect(
+      (
+        await call('rdlc_apply_commands', {
+          sessionId,
+          commands: [{ cmd: 'setRunLabel', id: 'Title', p: 0, r: 0, label: null }],
+        })
+      ).isError,
+    ).toBe(false);
+    expect((await runOf()).label).toBeUndefined();
+    expect((await call('rdlc_undo', { sessionId })).isError).toBe(false);
+    expect((await runOf()).label).toBe('OrderDate');
+
+    // Guardado: la etiqueta va antes del Value (orden del XSD, valida al guardar).
+    expect((await call('rdlc_save', { sessionId })).isError).toBe(false);
+    expect(await readFile(path, 'utf8')).toContain(
+      '<TextRun><Label>OrderDate</Label><Value>=Fields!No.Value</Value></TextRun>',
+    );
+  });
+
   it('un comando mal formado no aplica nada', async () => {
     const { sessionId } = await createBlank();
     const result = await call('rdlc_apply_commands', {
@@ -278,12 +321,20 @@ describe('servidor MCP rdlc', () => {
 
   it('rdlc_list_commands da firmas y esquemas exactos', async () => {
     const index = await call('rdlc_list_commands');
-    expect(index['commands']).toEqual(expect.arrayContaining(['setText(id, p, r, value)']));
+    expect(index['commands']).toEqual(
+      expect.arrayContaining(['setText(id, p, r, value)', 'setRunLabel(id, p, r, label)']),
+    );
 
     const detail = await call('rdlc_list_commands', { names: ['setText'] });
     const [schema] = detail['schemas'] as { properties: Record<string, unknown> }[];
     expect(Object.keys(schema?.properties ?? {})).toEqual(
       expect.arrayContaining(['cmd', 'id', 'p', 'r', 'value']),
+    );
+
+    const labelDetail = await call('rdlc_list_commands', { names: ['setRunLabel'] });
+    const [labelSchema] = labelDetail['schemas'] as { properties: Record<string, unknown> }[];
+    expect(Object.keys(labelSchema?.properties ?? {})).toEqual(
+      expect.arrayContaining(['cmd', 'id', 'p', 'r', 'label']),
     );
 
     expect((await call('rdlc_list_commands', { names: ['nope'] })).isError).toBe(true);

@@ -225,6 +225,21 @@ const setParagraphs = z.object({
   paragraphs: z.array(paragraphSchema),
 });
 
+/**
+ * Etiqueta de diseñador de UN TextRun (`<Label>`: lo que BC/RB muestra en
+ * lugar de la expresión; va antes del `<Value>`). `null` — o cadena vacía —
+ * la quita.
+ */
+const setRunLabel = z.object({
+  cmd: z.literal('setRunLabel'),
+  id: z.string().min(1),
+  /** Índice de párrafo y de run dentro del Textbox. */
+  p: z.number().int().nonnegative(),
+  r: z.number().int().nonnegative(),
+  /** La etiqueta; `null` la quita. */
+  label: z.string().nullable(),
+});
+
 /* ------------------------- Familia 3: página y informe ------------------- */
 
 const setPageSize = z.object({
@@ -670,6 +685,7 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   duplicateItem,
   setText,
   setParagraphs,
+  setRunLabel,
   setPageSize,
   setPageMargins,
   setRegionHeight,
