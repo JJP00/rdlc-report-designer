@@ -540,6 +540,29 @@ async function itemLocation(id: string): Promise<{ top: number; left: number } |
   return undefined;
 }
 
+/** Tamaño proyectado de un item en cm. */
+async function itemSize(id: string): Promise<{ width: number; height: number } | undefined> {
+  const proj = await projection();
+  for (const items of [proj.page.header.items, proj.page.body.items, proj.page.footer.items]) {
+    const found = findItem(items, id);
+    if (found?.width && found.height) {
+      return { width: toCm(found.width), height: toCm(found.height) };
+    }
+  }
+  return undefined;
+}
+
+/** Posición en pantalla del tirador SE de la selección (hook de QA). */
+async function resizeHandle(): Promise<{ x: number; y: number } | null> {
+  return page.evaluate(
+    () =>
+      ((window as never as Record<string, unknown>)['__rdlcResizeHandle'] as {
+        x: number;
+        y: number;
+      } | null) ?? null,
+  );
+}
+
 /** Padding proyectado de un lado del item (`style.padding.<side>`). */
 async function itemPadding(
   id: string,
@@ -3438,4 +3461,63 @@ test('multiselección: arrastrar y mover con flechas desplaza todos; suprimir bo
   await page.keyboard.press('Control+z');
   await expect.poll(async () => itemLocation('Textbox4')).toBeDefined();
   await expect.poll(async () => itemLocation('Textbox17')).toBeDefined();
+});
+
+test('multiselección: los tiradores escalan todo el bloque y un undo lo revierte', async () => {
+  await selectItemViaPalette('Textbox4');
+  // Tirador SE de un item solo: referencia para detectar el marco del bloque.
+  const single = await resizeHandle();
+  expect(single).not.toBeNull();
+
+  const grab17 = await nodeCenter('Textbox17', 0.25, 0.5);
+  await page.keyboard.down('Control');
+  await page.mouse.click(grab17!.x, grab17!.y);
+  await page.keyboard.up('Control');
+  await expect(page.getByTestId('multi-selection-panel')).toContainText('2 elementos');
+
+  // El marco del bloque existe cuando la medida de los dos miembros se
+  // estabiliza: su esquina SE cae a la derecha de la del item solo.
+  const handleX = async (): Promise<number> => (await resizeHandle())?.x ?? single!.x;
+  await expect
+    .poll(handleX, { message: 'el marco del bloque debe medir los dos elementos' })
+    .toBeGreaterThan(single!.x + 20);
+
+  const before4 = await itemSize('Textbox4');
+  const before17 = await itemSize('Textbox17');
+  expect(before4).toBeDefined();
+  expect(before17).toBeDefined();
+
+  // Arrastre real del tirador SE del bloque: escala proporcional de los dos.
+  const handle = (await resizeHandle())!;
+  await page.mouse.move(handle.x, handle.y);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + 40, handle.y + 12, { steps: 12 });
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => (await itemSize('Textbox4'))!.width, { message: 'Textbox4 debe crecer' })
+    .toBeGreaterThan(before4!.width);
+  await expect
+    .poll(async () => (await itemSize('Textbox17'))!.width, { message: 'Textbox17 debe crecer' })
+    .toBeGreaterThan(before17!.width);
+
+  const after4 = (await itemSize('Textbox4'))!;
+  const after17 = (await itemSize('Textbox17'))!;
+  expect(after4.height).toBeGreaterThan(before4!.height);
+  // La misma escala se aplica a todos los miembros.
+  expect(after4.width / before4!.width).toBeCloseTo(after17.width / before17!.width, 2);
+  expect(after4.height / before4!.height).toBeCloseTo(after17.height / before17!.height, 2);
+
+  // Un solo Ctrl+Z revierte el bloque entero.
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await itemSize('Textbox4'))!.width).toBeCloseTo(before4!.width, 3);
+  await expect
+    .poll(async () => (await itemSize('Textbox17'))!.width)
+    .toBeCloseTo(before17!.width, 3);
+  await expect
+    .poll(async () => (await itemSize('Textbox4'))!.height)
+    .toBeCloseTo(before4!.height, 3);
+  await expect
+    .poll(async () => (await itemSize('Textbox17'))!.height)
+    .toBeCloseTo(before17!.height, 3);
 });

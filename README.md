@@ -45,7 +45,7 @@ Microsoft Report Builder in my point of view is old, that lacks basic user exper
 | Area                         | What it includes                                                                                                                                                                   |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Faithful to the file**     | _Lossless_ XML as the source of truth: byte-for-byte.                                        |
-| **Canvas**                   | Paper, margins and bands, mm/cm rulers, snapping, 1 pt / 10 pt arrows, zoom up to 400 %, multi-selection, 8 handles, z-order, viewport culling (≈60 fps with ~1000 textboxes).     |
+| **Canvas**                   | Paper, margins and bands, mm/cm rulers, snapping, 1 pt / 10 pt arrows, zoom up to 400 %, multi-selection (move, align/distribute and block resize), 8 handles, z-order, viewport culling (≈60 fps with ~1000 textboxes).     |
 | **Full Tablix**              | Cells, rows and columns, merge/split cells, row and column groups (Matrix), visibility, filters...                         |
 | **Text and style**           | Runs and paragraphs with `run > paragraph > item` precedence, format bar, fonts available in BC, per-side borders, padding, literal or expression background color, number format. |
 | **Expressions**              | Highlighting and autocomplete for expressions and code.                                                             |

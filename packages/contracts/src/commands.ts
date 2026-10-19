@@ -622,6 +622,7 @@ const batchableCommandSchema = z.discriminatedUnion('cmd', [
   setLocation,
   setSize,
   setBounds,
+  resizeTable,
   setZIndex,
   setName,
   setVisibility,

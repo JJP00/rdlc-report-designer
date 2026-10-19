@@ -41,11 +41,13 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
 - [x] **Paleta de comandos Ctrl+K** (elementos por nombre y contenido, variables, acciones)
       y **Monaco** para expresiones y bloque `<Code>` (resaltado + autocompletado;
       las variables se insertan en el cursor).
-- [x] **Redimensionar con el cursor** (8 tiradores: mover + tamaño en un undo). El
-      redimensionado de columnas/filas de un Tablix vive en los **bordes de sus cabeceras
-      estilo Report Builder** (desde 2026-09-18; antes eran separadores internos azules). Un
-      click dentro de la tabla selecciona el **elemento de dentro**; **Esc** sube un nivel de
-      jerarquía.
+- [x] **Redimensionar con el cursor** (8 tiradores: mover + tamaño en un undo). Con la
+      **multiselección**, los tiradores envuelven el bloque entero y escalan **todos** los
+      miembros en proporción (un solo `batch` = un undo; los Tablix reparten su rejilla y las
+      cabeceras de grupo no escalan). El redimensionado de columnas/filas de un Tablix vive
+      en los **bordes de sus cabeceras estilo Report Builder** (desde 2026-09-18; antes eran
+      separadores internos azules). Un click dentro de la tabla selecciona el **elemento de
+      dentro**; **Esc** sube un nivel de jerarquía.
 - [x] **Estructura del Tablix (F2 parte 3, bloque 1)**: proyección de las jerarquías de
       fila/columna (grupos, visibilidad y totales inferidos), **selección de celdas** con
       **cabeceras estilo Report Builder** (barras grises numeradas arriba y a la izquierda:
