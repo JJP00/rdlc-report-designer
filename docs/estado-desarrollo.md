@@ -105,6 +105,10 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
       `rd:DefaultName`), **etiqueta `<Label>`** del run (inline en el caso simple) y **color de
       fondo** literal o **expresión** (diálogo Monaco con números de línea). El selector de color
       agrupa la ráfaga del arrastre en **un solo comando** (commit diferido).
+      Los botones de **color de texto/resaltado** (barra de formato y editor de runs, componente
+      `ColorButton`) muestran la «A» **legible en ambos temas** —barra inferior con el color en el
+      texto, tesela con la letra en color de contraste en el resaltado—, centrados y con anillo en
+      la muestra (antes la «A» se pintaba con el color elegido y en modo oscuro desaparecía).
 - [x] **Fixes de lienzo/edición (sesión 2026-09-25/28)**: **autocompletado** visible (host de
       overflow con la clase `monaco-editor`, `pointer-events` y z-index), **marco de selección**
       por adorno propio (un Tablix ya no mide el borde de su anidado) y **autocerrados**

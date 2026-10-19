@@ -110,3 +110,29 @@ export function toHexColor(value: string | undefined, fallback: string): string 
     .join('');
   return `#${hex}`;
 }
+
+/** Texto por defecto del editor (y de la barra de formato) sobre fondo claro. */
+const DARK_TEXT = '#111827';
+
+/**
+ * Color de texto **legible** sobre un fondo hex (`#rrggbb`): el texto oscuro
+ * del editor o blanco, según la luminancia relativa (WCAG) del fondo. El
+ * umbral 0.179 es el punto donde el contraste con negro y con blanco se iguala,
+ * y lo usan los iconos de color de la barra de formato (el resaltado pinta la
+ * «A» encima del color elegido: con blanco se quedaba ilegible en modo oscuro).
+ * Un valor no legible cae al texto oscuro.
+ */
+export function contrastColor(background: string): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(background);
+  if (!match) return DARK_TEXT;
+  const value = Number.parseInt(match[1]!, 16);
+  const channel = (raw: number): number => {
+    const c = raw / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance =
+    0.2126 * channel((value >> 16) & 0xff) +
+    0.7152 * channel((value >> 8) & 0xff) +
+    0.0722 * channel(value & 0xff);
+  return luminance > 0.179 ? DARK_TEXT : '#ffffff';
+}
