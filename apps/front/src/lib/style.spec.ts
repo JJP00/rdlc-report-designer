@@ -1,6 +1,13 @@
 import type { TextboxDto } from '@rdlc-designer/contracts';
 import { describe, expect, it } from 'vitest';
-import { effectiveTextStyle, paintColor, sameStyleValue, toHexColor, toPt } from './style';
+import {
+  contrastColor,
+  effectiveTextStyle,
+  paintColor,
+  sameStyleValue,
+  toHexColor,
+  toPt,
+} from './style';
 
 /** Estilo efectivo del textbox: precedencia RDL run > párrafo > item. */
 
@@ -126,5 +133,19 @@ describe('toHexColor', () => {
 
   it('un hex se devuelve tal cual', () => {
     expect(toHexColor('#ff8800', '#111827')).toBe('#ff8800');
+  });
+});
+
+describe('contrastColor', () => {
+  it('fondo claro → texto oscuro; fondo oscuro → blanco', () => {
+    expect(contrastColor('#ffffff')).toBe('#111827');
+    expect(contrastColor('#facc15')).toBe('#111827');
+    expect(contrastColor('#000000')).toBe('#ffffff');
+    expect(contrastColor('#1d4ed8')).toBe('#ffffff');
+  });
+
+  it('un valor no legible cae al texto oscuro', () => {
+    expect(contrastColor('=Fields!X.Value')).toBe('#111827');
+    expect(contrastColor('')).toBe('#111827');
   });
 });

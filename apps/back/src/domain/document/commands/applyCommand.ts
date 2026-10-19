@@ -35,6 +35,7 @@ import {
   applySetSectionWidth,
 } from './pageRegions.js';
 import { applySetParagraphs } from './setParagraphs.js';
+import { applySetRunLabel } from './setRunLabel.js';
 import { applySetImageOptions } from './setImageOptions.js';
 import { applySetItemOptions } from './setItemOptions.js';
 import { applySetItemPageBreak } from './setItemPageBreak.js';
@@ -109,6 +110,8 @@ export function applyCommand(
       return applySetText(ctx, command);
     case 'setParagraphs':
       return applySetParagraphs(ctx, command);
+    case 'setRunLabel':
+      return applySetRunLabel(ctx, command);
     case 'setStyle':
       return applySetStyle(ctx, command);
     case 'setItemOptions':

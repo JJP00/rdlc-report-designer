@@ -98,6 +98,8 @@ export interface ItemEditing {
     id: string,
     box: { top: Length; left: Length; width: Length; height: Length },
   ) => void;
+  /** Multiselección: escala el bloque entero en un `batch` (un solo undo). */
+  resizeMany: (commands: BatchableCommand[]) => void;
   /** Separadores de la rejilla del Tablix. */
   resizeColumn: (id: string, column: number, width: Length) => void;
   resizeRow: (id: string, row: number, height: Length) => void;
@@ -687,6 +689,34 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       void sendCommand({ cmd: 'setBounds', id, ...box });
     },
     [doc, sendCommand, updateProjection],
+  );
+
+  /**
+   * Redimensionado del bloque (multiselección): los comandos ya vienen
+   * calculados (`lib/groupResize`) y viajan en un `batch` — **un solo paso de
+   * undo**. Los `setBounds` se reflejan ya en la proyección; un Tablix
+   * (`resizeTable`) refresca con el snapshot del backend (su rejilla no viaja
+   * en `applied`).
+   */
+  const resizeMany = useCallback(
+    (commands: BatchableCommand[]): void => {
+      if (commands.length === 0) return;
+      updateProjection((projection) => {
+        let next = projection;
+        for (const command of commands) {
+          if (command.cmd !== 'setBounds') continue;
+          next = patchItem(next, command.id, {
+            top: command.top,
+            left: command.left,
+            width: command.width,
+            height: command.height,
+          });
+        }
+        return next;
+      });
+      void sendCommand({ cmd: 'batch', commands });
+    },
+    [sendCommand, updateProjection],
   );
 
   /**
@@ -1329,6 +1359,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     setItemLocation,
     setItemSize,
     resizeItem,
+    resizeMany,
     resizeColumn,
     resizeRow,
     addRow,

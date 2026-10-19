@@ -88,6 +88,7 @@ export function CanvasColumn({
         onMoveMany={editing.moveMany}
         onMoveItemToScope={editing.moveItemToScope}
         onResizeItem={editing.resizeItem}
+        onResizeMany={editing.resizeMany}
         onResizeColumn={editing.resizeColumn}
         onResizeRow={editing.resizeRow}
         onResizeRegion={(region, value) => editing.setRegionHeight(region, cm(value))}

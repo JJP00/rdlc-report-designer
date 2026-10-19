@@ -17,15 +17,15 @@ import {
   Underline,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { ColorButton } from '@/components/panels/ColorButton';
 import { Button } from '@/components/ui/button';
 import { NumberInput } from '@/components/ui/number-input';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useDeferredColor } from '@/hooks/useDeferredColor';
 import { useAvailableFonts } from '@/hooks/useAvailableFonts';
 import { ITEM_DRAG_TYPE } from '@/lib/dragTypes';
 import { cn } from '@/lib/utils';
-import { toHexColor, toPt } from '@/lib/style';
+import { toPt } from '@/lib/style';
 
 interface FormatToolbarProps {
   style: StyleDto | undefined;
@@ -140,16 +140,18 @@ export function FormatToolbar({
 
         <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
 
-        <ColorField
+        <ColorButton
           title="Color de texto"
-          value={toHexColor(style?.color, '#111827')}
+          value={style?.color}
+          fallback="#111827"
           onChange={(color) => onSetStyle({ color })}
         />
-        <ColorField
+        <ColorButton
           title="Resaltado"
-          value={toHexColor(style?.backgroundColor, '#ffffff')}
-          onChange={(backgroundColor) => onSetStyle({ backgroundColor })}
+          value={style?.backgroundColor}
+          fallback="#ffffff"
           highlight
+          onChange={(backgroundColor) => onSetStyle({ backgroundColor })}
         />
 
         <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
@@ -258,8 +260,7 @@ function InsertGroup({
   );
 }
 
-/** Botón de la toolbox: click inserta y **arrastrar** suelta el item en el lienzo. */
-function InsertButton({
+/** Botón de la toolbox: click inserta y **arrastrar** suelta el item en el lienzo. */ function InsertButton({
   kind,
   label,
   icon,
@@ -292,48 +293,5 @@ function InsertButton({
       </TooltipTrigger>
       <TooltipContent>{label} (o arrástralo al lienzo)</TooltipContent>
     </Tooltip>
-  );
-}
-
-function ColorField({
-  title,
-  value,
-  onChange,
-  highlight,
-}: {
-  title: string;
-  value: string;
-  onChange: (color: string) => void;
-  highlight?: boolean;
-}): ReactNode {
-  // Commit diferido: arrastrar la paleta no lanza un comando por paso.
-  const { color, change } = useDeferredColor(value, highlight ? '#ffffff' : '#111827', onChange);
-
-  return (
-    <label
-      title={title}
-      className="relative flex h-7 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-background text-[11px] font-bold hover:bg-muted"
-    >
-      <span
-        className={highlight ? 'rounded-sm px-0.5' : ''}
-        style={highlight ? { backgroundColor: color } : { color }}
-      >
-        A
-      </span>
-      {/* Muestra del color; el input real cubre toda la etiqueta en invisible
-          (área de acierto ≥ 24 px, como el resto de botones de la barra). */}
-      <span
-        aria-hidden
-        className="pointer-events-none ml-0.5 h-4 w-4 rounded-[3px] border border-black/20 dark:border-white/30"
-        style={{ backgroundColor: color }}
-      />
-      <input
-        type="color"
-        className="absolute inset-0 size-full cursor-pointer opacity-0"
-        value={color}
-        aria-label={title}
-        onChange={(event) => change(event.target.value)}
-      />
-    </label>
   );
 }

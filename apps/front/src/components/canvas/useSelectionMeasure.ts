@@ -79,6 +79,70 @@ function sameRect(a: RectPx | null, b: RectPx | null): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
+/**
+ * Marcos de la **multiselección** (U3): el rect medido de cada miembro y su
+ * caja envolvente, para que los tiradores del bloque redimensionen todos a la
+ * vez. Si un miembro no se puede medir (nodo sin montar) no hay bloque fiable:
+ * se devuelve `null` y manda el marco normal del item primario.
+ */
+export interface GroupMeasure {
+  rect: RectPx;
+  members: { id: string; rect: RectPx }[];
+}
+
+export function useGroupSelectionMeasure(options: {
+  stageRef: RefObject<Konva.Stage | null>;
+  /** Ids separados por `|` (una sola prop estable, como en los marcos extra). */
+  idsKey: string;
+  /** Cambia con la proyección: fuerza una remedición cuando algo se mueve. */
+  projection: unknown;
+  zoom: number;
+}): GroupMeasure | null {
+  const { stageRef, idsKey, projection, zoom } = options;
+  const [measure, setMeasure] = useState<GroupMeasure | null>(null);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    const ids = idsKey.length > 0 ? idsKey.split('|') : [];
+    const clear = (): void => setMeasure((previous) => (previous === null ? previous : null));
+    if (!stage || ids.length < 2) {
+      clear();
+      return;
+    }
+
+    const members = ids.flatMap((id) => {
+      const rect = measureSelection(stage, id);
+      return rect ? [{ id, rect }] : [];
+    });
+    if (members.length !== ids.length) {
+      clear();
+      return;
+    }
+
+    const left = Math.min(...members.map((member) => member.rect.x));
+    const top = Math.min(...members.map((member) => member.rect.y));
+    const right = Math.max(...members.map((member) => member.rect.x + member.rect.width));
+    const bottom = Math.max(...members.map((member) => member.rect.y + member.rect.height));
+    const next: GroupMeasure = {
+      rect: { x: left, y: top, width: right - left, height: bottom - top },
+      members,
+    };
+    setMeasure((previous) => (sameMeasure(previous, next) ? previous : next));
+  }, [stageRef, idsKey, projection, zoom]);
+
+  return measure;
+}
+
+/** Igualdad por valor de todo el bloque (rect + cada miembro). */
+function sameMeasure(a: GroupMeasure | null, b: GroupMeasure): boolean {
+  if (!a || !sameRect(a.rect, b.rect)) return false;
+  if (a.members.length !== b.members.length) return false;
+  return a.members.every(
+    (member, index) =>
+      member.id === b.members[index]?.id && sameRect(member.rect, b.members[index]?.rect ?? null),
+  );
+}
+
 /** Mide el nodo seleccionado; en un Tablix, su borde (la rejilla). */
 export function measureSelection(stage: Konva.Stage, measuredId: string): RectPx | null {
   const node = stage.findOne((candidate: Konva.Node) => candidate.id() === measuredId);

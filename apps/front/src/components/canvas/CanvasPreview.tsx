@@ -1,4 +1,5 @@
 import type {
+  BatchableCommand,
   Length,
   NewItemSpec,
   PageMarginsDto,
@@ -20,6 +21,8 @@ import {
 import { Stage, Layer, Rect } from 'react-konva';
 import { edgeReadingId, nextReadingId, selectionAnnouncement } from '@/hooks/canvasA11y';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
+import { topLevelIds } from '@/lib/align';
+import { groupBoxCm, groupResizeCommands, type GroupResizeMember } from '@/lib/groupResize';
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
 import { pageRulerSegments } from '@/lib/pageResize';
@@ -44,7 +47,11 @@ import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
 import { TextEditContext } from './textEditContext';
 import { useMarqueeSelection } from './useMarqueeSelection';
 import { usePageResize } from './usePageResize';
-import { measureSelection, useSelectionMeasure } from './useSelectionMeasure';
+import {
+  measureSelection,
+  useGroupSelectionMeasure,
+  useSelectionMeasure,
+} from './useSelectionMeasure';
 import { useVisibleRect } from './useVisibleRect';
 import { bandAt, paperLayout, type PaperLayout } from './bands';
 import { CANVAS_PADDING_PX, clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
@@ -85,6 +92,11 @@ export interface CanvasPreviewProps {
     id: string,
     box: { top: Length; left: Length; width: Length; height: Length },
   ) => void;
+  /**
+   * Multiselección: los tiradores del bloque envían la escala de todos los
+   * miembros en un `batch` (un solo paso de undo).
+   */
+  onResizeMany?: (commands: BatchableCommand[]) => void;
   /** Redimensionar una columna/fila de la rejilla (separadores internos). */
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
@@ -132,6 +144,7 @@ export function CanvasPreview({
   onMoveTo,
   onMoveItemToScope,
   onResizeItem,
+  onResizeMany,
   onResizeColumn,
   onResizeRow,
   onResizeRegion,
@@ -210,6 +223,83 @@ export function CanvasPreview({
   // Selección de celdas del Tablix medido (para cabeceras y resaltado).
   const selectionForFrame = selectedCell && selectedCell.id === frameId ? selectedCell : null;
 
+  /* ---------------- multiselección: redimensionar el bloque ---------------- */
+
+  /**
+   * Con ≥2 elementos seleccionados los tiradores envuelven el bloque y escalan
+   * todos los miembros a la vez. Los hijos de un contenedor seleccionado viajan
+   * con él (`topLevelIds`); el contenido de una celda (lo fija la celda) y los
+   * fantasmas no entran.
+   */
+  const selectionKey = [selectedId, ...extraSelectedIds]
+    .filter((value): value is string => !!value)
+    .join('|');
+  const groupIds = useMemo(() => {
+    const ids = selectionKey.length > 0 ? selectionKey.split('|') : [];
+    if (ids.length < 2) return [];
+    const items = ids.flatMap((id) => {
+      const item = findItem(projection, id);
+      return item ? [item] : [];
+    });
+    return topLevelIds(items, ids).filter((id) => {
+      const item = findItem(projection, id);
+      return item !== undefined && item.kind !== 'unknown' && !isCellContent(projection, id);
+    });
+  }, [projection, selectionKey]);
+
+  const groupMeasure = useGroupSelectionMeasure({
+    stageRef,
+    idsKey: groupIds.join('|'),
+    projection,
+    zoom,
+  });
+
+  const group = useMemo(() => {
+    if (groupIds.length < 2 || !groupMeasure) return null;
+    const members: GroupResizeMember[] = [];
+    for (const measured of groupMeasure.members) {
+      const item = findItem(projection, measured.id);
+      if (!item) continue;
+      // Caja medida (cm de papel): en un Tablix incluye las cabeceras de grupo.
+      const frame: BoxCm = {
+        top: measured.rect.y / PX_PER_CM,
+        left: measured.rect.x / PX_PER_CM,
+        width: measured.rect.width / PX_PER_CM,
+        height: measured.rect.height / PX_PER_CM,
+      };
+      if (item.kind === 'tablix') {
+        const columns = item.body.columns.reduce((total, column) => total + toCm(column), 0);
+        const rows = item.body.rows.reduce((total, row) => total + toCm(row.height), 0);
+        members.push({
+          id: item.id,
+          frame,
+          box: {
+            top: toCm(item.top),
+            left: toCm(item.left),
+            width: round4(columns),
+            height: round4(rows),
+          },
+          headerOffset: tablixLayout(item).offset,
+          tablix: true,
+        });
+      } else {
+        members.push({
+          id: item.id,
+          frame,
+          box: {
+            top: toCm(item.top),
+            left: toCm(item.left),
+            width: toCm(item.width),
+            height: toCm(item.height),
+          },
+        });
+      }
+    }
+    if (members.length !== groupIds.length) return null;
+    const box = groupBoxCm(members);
+    return box ? { members, box } : null;
+  }, [groupIds, groupMeasure, projection]);
+
   const frameProps = selectionFrameProps({
     rect: selectionRect,
     zoom,
@@ -217,9 +307,11 @@ export function CanvasPreview({
     selectedId,
     selectedFrame,
     selection: selectionForFrame,
+    group,
     ...(onResizeColumn ? { onResizeColumn } : {}),
     ...(onResizeRow ? { onResizeRow } : {}),
     ...(onResizeItem ? { onResizeItem } : {}),
+    ...(onResizeMany ? { onResizeMany } : {}),
     ...(onSelectCell ? { onSelectCell } : {}),
   });
 
@@ -825,18 +917,45 @@ interface FramePropsOptions {
   selectedId?: string | null;
   selectedFrame: SelectedFrame | undefined;
   selection: SelectedCell | null;
+  /** Multiselección redimensionable: caja envolvente (cm) y miembros. */
+  group?: { members: GroupResizeMember[]; box: BoxCm } | null;
   onResizeColumn?: (id: string, column: number, width: Length) => void;
   onResizeRow?: (id: string, row: number, height: Length) => void;
   onResizeItem?: (
     id: string,
     box: { top: Length; left: Length; width: Length; height: Length },
   ) => void;
+  onResizeMany?: (commands: BatchableCommand[]) => void;
   onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
 }
 
 /** Arma las props de `SelectionFrame` (tiradores, cabeceras y separadores). */
 function selectionFrameProps(options: FramePropsOptions): SelectionFrameProps {
-  const { rect, zoom, frameId, selectedFrame, selection } = options;
+  const { rect, zoom, frameId, selectedFrame, selection, group } = options;
+
+  // Multiselección (U3): el marco y los tiradores envuelven el bloque y el
+  // arrastre escala todos los miembros (un `batch` = un paso de undo). Sin
+  // rejilla de Tablix ni límites de región: los miembros pueden vivir en
+  // contenedores distintos.
+  if (group && options.onResizeMany) {
+    const resizeMany = options.onResizeMany;
+    return {
+      rect: {
+        x: group.box.left * PX_PER_CM,
+        y: group.box.top * PX_PER_CM,
+        width: group.box.width * PX_PER_CM,
+        height: group.box.height * PX_PER_CM,
+      },
+      zoom,
+      box: group.box,
+      showHandles: true,
+      onResize: (next) => {
+        const commands = groupResizeCommands(group.members, group.box, next);
+        if (commands.length > 0) resizeMany(commands);
+      },
+    };
+  }
+
   const props: SelectionFrameProps = {
     rect,
     zoom,

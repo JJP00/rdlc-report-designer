@@ -1,4 +1,5 @@
 import type {
+  BatchableCommand,
   ItemDto,
   Length,
   NewItemSpec,
@@ -84,6 +85,8 @@ export interface CanvasAreaProps {
     id: string,
     box: { top: Length; left: Length; width: Length; height: Length },
   ) => void;
+  /** Multiselección: escalar el bloque entero (un `batch`, un solo undo). */
+  onResizeMany: (commands: BatchableCommand[]) => void;
   /** Separadores de la rejilla: redimensionar una columna/fila del Tablix. */
   onResizeColumn: (id: string, column: number, width: Length) => void;
   onResizeRow: (id: string, row: number, height: Length) => void;
@@ -151,6 +154,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onMoveMany,
     onMoveItemToScope,
     onResizeItem,
+    onResizeMany,
     onResizeColumn,
     onResizeRow,
     onResizeRegion,
@@ -225,6 +229,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
                 onContextMenuHit={onContextMenuHit}
                 onDropItem={onInsertAt}
                 onResizeItem={onResizeItem}
+                onResizeMany={onResizeMany}
                 onResizeColumn={onResizeColumn}
                 onResizeRow={onResizeRow}
                 onResizeRegion={onResizeRegion}
