@@ -143,7 +143,7 @@ export class CommandService implements ICommandService {
   paste(sessionId: string, scope: ScopeRef, index: number): Either<DomainError, CommandResult> {
     const sources = this.sessions.clipboardOf(sessionId);
     if (!sources || sources.length === 0) {
-      return left(CommandRejectedError.create('El portapapeles está vacío'));
+      return left(CommandRejectedError.of('clipboardEmpty'));
     }
 
     const applied = this.applyAndJournal(sessionId, { cmd: 'insertClones', scope, index, sources });

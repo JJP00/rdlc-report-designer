@@ -573,7 +573,7 @@ describe('BUG-29 pendingOpen se devuelve más de una vez', () => {
   it('el segundo getPendingOpen devuelve null', async () => {
     ipcHandlers.clear();
     const dummy = {} as never;
-    const controller = new IpcController(dummy, dummy, dummy, dummy);
+    const controller = new IpcController(dummy, dummy, dummy, dummy, dummy);
     controller.setPendingOpen('C:\\informes\\Arranque.rdlc');
     controller.register(() => null);
 

@@ -6,6 +6,7 @@ import {
   FileText,
   FolderOpen,
   History,
+  Languages,
   ListTree,
   Minus,
   Moon,
@@ -22,10 +23,13 @@ import {
   X,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { LOCALE_LABELS } from '@rdlc-designer/i18n';
+import { useLocale, useT } from '@rdlc-designer/i18n/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -165,7 +169,7 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
   );
 }
 
-/** Menú «Fichero»: Nuevo / Abrir … / recientes / Guardar / Cerrar. */
+/** Menú «Fichero»: Nuevo / Abrir … / recientes / Guardar / Cerrar / Idioma. */
 function FileGroup({
   hasDocument,
   busy = false,
@@ -188,12 +192,15 @@ function FileGroup({
   | 'onSaveAs'
   | 'onClose'
 >): ReactNode {
+  const t = useT();
+  const { locale, locales, setLocale } = useLocale();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="shrink-0" aria-label="Fichero">
+        <Button variant="outline" size="sm" className="shrink-0" aria-label={t('common.file')}>
           <FileText data-icon="inline-start" />
-          Fichero
+          {t('common.file')}
           <ChevronDown className="size-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
@@ -243,6 +250,24 @@ function FileGroup({
           Cerrar
           <DropdownMenuShortcut>Ctrl+W</DropdownMenuShortcut>
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Languages />
+            {t('common.language')}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {locales.map((code) => (
+              <DropdownMenuCheckboxItem
+                key={code}
+                checked={locale === code}
+                onSelect={() => setLocale(code)}
+              >
+                {LOCALE_LABELS[code]}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
       </DropdownMenuContent>
     </DropdownMenu>
   );

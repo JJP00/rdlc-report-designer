@@ -5,6 +5,8 @@ import { AVAILABLE_FONTS_PORT } from '../application/ports/out/AvailableFontsPor
 import { EVENT_BUS_PORT } from '../application/ports/out/EventBusPort.js';
 import { FILE_SYSTEM_PORT } from '../application/ports/out/FileSystemPort.js';
 import { FILE_WATCHER_PORT } from '../application/ports/out/FileWatcherPort.js';
+import { LOCALE_PREFERENCE_PORT } from '../application/ports/out/LocalePreferencePort.js';
+import type { LocalePreferencePort } from '../application/ports/out/LocalePreferencePort.js';
 import { RECENT_FILES_PORT } from '../application/ports/out/RecentFilesPort.js';
 import { RDLC_PROJECTION_PORT } from '../application/ports/out/RdlcProjectionPort.js';
 import { RDLC_PARSER_PORT } from '../application/ports/out/RdlcParserPort.js';
@@ -14,6 +16,8 @@ import { ElectronEventBusAdapter } from '../infrastructure/events/ElectronEventB
 import { BusinessCentralFontsAdapter } from '../infrastructure/fonts/BusinessCentralFontsAdapter.js';
 import { ChokidarWatcherAdapter } from '../infrastructure/fs/ChokidarWatcherAdapter.js';
 import { NodeFileSystemAdapter } from '../infrastructure/fs/NodeFileSystemAdapter.js';
+import { JsonLocalePreferenceAdapter } from '../infrastructure/locale/JsonLocalePreferenceAdapter.js';
+import { LocaleRuntime } from '../infrastructure/locale/LocaleRuntime.js';
 import { JsonRecentFilesAdapter } from '../infrastructure/recent/JsonRecentFilesAdapter.js';
 import { TrueFormatProjectionAdapter } from '../infrastructure/rdlc/TrueFormatProjectionAdapter.js';
 import { TrueFormatXmlAdapter } from '../infrastructure/rdlc/TrueFormatXmlAdapter.js';
@@ -49,6 +53,17 @@ const RDL_SCHEMA_PATH = app.isPackaged
       useFactory: () =>
         new JsonRecentFilesAdapter(join(app.getPath('userData'), 'recent-files.json')),
     },
+    {
+      provide: LOCALE_PREFERENCE_PORT,
+      useFactory: () =>
+        new JsonLocalePreferenceAdapter(join(app.getPath('userData'), 'locale.json')),
+    },
+    {
+      provide: LocaleRuntime,
+      useFactory: (preference: LocalePreferencePort) =>
+        new LocaleRuntime(preference, process.env['RDLC_LOCALE'], app.getLocale()),
+      inject: [LOCALE_PREFERENCE_PORT],
+    },
     ElectronEventBusAdapter,
     { provide: EVENT_BUS_PORT, useExisting: ElectronEventBusAdapter },
   ],
@@ -61,6 +76,8 @@ const RDL_SCHEMA_PATH = app.isPackaged
     XML_SCHEMA_VALIDATOR_PORT,
     AVAILABLE_FONTS_PORT,
     RECENT_FILES_PORT,
+    LOCALE_PREFERENCE_PORT,
+    LocaleRuntime,
     EVENT_BUS_PORT,
     ElectronEventBusAdapter,
   ],

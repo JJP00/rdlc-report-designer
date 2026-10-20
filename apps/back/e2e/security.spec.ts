@@ -9,6 +9,7 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appEnv } from './launch.js';
 
 /**
  * T2 — endurecimiento del renderer: sin ventanas nuevas, sin navegación fuera
@@ -31,6 +32,7 @@ test.beforeAll(async () => {
 
   app = await electron.launch({
     args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
+    env: appEnv(),
   });
   page = await app.firstWindow();
   await page.waitForFunction(() =>

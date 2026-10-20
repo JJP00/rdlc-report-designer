@@ -4,7 +4,11 @@
  * responde». Todo lo nativo (diálogos, timers, acciones sobre la ventana) se
  * inyecta, de modo que `main.ts` es solo el cableado y esto se prueba con
  * timers falsos.
+ *
+ * Los textos de los diálogos vienen del catálogo vigente del main (`t`), por lo
+ * que un cambio de idioma se aplica en caliente.
  */
+import type { Translator } from '@rdlc-designer/i18n';
 
 /** Tiempo máximo que se espera a que el renderer acuse la petición de cierre. */
 export const CLOSE_ACK_TIMEOUT_MS = 2000;
@@ -30,6 +34,8 @@ export interface WindowLifecycleDeps {
   destroyWindow: () => void;
   reload: () => void;
   isDestroyed: () => boolean;
+  /** Traducción vigente del main (`LocaleRuntime`); se consulta al mostrar. */
+  t: Translator['t'];
   log: { error: (message: string, error?: unknown) => void };
 }
 
@@ -86,13 +92,12 @@ export function createWindowLifecycle(deps: WindowLifecycleDeps): WindowLifecycl
     try {
       const response = await deps.showDialog({
         type: 'warning',
-        buttons: ['Cerrar sin guardar', 'Cancelar'],
+        buttons: [deps.t('common.closeWithoutSaving'), deps.t('common.cancel')],
         defaultId: 1,
         cancelId: 1,
         title: 'RDLC Report Designer',
-        message: 'La interfaz no responde.',
-        detail:
-          'El trabajo sin guardar sigue en memoria del editor. Puedes cerrar sin guardar o cancelar.',
+        message: deps.t('native.notResponding'),
+        detail: deps.t('native.unsavedWorkInMemory'),
       });
       if (response === 0) {
         lifecycle.allowClose = true;
@@ -100,7 +105,7 @@ export function createWindowLifecycle(deps: WindowLifecycleDeps): WindowLifecycl
       }
       // «Cancelar»: nada; un nuevo intento de cierre vuelve a armar el vigilante.
     } catch (error) {
-      deps.log.error('No se pudo mostrar el diálogo de cierre', error);
+      deps.log.error(deps.t('native.log.closeDialogFailed'), error);
     } finally {
       dialogOpen = false;
     }
@@ -113,13 +118,12 @@ export function createWindowLifecycle(deps: WindowLifecycleDeps): WindowLifecycl
     try {
       const response = await deps.showDialog({
         type: 'warning',
-        buttons: ['Recargar la interfaz', 'Cerrar sin guardar'],
+        buttons: [deps.t('common.reloadInterface'), deps.t('common.closeWithoutSaving')],
         defaultId: 0,
         cancelId: 1,
         title: 'RDLC Report Designer',
-        message: 'La interfaz se ha cerrado de forma inesperada.',
-        detail:
-          'El trabajo sin guardar sigue en memoria del editor. Recarga la interfaz para recuperarlo o cierra sin guardar.',
+        message: deps.t('native.renderGone'),
+        detail: deps.t('native.unsavedWorkInMemory'),
       });
       if (response === 0) {
         // Al montar, el front re-adopta las sesiones vivas vía `listSessions`.
@@ -129,7 +133,7 @@ export function createWindowLifecycle(deps: WindowLifecycleDeps): WindowLifecycl
       lifecycle.allowClose = true;
       deps.destroyWindow();
     } catch (error) {
-      deps.log.error('No se pudo mostrar el diálogo de render caído', error);
+      deps.log.error(deps.t('native.log.renderGoneDialogFailed'), error);
     } finally {
       dialogOpen = false;
     }
@@ -142,17 +146,16 @@ export function createWindowLifecycle(deps: WindowLifecycleDeps): WindowLifecycl
     try {
       const response = await deps.showDialog({
         type: 'warning',
-        buttons: ['Esperar', 'Recargar la interfaz'],
+        buttons: [deps.t('native.wait'), deps.t('common.reloadInterface')],
         defaultId: 0,
         cancelId: 0,
         title: 'RDLC Report Designer',
-        message: 'La interfaz no responde.',
-        detail:
-          'Puedes esperar a que termine o recargar la interfaz; el trabajo sin guardar sigue en memoria del editor.',
+        message: deps.t('native.notResponding'),
+        detail: deps.t('native.unsavedWorkInMemory'),
       });
       if (response === 1 && !deps.isDestroyed()) deps.reload();
     } catch (error) {
-      deps.log.error('No se pudo mostrar el diálogo de aplicación bloqueada', error);
+      deps.log.error(deps.t('native.log.unresponsiveDialogFailed'), error);
     } finally {
       dialogOpen = false;
       unresponsiveDialogOpen = false;

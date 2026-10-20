@@ -10,11 +10,13 @@ import {
   pickSavePathRequestSchema,
   saveAsRequestSchema,
   sessionRequestSchema,
+  setLocaleRequestSchema,
   type CloseResult,
   type CommandResult,
   type FontListResult,
   type IpcErrorDto,
   type ListedSessionsResult,
+  type LocaleResult,
   type OpenFileResult,
   type PendingOpenResult,
   type PickFileResult,
@@ -41,6 +43,7 @@ import type {
   ISessionService,
   OpenSessionResult,
   SaveSessionResult,
+  SaveWarningReason,
 } from '../../application/services/ISessionService.js';
 import { SESSION_SERVICE } from '../../application/services/ISessionService.js';
 import type { AvailableFontsPort } from '../../application/ports/out/AvailableFontsPort.js';
@@ -50,6 +53,7 @@ import type { RecentFilesPort } from '../../application/ports/out/RecentFilesPor
 import { RECENT_FILES_PORT } from '../../application/ports/out/RecentFilesPort.js';
 import { left, right, type Either } from '../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../shared/domainError.js';
+import { LocaleRuntime } from '../../infrastructure/locale/LocaleRuntime.js';
 import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
 
 /**
@@ -73,6 +77,7 @@ export class IpcController {
     @Inject(COMMAND_SERVICE) private readonly commands: ICommandService,
     @Inject(AVAILABLE_FONTS_PORT) private readonly fonts: AvailableFontsPort,
     @Inject(RECENT_FILES_PORT) private readonly recents: RecentFilesPort,
+    private readonly locale: LocaleRuntime,
   ) {}
 
   /** Fichero inicial (argumento de CLI) que el front consume al montar. */
@@ -110,6 +115,20 @@ export class IpcController {
       sessions: this.sessions.listSessions(),
     }));
 
+    // Idioma: el renderer lo pide **antes del primer render** (sin parpadeo) y
+    // lo cambia desde Fichero → Idioma; el main persiste y aplica en caliente.
+    ipcMain.handle(IPC_CHANNELS.getLocale, (): LocaleResult => this.locale.snapshot());
+
+    ipcMain.handle(IPC_CHANNELS.setLocale, (_event, payload) =>
+      this.handle(
+        setLocaleRequestSchema,
+        payload,
+        async (req): Promise<Either<DomainError, LocaleResult>> =>
+          right(await this.locale.set(req.locale)),
+        (value: LocaleResult): LocaleResult => value,
+      ),
+    );
+
     // Drop de ficheros: lo llama el preload con la ruta real del `File`
     // (`webUtils.getPathForFile`); el renderer no puede invocar este canal.
     ipcMain.handle(IPC_CHANNELS.registerDroppedFile, (_event, payload) =>
@@ -135,11 +154,7 @@ export class IpcController {
         payload,
         async (req) => {
           if (!(await this.isTrustedReadPath(req.path))) {
-            return left(
-              CommandRejectedError.create(
-                `Ruta no autorizada para abrir: ${req.path} (usa «Abrir…», los recientes o arrastra el fichero)`,
-              ),
-            );
+            return left(CommandRejectedError.of('pathNotAllowedOpen', { path: req.path }));
           }
           const result = await this.sessions.open(req.path);
           if (result.isRight()) await this.recents.add(req.path);
@@ -160,14 +175,10 @@ export class IpcController {
         payload,
         async (req) => {
           if (!req.path) {
-            return left(CommandRejectedError.create('Falta la ruta del informe nuevo'));
+            return left(CommandRejectedError.of('missingNewReportPath'));
           }
           if (!this.isTrustedWritePath(req.path)) {
-            return left(
-              CommandRejectedError.create(
-                `Ruta no autorizada para crear el informe: ${req.path} (usa el diálogo de guardado)`,
-              ),
-            );
+            return left(CommandRejectedError.of('pathNotAllowedCreate', { path: req.path }));
           }
           const result = await this.sessions.createNew(req.path);
           if (result.isRight()) await this.recents.add(req.path);
@@ -191,7 +202,7 @@ export class IpcController {
           ok: true,
           path: value.path,
           bytesIdentical: value.bytesIdentical,
-          ...(value.warning ? { warning: value.warning } : {}),
+          ...this.warningOf(value.warningReason),
         }),
       ),
     );
@@ -202,11 +213,7 @@ export class IpcController {
         payload,
         async (req) => {
           if (!this.isTrustedWritePath(req.path)) {
-            return left(
-              CommandRejectedError.create(
-                `Ruta no autorizada para guardar: ${req.path} (usa el diálogo de guardado)`,
-              ),
-            );
+            return left(CommandRejectedError.of('pathNotAllowedSave', { path: req.path }));
           }
           const result = await this.sessions.saveAs(req.sessionId, req.path);
           if (result.isRight()) await this.recents.add(req.path);
@@ -216,7 +223,7 @@ export class IpcController {
           ok: true,
           path: value.path,
           bytesIdentical: value.bytesIdentical,
-          ...(value.warning ? { warning: value.warning } : {}),
+          ...this.warningOf(value.warningReason),
         }),
       ),
     );
@@ -368,11 +375,19 @@ export class IpcController {
     }
   }
 
+  /** Aviso de guardado traducido con el idioma vigente del main (BUG-56). */
+  private warningOf(reason: SaveWarningReason | undefined): { warning?: string } {
+    if (!reason) return {};
+    const text = this.locale.translator.tUnsafe(`native.saveWarnings.${reason}`);
+    return text ? { warning: text } : {};
+  }
+
   private async pickFile(): Promise<PickFileResult> {
+    const t = this.locale.translator.t;
     const options: OpenDialogOptions = {
-      title: 'Abrir informe RDL/RDLC',
+      title: t('native.openDialog.title'),
       properties: ['openFile'],
-      filters: [{ name: 'Informes RDL/RDLC', extensions: ['rdlc', 'rdl'] }],
+      filters: [{ name: t('native.openDialog.filter'), extensions: ['rdlc', 'rdl'] }],
     };
     const window = this.getWindow();
     const result = window
@@ -384,10 +399,11 @@ export class IpcController {
   }
 
   private async pickSavePath(defaultPath?: string): Promise<PickSavePathResult> {
+    const t = this.locale.translator.t;
     const options: SaveDialogOptions = {
-      title: 'Guardar informe RDL/RDLC',
+      title: t('native.saveDialog.title'),
       ...(defaultPath ? { defaultPath } : {}),
-      filters: [{ name: 'Informes RDL/RDLC', extensions: ['rdlc', 'rdl'] }],
+      filters: [{ name: t('native.saveDialog.filter'), extensions: ['rdlc', 'rdl'] }],
     };
     const window = this.getWindow();
     const result = window

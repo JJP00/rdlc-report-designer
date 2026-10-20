@@ -13,7 +13,9 @@ const frontSrc = resolve(root, '../front/src');
  */
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@rdlc-designer/contracts'] })],
+    plugins: [
+      externalizeDepsPlugin({ exclude: ['@rdlc-designer/contracts', '@rdlc-designer/i18n'] }),
+    ],
     build: {
       outDir: 'out/main',
       rollupOptions: {

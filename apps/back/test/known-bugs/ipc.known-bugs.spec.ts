@@ -43,7 +43,7 @@ function registerController(
     list: async () => overrides.recents ?? [],
     add: async (path: string) => [path],
   } as unknown as ConstructorParameters<typeof IpcController>[3];
-  const controller = new IpcController(sessions, {} as never, {} as never, recents);
+  const controller = new IpcController(sessions, {} as never, {} as never, recents, {} as never);
   controller.register(() => null);
 }
 

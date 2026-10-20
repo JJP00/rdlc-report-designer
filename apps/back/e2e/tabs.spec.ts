@@ -10,6 +10,7 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appEnv } from './launch.js';
 
 /**
  * QA/regresión de la fase MVP de pestañas (bloque E): contrato visible de una
@@ -51,6 +52,7 @@ async function launch(): Promise<Ctx> {
 
   const app = await electron.launch({
     args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
+    env: appEnv(),
   });
   const page = await app.firstWindow();
   await page.waitForFunction(() =>

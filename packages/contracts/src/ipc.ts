@@ -38,6 +38,10 @@ export const IPC_CHANNELS = {
   acknowledgeCloseRequest: 'rdlc:acknowledgeCloseRequest',
   /** Sesiones vivas del backend (re-adopción tras recargar la interfaz, P0.1). */
   listSessions: 'rdlc:listSessions',
+  /** Idioma efectivo + preferencia guardada, al arrancar el renderer. */
+  getLocale: 'rdlc:getLocale',
+  /** Cambia el idioma (Fichero → Idioma): persiste y actualiza main y renderer. */
+  setLocale: 'rdlc:setLocale',
   close: 'rdlc:close',
   executeCommand: 'rdlc:executeCommand',
   undo: 'rdlc:undo',
@@ -64,6 +68,29 @@ export const IPC_EVENTS = {
   externalReloadFailed: 'rdlc:evt:externalReloadFailed',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];
+
+/* ----------------------------- i18n ------------------------------------- */
+
+/** Idiomas soportados por la app (preferencia del usuario; el catálogo fuente es EN). */
+export const LOCALES = ['en', 'es'] as const;
+export const localeSchema = z.enum(LOCALES);
+export type AppLocale = z.infer<typeof localeSchema>;
+
+export const setLocaleRequestSchema = z.object({ locale: localeSchema }).strict();
+export type SetLocaleRequest = z.infer<typeof setLocaleRequestSchema>;
+
+/**
+ * Idioma efectivo (`locale`; `qps-ploc` en desarrollo), preferencia aplicada
+ * (`preferred`: lo que marca el menú «Idioma») y idioma del SO (`system`).
+ */
+export const localeResultSchema = z.object({
+  ok: z.literal(true),
+  locale: z.string().min(2),
+  preferred: localeSchema,
+  system: z.string(),
+  locales: z.array(localeSchema),
+});
+export type LocaleResult = z.infer<typeof localeResultSchema>;
 
 /* ----------------------------- Errores ---------------------------------- */
 
@@ -143,6 +170,13 @@ export type PasteRequest = z.infer<typeof pasteRequestSchema>;
 export const ipcErrorSchema = z.object({
   ok: z.literal(false),
   code: errorCodeSchema,
+  /**
+   * Motivo estable dentro del código (`errors.<reason>` en los catálogos): la
+   * UI compone el mensaje visible; `message` queda para diagnóstico/logs.
+   */
+  reason: z.string().optional(),
+  /** Parámetros de la plantilla del mensaje (`{path}`, `{count}`…). */
+  params: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   message: z.string().optional(),
   data: z.unknown().optional(),
 });

@@ -318,9 +318,7 @@ describe('Resiliencia · saveAs con watcher que falla (BUG-56)', () => {
     expect(savedAs.isRight()).toBe(true);
     if (!savedAs.isRight()) return;
     expect(savedAs.value.path).toBe(copy);
-    expect(savedAs.value.warning).toBe(
-      'Guardado, pero no se vigilan cambios externos en el fichero nuevo.',
-    );
+    expect(savedAs.value.warningReason).toBe('watchUnsupported');
     expect(await readFile(copy, 'utf8')).toContain('7.77cm');
     // El watcher viejo se soltó y el nuevo no llegó a crearse.
     expect(watcher.watchingPaths).toEqual([]);

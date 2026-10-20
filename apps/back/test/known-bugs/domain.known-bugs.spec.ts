@@ -6,6 +6,7 @@ import { applyCommand } from '../../src/domain/document/commands/applyCommand.js
 import type { CommandContext } from '../../src/domain/document/commands/CommandContext.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import type { RdlcNode } from '../../src/domain/document/tree/RdlcNode.js';
+import { describeError } from '../../src/shared/describeError.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { cleanupTempDirs, makeService } from '../application/test-utils.js';
 import { undoAll } from '../domain/command-test-utils.js';
@@ -717,7 +718,7 @@ describe('BUG-13 · ampliar una celda ya combinada', () => {
     });
     expect(
       extended.isRight(),
-      `ampliar la fusión debe aplicarse (rechazo: ${extended.isLeft() ? extended.value.errorMessage : ''})`,
+      `ampliar la fusión debe aplicarse (rechazo: ${extended.isLeft() ? describeError(extended.value) : ''})`,
     ).toBe(true);
     const anchor = rowCells(tablixRows(ctx2.index.get('T'))[0])[0];
     expect(anchor?.child('CellContents')?.child('ColSpan')?.text()).toBe('3');
@@ -807,7 +808,7 @@ describe('BUG-16 · el índice se reconstruye tras borrar filas/columnas', () =>
     const path = join(tmp, 'KnownBugs.rdlc');
     await writeFile(path, BASE_XML, 'utf8');
     const opened = await service.open(path);
-    if (!opened.isRight()) throw new Error(`no abrió: ${opened.value.errorMessage}`);
+    if (!opened.isRight()) throw new Error(`no abrió: ${describeError(opened.value)}`);
     return { commands: new CommandService(service), service, sessionId: opened.value.sessionId };
   }
 

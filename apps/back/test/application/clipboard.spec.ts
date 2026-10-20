@@ -214,7 +214,7 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
     expect(pasted.isLeft()).toBe(true);
     if (pasted.isLeft()) {
       expect(pasted.value.code).toBe('E_COMMAND_REJECTED');
-      expect(pasted.value.errorMessage).toContain('portapapeles');
+      expect(pasted.value.reason).toBe('clipboardEmpty');
     }
   });
 
@@ -240,6 +240,6 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
 
     const pasted = commands.paste(sessionId, { kind: 'body' }, 0);
     expect(pasted.isLeft()).toBe(true);
-    if (pasted.isLeft()) expect(pasted.value.errorMessage).toContain('portapapeles');
+    if (pasted.isLeft()) expect(pasted.value.reason).toBe('clipboardEmpty');
   });
 });

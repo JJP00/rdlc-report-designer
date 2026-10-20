@@ -1,3 +1,4 @@
+import { appEnv } from './launch.js';
 import {
   _electron as electron,
   expect,
@@ -34,6 +35,7 @@ test.beforeAll(async () => {
 
   app = await electron.launch({
     args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
+    env: appEnv(),
   });
   page = await app.firstWindow();
   await page.waitForFunction(() =>

@@ -1,5 +1,6 @@
 import type { RdlcCommand, ScopeRef } from './commands.js';
 import type {
+  AppLocale,
   CloseResult,
   CommandResult,
   ConflictDetectedEvent,
@@ -9,6 +10,7 @@ import type {
   FileMissingChangedEvent,
   FontListResult,
   ListedSessionsResult,
+  LocaleResult,
   OpenFileResult,
   PendingOpenResult,
   PickFileResult,
@@ -60,6 +62,10 @@ export interface RdlcApi {
   acknowledgeCloseRequest(): Promise<void>;
   /** Sesiones vivas del backend (re-adopción tras recargar la interfaz, P0.1). */
   listSessions(): Promise<ListedSessionsResult>;
+  /** Idioma efectivo y preferencia (el renderer lo pide antes del primer render). */
+  getLocale(): Promise<LocaleResult>;
+  /** Cambia el idioma de la app (Fichero → Idioma): persiste en `userData`. */
+  setLocale(locale: AppLocale): Promise<LocaleResult>;
 
   /** Ejecuta un comando de edición (el backend queda sincronizado al momento). */
   executeCommand(sessionId: string, command: RdlcCommand): Promise<CommandResult>;
