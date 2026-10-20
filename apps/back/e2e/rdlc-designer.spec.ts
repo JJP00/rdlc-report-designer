@@ -303,10 +303,16 @@ async function clearSelection(): Promise<void> {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
       container(): HTMLElement;
       scaleX(): number;
+      x(): number;
+      y(): number;
     };
     const container = stage.container().getBoundingClientRect();
     const zoom = stage.scaleX();
-    return { x: container.left + 4 * zoom, y: container.top + 4 * zoom };
+    // El stage es la **ventana** renderizada: `x`/`y` llevan el papel al hueco.
+    return {
+      x: container.left + stage.x() + 4 * zoom,
+      y: container.top + stage.y() + 4 * zoom,
+    };
   });
   await page.mouse.click(point.x, point.y);
   await page
@@ -346,15 +352,19 @@ async function nodeCenter(
         findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
         container(): HTMLElement;
         scaleX(): number;
+        x(): number;
+        y(): number;
       };
       const node = stage.findOne((candidate) => candidate.id() === nodeId);
       if (!node) return null;
       const box = node.getClientRect({ relativeTo: stage as unknown as never });
       const container = stage.container().getBoundingClientRect();
       const zoom = stage.scaleX();
+      // `box` va en px de papel: el origen del papel en pantalla es
+      // `container + stage.x()/y()` (el stage cubre solo la ventana visible).
       return {
-        x: container.left + (box.x + box.width * fx) * zoom,
-        y: container.top + (box.y + box.height * fy) * zoom,
+        x: container.left + stage.x() + (box.x + box.width * fx) * zoom,
+        y: container.top + stage.y() + (box.y + box.height * fy) * zoom,
       };
     },
     { nodeId: id, fx, fy },
@@ -909,6 +919,8 @@ async function scrollNodeIntoView(id: string): Promise<void> {
       findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
       container(): HTMLElement;
       scaleX(): number;
+      x(): number;
+      y(): number;
     };
     const node = stage.findOne((candidate) => candidate.id() === nodeId);
     const canvas = stage.container();
@@ -916,15 +928,16 @@ async function scrollNodeIntoView(id: string): Promise<void> {
     if (!node || !(scroller instanceof HTMLElement)) return;
     const box = node.getClientRect({ relativeTo: stage as unknown as never });
     const zoom = stage.scaleX();
-    const contentTop =
-      canvas.getBoundingClientRect().top -
-      scroller.getBoundingClientRect().top +
-      scroller.scrollTop;
-    const center = contentTop + (box.y + box.height / 2) * zoom;
+    // Centro del nodo en pantalla ahora mismo (el stage es la ventana: `x`/`y`
+    // llevan el origen del papel al hueco) y desplazamiento necesario para
+    // centrarlo: el scroll es relativo, no depende de la geometría del papel.
+    const container = canvas.getBoundingClientRect();
+    const centerY = container.top + stage.y() + (box.y + box.height / 2) * zoom;
+    const deltaY = centerY - (scroller.getBoundingClientRect().top + scroller.clientHeight / 2);
     scroller.scrollLeft = 0;
     scroller.scrollTop = Math.max(
       0,
-      Math.min(scroller.scrollHeight - scroller.clientHeight, center - scroller.clientHeight / 2),
+      Math.min(scroller.scrollHeight - scroller.clientHeight, scroller.scrollTop + deltaY),
     );
   }, id);
   await waitCanvasScrollSettled();
@@ -1516,6 +1529,8 @@ test('el marco de selección selecciona los items que intersecta', async () => {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
       container(): HTMLElement;
       scaleX(): number;
+      x(): number;
+      y(): number;
       findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
     };
     const node = (id: string): KonvaLike | undefined =>
@@ -1534,8 +1549,14 @@ test('el marco de selección selecciona los items que intersecta', async () => {
     const maxY = Math.max(a.y + a.height, b.y + b.height);
     return {
       // Desde la columna del margen izquierdo (zona vacía a cualquier altura).
-      start: { x: container.left + 6, y: container.top + (minY - 5) * zoom },
-      end: { x: container.left + (maxX + 16) * zoom, y: container.top + (maxY + 16) * zoom },
+      start: {
+        x: container.left + stage.x() + 6,
+        y: container.top + stage.y() + (minY - 5) * zoom,
+      },
+      end: {
+        x: container.left + stage.x() + (maxX + 16) * zoom,
+        y: container.top + stage.y() + (maxY + 16) * zoom,
+      },
     };
   });
 

@@ -28,6 +28,7 @@ import { groupBoxCm, groupResizeCommands, type GroupResizeMember } from '@/lib/g
 import type { CanvasHit } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
 import { pageRulerSegments } from '@/lib/pageResize';
+import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 import {
   cm,
   findItem,
@@ -56,7 +57,9 @@ import {
 } from './useSelectionMeasure';
 import { useVisibleRect } from './useVisibleRect';
 import { bandAt, paperLayout, type PaperLayout } from './bands';
+import { CULL_MIN_ITEMS, countProjectionItems, type VisibleRect } from './culling';
 import { CANVAS_PADDING_PX, clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
+import { fallbackWindow } from './window';
 
 /** Scope del contrato para cada banda del papel. */
 function scopeOfBand(key: string): ScopeRef {
@@ -187,14 +190,39 @@ export function CanvasPreview({
   const layout = paperLayout(projection);
   const visibleBands = layout.bands.filter((band) => band.visible);
 
-  // Culling (T3): ventana visible en px de papel (null = pinta todo).
+  /**
+   * Cámara + culling (T3/T4): ventana visible en px de papel. El stage cubre
+   * **solo esta ventana**, no el papel entero a `papel × zoom`: así el coste de
+   * memoria del canvas depende del hueco del lienzo, no del zoom ni del tamaño
+   * del papel (un A4 a 400 % serían ~57 MB por canvas). `null` hasta la primera
+   * medida; el stage arranca con la ventana provisional de `window.ts`.
+   */
   const visibleRect = useVisibleRect({
     containerRef: scrollRef,
-    projection,
     zoom,
     sheetWidth: layout.sheetWidth,
     sheetHeight: layout.sheetHeight,
   });
+  const itemCount = useMemo(() => countProjectionItems(projection), [projection]);
+  // El culling (T3) se reserva a informes grandes: los normales se pintan enteros.
+  const cull = itemCount >= CULL_MIN_ITEMS ? visibleRect : null;
+  // Sin medida todavía (primera pasada): ventana provisional pequeña, para que
+  // el stage monte ya con un canvas acotado. No llega a pintarse: la medida
+  // real se publica antes del primer pintado (`useVisibleRect`).
+  const stageWindow = useMemo<VisibleRect>(
+    () =>
+      visibleRect ??
+      fallbackWindow({ sheetWidth: layout.sheetWidth, sheetHeight: layout.sheetHeight, zoom }),
+    [visibleRect, layout.sheetWidth, layout.sheetHeight, zoom],
+  );
+
+  // QA: el stage real (los guiones consultan `getIntersection` y el zoom). Depende
+  // de la ventana porque el stage se monta en cuanto hay una medida.
+  useEffect(() => {
+    if (TEST_HOOKS_ENABLED) {
+      (window as Window & { __rdlcStage?: Konva.Stage | null }).__rdlcStage = stageRef.current;
+    }
+  }, [visibleRect, stageRef]);
 
   /**
    * «Ajustar al ancho»: mide el hueco real del lienzo (menos paddings y reglas)
@@ -318,8 +346,9 @@ export function CanvasPreview({
     ...(onSelectCell ? { onSelectCell } : {}),
   });
 
-  const stageWidth = layout.sheetWidth * zoom;
-  const stageHeight = layout.sheetHeight * zoom;
+  /** Tamaño del papel en px de pantalla (el stage solo cubre la ventana). */
+  const paperWidth = layout.sheetWidth * zoom;
+  const paperHeight = layout.sheetHeight * zoom;
 
   /* --------------------- redimensionado de página (U10) ------------------- */
 
@@ -451,9 +480,18 @@ export function CanvasPreview({
     const base = wheelTargetRef.current ?? zoom;
     const target = roundZoom(clampZoom(base * (deltaY > 0 ? 1 / 1.1 : 1.1)));
     wheelTargetRef.current = target;
-    if (paperRef.current) {
-      paperRef.current.style.transformOrigin = '0 0';
-      paperRef.current.style.transform = `scale(${target / zoom})`;
+    const paper = paperRef.current;
+    const container = scrollRef.current;
+    if (paper) {
+      // El preview escala sobre el **centro del hueco** (no sobre el origen del
+      // papel): lo que el usuario está mirando se queda quieto y la ventana del
+      // stage no deja huecos con un paso de rueda.
+      const originX =
+        (container?.scrollLeft ?? 0) + (container?.clientWidth ?? 0) / 2 - CANVAS_PADDING_PX;
+      const originY =
+        (container?.scrollTop ?? 0) + (container?.clientHeight ?? 0) / 2 - CANVAS_PADDING_PX;
+      paper.style.transformOrigin = `${originX}px ${originY}px`;
+      paper.style.transform = `scale(${target / zoom})`;
     }
     window.clearTimeout(wheelTimerRef.current);
     wheelTimerRef.current = window.setTimeout(() => {
@@ -595,21 +633,32 @@ export function CanvasPreview({
         <div
           ref={paperRef}
           className="relative"
-          style={{ width: RULER_PX + stageWidth, height: RULER_PX + stageHeight }}
+          style={{ width: RULER_PX + paperWidth, height: RULER_PX + paperHeight }}
         >
           <CanvasRulers
             projection={projection}
             zoom={zoom}
-            stageWidth={stageWidth}
-            stageHeight={stageHeight}
+            widthPx={paperWidth}
+            heightPx={paperHeight}
             rulerMarks={rulerMarks}
           />
 
-          <div className="absolute" style={{ left: RULER_PX, top: RULER_PX }}>
+          {/* Cámara (T4): el stage ocupa solo la ventana visible del papel y
+              desplaza el contenido a su origen (`x`/`y`). El canvas, así, mide
+              el hueco y no `papel × zoom`. */}
+          <div
+            className="absolute"
+            style={{
+              left: RULER_PX + stageWindow.x * zoom,
+              top: RULER_PX + stageWindow.y * zoom,
+            }}
+          >
             <Stage
               ref={stageRef}
-              width={stageWidth}
-              height={stageHeight}
+              width={stageWindow.width * zoom}
+              height={stageWindow.height * zoom}
+              x={-stageWindow.x * zoom}
+              y={-stageWindow.y * zoom}
               scaleX={zoom}
               scaleY={zoom}
               style={{ background: '#dcdce2' }}
@@ -651,7 +700,7 @@ export function CanvasPreview({
                 selectedCell={selectedCell}
                 onSelectCell={onSelectCell}
                 draggable={onMoveTo !== undefined}
-                cull={visibleRect}
+                cull={cull}
               />
 
               <SelectionFrame {...frameProps} />
@@ -685,14 +734,15 @@ export function CanvasPreview({
 function CanvasRulers({
   projection,
   zoom,
-  stageWidth,
-  stageHeight,
+  widthPx,
+  heightPx,
   rulerMarks,
 }: {
   projection: ProjectionDto;
   zoom: number;
-  stageWidth: number;
-  stageHeight: number;
+  /** Tamaño del papel en px de pantalla (la regla lo recorre entero). */
+  widthPx: number;
+  heightPx: number;
   rulerMarks: (axis: 'x' | 'y') => RulerMark[];
 }): ReactNode {
   const t = useT();
@@ -706,14 +756,14 @@ function CanvasRulers({
       <Ruler
         orientation="horizontal"
         zoom={zoom}
-        lengthPx={stageWidth}
+        lengthPx={widthPx}
         marks={rulerMarks('x')}
         segments={pageRulerSegments(projection.page, 'x', t)}
       />
       <Ruler
         orientation="vertical"
         zoom={zoom}
-        lengthPx={stageHeight}
+        lengthPx={heightPx}
         marks={rulerMarks('y')}
         segments={pageRulerSegments(projection.page, 'y', t)}
       />
@@ -784,8 +834,10 @@ function hitAtEvent(
   event: { clientX: number; clientY: number },
 ): CanvasHit | undefined {
   const rect = stage.container().getBoundingClientRect();
-  const contentX = (event.clientX - rect.left) / zoom;
-  const contentY = (event.clientY - rect.top) / zoom;
+  // El stage está desplazado a la ventana renderizada (`x`/`y` en px de
+  // pantalla): el punto se mide desde el origen del **papel**.
+  const contentX = (event.clientX - rect.left - stage.x()) / zoom;
+  const contentY = (event.clientY - rect.top - stage.y()) / zoom;
   if (
     contentX < 0 ||
     contentY < 0 ||

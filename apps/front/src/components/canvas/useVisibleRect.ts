@@ -1,87 +1,112 @@
-import type { ProjectionDto } from '@rdlc-designer/contracts';
-import { useEffect, useMemo, useState, type RefObject } from 'react';
-import { CULL_MIN_ITEMS, countProjectionItems, type VisibleRect } from './culling';
+import type { RefObject } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { VisibleRect } from './culling';
 import { CANVAS_PADDING_PX, RULER_PX } from './geometry';
+import { canvasWindow, sameWindow } from './window';
 
 /**
- * Culling del lienzo (T3): calcula la **ventana visible en px de papel** a
- * partir del contenedor con scroll, recortada al stage (lo que el canvas
- * recorta no se ve). El origen se cuantiza a pasos de 400 px y se deja un
- * margen de 600 (> paso) para que al hacer scroll no haya pop-in y solo se
- * re-renderice cada 400 px de desplazamiento.
+ * Ventana visible del lienzo (T3/T4): el hueco del scroller en px de papel,
+ * ampliado con un margen y cuantizado (`canvasWindow`). Es la ventana que
+ * **renderiza el stage** (cámara: el canvas cubre el hueco, no el papel entero)
+ * y, en informes grandes, la que recorta el culling.
  *
- * Devuelve `null` mientras el informe no supera `CULL_MIN_ITEMS` (los informes
- * normales de BC se pintan completos, como siempre).
+ * Se publica **antes del primer pintado** (`useLayoutEffect`): el stage nace ya
+ * con la ventana correcta y nunca se asigna un canvas del tamaño del papel. Al
+ * hacer scroll solo se publica estado nuevo al cruzar un paso (`canvasWindow`),
+ * así el scroll no re-renderiza a cada píxel.
  */
 
-const CULL_STEP_PX = 400;
-const CULL_MARGIN_PX = 600;
+/** Medidas crudas del scroller (px de pantalla), tal como se leen del DOM. */
+interface CanvasViewport {
+  scrollLeft: number;
+  scrollTop: number;
+  width: number;
+  height: number;
+}
+
+/** Tamaño del papel (px de papel). */
+interface PaperSize {
+  sheetWidth: number;
+  sheetHeight: number;
+}
+
+/** Ventana de una medida cruda del scroller, con el zoom y el papel dados. */
+function windowOf(measure: CanvasViewport, zoom: number, sheet: PaperSize): VisibleRect {
+  return canvasWindow({
+    // Borde visible en px de papel = intersección del hueco de scroll con el
+    // **stage** (lo que el canvas recorta no se ve aunque esté en el hueco).
+    left: (measure.scrollLeft - CANVAS_PADDING_PX - RULER_PX) / zoom,
+    top: (measure.scrollTop - CANVAS_PADDING_PX - RULER_PX) / zoom,
+    viewportWidth: measure.width,
+    viewportHeight: measure.height,
+    sheetWidth: sheet.sheetWidth,
+    sheetHeight: sheet.sheetHeight,
+    zoom,
+  });
+}
 
 export interface UseVisibleRectOptions {
   containerRef: RefObject<HTMLDivElement | null>;
-  projection: ProjectionDto;
   zoom: number;
-  /** Tamaño del papel (px de papel), para recortar la ventana al stage. */
+  /** Tamaño del papel (px de papel). */
   sheetWidth: number;
   sheetHeight: number;
 }
 
 export function useVisibleRect({
   containerRef,
-  projection,
   zoom,
   sheetWidth,
   sheetHeight,
 }: UseVisibleRectOptions): VisibleRect | null {
-  const itemCount = useMemo(() => countProjectionItems(projection), [projection]);
-  const [visibleRect, setVisibleRect] = useState<VisibleRect | null>(null);
+  const [viewport, setViewport] = useState<CanvasViewport | null>(null);
+  // Última medida publicada (no la última leída): comparar ventanas, no píxeles.
+  const publishedRef = useRef<CanvasViewport | null>(null);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const sheetRef = useRef({ sheetWidth, sheetHeight });
+  sheetRef.current = { sheetWidth, sheetHeight };
 
-  useEffect(() => {
+  // La ventana se deriva en render: un cambio de zoom (o de papel) no deja un
+  // frame con la ventana antigua, aunque la medida cruda sea de hace un paso.
+  const window = useMemo(
+    () => (viewport ? windowOf(viewport, zoom, { sheetWidth, sheetHeight }) : null),
+    [viewport, zoom, sheetWidth, sheetHeight],
+  );
+
+  useLayoutEffect(() => {
     const container = containerRef.current;
-    if (!container || itemCount < CULL_MIN_ITEMS) {
-      setVisibleRect(null);
-      return;
-    }
+    if (!container) return;
 
     let frame = 0;
+    const read = (): CanvasViewport => ({
+      scrollLeft: container.scrollLeft,
+      scrollTop: container.scrollTop,
+      width: container.clientWidth,
+      height: container.clientHeight,
+    });
+    const publish = (next: CanvasViewport): void => {
+      const zoomNow = zoomRef.current;
+      const sheet = sheetRef.current;
+      const previous = publishedRef.current;
+      if (
+        previous &&
+        sameWindow(windowOf(previous, zoomNow, sheet), windowOf(next, zoomNow, sheet))
+      ) {
+        return;
+      }
+      publishedRef.current = next;
+      setViewport(next);
+    };
     const update = (): void => {
       frame = 0;
-      // Ventana en px de papel = intersección del hueco de scroll con el
-      // **stage** (lo que el canvas recorta no se ve aunque esté en el hueco).
-      const rawLeft = (container.scrollLeft - CANVAS_PADDING_PX - RULER_PX) / zoom;
-      const rawTop = (container.scrollTop - CANVAS_PADDING_PX - RULER_PX) / zoom;
-      const rawRight = rawLeft + container.clientWidth / zoom;
-      const rawBottom = rawTop + container.clientHeight / zoom;
-
-      const left = Math.max(rawLeft, 0);
-      const top = Math.max(rawTop, 0);
-      const right = Math.min(rawRight, sheetWidth);
-      const bottom = Math.min(rawBottom, sheetHeight);
-
-      const x0 = Math.max(0, Math.floor(left / CULL_STEP_PX) * CULL_STEP_PX - CULL_MARGIN_PX);
-      const y0 = Math.max(0, Math.floor(top / CULL_STEP_PX) * CULL_STEP_PX - CULL_MARGIN_PX);
-      const x1 = Math.min(sheetWidth, Math.max(right, 0) + CULL_MARGIN_PX + CULL_STEP_PX);
-      const y1 = Math.min(sheetHeight, Math.max(bottom, 0) + CULL_MARGIN_PX + CULL_STEP_PX);
-      const next: VisibleRect = {
-        x: x0,
-        y: y0,
-        width: Math.max(x1 - x0, 0),
-        height: Math.max(y1 - y0, 0),
-      };
-      setVisibleRect((prev) =>
-        prev &&
-        prev.x === next.x &&
-        prev.y === next.y &&
-        prev.width === next.width &&
-        prev.height === next.height
-          ? prev
-          : next,
-      );
+      publish(read());
     };
     const schedule = (): void => {
       if (frame === 0) frame = requestAnimationFrame(update);
     };
 
+    // Medida inicial antes del primer pintado (el stage nace con la ventana).
     update();
     container.addEventListener('scroll', schedule, { passive: true });
     const observer = new ResizeObserver(schedule);
@@ -91,7 +116,7 @@ export function useVisibleRect({
       container.removeEventListener('scroll', schedule);
       observer.disconnect();
     };
-  }, [containerRef, itemCount, zoom, sheetWidth, sheetHeight]);
+  }, [containerRef, zoom, sheetWidth, sheetHeight]);
 
-  return visibleRect;
+  return window;
 }

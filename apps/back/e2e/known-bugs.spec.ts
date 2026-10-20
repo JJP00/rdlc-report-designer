@@ -252,15 +252,19 @@ async function nodeCenter(page: Page, id: string): Promise<{ x: number; y: numbe
       findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
       container(): HTMLElement;
       scaleX(): number;
+      x(): number;
+      y(): number;
     };
     const node = stage.findOne((candidate) => candidate.id() === nodeId);
     if (!node) return null;
     const box = node.getClientRect({ relativeTo: stage as unknown as never });
     const container = stage.container().getBoundingClientRect();
     const zoom = stage.scaleX();
+    // `box` va en px de papel: el origen del papel en pantalla es
+    // `container + stage.x()/y()` (el stage cubre solo la ventana visible).
     return {
-      x: container.left + (box.x + box.width / 2) * zoom,
-      y: container.top + (box.y + box.height / 2) * zoom,
+      x: container.left + stage.x() + (box.x + box.width / 2) * zoom,
+      y: container.top + stage.y() + (box.y + box.height / 2) * zoom,
     };
   }, id);
 }
@@ -308,10 +312,16 @@ async function clearSelection(page: Page): Promise<void> {
     const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
       container(): HTMLElement;
       scaleX(): number;
+      x(): number;
+      y(): number;
     };
     const container = stage.container().getBoundingClientRect();
     const zoom = stage.scaleX();
-    return { x: container.left + 4 * zoom, y: container.top + 4 * zoom };
+    // El stage es la **ventana** renderizada: `x`/`y` llevan el papel al hueco.
+    return {
+      x: container.left + stage.x() + 4 * zoom,
+      y: container.top + stage.y() + 4 * zoom,
+    };
   });
   await page.mouse.click(point.x, point.y);
   await page

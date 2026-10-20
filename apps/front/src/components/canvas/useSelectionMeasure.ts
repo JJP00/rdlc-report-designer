@@ -35,14 +35,6 @@ export function useSelectionMeasure({
 }: UseSelectionMeasureOptions): RectPx | null {
   const [selectionRect, setSelectionRect] = useState<RectPx | null>(null);
 
-  // El propio stage, para que los guiones de QA puedan consultar
-  // `getIntersection` (hit-test de Konva, no del dominio).
-  useEffect(() => {
-    if (TEST_HOOKS_ENABLED) {
-      (window as Window & { __rdlcStage?: Konva.Stage | null }).__rdlcStage = stageRef.current;
-    }
-  }, [stageRef]);
-
   // QA: celda seleccionada (el marco de item no existe para celdas).
   useEffect(() => {
     if (!TEST_HOOKS_ENABLED) return;

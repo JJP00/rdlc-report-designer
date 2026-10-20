@@ -86,8 +86,11 @@
 - **BUG-44 (restos)**: algunos campos width/height admiten `min={0}` y un «Aplicar» de la
   página manda varios comandos (varios pasos de undo)
   ([`docs/bugs/0001-auditoria-2026-10-07.md`](docs/bugs/0001-auditoria-2026-10-07.md)).
-- **Memoria del lienzo a 400 %** sin medir con páginas muy grandes (un A4 a 400 % ≈
-  3176×4492 px por capa).
+- **Memoria del lienzo**: resuelta la del zoom cercano con la **cámara del lienzo**
+  (2026-10-20) — el stage cubre la ventana visible, no el papel entero
+  ([`docs/perf/0002-camara-lienzo-zoom.md`](docs/perf/0002-camara-lienzo-zoom.md)).
+  Queda como opcional consolidar las capas de superposición (el coste restante es
+  por capa).
 
 ## ⚪ Decisiones menores
 

@@ -251,4 +251,16 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
       resuelta la deuda real que destapó ESLint (imports y variables sin usar, escapes
       innecesarios, asignaciones muertas).
 
+- [x] **Cámara del lienzo — memoria del zoom (2026-10-20)**: el `Stage` medía el
+      papel entero a `papel × zoom` y cada capa asigna un canvas de ese tamaño (un A4 a
+      400 % son 3176 × 4492 px, ~57 MB por canvas): el renderer llegaba a **310 MB** de
+      working set y el pico se repetía en cada paso de zoom. Ahora el stage cubre la
+      **ventana visible** (hueco + margen, cuantizada en px de pantalla) y desplaza el
+      contenido con `x`/`y`; el scroll sigue siendo solo compositor (sin JS por frame).
+      A 400 %: **272 → 34 MB** de canvas de escena y **310 → 220 MB** de renderer, y ya
+      no crece con el zoom ni con el tamaño de página. Detalle y medición en
+      [`docs/perf/0002-camara-lienzo-zoom.md`](./perf/0002-camara-lienzo-zoom.md); los
+      ganchos de QA y los guiones E2E suman `stage.x()/y()` al pasar de px de papel a
+      pantalla.
+
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20Report%20Designer%20-%20Pendientes.md).

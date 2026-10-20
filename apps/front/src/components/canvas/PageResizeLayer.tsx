@@ -81,7 +81,12 @@ export function PageResizeZones({
   // QA (Playwright): centro de cada zona en coordenadas de pantalla.
   useEffect(() => {
     if (!TEST_HOOKS_ENABLED) return;
-    const container = layerRef.current?.getStage()?.container().getBoundingClientRect();
+    const stage = layerRef.current?.getStage();
+    const container = stage?.container().getBoundingClientRect();
+    // El stage es la **ventana** renderizada: sus `x`/`y` (px de pantalla)
+    // llevan el origen del papel al hueco visible.
+    const offsetX = stage?.x() ?? 0;
+    const offsetY = stage?.y() ?? 0;
     const headerBand = layout.bands.find((band) => band.key === 'header');
     const bodyBand = layout.bands.find((band) => band.key === 'body');
     const footerBand = layout.bands.find((band) => band.key === 'footer');
@@ -94,8 +99,8 @@ export function PageResizeZones({
     const right = layout.marginLeft + layout.reportWidth;
     const bottom = Math.max(headerEnd, bodyEnd, footerBand.y, footerEnd);
     const at = (x: number, y: number): { x: number; y: number } => ({
-      x: container.left + x * zoom,
-      y: container.top + y * zoom,
+      x: container.left + offsetX + x * zoom,
+      y: container.top + offsetY + y * zoom,
     });
     const centerX = layout.marginLeft + layout.reportWidth / 2;
     (
