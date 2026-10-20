@@ -16,14 +16,19 @@ describe('apiErrorMessage', () => {
     ).toBe("Item not found: 'Textbox1'");
   });
 
-  it('cae al fallback por código si el motivo no tiene traducción', () => {
+  it('sin motivo traducido gana el mensaje específico; sin mensaje, el fallback por código', () => {
+    // Motivo desconocido + mensaje del backend: el mensaje es lo único específico.
     expect(
       apiErrorMessage(
         { code: 'E_UNEXPECTED', reason: 'motivoDesconocido', message: 'boom' },
         es,
         'rechazado',
       ),
-    ).toBe('Error inesperado');
+    ).toBe('boom');
+    // Sin mensaje: fallback genérico por código.
+    expect(apiErrorMessage({ code: 'E_UNEXPECTED', reason: 'motivoDesconocido' }, es, 'x')).toBe(
+      'Error inesperado',
+    );
     // Sin traducción de motivo ni de código: diagnóstico de la API.
     expect(apiErrorMessage({ message: 'boom' }, es, 'rechazado')).toBe('boom');
   });

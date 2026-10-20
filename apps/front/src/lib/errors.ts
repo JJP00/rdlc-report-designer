@@ -23,9 +23,13 @@ export function apiErrorMessage(
   translator: Translator,
   fallback: string,
 ): string {
-  const translated = translateError(translator, result, result.params);
+  // Precedencia: motivo traducido → mensaje específico del backend (rutas sin
+  // `reason`, p. ej. la validación de payload o rechazos inyectados) → fallback
+  // genérico por código → el del llamante.
+  const byReason = translateError(translator, { reason: result.reason }, result.params);
+  const byCode = translateError(translator, { code: result.code });
   const fromApi = result.message?.trim();
-  const message = translated ?? (fromApi || fallback);
+  const message = byReason ?? (fromApi || byCode || fallback);
   const details = errorDetails(result.data);
   if (details.length === 0) return message;
   return [message, ...details.map((detail) => `• ${detail}`)].join('\n');

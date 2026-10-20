@@ -77,7 +77,9 @@ export class IpcController {
     @Inject(COMMAND_SERVICE) private readonly commands: ICommandService,
     @Inject(AVAILABLE_FONTS_PORT) private readonly fonts: AvailableFontsPort,
     @Inject(RECENT_FILES_PORT) private readonly recents: RecentFilesPort,
-    private readonly locale: LocaleRuntime,
+    // `@Inject` explícito: el build (esbuild) no emite `design:paramtypes` y
+    // una inyección solo por tipo llegaría `undefined` (como el resto).
+    @Inject(LocaleRuntime) private readonly locale: LocaleRuntime,
   ) {}
 
   /** Fichero inicial (argumento de CLI) que el front consume al montar. */
