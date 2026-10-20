@@ -17,7 +17,7 @@ export function applySetPageSize(
 ): Either<DomainError, CommandOutcome> {
   const section = ctx.root.child('ReportSections')?.child('ReportSection');
   if (!section) {
-    return left(CommandRejectedError.create('El documento no tiene ReportSection'));
+    return left(CommandRejectedError.of('reportSectionMissing'));
   }
 
   const page = childOrCreate(section, 'Page');

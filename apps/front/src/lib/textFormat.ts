@@ -1,4 +1,5 @@
 import type { ParagraphDto, StyleDto, TextRunDto } from '@rdlc-designer/contracts';
+import type { CatalogKey } from '@rdlc-designer/i18n';
 
 /**
  * Formato (`<Format>`) del panel de texto y del editor de runs.
@@ -10,23 +11,27 @@ import type { ParagraphDto, StyleDto, TextRunDto } from '@rdlc-designer/contract
  * escapar nada (el escape es del XML, no de la cadena).
  */
 
-/** Preset del selector: id estable en la interfaz + cadena .NET que escribe. */
+/** Preset del selector: id estable en la interfaz + clave de catálogo + cadena .NET que escribe. */
 export interface FormatPreset {
   id: string;
-  label: string;
+  /** Clave tipada del catálogo (`toolbar.formatField.presets.*`); la resuelve la superficie. */
+  labelKey: CatalogKey;
   value: string;
 }
 
-/** Presets habituales de informes de BC; el campo libre cubre el resto. */
+/**
+ * Presets habituales de informes de BC; el campo libre cubre el resto.
+ * La etiqueta vive en el catálogo y la pinta `FormatField.tsx` con `t()`.
+ */
 export const FORMAT_PRESETS: readonly FormatPreset[] = [
-  { id: 'n0', label: 'Número', value: 'N0' },
-  { id: 'n2', label: 'Número, 2 decimales', value: 'N2' },
-  { id: 'p0', label: 'Porcentaje', value: 'P0' },
-  { id: 'p2', label: 'Porcentaje, 2 decimales', value: 'P2' },
-  { id: 'c2', label: 'Moneda, 2 decimales', value: 'C2' },
-  { id: 'date-short', label: 'Fecha corta', value: 'd' },
-  { id: 'date-long', label: 'Fecha larga', value: 'D' },
-  { id: 'date-time', label: 'Fecha y hora', value: 'g' },
+  { id: 'n0', labelKey: 'toolbar.formatField.presets.n0', value: 'N0' },
+  { id: 'n2', labelKey: 'toolbar.formatField.presets.n2', value: 'N2' },
+  { id: 'p0', labelKey: 'toolbar.formatField.presets.p0', value: 'P0' },
+  { id: 'p2', labelKey: 'toolbar.formatField.presets.p2', value: 'P2' },
+  { id: 'c2', labelKey: 'toolbar.formatField.presets.c2', value: 'C2' },
+  { id: 'date-short', labelKey: 'toolbar.formatField.presets.dateShort', value: 'd' },
+  { id: 'date-long', labelKey: 'toolbar.formatField.presets.dateLong', value: 'D' },
+  { id: 'date-time', labelKey: 'toolbar.formatField.presets.dateTime', value: 'g' },
 ];
 
 /**

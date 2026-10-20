@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +32,7 @@ export function SaveAllDialog({
   scope = 'window',
   onResolve,
 }: SaveAllDialogProps): ReactNode {
+  const t = useT();
   if (!tabs || tabs.length === 0) return null;
   return (
     <Dialog
@@ -42,13 +44,11 @@ export function SaveAllDialog({
     >
       <DialogContent showCloseButton={false} data-testid="save-all-dialog" className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Cambios sin guardar</DialogTitle>
+          <DialogTitle>{t('dialogs.unsavedChanges.title')}</DialogTitle>
           <DialogDescription>
-            {scope === 'tabs' ? 'Vas a cerrar pestañas y ' : 'Vas a salir de la aplicación y '}
-            {tabs.length === 1
-              ? 'hay 1 informe con cambios sin guardar.'
-              : `hay ${tabs.length} informes con cambios sin guardar.`}{' '}
-            Si alguno no se puede guardar, no se cierra nada y su error queda a la vista.
+            {t(scope === 'tabs' ? 'dialogs.saveAll.tabs' : 'dialogs.saveAll.window', {
+              count: tabs.length,
+            })}
           </DialogDescription>
         </DialogHeader>
         <ul className="max-h-40 list-disc overflow-y-auto pl-5 font-mono text-xs text-muted-foreground">
@@ -60,12 +60,12 @@ export function SaveAllDialog({
         </ul>
         <DialogFooter>
           <Button variant="outline" onClick={() => onResolve('cancel')}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button variant="outline" onClick={() => onResolve('discard')}>
-            Descartar todas
+            {t('dialogs.saveAll.discardAll')}
           </Button>
-          <Button onClick={() => onResolve('save')}>Guardar todas</Button>
+          <Button onClick={() => onResolve('save')}>{t('dialogs.saveAll.saveAll')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

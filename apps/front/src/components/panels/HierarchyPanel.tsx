@@ -1,4 +1,5 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import {
   ChevronDown,
@@ -69,12 +70,13 @@ export function HierarchyPanel({
   onSelectItem,
   onSelectCell,
 }: HierarchyPanelProps): ReactNode {
+  const t = useT();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   /** Fila con el `tabIndex=0` del roving: la última enfocada con teclado o ratón. */
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const rowElements = useRef(new Map<string, HTMLLIElement>());
-  const tree = useMemo(() => hierarchyTree(projection), [projection]);
+  const tree = useMemo(() => hierarchyTree(projection, t), [projection, t]);
   const searching = query.trim().length > 0;
   const filtered = useMemo(() => searchHierarchy(tree, query), [tree, query]);
   // Al buscar los nodos con coincidencias se muestran siempre abiertos.
@@ -208,14 +210,20 @@ export function HierarchyPanel({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-col gap-2 border-b p-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground">Jerarquía</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            {t('tablix.hierarchy.title')}
+          </span>
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-muted-foreground">{countNodes(filtered)}</span>
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
-              title={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
+              aria-label={
+                allCollapsed ? t('tablix.hierarchy.expandAll') : t('tablix.hierarchy.collapseAll')
+              }
+              title={
+                allCollapsed ? t('tablix.hierarchy.expandAll') : t('tablix.hierarchy.collapseAll')
+              }
               onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(collapsibleKeys))}
             >
               {allCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
@@ -224,15 +232,15 @@ export function HierarchyPanel({
         </div>
         <Input
           className="h-7 text-xs"
-          placeholder="Buscar elemento o celda…"
-          aria-label="Buscar en la jerarquía"
+          placeholder={t('tablix.hierarchy.searchPlaceholder')}
+          aria-label={t('tablix.hierarchy.search')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
       <ul
         role="tree"
-        aria-label="Jerarquía del informe"
+        aria-label={t('tablix.hierarchy.treeAria')}
         className="min-h-0 flex-1 overflow-auto p-1"
         onKeyDown={handleTreeKeyDown}
       >
@@ -268,8 +276,11 @@ export function HierarchyPanel({
                   <button
                     type="button"
                     tabIndex={-1}
-                    aria-label={`${expanded ? 'Colapsar' : 'Expandir'} ${node.label}`}
-                    title={expanded ? 'Colapsar' : 'Expandir'}
+                    aria-label={t(
+                      expanded ? 'tablix.hierarchy.collapseNode' : 'tablix.hierarchy.expandNode',
+                      { label: node.label },
+                    )}
+                    title={t(expanded ? 'tablix.hierarchy.collapse' : 'tablix.hierarchy.expand')}
                     className="flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       setFocusedKey(node.key);
@@ -312,7 +323,7 @@ export function HierarchyPanel({
           );
         })}
         {rows.length === 0 ? (
-          <li className="p-2 text-xs text-muted-foreground">Sin resultados.</li>
+          <li className="p-2 text-xs text-muted-foreground">{t('tablix.hierarchy.noResults')}</li>
         ) : null}
       </ul>
     </div>

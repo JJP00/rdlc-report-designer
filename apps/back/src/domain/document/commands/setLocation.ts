@@ -20,7 +20,7 @@ export function applySetLocation(
   command: SetLocationCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   // El corpus siempre trae Top/Left explícitos; si faltaran, la inversa
   // restauraría 0cm (no eliminaría el nodo creado). Refinar con el

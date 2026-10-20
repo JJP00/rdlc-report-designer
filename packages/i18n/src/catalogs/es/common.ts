@@ -18,4 +18,11 @@ export const common = {
   reloadInterface: 'Recargar la interfaz',
   language: 'Idioma',
   file: 'Fichero',
+  shortcuts: {
+    saveAs: 'Ctrl+Mayús+S',
+    prevTab: 'Ctrl+Mayús+Tab',
+    pageUp: 'Ctrl+Mayús+RePág',
+    pageDown: 'Ctrl+Mayús+AvPág',
+    delete: 'Supr',
+  },
 } as const;

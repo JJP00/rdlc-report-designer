@@ -19,15 +19,15 @@ export function applySetTablixFilters(
   command: SetTablixFiltersCommand,
 ): Either<DomainError, CommandOutcome> {
   const tablix = ctx.index.get(command.id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
   if (tablix.tagName !== 'Tablix') {
-    return left(CommandRejectedError.create(`'${command.id}' no es un Tablix`));
+    return left(CommandRejectedError.of('notATablix', { id: command.id }));
   }
 
   for (const filter of command.filters) {
     const expression = filter.expression.trim();
     if (expression === '' || expression === '=') {
-      return left(CommandRejectedError.create('La expresión del filtro no puede estar vacía'));
+      return left(CommandRejectedError.of('filterExpressionEmpty'));
     }
   }
 

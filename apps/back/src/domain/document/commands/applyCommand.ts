@@ -241,7 +241,9 @@ export function applyCommand(
 
     default:
       return left(
-        CommandRejectedError.create(`Comando no implementado: '${(command as RdlcCommand).cmd}'`),
+        CommandRejectedError.of('commandNotImplemented', {
+          cmd: (command as RdlcCommand).cmd,
+        }),
       );
   }
 }

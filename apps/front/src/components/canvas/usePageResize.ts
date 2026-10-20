@@ -1,5 +1,6 @@
 import type { PageMarginsDto, ProjectionDto } from '@rdlc-designer/contracts';
 import { useCallback, useMemo, useRef, type RefObject } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import {
   bandContentMinCm,
   clampMargin,
@@ -11,15 +12,15 @@ import { cm, toCm } from '@/lib/projection';
 import type { PageResizeHandle } from './PageResizeLayer';
 import type { RulerMark } from './Ruler';
 
-/** Etiquetas accesibles de los márgenes (aria-label de los marcadores). */
-const MARGIN_LABELS = {
-  left: 'Margen izquierdo',
-  right: 'Margen derecho',
-  top: 'Margen superior',
-  bottom: 'Margen inferior',
+/** Claves de las etiquetas accesibles de los márgenes (aria-label de los marcadores). */
+const MARGIN_LABEL_KEYS = {
+  left: 'canvas.margins.left',
+  right: 'canvas.margins.right',
+  top: 'canvas.margins.top',
+  bottom: 'canvas.margins.bottom',
 } as const;
 
-type MarginSide = keyof typeof MARGIN_LABELS;
+type MarginSide = keyof typeof MARGIN_LABEL_KEYS;
 
 /**
  * U10 · márgenes arrastrables desde la regla (estilo Word): resuelve el margen
@@ -41,6 +42,7 @@ export function usePageResize({
   /** Mínimos por contenido de cada banda: su alto no baja de sus items (cm). */
   bandMinCm: { header: number; body: number; footer: number };
 } {
+  const t = useT();
   const pageResizeRef = useRef<PageResizeHandle | null>(null);
   const margins = projection.page.margins;
   const sheetWidthCm = toCm(projection.page.width);
@@ -97,7 +99,7 @@ export function usePageResize({
       return sides.map((side) => ({
         key: `margin-${side}`,
         cm: side === 'left' || side === 'top' ? toCm(margins[side]) : sheet - toCm(margins[side]),
-        label: MARGIN_LABELS[side],
+        label: t(MARGIN_LABEL_KEYS[side]),
         onPreview: (value, shift) => {
           const { margin, position } = resolveMargin(side, value, shift);
           // La etiqueta es solo el tamaño resultante, como en el resto de
@@ -112,7 +114,7 @@ export function usePageResize({
         onCancel: () => pageResizeRef.current?.hidePreview(),
       }));
     },
-    [commitMargin, margins, onSetPageMargins, resolveMargin, sheetHeightCm, sheetWidthCm],
+    [commitMargin, margins, onSetPageMargins, resolveMargin, sheetHeightCm, sheetWidthCm, t],
   );
 
   return { pageResizeRef, rulerMarks, sectionMinCm, bandMinCm };

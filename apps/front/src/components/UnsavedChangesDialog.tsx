@@ -1,3 +1,5 @@
+import type { Translator } from '@rdlc-designer/i18n';
+import { useT } from '@rdlc-designer/i18n/react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,19 +38,19 @@ interface IntentCopy {
  * solo existe al **cerrar** una pestaña o la ventana: abrir/nuevo ya no pierde
  * nada (el documento anterior se queda en su pestaña).
  */
-function copyForIntent(intent: SingleTabIntent): IntentCopy {
+function copyForIntent(intent: SingleTabIntent, t: Translator['t']): IntentCopy {
   switch (intent.kind) {
     case 'close':
       return {
-        description: `«${fileBasename(intent.path)}» tiene cambios sin guardar y vas a cerrar su pestaña.`,
-        discard: 'Cerrar sin guardar',
-        save: 'Guardar y cerrar',
+        description: t('dialogs.unsavedChanges.close', { name: fileBasename(intent.path) }),
+        discard: t('common.closeWithoutSaving'),
+        save: t('dialogs.unsavedChanges.saveAndClose'),
       };
     case 'windowClose':
       return {
-        description: `Vas a salir de la aplicación y «${fileBasename(intent.path)}» tiene cambios sin guardar.`,
-        discard: 'Salir sin guardar',
-        save: 'Guardar y salir',
+        description: t('dialogs.unsavedChanges.windowClose', { name: fileBasename(intent.path) }),
+        discard: t('common.leaveWithoutSaving'),
+        save: t('dialogs.unsavedChanges.saveAndLeave'),
       };
   }
 }
@@ -59,8 +61,9 @@ function copyForIntent(intent: SingleTabIntent): IntentCopy {
  * diálogos y ofrecer la salida segura (guardar) además de descartar.
  */
 export function UnsavedChangesDialog({ intent, onResolve }: UnsavedChangesDialogProps): ReactNode {
+  const t = useT();
   if (!intent) return null;
-  const copy = copyForIntent(intent);
+  const copy = copyForIntent(intent, t);
   return (
     <Dialog
       open
@@ -75,12 +78,12 @@ export function UnsavedChangesDialog({ intent, onResolve }: UnsavedChangesDialog
         className="sm:max-w-md"
       >
         <DialogHeader>
-          <DialogTitle>Cambios sin guardar</DialogTitle>
+          <DialogTitle>{t('dialogs.unsavedChanges.title')}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onResolve('cancel')}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button variant="outline" onClick={() => onResolve('discard')}>
             {copy.discard}

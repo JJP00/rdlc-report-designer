@@ -27,11 +27,11 @@ export function applySetZIndex(
   command: SetZIndexCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   if (command.zIndex < 0) {
     if (!node.parent) {
-      return left(CommandRejectedError.create(`El elemento '${command.id}' no tiene contenedor`));
+      return left(CommandRejectedError.of('itemHasNoContainer', { id: command.id }));
     }
     return right({ inverse: sendToBack(node, command.zIndex), snapshotOut: true });
   }

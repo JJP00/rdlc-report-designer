@@ -16,7 +16,7 @@ export function applySetSize(
   command: SetSizeCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const previousWidth = readLength(node, 'Width') ?? { value: 0, unit: 'cm' };
   const previousHeight = readLength(node, 'Height') ?? { value: 0, unit: 'cm' };

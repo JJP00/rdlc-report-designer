@@ -140,6 +140,8 @@ export function InspectorPanel({
           items={selectedItems}
           movableIds={movableIds}
           onBatchEdit={onBatchEdit}
+          // Discriminador de la cabecera («N celdas»/«N elementos»): el texto
+          // lo renderiza MultiSelectionPanel (módulo de paneles), no es copy de aquí.
           label={cellBatch ? 'celdas' : 'elementos'}
         />
       ) : null}

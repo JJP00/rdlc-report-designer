@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { type GroupPropertiesRequest } from '@/components/DocumentDialogs';
 import { ReportTab } from '@/components/ReportTab';
@@ -28,6 +29,7 @@ import { findOwnerTablix } from '@/lib/tablix';
 export function App(): ReactNode {
   const core = useWorkspace();
   const items = useItemEditing(core);
+  const t = useT();
 
   // Estado de UI del shell; el de la pestaña (selección, zoom, paneles) vive en
   // `tab.ui` (bloque D) y sobrevive al cambio de pestaña.
@@ -157,15 +159,15 @@ export function App(): ReactNode {
   const pickExpression = useCallback(
     (expression: string, name: string): void => {
       if (insertIntoExpressionEditor(expression)) {
-        core.setStatus(`${name} insertada en el editor`);
+        core.setStatus(t('lib.app.insertedInEditor', { name }));
         return;
       }
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         void navigator.clipboard.writeText(expression);
       }
-      core.setStatus(`${name} copiada al portapapeles: ${expression}`);
+      core.setStatus(t('lib.app.copiedToClipboard', { name, expression }));
     },
-    [core],
+    [core, t],
   );
 
   useEditorKeys({
@@ -208,11 +210,11 @@ export function App(): ReactNode {
             document.querySelector<HTMLElement>('.canvas-dots')?.focus();
           }}
         >
-          Saltar al lienzo
+          {t('lib.app.skipToCanvas')}
         </a>
         {dropActive ? (
           <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-sm font-medium text-primary">
-            Suelta el fichero .rdlc o .rdl para abrirlo
+            {t('lib.app.dropOverlay')}
           </div>
         ) : null}
 

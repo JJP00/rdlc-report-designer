@@ -2531,7 +2531,7 @@ test('las cabeceras del Tablix (TablixHeader/TablixCorner) se proyectan y selecc
   expect(header).not.toBeNull();
   await page.mouse.click(header!.x, header!.y);
   await expect.poll(selectedId).toBe('VATIdentifier_VatAmountLine');
-  await expect(page.getByText('La celda fija la posición y el tamaño del contenido')).toBeVisible();
+  await expect(page.getByText('La celda controla la posición y el tamaño.')).toBeVisible();
   await expect(page.getByLabel('Nombre del elemento')).toHaveValue('VATIdentifier_VatAmountLine');
 });
 

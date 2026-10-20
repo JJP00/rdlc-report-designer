@@ -6,7 +6,8 @@ import { join, extname } from 'node:path';
 const roots = process.argv.slice(2);
 if (roots.length === 0) roots.push('apps/front/src', 'apps/back/src');
 
-const SPANISH = /[áéíóúüñ¿¡«»]|\b(el|la|los|las|un|una|de|del|que|con|por|para|no|sin|se|al|es|en|y|o|c[oó]mo|qu[eé])\b/i;
+const SPANISH =
+  /[áéíóúüñ¿¡«»]|\b(el|la|los|las|un|una|de|del|que|con|por|para|no|sin|se|al|es|en|y|o|c[oó]mo|qu[eé])\b/i;
 const counts = new Map();
 const perFile = new Map();
 
@@ -50,7 +51,11 @@ const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 80);
 console.log('=== literales repetidos (>=3) ===');
 for (const [value, count] of top) {
   if (count < 3) break;
-  console.log(`${String(count).padStart(3)}  ${JSON.stringify(value.length > 90 ? value.slice(0, 90) + '…' : value)}`);
+  console.log(
+    `${String(count).padStart(3)}  ${JSON.stringify(value.length > 90 ? value.slice(0, 90) + '…' : value)}`,
+  );
 }
 const total = [...counts.values()].reduce((a, b) => a + b, 0);
-console.log(`\n=== total: ${total} ocurrencias, ${counts.size} distintas, en ${perFile.size} ficheros ===`);
+console.log(
+  `\n=== total: ${total} ocurrencias, ${counts.size} distintas, en ${perFile.size} ficheros ===`,
+);

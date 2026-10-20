@@ -19,6 +19,8 @@ import {
   type RefObject,
 } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
+import type { Translator } from '@rdlc-designer/i18n';
+import { useT } from '@rdlc-designer/i18n/react';
 import { edgeReadingId, nextReadingId, selectionAnnouncement } from '@/hooks/canvasA11y';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import { topLevelIds } from '@/lib/align';
@@ -161,6 +163,7 @@ export function CanvasPreview({
   reveal,
   stageRef: stageRefProp,
 }: CanvasPreviewProps): ReactNode {
+  const t = useT();
   const localStageRef = useRef<Konva.Stage | null>(null);
   const stageRef = stageRefProp ?? localStageRef;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -477,19 +480,22 @@ export function CanvasPreview({
   useEffect(() => {
     if (!selectedItem) {
       announcedSelectionRef.current = null;
-      if (items.length === 0) setLiveMessage('La página no tiene elementos');
+      if (items.length === 0) setLiveMessage(t('canvas.a11y.emptyPage'));
       return;
     }
     // Selección nueva: se anuncia al instante; mover con flechas, con retardo
     // para no encadenar mensajes.
     if (announcedSelectionRef.current !== selectedItem.id) {
       announcedSelectionRef.current = selectedItem.id;
-      setLiveMessage(selectionAnnouncement(selectedItem));
+      setLiveMessage(selectionAnnouncement(selectedItem, t));
       return;
     }
-    const timer = window.setTimeout(() => setLiveMessage(selectionAnnouncement(selectedItem)), 300);
+    const timer = window.setTimeout(
+      () => setLiveMessage(selectionAnnouncement(selectedItem, t)),
+      300,
+    );
     return () => window.clearTimeout(timer);
-  }, [selectedItem, items.length]);
+  }, [selectedItem, items.length, t]);
 
   const revealItem = (id: string): void => {
     const container = scrollRef.current;
@@ -544,14 +550,14 @@ export function CanvasPreview({
         className="canvas-dots flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
         tabIndex={0}
         role="group"
-        aria-label={pageLabel(items.length)}
+        aria-label={pageLabel(items.length, t)}
         aria-describedby={descriptionId}
         onFocus={(event) => {
           // Solo al llegar con teclado (no con clic): selecciona el primero.
           if (event.target !== event.currentTarget) return;
           if (!event.currentTarget.matches(':focus-visible')) return;
           if (itemIds.length === 0) {
-            setLiveMessage('La página no tiene elementos');
+            setLiveMessage(t('canvas.a11y.emptyPage'));
             return;
           }
           if (!selectedId || !itemIds.includes(selectedId)) {
@@ -581,8 +587,7 @@ export function CanvasPreview({
         }}
       >
         <span id={descriptionId} className="sr-only">
-          Usa Tab para recorrer los elementos, las flechas para mover el seleccionado, F2 para
-          editar su texto y Esc para salir del lienzo.
+          {t('canvas.a11y.keyboardHelp')}
         </span>
         <div aria-live="polite" aria-atomic="true" className="sr-only">
           {liveMessage}
@@ -690,6 +695,7 @@ function CanvasRulers({
   stageHeight: number;
   rulerMarks: (axis: 'x' | 'y') => RulerMark[];
 }): ReactNode {
+  const t = useT();
   return (
     <>
       {/* Esquina de las reglas */}
@@ -702,14 +708,14 @@ function CanvasRulers({
         zoom={zoom}
         lengthPx={stageWidth}
         marks={rulerMarks('x')}
-        segments={pageRulerSegments(projection.page, 'x')}
+        segments={pageRulerSegments(projection.page, 'x', t)}
       />
       <Ruler
         orientation="vertical"
         zoom={zoom}
         lengthPx={stageHeight}
         marks={rulerMarks('y')}
-        segments={pageRulerSegments(projection.page, 'y')}
+        segments={pageRulerSegments(projection.page, 'y', t)}
       />
     </>
   );
@@ -799,9 +805,12 @@ function hitAtEvent(
   return hitTestItems(band.region.items, point, scopeOfBand(band.key));
 }
 
-/** Etiqueta accesible del grupo: «Página del informe, 3 elementos». */
-function pageLabel(count: number): string {
-  return `Página del informe, ${count} ${count === 1 ? 'elemento' : 'elementos'}`;
+/**
+ * Etiqueta accesible del grupo: «Página del informe, 3 elementos» (plural ICU).
+ * Helper puro: el traductor entra por parámetro, como en `canvasA11y`.
+ */
+function pageLabel(count: number, t: Translator['t']): string {
+  return t('canvas.a11y.pageLabel', { count });
 }
 
 /**

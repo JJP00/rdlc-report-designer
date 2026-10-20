@@ -55,9 +55,7 @@ export class InvalidXmlError implements DomainError {
 export class UnsupportedRdlSchemaError implements DomainError {
   readonly code = 'E_UNSUPPORTED_SCHEMA' as const;
   readonly reason:
-    | 'unsupportedSchemaVersion'
-    | 'unsupportedSchemaNamespace'
-    | 'unsupportedSchemaUnknown';
+    'unsupportedSchemaVersion' | 'unsupportedSchemaNamespace' | 'unsupportedSchemaUnknown';
 
   private constructor(
     reason: UnsupportedRdlSchemaError['reason'],
@@ -68,7 +66,8 @@ export class UnsupportedRdlSchemaError implements DomainError {
 
   static create(path: string, namespace: string | undefined): UnsupportedRdlSchemaError {
     const version = namespace?.match(/\/(\d{4})\/\d{2}\/reportdefinition/i)?.[1];
-    if (version) return new UnsupportedRdlSchemaError('unsupportedSchemaVersion', { path, version });
+    if (version)
+      return new UnsupportedRdlSchemaError('unsupportedSchemaVersion', { path, version });
     if (namespace) {
       return new UnsupportedRdlSchemaError('unsupportedSchemaNamespace', { path, namespace });
     }
@@ -79,7 +78,10 @@ export class UnsupportedRdlSchemaError implements DomainError {
 /** Operaciones del puerto de fichero (`reason` = `io<X>Failed`). */
 export type IoOperation = 'read' | 'write' | 'watch';
 
-const IO_REASONS: Record<IoOperation, ErrorReason & ('ioReadFailed' | 'ioWriteFailed' | 'ioWatchFailed')> = {
+const IO_REASONS: Record<
+  IoOperation,
+  ErrorReason & ('ioReadFailed' | 'ioWriteFailed' | 'ioWatchFailed')
+> = {
   read: 'ioReadFailed',
   write: 'ioWriteFailed',
   watch: 'ioWatchFailed',

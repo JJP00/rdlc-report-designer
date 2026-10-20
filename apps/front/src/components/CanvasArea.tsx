@@ -8,6 +8,8 @@ import type {
   ScopeRef,
   TablixMemberDto,
 } from '@rdlc-designer/contracts';
+import type { Translator } from '@rdlc-designer/i18n';
+import { useT } from '@rdlc-designer/i18n/react';
 import { FolderOpen } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CanvasPreview } from '@/components/canvas/CanvasPreview';
@@ -184,6 +186,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
     onBringToFront,
     onSendToBack,
   } = props;
+  const t = useT();
 
   /** Fila a agrupar desde el menú contextual (abre el diálogo de expresión). */
   const [groupRow, setGroupRow] = useState<{ id: string; row: number } | null>(null);
@@ -282,7 +285,7 @@ export function CanvasArea(props: CanvasAreaProps): ReactNode {
       {/* «Agrupar la fila…»: el mismo diálogo de expresión que el árbol de Estructura. */}
       {groupRow ? (
         <ExpressionDialog
-          title={`Agrupar la fila ${groupRow.row + 1}`}
+          title={t('toolbar.canvas.groupRowTitle', { row: groupRow.row + 1 })}
           value=""
           onClose={() => setGroupRow(null)}
           onApply={(value) => {
@@ -367,9 +370,11 @@ function CanvasMenuContent({
   onSendToBack,
   onInsertAt,
 }: CanvasMenuProps): ReactNode {
+  const t = useT();
+
   return (
     <ContextMenuContent className="w-60">
-      <ContextMenuLabel>{menuLabel(menuHit, menuItem, cellScope)}</ContextMenuLabel>
+      <ContextMenuLabel>{menuLabel(t, menuHit, menuItem, cellScope)}</ContextMenuLabel>
       <ContextMenuSeparator />
 
       {cellScope ? (
@@ -414,7 +419,7 @@ function CanvasMenuContent({
         <>
           <ContextMenuSeparator />
           <ContextMenuSub>
-            <ContextMenuSubTrigger>Insertar</ContextMenuSubTrigger>
+            <ContextMenuSubTrigger>{t('toolbar.canvas.insert')}</ContextMenuSubTrigger>
             <ContextMenuSubContent className="w-48" collisionPadding={8}>
               {INSERT_KINDS.map((kind) => (
                 <ContextMenuItem
@@ -435,15 +440,20 @@ function CanvasMenuContent({
 }
 
 function menuLabel(
+  t: Translator['t'],
   menuHit: CanvasHit | null,
   menuItem: ItemDto | undefined,
   cellScope: { id: string; row: number; col: number } | null,
 ): ReactNode {
   if (menuItem) return menuItem.id;
   if (cellScope) {
-    return `${cellScope.id} · fila ${cellScope.row + 1} · columna ${cellScope.col + 1}`;
+    return t('toolbar.canvas.cellLabel', {
+      id: cellScope.id,
+      row: cellScope.row + 1,
+      col: cellScope.col + 1,
+    });
   }
-  return 'Lienzo';
+  return t('toolbar.canvas.label');
 }
 
 /**
@@ -467,43 +477,45 @@ function InsertRowColumnMenu({
   onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
   onAddColumn: (id: string, column: number) => void;
 }): ReactNode {
+  const t = useT();
+
   return (
     <ContextMenuSub>
-      <ContextMenuSubTrigger>Insertar fila o columna</ContextMenuSubTrigger>
+      <ContextMenuSubTrigger>{t('toolbar.canvas.insertRowColumn')}</ContextMenuSubTrigger>
       <ContextMenuSubContent className="w-60" collisionPadding={8}>
         {inGroup ? (
           <>
             <ContextMenuItem onSelect={() => onAddRowInside(cellScope.id, cellScope.row, 'above')}>
-              Dentro del grupo: fila encima
+              {t('toolbar.canvas.rowInsideAbove')}
             </ContextMenuItem>
             <ContextMenuItem onSelect={() => onAddRowInside(cellScope.id, cellScope.row, 'below')}>
-              Dentro del grupo: fila debajo
+              {t('toolbar.canvas.rowInsideBelow')}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={() => onAddRowOutside(cellScope.id, cellScope.row, 'above')}>
-              Fuera del grupo: fila encima
+              {t('toolbar.canvas.rowOutsideAbove')}
             </ContextMenuItem>
             <ContextMenuItem onSelect={() => onAddRowOutside(cellScope.id, cellScope.row, 'below')}>
-              Fuera del grupo: fila debajo
+              {t('toolbar.canvas.rowOutsideBelow')}
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
         ) : (
           <>
             <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row)}>
-              Fila encima
+              {t('toolbar.canvas.rowAbove')}
             </ContextMenuItem>
             <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row + 1)}>
-              Fila debajo
+              {t('toolbar.canvas.rowBelow')}
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
         )}
         <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col)}>
-          Columna a la izquierda
+          {t('toolbar.canvas.columnLeft')}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col + 1)}>
-          Columna a la derecha
+          {t('toolbar.canvas.columnRight')}
         </ContextMenuItem>
       </ContextMenuSubContent>
     </ContextMenuSub>
@@ -557,18 +569,20 @@ function EmptyCanvas({
   recents: string[];
   onOpenRecent: (path: string) => void;
 }): ReactNode {
+  const t = useT();
+
   return (
     <div className="m-auto flex max-w-md flex-col items-center gap-3 px-4 text-center text-sm text-muted-foreground">
-      <p className="text-base font-medium text-foreground">Sin informe abierto</p>
-      <p>Abre un informe (.rdlc o .rdl) o arrástralo hasta aquí.</p>
+      <p className="text-base font-medium text-foreground">{t('toolbar.empty.title')}</p>
+      <p>{t('toolbar.empty.description')}</p>
       <Button onClick={onOpen}>
         <FolderOpen data-icon="inline-start" />
-        Abrir informe…
+        {t('toolbar.empty.open')}
       </Button>
-      <p className="text-xs">Atajo: Ctrl+O · Ctrl+K abre la paleta de comandos</p>
+      <p className="text-xs">{t('toolbar.empty.shortcuts')}</p>
       {recents.length > 0 ? (
         <div className="mt-2 flex w-full flex-col items-stretch gap-1 text-left">
-          <span className="text-xs font-medium">Recientes</span>
+          <span className="text-xs font-medium">{t('toolbar.file.recent')}</span>
           {recents.slice(0, 5).map((path) => (
             <Button
               key={path}
@@ -625,6 +639,7 @@ function TablixMenuItems({
   onMergeCells: (id: string, row: number, col: number, rowSpan: number, colSpan: number) => void;
   onUnmergeCells: (id: string, row: number, col: number) => void;
 }): ReactNode {
+  const t = useT();
   const layout = tablix ? tablixLayout(tablix) : undefined;
   const selectedRefs = selection ? selectionCells(selection) : [];
   const rowsTouched = selection ? selectionRows(selection) : [];
@@ -662,13 +677,13 @@ function TablixMenuItems({
 
       {group ? (
         <ContextMenuSub>
-          <ContextMenuSubTrigger>Total del grupo</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger>{t('toolbar.canvas.groupTotal')}</ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-52" collisionPadding={8}>
             <ContextMenuItem onSelect={() => onAddTotal(cellScope.id, cellScope.row, 'above')}>
-              Fila de total encima
+              {t('toolbar.canvas.totalAbove')}
             </ContextMenuItem>
             <ContextMenuItem onSelect={() => onAddTotal(cellScope.id, cellScope.row, 'below')}>
-              Fila de total debajo
+              {t('toolbar.canvas.totalBelow')}
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
@@ -676,11 +691,11 @@ function TablixMenuItems({
 
       {group ? (
         <ContextMenuItem onSelect={() => onOpenGroupProperties(cellScope.id, 'row', group)}>
-          Propiedades del grupo…
+          {t('toolbar.canvas.groupProperties')}
         </ContextMenuItem>
       ) : (
         <ContextMenuItem onSelect={() => onGroupRow(cellScope.id, cellScope.row)}>
-          Agrupar la fila {cellScope.row + 1}…
+          {t('toolbar.canvas.groupRow', { row: cellScope.row + 1 })}
         </ContextMenuItem>
       )}
 
@@ -726,6 +741,7 @@ function DeleteRowsColumnsMenu({
   onDeleteRows: (id: string, rows: number[]) => void;
   onDeleteColumns: (id: string, columns: number[]) => void;
 }): ReactNode {
+  const t = useT();
   const multiple = rowsTouched.length > 1 || colsTouched.length > 1;
   if (multiple) {
     return (
@@ -735,16 +751,16 @@ function DeleteRowsColumnsMenu({
           onSelect={() => onDeleteRows(cellScope.id, rowsTouched)}
         >
           {rowsTouched.length > 1
-            ? `Eliminar filas ${formatIndexList(rowsTouched)}`
-            : `Eliminar fila ${rowsTouched[0]! + 1}`}
+            ? t('toolbar.canvas.deleteRows', { rows: formatIndexList(rowsTouched) })
+            : t('toolbar.canvas.deleteRow', { row: rowsTouched[0]! + 1 })}
         </ContextMenuItem>
         <ContextMenuItem
           variant="destructive"
           onSelect={() => onDeleteColumns(cellScope.id, colsTouched)}
         >
           {colsTouched.length > 1
-            ? `Eliminar columnas ${formatIndexList(colsTouched)}`
-            : `Eliminar columna ${colsTouched[0]! + 1}`}
+            ? t('toolbar.canvas.deleteColumns', { columns: formatIndexList(colsTouched) })
+            : t('toolbar.canvas.deleteColumn', { column: colsTouched[0]! + 1 })}
         </ContextMenuItem>
       </>
     );
@@ -755,13 +771,13 @@ function DeleteRowsColumnsMenu({
         variant="destructive"
         onSelect={() => onDeleteRow(cellScope.id, cellScope.row)}
       >
-        Eliminar fila {cellScope.row + 1}
+        {t('toolbar.canvas.deleteRow', { row: cellScope.row + 1 })}
       </ContextMenuItem>
       <ContextMenuItem
         variant="destructive"
         onSelect={() => onDeleteColumn(cellScope.id, cellScope.col)}
       >
-        Eliminar columna {cellScope.col + 1}
+        {t('toolbar.canvas.deleteColumn', { column: cellScope.col + 1 })}
       </ContextMenuItem>
     </>
   );
@@ -783,6 +799,8 @@ function MergeCellsMenu({
   onMergeCells: (id: string, row: number, col: number, rowSpan: number, colSpan: number) => void;
   onUnmergeCells: (id: string, row: number, col: number) => void;
 }): ReactNode {
+  const t = useT();
+
   return (
     <>
       {mergeRange ? (
@@ -791,14 +809,14 @@ function MergeCellsMenu({
             onMergeCells(cellScope.id, mergeRange.row0, mergeRange.col0, 1, mergeColumns)
           }
         >
-          Combinar celdas
+          {t('toolbar.canvas.mergeCells')}
         </ContextMenuItem>
       ) : null}
       {mergedAnchor ? (
         <ContextMenuItem
           onSelect={() => onUnmergeCells(cellScope.id, mergedAnchor.row, mergedAnchor.col)}
         >
-          Separar celdas
+          {t('toolbar.canvas.splitCells')}
         </ContextMenuItem>
       ) : null}
     </>
@@ -833,10 +851,12 @@ function ItemActionsMenu({
   onBringToFront: () => void;
   onSendToBack: () => void;
 }): ReactNode {
+  const t = useT();
+
   if (!item) {
     return (
       <ContextMenuItem disabled={!hasClipboard} onSelect={onPaste}>
-        Pegar
+        {t('toolbar.canvas.paste')}
         <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
       </ContextMenuItem>
     );
@@ -845,34 +865,36 @@ function ItemActionsMenu({
   return (
     <>
       <ContextMenuItem onSelect={onCut}>
-        Cortar
+        {t('toolbar.canvas.cut')}
         <ContextMenuShortcut>Ctrl+X</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem onSelect={onCopy}>
-        Copiar
+        {t('toolbar.canvas.copy')}
         <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem disabled={!hasClipboard} onSelect={onPaste}>
-        Pegar
+        {t('toolbar.canvas.paste')}
         <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuItem onSelect={onDuplicate}>
-        Duplicar
+        {t('toolbar.edit.duplicate')}
         <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>
       </ContextMenuItem>
       {item.kind === 'textbox' ? (
-        <ContextMenuItem onSelect={() => onEditText(item.id)}>Editar texto…</ContextMenuItem>
+        <ContextMenuItem onSelect={() => onEditText(item.id)}>
+          {t('toolbar.canvas.editText')}
+        </ContextMenuItem>
       ) : null}
       {canReorder ? (
         <ContextMenuSub>
-          <ContextMenuSubTrigger>Orden</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger>{t('toolbar.canvas.order')}</ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-56" collisionPadding={8}>
             <ContextMenuItem onSelect={onBringToFront}>
-              <span className="truncate">Traer al frente</span>
+              <span className="truncate">{t('toolbar.canvas.bringToFront')}</span>
               <ContextMenuShortcut>Ctrl+Shift+]</ContextMenuShortcut>
             </ContextMenuItem>
             <ContextMenuItem onSelect={onSendToBack}>
-              <span className="truncate">Enviar atrás</span>
+              <span className="truncate">{t('toolbar.canvas.sendToBack')}</span>
               <ContextMenuShortcut>Ctrl+Shift+[</ContextMenuShortcut>
             </ContextMenuItem>
           </ContextMenuSubContent>
@@ -880,12 +902,12 @@ function ItemActionsMenu({
       ) : null}
       <ContextMenuSeparator />
       <ContextMenuItem variant="destructive" onSelect={onDelete}>
-        Eliminar
-        <ContextMenuShortcut>Supr</ContextMenuShortcut>
+        {t('toolbar.edit.delete')}
+        <ContextMenuShortcut>{t('common.shortcuts.delete')}</ContextMenuShortcut>
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem onSelect={onSelectParent}>
-        Seleccionar contenedor
+        {t('toolbar.canvas.selectContainer')}
         <ContextMenuShortcut>Esc</ContextMenuShortcut>
       </ContextMenuItem>
     </>

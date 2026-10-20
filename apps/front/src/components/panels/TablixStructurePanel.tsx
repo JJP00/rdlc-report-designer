@@ -1,4 +1,6 @@
 import type { Length, TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
+import type { Translator } from '@rdlc-designer/i18n';
+import { useT } from '@rdlc-designer/i18n/react';
 import {
   Columns3,
   Layers,
@@ -91,6 +93,7 @@ export function TablixStructurePanel({
   onResizeRow,
   onResizeColumn,
 }: TablixStructurePanelProps): ReactNode {
+  const t = useT();
   const rows = tablixRowsTree(tablix);
   const columns = tablixColumnsTree(tablix);
   const selectedRow = selectedCell?.id === tablix.id ? selectedCell.row : null;
@@ -101,30 +104,33 @@ export function TablixStructurePanel({
   const activeColumn = selectedColumn ?? 0;
 
   return (
-    <section aria-label="Estructura del Tablix" className="border-b">
+    <section aria-label={t('tablix.structure.aria')} className="border-b">
       <header className="flex items-center justify-between px-3 pt-3">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Estructura
+          {t('tablix.structure.title')}
         </h2>
         <div className="flex items-center gap-1">
           <span className="text-[10px] text-muted-foreground">
-            {tablix.body.rows.length} filas × {tablix.body.columns.length} columnas
+            {t('tablix.structure.summary', {
+              rows: tablix.body.rows.length,
+              columns: tablix.body.columns.length,
+            })}
           </span>
           <Button
             variant={tablix.filters && tablix.filters.length > 0 ? 'secondary' : 'ghost'}
             size="xs"
-            title="Filtros del Tablix (Filters > Filter)"
+            title={t('tablix.structure.filtersHint')}
             onClick={onOpenFilters}
           >
             {tablix.filters && tablix.filters.length > 0
-              ? `Filtros (${tablix.filters.length})`
-              : 'Filtros…'}
+              ? t('tablix.structure.filtersCount', { count: tablix.filters.length })
+              : t('tablix.structure.filters')}
           </Button>
         </div>
       </header>
 
       <StructureSection
-        title="Filas"
+        title={t('tablix.rows.title')}
         icon={<Rows3 className="size-3.5" />}
         axis="row"
         entries={rows}
@@ -146,10 +152,9 @@ export function TablixStructurePanel({
         onAddRowGroup={onAddRowGroup}
         onAddColumnGroup={onAddColumnGroup}
         onDeleteGroup={onDeleteGroup}
-        addLabel={(index) => `Añadir fila encima de la ${index + 1}`}
-        deleteLabel={(index) => `Eliminar fila ${index + 1}`}
-        selectLabel={(index) => `Seleccionar fila ${index + 1}`}
-        addAtEndLabel="Añadir fila al final"
+        deleteLabel={(index) => t('tablix.rows.delete', { row: index + 1 })}
+        selectLabel={(index) => t('tablix.rows.select', { row: index + 1 })}
+        addAtEndLabel={t('tablix.rows.addAtEnd')}
         sizeOf={(entry) =>
           entry.index !== undefined ? tablix.body.rows[entry.index]?.height : undefined
         }
@@ -157,7 +162,7 @@ export function TablixStructurePanel({
       />
 
       <StructureSection
-        title="Columnas"
+        title={t('tablix.columns.title')}
         icon={<Columns3 className="size-3.5" />}
         axis="column"
         entries={columns}
@@ -179,10 +184,9 @@ export function TablixStructurePanel({
         onAddRowGroup={onAddRowGroup}
         onAddColumnGroup={onAddColumnGroup}
         onDeleteGroup={onDeleteGroup}
-        addLabel={(index) => `Añadir columna a la izquierda de la ${index + 1}`}
-        deleteLabel={(index) => `Eliminar columna ${index + 1}`}
-        selectLabel={(index) => `Seleccionar columna ${index + 1}`}
-        addAtEndLabel="Añadir columna al final"
+        deleteLabel={(index) => t('tablix.columns.delete', { column: index + 1 })}
+        selectLabel={(index) => t('tablix.columns.select', { column: index + 1 })}
+        addAtEndLabel={t('tablix.columns.addAtEnd')}
         sizeOf={(entry) =>
           entry.index !== undefined ? tablix.body.columns[entry.index] : undefined
         }
@@ -209,7 +213,6 @@ interface StructureSectionProps {
   onAddRowGroup: (row: number, expression: string) => void;
   onAddColumnGroup: (column: number, expression: string) => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
-  addLabel: (index: number) => string;
   deleteLabel: (index: number) => string;
   selectLabel: (index: number) => string;
   addAtEndLabel: string;
@@ -287,9 +290,15 @@ function StructureSection({
 }
 
 /** Etiqueta del miembro para títulos y `aria-label`: «fila 2», «grupo …». */
-function memberLabel(entry: TablixTreeEntry, axis: 'row' | 'column'): string {
-  if (entry.index !== undefined) return `${axis === 'row' ? 'fila' : 'columna'} ${entry.index + 1}`;
-  return `grupo ${entry.expression ?? ''}`.trim();
+function memberLabel(t: Translator['t'], entry: TablixTreeEntry, axis: 'row' | 'column'): string {
+  if (entry.index !== undefined) {
+    return axis === 'row'
+      ? t('tablix.member.row', { index: entry.index + 1 })
+      : t('tablix.member.column', { index: entry.index + 1 });
+  }
+  return entry.expression
+    ? t('tablix.member.group', { expression: entry.expression })
+    : t('tablix.member.groupPlain');
 }
 
 interface StructureRowProps {
@@ -320,9 +329,10 @@ interface StructureRowProps {
 /** Fila del árbol: cabecera de grupo (no es una fila del body) u hoja. */
 function StructureRow(props: StructureRowProps): ReactNode {
   const { entry, axis, onOpenGroupProperties, onAddRowGroup, onAddColumnGroup } = props;
+  const t = useT();
   const [groupDialog, setGroupDialog] = useState(false);
   const index = entry.index;
-  const label = memberLabel(entry, axis);
+  const label = memberLabel(t, entry, axis);
   const isGroupHeader = entry.kind === 'group' && index === undefined;
   const openProperties = (): void => onOpenGroupProperties(axis, entry.member);
   const addGroup = axis === 'row' ? onAddRowGroup : onAddColumnGroup;
@@ -343,7 +353,11 @@ function StructureRow(props: StructureRowProps): ReactNode {
 
       {groupDialog ? (
         <AddGroupDialog
-          label={label}
+          title={
+            axis === 'row'
+              ? t('tablix.rows.groupTitle', { row: (index ?? 0) + 1 })
+              : t('tablix.columns.groupTitle', { column: (index ?? 0) + 1 })
+          }
           onClose={() => setGroupDialog(false)}
           onApply={(expression) => {
             setGroupDialog(false);
@@ -367,6 +381,7 @@ function GroupHeaderRow({
   onAddColumnToGroup,
   onOpenProperties,
 }: StructureRowProps & { label: string; onOpenProperties: () => void }): ReactNode {
+  const t = useT();
   const isContainerGroup = entry.member.children.length > 0;
 
   return (
@@ -376,7 +391,9 @@ function GroupHeaderRow({
       title={entry.expression}
     >
       <Layers className="size-3 shrink-0 text-violet-500" />
-      <span className="truncate font-medium">{entry.expression ?? 'Grupo'}</span>
+      <span className="truncate font-medium">
+        {entry.expression ?? t('tablix.group.placeholder')}
+      </span>
       {entry.total !== 'none' ? <Sigma className="size-3 shrink-0 text-amber-600" /> : null}
       <span className="ml-auto flex items-center">
         <MemberVisibilityControl
@@ -393,15 +410,15 @@ function GroupHeaderRow({
           />
         ) : null}
         <IconButton
-          label="Propiedades del grupo"
-          title="Propiedades del grupo (expresiones, saltos, ordenación, visibilidad)…"
+          label={t('tablix.group.properties')}
+          title={t('tablix.group.propertiesHint')}
           onClick={onOpenProperties}
         >
           <PencilLine />
         </IconButton>
         <IconButton
-          label="Quitar grupo"
-          title="Quitar el grupo (las filas se quedan como filas estáticas)"
+          label={t('tablix.group.remove')}
+          title={t('tablix.group.removeHint')}
           danger
           onClick={() => onDeleteGroup(axis, entry.path)}
         >
@@ -428,13 +445,19 @@ function AddAdjacentLeaves({
   total: number;
   onAddToGroup: (index: number, groupPath: number[]) => void;
 }): ReactNode {
-  const what = axis === 'row' ? 'fila' : 'columna';
+  const t = useT();
   return (
     <>
       {entry.leafStart > 0 ? (
         <IconButton
-          label={`Añadir la ${what} ${entry.leafStart} al grupo`}
-          title={`Añadir la ${what} anterior a este grupo`}
+          label={
+            axis === 'row'
+              ? t('tablix.rows.addToGroup', { row: entry.leafStart })
+              : t('tablix.columns.addToGroup', { column: entry.leafStart })
+          }
+          title={
+            axis === 'row' ? t('tablix.rows.addPreviousHint') : t('tablix.columns.addPreviousHint')
+          }
           onClick={() => onAddToGroup(entry.leafStart - 1, entry.path)}
         >
           <LayersArrowUp />
@@ -442,8 +465,12 @@ function AddAdjacentLeaves({
       ) : null}
       {entry.leafEnd < total - 1 ? (
         <IconButton
-          label={`Añadir la ${what} ${entry.leafEnd + 2} al grupo`}
-          title={`Añadir la ${what} siguiente a este grupo`}
+          label={
+            axis === 'row'
+              ? t('tablix.rows.addToGroup', { row: entry.leafEnd + 2 })
+              : t('tablix.columns.addToGroup', { column: entry.leafEnd + 2 })
+          }
+          title={axis === 'row' ? t('tablix.rows.addNextHint') : t('tablix.columns.addNextHint')}
           onClick={() => onAddToGroup(entry.leafEnd + 1, entry.path)}
         >
           <LayersArrowDown />
@@ -478,6 +505,7 @@ function LeafRow({
   onOpenProperties: () => void;
   onGroupRow: () => void;
 }): ReactNode {
+  const t = useT();
   const isLeafGroup = entry.kind === 'group';
   return (
     <div
@@ -490,7 +518,15 @@ function LeafRow({
         aria-label={selectLabel(index)}
         title={
           isLeafGroup
-            ? `${selectLabel(index)} (grupo ${entry.expression ?? ''})`
+            ? axis === 'row'
+              ? t('tablix.rows.selectInGroup', {
+                  row: index + 1,
+                  expression: entry.expression ?? '',
+                })
+              : t('tablix.columns.selectInGroup', {
+                  column: index + 1,
+                  expression: entry.expression ?? '',
+                })
             : selectLabel(index)
         }
         className="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] hover:bg-muted"
@@ -504,8 +540,16 @@ function LeafRow({
         <SizeEditor
           value={size}
           axis={axis}
-          label={`${axis === 'row' ? 'Alto' : 'Ancho'} de la ${label}`}
-          title={`${axis === 'row' ? 'Alto' : 'Ancho'} de la ${label} (cm). El contenido de la celda se ajusta a la celda.`}
+          label={
+            axis === 'row'
+              ? t('tablix.rows.sizeLabel', { row: index + 1 })
+              : t('tablix.columns.sizeLabel', { column: index + 1 })
+          }
+          title={
+            axis === 'row'
+              ? t('tablix.rows.sizeHint', { row: index + 1 })
+              : t('tablix.columns.sizeHint', { column: index + 1 })
+          }
           onCommit={(cmValue) => onResizeSize(index, resizeBoundaryTo(size, cmValue))}
         />
       ) : null}
@@ -520,7 +564,7 @@ function LeafRow({
         <LeafGroupActions
           entry={entry}
           axis={axis}
-          label={label}
+          index={index}
           onOpenProperties={onOpenProperties}
           onDeleteGroup={onDeleteGroup}
         />
@@ -528,7 +572,6 @@ function LeafRow({
         <StaticRowActions
           axis={axis}
           index={index}
-          label={label}
           canDelete={canDelete}
           deleteLabel={deleteLabel}
           onGroupRow={onGroupRow}
@@ -549,11 +592,14 @@ function LeafIdentity({
   index: number;
   icon: ReactNode;
 }): ReactNode {
+  const t = useT();
   if (entry.kind === 'group') {
     return (
       <>
         <Layers className="size-3 shrink-0 text-violet-500" />
-        <span className="truncate font-medium">{entry.expression ?? 'Grupo'}</span>
+        <span className="truncate font-medium">
+          {entry.expression ?? t('tablix.group.placeholder')}
+        </span>
       </>
     );
   }
@@ -566,10 +612,11 @@ function LeafIdentity({
 }
 
 function TotalBadge({ total }: { total: 'before' | 'after' }): ReactNode {
+  const t = useT();
   return (
     <span
       className="flex items-center gap-0.5 text-amber-700 dark:text-amber-400"
-      title={`Total (${total})`}
+      title={t(total === 'before' ? 'tablix.total.before' : 'tablix.total.after')}
     >
       <Sigma className="size-3" />
     </span>
@@ -580,28 +627,37 @@ function TotalBadge({ total }: { total: 'before' | 'after' }): ReactNode {
 function LeafGroupActions({
   entry,
   axis,
-  label,
+  index,
   onOpenProperties,
   onDeleteGroup,
 }: {
   entry: TablixTreeEntry;
   axis: 'row' | 'column';
-  label: string;
+  index: number;
   onOpenProperties: () => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
 }): ReactNode {
+  const t = useT();
   return (
     <>
       <IconButton
-        label={`Propiedades del grupo de la ${label}`}
-        title="Propiedades del grupo (expresiones, saltos, ordenación, visibilidad)…"
+        label={
+          axis === 'row'
+            ? t('tablix.rows.groupProperties', { row: index + 1 })
+            : t('tablix.columns.groupProperties', { column: index + 1 })
+        }
+        title={t('tablix.group.propertiesHint')}
         onClick={onOpenProperties}
       >
         <PencilLine />
       </IconButton>
       <IconButton
-        label={`Quitar grupo de la ${label}`}
-        title="Quitar el grupo (la fila se queda como fila estática)"
+        label={
+          axis === 'row'
+            ? t('tablix.rows.ungroup', { row: index + 1 })
+            : t('tablix.columns.ungroup', { column: index + 1 })
+        }
+        title={t('tablix.group.removeLeafHint')}
         danger
         onClick={() => onDeleteGroup(axis, entry.path)}
       >
@@ -615,7 +671,6 @@ function LeafGroupActions({
 function StaticRowActions({
   axis,
   index,
-  label,
   canDelete,
   deleteLabel,
   onGroupRow,
@@ -623,17 +678,21 @@ function StaticRowActions({
 }: {
   axis: 'row' | 'column';
   index: number;
-  label: string;
   canDelete: boolean;
   deleteLabel: (index: number) => string;
   onGroupRow: () => void;
   onDelete: () => void;
 }): ReactNode {
+  const t = useT();
   return (
     <>
       <IconButton
-        label={`Agrupar la ${label}…`}
-        title={`Agrupar la ${axis === 'row' ? 'fila' : 'columna'} en un grupo nuevo…`}
+        label={
+          axis === 'row'
+            ? t('tablix.rows.group', { row: index + 1 })
+            : t('tablix.columns.group', { column: index + 1 })
+        }
+        title={axis === 'row' ? t('tablix.rows.groupHint') : t('tablix.columns.groupHint')}
         onClick={onGroupRow}
       >
         <LayersPlus />
@@ -652,17 +711,17 @@ function StaticRowActions({
 }
 
 function AddGroupDialog({
-  label,
+  title,
   onClose,
   onApply,
 }: {
-  label: string;
+  title: string;
   onClose: () => void;
   onApply: (expression: string | null) => void;
 }): ReactNode {
   return (
     <ExpressionDialog
-      title={`Agrupar la ${label}`}
+      title={title}
       value=""
       onClose={onClose}
       onApply={(value) => onApply(ensureExpression(value))}
@@ -675,6 +734,9 @@ function AddGroupDialog({
  * (teclear, flechas ↑/↓ y arrastre con el cursor de redimensionado) aplicado
  * con la misma matemática que el redimensionado en el lienzo (mínimo y unidad
  * declarada). El contenido de la celda acompaña al tamaño.
+ *
+ * `label` y `title` llegan ya compuestos por el llamante (mensajes del catálogo
+ * con el número de fila/columna): aquí no se concatenan frases.
  */
 function SizeEditor({
   value,
@@ -694,7 +756,7 @@ function SizeEditor({
       <NumberInput
         value={toCm(value)}
         label={label}
-        title={`${title} Arrastra, usa las flechas o teclea el valor.`}
+        title={title}
         axis={axis === 'row' ? 'y' : 'x'}
         min={MIN_SIZE_CM}
         suffix="cm"

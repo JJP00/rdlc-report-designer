@@ -108,12 +108,14 @@ describe('G10 · setTablixFilters', () => {
       },
     );
     expect(blank.isLeft()).toBe(true);
+    if (blank.isLeft()) expect(blank.value.reason).toBe('filterExpressionEmpty');
 
     const notTablix = applyCommand(
       { root: doc.root, index },
       { cmd: 'setTablixFilters', id: 'Textbox25', filters: [] },
     );
     expect(notTablix.isLeft()).toBe(true);
+    if (notTablix.isLeft()) expect(notTablix.value.reason).toBe('notATablix');
   });
 
   it('la proyección lee los filtros del Tablix', () => {

@@ -1,4 +1,4 @@
-import { StrictMode, type ReactNode } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { I18nProvider } from '@rdlc-designer/i18n/react';
 import type { Locale } from '@rdlc-designer/i18n';

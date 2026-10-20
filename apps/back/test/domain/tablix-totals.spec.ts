@@ -161,5 +161,6 @@ describe('F2.c · addTotalRow', () => {
       { cmd: 'addTotalRow', id: 'Tablix3', row: 0, where: 'below' },
     );
     expect(applied.isLeft()).toBe(true);
+    if (applied.isLeft()) expect(applied.value.reason).toBe('rowNotInAGroup');
   });
 });

@@ -17,6 +17,7 @@ import {
   Underline,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { ColorButton } from '@/components/panels/ColorButton';
 import { Button } from '@/components/ui/button';
 import { NumberInput } from '@/components/ui/number-input';
@@ -55,6 +56,7 @@ export function FormatToolbar({
   onInsert,
   insertDisabled,
 }: FormatToolbarProps): ReactNode {
+  const t = useT();
   const fonts = useAvailableFonts();
 
   // La fuente del estilo actual siempre debe poder seleccionarse.
@@ -92,7 +94,7 @@ export function FormatToolbar({
         <select
           className="h-7 max-w-[130px] shrink-0 rounded-md border border-input bg-background px-1 text-xs"
           value={style?.fontFamily ?? DEFAULT_FONT_FAMILY}
-          aria-label="Fuente"
+          aria-label={t('toolbar.format.fontFamily')}
           onChange={(event) => onSetStyle({ fontFamily: event.target.value })}
         >
           {options.map((family) => (
@@ -105,8 +107,8 @@ export function FormatToolbar({
         <NumberInput
           className="h-7 w-14 shrink-0"
           value={fontSizePt}
-          label="Tamaño de fuente (pt)"
-          title="Tamaño (pt): flechas o arrastre (enteros)"
+          label={t('toolbar.format.fontSize')}
+          title={t('toolbar.format.fontSizeTitle')}
           axis="x"
           min={4}
           max={72}
@@ -123,31 +125,31 @@ export function FormatToolbar({
           style?.fontWeight === 'Bold',
           { fontWeight: style?.fontWeight === 'Bold' ? 'Normal' : 'Bold' },
           <Bold />,
-          'Negrita',
+          t('toolbar.format.bold'),
         )}
         {toggle(
           style?.fontStyle === 'Italic',
           { fontStyle: style?.fontStyle === 'Italic' ? 'Normal' : 'Italic' },
           <Italic />,
-          'Cursiva',
+          t('toolbar.format.italic'),
         )}
         {toggle(
           style?.textDecoration === 'Underline',
           { textDecoration: style?.textDecoration === 'Underline' ? 'None' : 'Underline' },
           <Underline />,
-          'Subrayado',
+          t('toolbar.format.underline'),
         )}
 
         <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
 
         <ColorButton
-          title="Color de texto"
+          title={t('toolbar.format.textColor')}
           value={style?.color}
           fallback="#111827"
           onChange={(color) => onSetStyle({ color })}
         />
         <ColorButton
-          title="Resaltado"
+          title={t('toolbar.format.highlight')}
           value={style?.backgroundColor}
           fallback="#ffffff"
           highlight
@@ -160,47 +162,57 @@ export function FormatToolbar({
           style?.textAlign === 'Left',
           { textAlign: 'Left' },
           <AlignLeft />,
-          'Alinear izquierda',
+          t('toolbar.format.alignLeft'),
         )}
-        {toggle(style?.textAlign === 'Center', { textAlign: 'Center' }, <AlignCenter />, 'Centrar')}
+        {toggle(
+          style?.textAlign === 'Center',
+          { textAlign: 'Center' },
+          <AlignCenter />,
+          t('toolbar.format.alignCenter'),
+        )}
         {toggle(
           style?.textAlign === 'Right',
           { textAlign: 'Right' },
           <AlignRight />,
-          'Alinear derecha',
+          t('toolbar.format.alignRight'),
         )}
         <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
-        {toggle(style?.listStyle === 'Bulleted', { listStyle: 'Bulleted' }, <List />, 'Viñetas')}
+        {toggle(
+          style?.listStyle === 'Bulleted',
+          { listStyle: 'Bulleted' },
+          <List />,
+          t('toolbar.format.bullets'),
+        )}
         {toggle(
           style?.listStyle === 'Numbered',
           { listStyle: 'Numbered' },
           <ListOrdered />,
-          'Numeración',
+          t('toolbar.format.numbering'),
         )}
         {toggle(
           style?.listStyle === undefined || style?.listStyle === 'None',
           { listStyle: 'None' },
           <ListX />,
-          'Sin lista',
+          t('toolbar.format.noList'),
         )}
         <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
         {toggle(
           style?.verticalAlign === 'Top',
           { verticalAlign: 'Top' },
           <span className="text-[10px] leading-none">A↑</span>,
-          'Alinear arriba',
+          t('toolbar.format.alignTop'),
         )}
         {toggle(
           style?.verticalAlign === 'Middle',
           { verticalAlign: 'Middle' },
           <span className="text-[10px] leading-none">A↕</span>,
-          'Centrar vertical',
+          t('toolbar.format.alignMiddle'),
         )}
         {toggle(
           style?.verticalAlign === 'Bottom',
           { verticalAlign: 'Bottom' },
           <span className="text-[10px] leading-none">A↓</span>,
-          'Alinear abajo',
+          t('toolbar.format.alignBottom'),
         )}
       </div>
 
@@ -219,39 +231,41 @@ function InsertGroup({
   disabled: boolean;
   onInsert: (kind: NewItemSpec['kind']) => void;
 }): ReactNode {
+  const t = useT();
+
   return (
     <div className="flex shrink-0 items-center gap-1">
       <InsertButton
         kind="textbox"
-        label="Insertar textbox"
+        label={t('toolbar.insert.textbox')}
         icon={<Type />}
         disabled={disabled}
         onInsert={onInsert}
       />
       <InsertButton
         kind="rectangle"
-        label="Insertar rectángulo"
+        label={t('toolbar.insert.rectangle')}
         icon={<Square />}
         disabled={disabled}
         onInsert={onInsert}
       />
       <InsertButton
         kind="line"
-        label="Insertar línea"
+        label={t('toolbar.insert.line')}
         icon={<Minus />}
         disabled={disabled}
         onInsert={onInsert}
       />
       <InsertButton
         kind="image"
-        label="Insertar imagen"
+        label={t('toolbar.insert.image')}
         icon={<Image />}
         disabled={disabled}
         onInsert={onInsert}
       />
       <InsertButton
         kind="tablix"
-        label="Insertar tabla (Tablix)"
+        label={t('toolbar.insert.tablix')}
         icon={<Table />}
         disabled={disabled}
         onInsert={onInsert}
@@ -273,6 +287,8 @@ function InsertGroup({
   disabled: boolean;
   onInsert: (kind: NewItemSpec['kind']) => void;
 }): ReactNode {
+  const t = useT();
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -291,7 +307,7 @@ function InsertGroup({
           {icon}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{label} (o arrástralo al lienzo)</TooltipContent>
+      <TooltipContent>{t('toolbar.insert.tooltip', { label })}</TooltipContent>
     </Tooltip>
   );
 }

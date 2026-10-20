@@ -18,12 +18,58 @@ import {
 import type { CatalogShape } from './catalog.js';
 
 const ACCENTS: Record<string, string> = {
-  a: 'á', b: 'ƀ', c: 'ç', d: 'ď', e: 'é', f: 'ƒ', g: 'ǧ', h: 'ĥ', i: 'í', j: 'ĵ',
-  k: 'ķ', l: 'ľ', m: 'ɱ', n: 'ñ', o: 'ó', p: 'ƥ', q: 'ǫ', r: 'ŕ', s: 'š', t: 'ţ',
-  u: 'ú', v: 'ṽ', w: 'ŵ', x: 'ẋ', y: 'ý', z: 'ž',
-  A: 'Á', B: 'Ɓ', C: 'Ç', D: 'Ď', E: 'É', F: 'Ƒ', G: 'Ǧ', H: 'Ĥ', I: 'Í', J: 'Ĵ',
-  K: 'Ķ', L: 'Ľ', M: 'Ṁ', N: 'Ñ', O: 'Ó', P: 'Ƥ', Q: 'Ǫ', R: 'Ŕ', S: 'Š', T: 'Ţ',
-  U: 'Ú', V: 'Ṽ', W: 'Ŵ', X: 'Ẋ', Y: 'Ý', Z: 'Ž',
+  a: 'á',
+  b: 'ƀ',
+  c: 'ç',
+  d: 'ď',
+  e: 'é',
+  f: 'ƒ',
+  g: 'ǧ',
+  h: 'ĥ',
+  i: 'í',
+  j: 'ĵ',
+  k: 'ķ',
+  l: 'ľ',
+  m: 'ɱ',
+  n: 'ñ',
+  o: 'ó',
+  p: 'ƥ',
+  q: 'ǫ',
+  r: 'ŕ',
+  s: 'š',
+  t: 'ţ',
+  u: 'ú',
+  v: 'ṽ',
+  w: 'ŵ',
+  x: 'ẋ',
+  y: 'ý',
+  z: 'ž',
+  A: 'Á',
+  B: 'Ɓ',
+  C: 'Ç',
+  D: 'Ď',
+  E: 'É',
+  F: 'Ƒ',
+  G: 'Ǧ',
+  H: 'Ĥ',
+  I: 'Í',
+  J: 'Ĵ',
+  K: 'Ķ',
+  L: 'Ľ',
+  M: 'Ṁ',
+  N: 'Ñ',
+  O: 'Ó',
+  P: 'Ƥ',
+  Q: 'Ǫ',
+  R: 'Ŕ',
+  S: 'Š',
+  T: 'Ţ',
+  U: 'Ú',
+  V: 'Ṽ',
+  W: 'Ŵ',
+  X: 'Ẋ',
+  Y: 'Ý',
+  Z: 'Ž',
 };
 
 /** Sustituye letras por acentos y expande ~50 % (un `·` cada dos letras). */
@@ -111,7 +157,8 @@ export function pseudoCatalog<T extends CatalogShape<object>>(catalog: T): Catal
   const visit = (node: Record<string, unknown>): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(node)) {
-      out[key] = typeof value === 'string' ? pseudoMessage(value) : visit(value as Record<string, unknown>);
+      out[key] =
+        typeof value === 'string' ? pseudoMessage(value) : visit(value as Record<string, unknown>);
     }
     return out;
   };

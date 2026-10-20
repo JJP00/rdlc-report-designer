@@ -153,22 +153,23 @@ describe('F3 · addColumnGroup', () => {
     const { doc, index } = open('BTCLoadingOrder.rdlc');
     const ctx = { root: doc.root, index };
 
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addColumnGroup',
-        id: 'LinesTbl',
-        column: 9,
-        expression: '=Fields!A.Value',
-      }).isLeft(),
-    ).toBe(true);
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addColumnGroup',
-        id: 'LinesTbl',
-        column: 0,
-        expression: ' ',
-      }).isLeft(),
-    ).toBe(true);
+    const outOfRange = applyCommand(ctx, {
+      cmd: 'addColumnGroup',
+      id: 'LinesTbl',
+      column: 9,
+      expression: '=Fields!A.Value',
+    });
+    expect(outOfRange.isLeft()).toBe(true);
+    if (outOfRange.isLeft()) expect(outOfRange.value.reason).toBe('columnOutOfTablix');
+
+    const blank = applyCommand(ctx, {
+      cmd: 'addColumnGroup',
+      id: 'LinesTbl',
+      column: 0,
+      expression: ' ',
+    });
+    expect(blank.isLeft()).toBe(true);
+    if (blank.isLeft()) expect(blank.value.reason).toBe('groupExpressionEmpty');
   });
 });
 
@@ -227,32 +228,32 @@ describe('F3 · addColumnToGroup', () => {
     expect(created.isRight()).toBe(true);
 
     // No contigua: la columna 5 no toca el rango (2) del grupo [2].
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addColumnToGroup',
-        id: 'LinesTbl',
-        column: 5,
-        groupPath: [2],
-      }).isLeft(),
-    ).toBe(true);
+    const nonContiguous = applyCommand(ctx, {
+      cmd: 'addColumnToGroup',
+      id: 'LinesTbl',
+      column: 5,
+      groupPath: [2],
+    });
+    expect(nonContiguous.isLeft()).toBe(true);
+    if (nonContiguous.isLeft()) expect(nonContiguous.value.reason).toBe('onlyContiguousColumns');
     // Ya está dentro del grupo.
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addColumnToGroup',
-        id: 'LinesTbl',
-        column: 2,
-        groupPath: [2],
-      }).isLeft(),
-    ).toBe(true);
+    const inside = applyCommand(ctx, {
+      cmd: 'addColumnToGroup',
+      id: 'LinesTbl',
+      column: 2,
+      groupPath: [2],
+    });
+    expect(inside.isLeft()).toBe(true);
+    if (inside.isLeft()) expect(inside.value.reason).toBe('columnAlreadyInGroup');
     // Grupo hoja (Tablix2 · BTC_Document_No_): añadirle columnas lo haría contenedor.
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addColumnToGroup',
-        id: 'Tablix2',
-        column: 0,
-        groupPath: [1],
-      }).isLeft(),
-    ).toBe(true);
+    const leafGroup = applyCommand(ctx, {
+      cmd: 'addColumnToGroup',
+      id: 'Tablix2',
+      column: 0,
+      groupPath: [1],
+    });
+    expect(leafGroup.isLeft()).toBe(true);
+    if (leafGroup.isLeft()) expect(leafGroup.value.reason).toBe('columnGroupIsLeaf');
   });
 });
 

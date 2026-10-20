@@ -1,4 +1,5 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { breadcrumbEntries, type HierarchyTarget } from '@/lib/hierarchy';
@@ -27,10 +28,15 @@ export function Breadcrumb({
   onSelectItem,
   onSelectCell,
 }: BreadcrumbProps): ReactNode {
-  const entries = breadcrumbEntries(projection, {
-    itemId: selectedId,
-    cell: selectedCell,
-  });
+  const t = useT();
+  const entries = breadcrumbEntries(
+    projection,
+    {
+      itemId: selectedId,
+      cell: selectedCell,
+    },
+    t,
+  );
   // Fila siempre reservada: que aparezca al seleccionar desplazaría el lienzo 28 px
   // y rompería el primer doble clic (N1).
   if (entries.length <= 1) return <div aria-hidden className={BREADCRUMB_ROW_CLASS} />;
@@ -50,7 +56,7 @@ export function Breadcrumb({
 
   return (
     <nav
-      aria-label="Ruta del elemento seleccionado"
+      aria-label={t('toolbar.breadcrumb.ariaLabel')}
       className={`${BREADCRUMB_ROW_CLASS} gap-0.5 overflow-x-auto px-3 py-0.5 text-xs`}
     >
       {entries.map((entry, index) => {

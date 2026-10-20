@@ -1,11 +1,15 @@
 import type { ItemDto, ScopeRef } from '@rdlc-designer/contracts';
+import type { Translator } from '@rdlc-designer/i18n';
 import { toCm } from '@/lib/projection';
 
 /**
  * Piezas **puras** de accesibilidad del lienzo: orden de lectura, anuncios para
  * el lector de pantalla y etiquetas del destino de una inserción. Sin DOM ni
- * estado, para poder probarlas.
+ * estado (y sin React: el traductor entra por parámetro) para poder probarlas.
  */
+
+/** Traductor que necesitan los anuncios: el que devuelve `useT()` en el renderer. */
+type Translate = Translator['t'];
 
 /** cm con dos decimales y coma (formato español): `2` → «2,00 cm». */
 export function formatCmEs(value: number): string {
@@ -13,8 +17,12 @@ export function formatCmEs(value: number): string {
 }
 
 /** Anuncio del elemento seleccionado: «Textbox2, x 2,00 cm, y 3,40 cm». */
-export function selectionAnnouncement(item: ItemDto): string {
-  return `${item.id}, x ${formatCmEs(toCm(item.left))}, y ${formatCmEs(toCm(item.top))}`;
+export function selectionAnnouncement(item: ItemDto, t: Translate): string {
+  return t('canvas.a11y.selection', {
+    id: item.id,
+    x: formatCmEs(toCm(item.left)),
+    y: formatCmEs(toCm(item.top)),
+  });
 }
 
 /**
@@ -45,22 +53,22 @@ export function edgeReadingId(ids: readonly string[], edge: 'first' | 'last'): s
  * Destino legible de una inserción para el mensaje del pie: «Celda 1,2» (mismo
  * formato que la Jerarquía), «el cuerpo», «el encabezado de página»…
  */
-export function insertDestinationLabel(scope: ScopeRef): string {
+export function insertDestinationLabel(scope: ScopeRef, t: Translate): string {
   switch (scope.kind) {
     case 'body':
-      return 'el cuerpo';
+      return t('canvas.insert.body');
     case 'pageHeader':
-      return 'el encabezado de página';
+      return t('canvas.insert.pageHeader');
     case 'pageFooter':
-      return 'el pie de página';
+      return t('canvas.insert.pageFooter');
     case 'tablixCell':
-      return `Celda ${scope.row + 1},${scope.col + 1}`;
+      return t('canvas.insert.tablixCell', { row: scope.row + 1, col: scope.col + 1 });
     case 'rectangle':
-      return `el rectángulo ${scope.id}`;
+      return t('canvas.insert.rectangle', { id: scope.id });
     case 'tablixHeader':
-      return `la cabecera de ${scope.id}`;
+      return t('canvas.insert.tablixHeader', { id: scope.id });
     case 'tablixCorner':
-      return `la esquina de ${scope.id}`;
+      return t('canvas.insert.tablixCorner', { id: scope.id });
   }
 }
 

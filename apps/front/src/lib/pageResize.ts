@@ -1,4 +1,5 @@
 import type { PageDto } from '@rdlc-designer/contracts';
+import { type Translator } from '@rdlc-designer/i18n';
 import { toCm } from './projection';
 
 /**
@@ -120,7 +121,7 @@ export interface PageRulerSegment {
    * con línea, como el Report Builder).
    */
   kind: 'printable' | 'band';
-  /** Nombre accesible (title). */
+  /** Nombre accesible (title), ya traducido por el consumidor. */
   label: string;
 }
 
@@ -143,6 +144,9 @@ function lengthToCm(length: { value: number; unit: string }): number {
  * entre márgenes en ambos ejes y, en la regla vertical, las bandas de
  * **encabezado** y **pie** (con línea, para saber dónde empieza y acaba cada
  * cosa). Las bandas a 0 no se pintan.
+ *
+ * El módulo es puro: las etiquetas llegan ya traducidas (el consumidor pasa el
+ * `t` de `useT()`); el traductor entra por parámetro, como en `canvasA11y`.
  */
 export function pageRulerSegments(
   page: {
@@ -158,6 +162,7 @@ export function pageRulerSegments(
     footer: { height: { value: number; unit: string } };
   },
   axis: 'x' | 'y',
+  t: Translator['t'],
 ): PageRulerSegment[] {
   const horizontal = axis === 'x';
   const sheet = lengthToCm(horizontal ? page.width : page.height);
@@ -169,7 +174,7 @@ export function pageRulerSegments(
       from: start,
       to: Math.max(start, end),
       kind: 'printable',
-      label: 'Área imprimible',
+      label: t('lib.ruler.printable'),
     },
   ];
 
@@ -182,7 +187,7 @@ export function pageRulerSegments(
         from: start,
         to: start + header,
         kind: 'band',
-        label: 'Encabezado',
+        label: t('lib.ruler.header'),
       });
     }
     if (footer > 0) {
@@ -191,7 +196,7 @@ export function pageRulerSegments(
         from: Math.max(start, end - footer),
         to: Math.max(start, end),
         kind: 'band',
-        label: 'Pie',
+        label: t('lib.ruler.footer'),
       });
     }
   }

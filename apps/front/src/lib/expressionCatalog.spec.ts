@@ -1,4 +1,5 @@
 import type { ReportMetaDto } from '@rdlc-designer/contracts';
+import { createTranslator } from '@rdlc-designer/i18n';
 import { describe, expect, it } from 'vitest';
 import {
   completionSuggestions,
@@ -10,6 +11,9 @@ import { variableEntries } from './variables';
 
 /** Autocompletado del editor de expresiones. */
 
+/** El módulo es puro: los textos llegan por el traductor (aquí, ES). */
+const es = createTranslator('es').t;
+
 const meta: ReportMetaDto = {
   code: { text: '', functions: [{ name: 'BlankZero', parameters: ['v'] }] },
   fields: [{ name: 'BTCDescriptionLbl', dataType: 'String' }],
@@ -18,7 +22,7 @@ const meta: ReportMetaDto = {
 
 describe('expressionCompletions', () => {
   it('ofrece las variables del informe sin el `=` inicial', () => {
-    const entries = expressionCompletions(meta);
+    const entries = expressionCompletions(meta, es);
     const field = entries.find((entry) => entry.label === 'BTCDescriptionLbl');
 
     expect(field?.insertText).toBe('Fields!BTCDescriptionLbl.Value');
@@ -27,7 +31,9 @@ describe('expressionCompletions', () => {
   });
 
   it('traduce cada grupo a su tipo de icono', () => {
-    const kinds = new Map(expressionCompletions(meta).map((entry) => [entry.label, entry.kind]));
+    const kinds = new Map(
+      expressionCompletions(meta, es).map((entry) => [entry.label, entry.kind]),
+    );
 
     expect(kinds.get('BTCDescriptionLbl')).toBe('field');
     expect(kinds.get('CompanyName')).toBe('parameter');
@@ -38,13 +44,13 @@ describe('expressionCompletions', () => {
   });
 
   it('las funciones del estándar se insertan con paréntesis', () => {
-    const iif = expressionCompletions(meta).find((entry) => entry.label === 'IIf');
+    const iif = expressionCompletions(meta, es).find((entry) => entry.label === 'IIf');
     expect(iif?.insertText).toBe('IIf(');
     expect(iif?.detail).toBe('función RDL');
   });
 
   it('cubre todo el catálogo de variables y de funciones', () => {
-    const entries = expressionCompletions(meta);
+    const entries = expressionCompletions(meta, es);
     const labels = new Set(entries.map((entry) => entry.label));
 
     for (const entry of variableEntries(meta)) expect(labels.has(entry.name)).toBe(true);
@@ -60,7 +66,7 @@ describe('expressionCompletions', () => {
 
 describe('completionSuggestions', () => {
   it('las funciones se ofrecen con su firma y el paréntesis cerrado (snippet)', () => {
-    const suggestions = completionSuggestions(meta);
+    const suggestions = completionSuggestions(meta, es);
     const blank = suggestions.find((entry) => entry.label === 'BlankZero');
 
     expect(blank?.labelDetail).toBe('(v)');
@@ -69,7 +75,7 @@ describe('completionSuggestions', () => {
   });
 
   it('las funciones del estándar también se insertan como llamada', () => {
-    const iif = completionSuggestions(meta).find((entry) => entry.label === 'IIf');
+    const iif = completionSuggestions(meta, es).find((entry) => entry.label === 'IIf');
 
     expect(iif?.insertText).toBe('IIf($0)');
     expect(iif?.snippet).toBe(true);
@@ -78,7 +84,7 @@ describe('completionSuggestions', () => {
   });
 
   it('los campos y parámetros no llevan snippet ni firma', () => {
-    const suggestions = completionSuggestions(meta);
+    const suggestions = completionSuggestions(meta, es);
     const field = suggestions.find((entry) => entry.label === 'BTCDescriptionLbl');
     const parameter = suggestions.find((entry) => entry.label === 'CompanyName');
 
@@ -89,7 +95,7 @@ describe('completionSuggestions', () => {
   });
 
   it('ordena por grupos: campos, parámetros, Code., globals/user y RDL', () => {
-    const suggestions = completionSuggestions(meta);
+    const suggestions = completionSuggestions(meta, es);
     const order = (label: string): number =>
       Number(suggestions.find((entry) => entry.label === label)?.sortText.split('-')[0]);
 

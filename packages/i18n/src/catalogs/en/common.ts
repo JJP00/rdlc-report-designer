@@ -19,4 +19,11 @@ export const common = {
   reloadInterface: 'Reload interface',
   language: 'Language',
   file: 'File',
+  shortcuts: {
+    saveAs: 'Ctrl+Shift+S',
+    prevTab: 'Ctrl+Shift+Tab',
+    pageUp: 'Ctrl+Shift+PageUp',
+    pageDown: 'Ctrl+Shift+PageDown',
+    delete: 'Del',
+  },
 } as const;

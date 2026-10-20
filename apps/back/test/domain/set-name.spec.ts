@@ -106,12 +106,14 @@ describe('F1 · setName', () => {
       { cmd: 'setName', id: 'Textbox4', name: 'Tablix2' },
     );
     expect(duplicate.isLeft()).toBe(true);
+    if (duplicate.isLeft()) expect(duplicate.value.reason).toBe('nameTaken');
 
     const empty = applyCommand(
       { root: doc.root, index },
       { cmd: 'setName', id: 'Textbox4', name: '   ' },
     );
     expect(empty.isLeft()).toBe(true);
+    if (empty.isLeft()) expect(empty.value.reason).toBe('nameEmpty');
 
     expect(adapter.serialize(doc)).toBe(xml);
   });
@@ -126,6 +128,7 @@ describe('F1 · setName', () => {
       { cmd: 'setName', id: 'textbox5', name: 'Textbox3' },
     );
     expect(duplicate.isLeft()).toBe(true);
+    if (duplicate.isLeft()) expect(duplicate.value.reason).toBe('nameTaken');
     expect(adapter.serialize(doc)).toBe(xml);
 
     // Cambiar solo la caja del mismo nombre sí vale (es el mismo item).

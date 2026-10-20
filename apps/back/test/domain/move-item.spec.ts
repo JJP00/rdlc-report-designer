@@ -154,6 +154,7 @@ describe('G3 · moveItem', () => {
       },
     );
     expect(intoItself.isLeft()).toBe(true);
+    if (intoItself.isLeft()) expect(intoItself.value.reason).toBe('moveIntoSelf');
 
     // `BTC_Header_Carrier` cuelga de `Rectangle3`: mover el padre ahí es un ciclo.
     const intoDescendant = applyCommand(
@@ -166,6 +167,7 @@ describe('G3 · moveItem', () => {
       },
     );
     expect(intoDescendant.isLeft()).toBe(true);
+    if (intoDescendant.isLeft()) expect(intoDescendant.value.reason).toBe('moveIntoSelf');
   });
 
   it('reordena dentro del mismo contenedor (el índice cuenta el item en su sitio)', () => {

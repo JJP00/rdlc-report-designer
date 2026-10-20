@@ -120,7 +120,7 @@ describe('G8 · insertar en cabecera/esquina del Tablix', () => {
       item: { ...NEW_TEXTBOX, name: 'TextboxCabecera' },
     });
     expect(header.isLeft()).toBe(true);
-    if (header.isLeft()) expect(header.value.errorMessage).toContain('ya tiene contenido');
+    if (header.isLeft()) expect(header.value.reason).toBe('headerCellOccupied');
 
     const corner = applyCommand(ctx, {
       cmd: 'insertItem',
@@ -129,6 +129,7 @@ describe('G8 · insertar en cabecera/esquina del Tablix', () => {
       item: { ...NEW_TEXTBOX, name: 'TextboxEsquina' },
     });
     expect(corner.isLeft()).toBe(true);
+    if (corner.isLeft()) expect(corner.value.reason).toBe('cornerCellOccupied');
   });
 
   it('rechaza una cabecera que no existe (miembro sin TablixHeader)', () => {

@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,16 +37,15 @@ export function ConflictDialog({
   onOverwrite,
   onSaveAs,
 }: ConflictDialogProps): ReactNode {
+  const t = useT();
   if (!path) return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" data-testid="conflict-dialog">
         <DialogHeader>
-          <DialogTitle>El fichero cambió en disco</DialogTitle>
+          <DialogTitle>{t('dialogs.conflict.title')}</DialogTitle>
           <DialogDescription>
-            <span className="font-mono break-all">{path}</span> se modificó por fuera (otra app o
-            una sincronización) y tienes cambios sin guardar. Nada se ha perdido todavía: elige qué
-            versión conservar.
+            <span className="font-mono break-all">{path}</span> {t('dialogs.conflict.description')}
           </DialogDescription>
         </DialogHeader>
         {/* Orden de lectura/teclado y foco inicial seguros: «Guardar como…» es
@@ -54,16 +54,16 @@ export function ConflictDialog({
             coincida con el del DOM. */}
         <DialogFooter className="flex-col items-stretch sm:flex-col">
           <Button autoFocus onClick={onSaveAs}>
-            Guardar como…
+            {t('dialogs.conflict.saveAs')}
           </Button>
           <Button variant="outline" onClick={onOverwrite}>
-            Guardar y sobrescribir el fichero
+            {t('dialogs.conflict.overwrite')}
           </Button>
           <Button variant="outline" onClick={onReload}>
-            Recargar desde disco (descartar mis cambios)
+            {t('dialogs.conflict.reload')}
           </Button>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Ahora no
+            {t('dialogs.conflict.later')}
           </Button>
         </DialogFooter>
       </DialogContent>

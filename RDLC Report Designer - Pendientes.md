@@ -74,8 +74,12 @@
 ## 🌐 i18n
 
 - Plan EN + ES en [`docs/features/0005-i18n.md`](docs/features/0005-i18n.md) + [guía de
-  microcopy](docs/ux/0006-guia-microcopy.md) (decisiones 2026-10-20); hoy solo español con
-  textos hardcodeados → **pendiente de implementar**.
+  microcopy](docs/ux/0006-guia-microcopy.md) (decisiones 2026-10-20); **fases 0–2
+  implementadas** (2026-10-20): `packages/i18n`, barrido EN/ES de toda la UI,
+  interruptor Fichero → Idioma, errores con `reason`/`params` y detección del SO.
+- **Pendiente**: fase 3 (revisión de copy en contexto, glosario con consultores BC,
+  QA lingüístico) y fase 4 (pseudo-idioma en CI, E2E EN fija + smoke ES + pseudo);
+  consolidaciones menores en [`packages/i18n/CONSOLIDATION.md`](packages/i18n/CONSOLIDATION.md).
 
 ## 🐜 Menores abiertos
 
@@ -87,8 +91,8 @@
 
 ## ⚪ Decisiones menores
 
-- **i18n**: hoy solo español con textos hardcodeados; plan y guía de microcopy en la
-  sección de arriba.
+- **i18n**: EN + ES implementados (fases 0–2, 2026-10-20); revisión y endurecimiento
+  pendientes — ver la sección de arriba.
 - **CRLF/BOM**: preservados y verificados en golden tests.
 - **Logging**: `electron-log` + consola del renderer al log del main (útil para soporte).
 - **Modo QA**: `RDLC_OPEN` (abrir fichero), `RDLC_SHOT`/`RDLC_SHOT_SCRIPT`/`RDLC_SHOT_DRAG`

@@ -104,22 +104,25 @@ function findMember(
   path: number[],
 ): Either<DomainError, RdlcNode> {
   const tablix = ctx.index.get(id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id }));
 
   const root = tablixHierarchy(tablix, axis);
   if (!root) {
     return left(
-      CommandRejectedError.create(
-        `El Tablix '${id}' no tiene jerarquía de ${axis === 'row' ? 'filas' : 'columnas'}`,
+      CommandRejectedError.of(
+        axis === 'row' ? 'tablixHasNoRowHierarchy' : 'tablixHasNoColumnHierarchy',
+        { id },
       ),
     );
   }
 
   const member = memberAt(root, path);
   if (!member) {
-    const what = axis === 'row' ? 'fila' : 'columna';
     return left(
-      CommandRejectedError.create(`No hay ${what} en la ruta ${path.join('.')} del Tablix '${id}'`),
+      CommandRejectedError.of(axis === 'row' ? 'rowPathMissing' : 'columnPathMissing', {
+        path: path.join('.'),
+        id,
+      }),
     );
   }
 

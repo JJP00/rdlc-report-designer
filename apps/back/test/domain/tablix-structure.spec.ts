@@ -157,6 +157,7 @@ describe('F2 · addRow / deleteRow', () => {
       { cmd: 'deleteRow', id: 'Tablix3', row: 0 },
     );
     expect(last.isLeft()).toBe(true);
+    if (last.isLeft()) expect(last.value.reason).toBe('tablixNeedsRow');
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);
@@ -687,6 +688,7 @@ describe('F2 · borrado en lote y fusión de celdas', () => {
       { cmd: 'mergeCells', id: 'LinesTable2', row: 0, col: 0, rowSpan: 2, colSpan: 2 },
     );
     expect(applied.isLeft()).toBe(true);
+    if (applied.isLeft()) expect(applied.value.reason).toBe('mergeNeedsSingleRow');
     // El documento queda intacto: se rechaza antes de tocar nada.
     expect(adapter.serialize(doc)).toBe(xml);
   });
@@ -735,12 +737,14 @@ describe('F2 · borrado en lote y fusión de celdas', () => {
       { cmd: 'mergeCells', id: 'LinesTable', row: 2, col: 0, rowSpan: 1, colSpan: 3 },
     );
     expect(crossing.isLeft()).toBe(true);
+    if (crossing.isLeft()) expect(crossing.value.reason).toBe('selectionCutsMergedCell');
 
     const single = applyCommand(
       { root: doc.root, index },
       { cmd: 'mergeCells', id: 'LinesTable2', row: 0, col: 0, rowSpan: 1, colSpan: 1 },
     );
     expect(single.isLeft()).toBe(true);
+    if (single.isLeft()) expect(single.value.reason).toBe('mergeSingleCell');
   });
 });
 
@@ -883,6 +887,7 @@ describe('F2 · celdas fusionadas verticales', () => {
     const { doc, index } = openXml(ROWSPAN_XML);
     const applied = applyCommand({ root: doc.root, index }, { cmd: 'deleteRow', id: 'T', row: 0 });
     expect(applied.isLeft()).toBe(true);
+    if (applied.isLeft()) expect(applied.value.reason).toBe('rowHasVerticalMerge');
   });
 
   it('unmergeCells separa una fusión vertical que ya venía en el fichero', () => {

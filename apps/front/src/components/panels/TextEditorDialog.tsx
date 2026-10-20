@@ -1,4 +1,5 @@
 import type { ParagraphDto, TextboxDto } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import {
   AlignCenter,
   AlignLeft,
@@ -94,6 +95,7 @@ function TextEditorBody({
   onCancel: () => void;
   onApply: (paragraphs: ParagraphDto[]) => void;
 }): ReactNode {
+  const t = useT();
   // Borrador propio: se monta con el textbox abierto (nada de resincronizar).
   const [paragraphs, setParagraphs] = useState<ParagraphDto[]>(() => clone(item.paragraphs));
   const [text, setText] = useState<string>(() => paragraphsToText(item.paragraphs));
@@ -161,17 +163,15 @@ function TextEditorBody({
     <>
       <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12">
         <div className="flex items-center justify-between gap-3">
-          <DialogTitle>Texto de {item.id}</DialogTitle>
+          <DialogTitle>{t('text.editor.title', { id: item.id })}</DialogTitle>
           <Badge variant="outline">
-            {paragraphs.length} párr. · {runCount} fragmento(s)
+            {t('text.document.mixedBadge', { paragraphs: paragraphs.length, runs: runCount })}
           </Badge>
         </div>
         <DialogDescription>
-          Escribe el texto (Enter = párrafo nuevo) y las expresiones como{' '}
-          <code>
-            {EXPRESSION_OPEN}=Fields!X.Value{EXPRESSION_CLOSE}
-          </code>
-          . El bloque de abajo edita los fragmentos del párrafo donde tienes el cursor.
+          {t('text.editor.description', {
+            marker: `${EXPRESSION_OPEN}=Fields!X.Value${EXPRESSION_CLOSE}`,
+          })}
         </DialogDescription>
       </DialogHeader>
 
@@ -196,20 +196,32 @@ function TextEditorBody({
       >
         {/* Formato del párrafo activo + insertar expresión en el cursor. */}
         <div className="flex flex-wrap items-center gap-1 rounded-md border bg-muted/20 px-2 py-1.5">
-          <span className="mr-1 text-xs font-semibold">Párrafo {active + 1}</span>
+          <span className="mr-1 text-xs font-semibold">
+            {t('text.editor.paragraph', { index: active + 1 })}
+          </span>
           {(
             [
-              ['Left', <AlignLeft key="l" />, 'Alinear izquierda'],
-              ['Center', <AlignCenter key="c" />, 'Centrar'],
-              ['Right', <AlignRight key="r" />, 'Alinear derecha'],
+              ['Left', <AlignLeft key="l" />, 'text.editor.alignLeft', 'text.editor.alignLeftAria'],
+              [
+                'Center',
+                <AlignCenter key="c" />,
+                'text.editor.alignCenter',
+                'text.editor.alignCenterAria',
+              ],
+              [
+                'Right',
+                <AlignRight key="r" />,
+                'text.editor.alignRight',
+                'text.editor.alignRightAria',
+              ],
             ] as const
-          ).map(([align, icon, title]) => (
+          ).map(([align, icon, titleKey, ariaKey]) => (
             <Button
               key={align}
               variant={activeParagraph?.style?.textAlign === align ? 'secondary' : 'ghost'}
               size="icon-xs"
-              title={title}
-              aria-label={`${title} (párrafo ${active + 1})`}
+              title={t(titleKey)}
+              aria-label={t(ariaKey, { index: active + 1 })}
               onClick={() =>
                 changeParagraphs((current) =>
                   setParagraphStyle(current, active, { textAlign: align }),
@@ -223,8 +235,8 @@ function TextEditorBody({
             <Button
               variant="ghost"
               size="icon-xs"
-              title="Duplicar párrafo"
-              aria-label={`Duplicar párrafo ${active + 1}`}
+              title={t('text.editor.duplicateParagraph')}
+              aria-label={t('text.editor.duplicateParagraphAria', { index: active + 1 })}
               onClick={() => changeParagraphs((current) => duplicateParagraph(current, active))}
             >
               <Copy />
@@ -232,8 +244,8 @@ function TextEditorBody({
             <Button
               variant="ghost"
               size="icon-xs"
-              title="Subir párrafo"
-              aria-label={`Subir párrafo ${active + 1}`}
+              title={t('text.editor.moveParagraphUp')}
+              aria-label={t('text.editor.moveParagraphUpAria', { index: active + 1 })}
               disabled={active === 0}
               onClick={() => changeParagraphs((current) => moveParagraph(current, active, -1))}
             >
@@ -242,8 +254,8 @@ function TextEditorBody({
             <Button
               variant="ghost"
               size="icon-xs"
-              title="Bajar párrafo"
-              aria-label={`Bajar párrafo ${active + 1}`}
+              title={t('text.editor.moveParagraphDown')}
+              aria-label={t('text.editor.moveParagraphDownAria', { index: active + 1 })}
               disabled={active === paragraphs.length - 1}
               onClick={() => changeParagraphs((current) => moveParagraph(current, active, 1))}
             >
@@ -252,8 +264,8 @@ function TextEditorBody({
             <Button
               variant="ghost"
               size="icon-xs"
-              title="Eliminar párrafo"
-              aria-label={`Eliminar párrafo ${active + 1}`}
+              title={t('text.editor.removeParagraph')}
+              aria-label={t('text.editor.removeParagraphAria', { index: active + 1 })}
               disabled={paragraphs.length <= 1}
               onClick={() => changeParagraphs((current) => removeParagraph(current, active))}
             >
@@ -264,7 +276,7 @@ function TextEditorBody({
 
         <textarea
           ref={textareaRef}
-          aria-label="Texto del textbox"
+          aria-label={t('text.editor.textareaAria')}
           spellCheck={false}
           className="min-h-[180px] w-full resize-y rounded-md border bg-background p-2 font-mono text-xs leading-5"
           value={text}
@@ -278,7 +290,10 @@ function TextEditorBody({
         <section className="rounded-lg border bg-muted/20 p-2">
           <header className="flex flex-wrap items-center gap-1">
             <span className="text-xs font-semibold">
-              Párrafo {active + 1} · {activeParagraph?.runs.length ?? 0} fragmento(s)
+              {t('text.editor.paragraphRuns', {
+                index: active + 1,
+                runs: activeParagraph?.runs.length ?? 0,
+              })}
             </span>
             <div className="ml-auto flex items-center gap-1.5">
               <Button
@@ -286,17 +301,17 @@ function TextEditorBody({
                 size="xs"
                 onClick={() => changeParagraphs((current) => addRun(current, active, 'text'))}
               >
-                <Type /> Añadir texto
+                <Type /> {t('text.editor.addText')}
               </Button>
               <Button
                 variant="outline"
                 size="xs"
                 onClick={() => changeParagraphs((current) => addRun(current, active, 'expression'))}
               >
-                <Sigma /> Añadir expresión
+                <Sigma /> {t('text.editor.addExpression')}
               </Button>
               <Button variant="outline" size="xs" onClick={insertExpression}>
-                <Sigma /> Insertar en el cursor
+                <Sigma /> {t('text.editor.insertAtCursor')}
               </Button>
             </div>
           </header>
@@ -336,16 +351,16 @@ function TextEditorBody({
         </section>
 
         <Button variant="outline" size="xs" className="self-start" onClick={addParagraph}>
-          <Plus /> Añadir párrafo
+          <Plus /> {t('text.editor.addParagraph')}
         </Button>
       </DialogBody>
 
       <DialogFooter className="mx-0 mb-0 shrink-0 border-t bg-transparent p-4">
         <Button variant="ghost" onClick={onCancel}>
-          Cancelar
+          {t('common.cancel')}
         </Button>
-        <Button title="Aplicar (Ctrl+Intro)" onClick={() => onApply(paragraphs)}>
-          Aplicar
+        <Button title={t('text.editor.applyTitle')} onClick={() => onApply(paragraphs)}>
+          {t('text.dialog.apply')}
         </Button>
       </DialogFooter>
     </>

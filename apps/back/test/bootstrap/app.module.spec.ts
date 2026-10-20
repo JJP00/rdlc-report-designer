@@ -12,7 +12,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
   dialog: { showOpenDialog: vi.fn(), showSaveDialog: vi.fn() },
-  app: { getPath: () => join(tmpdir(), 'rdlc-e2e-userData') },
+  app: {
+    getPath: () => join(tmpdir(), 'rdlc-e2e-userData'),
+    getLocale: () => 'es-ES',
+  },
 }));
 
 describe('F0 · bootstrap Nest (hexágono)', () => {

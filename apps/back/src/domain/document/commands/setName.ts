@@ -20,11 +20,11 @@ export function applySetName(
   command: SetNameCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const name = command.name.trim();
   if (name === '') {
-    return left(CommandRejectedError.create('El nombre no puede estar vacío'));
+    return left(CommandRejectedError.of('nameEmpty'));
   }
   if (name === command.id) return right({ inverse: [] });
   // Cambiar solo la caja del propio nombre es el mismo item: permitido (RB
@@ -33,9 +33,7 @@ export function applySetName(
   // puede ser el de un grupo existente.
   const collision = ctx.index.has(name) || hasGroupNamed(ctx.root, name);
   if (collision && name.toLowerCase() !== command.id.toLowerCase()) {
-    return left(
-      CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${name}'`),
-    );
+    return left(CommandRejectedError.of('nameTaken', { name }));
   }
 
   const inverse: DomainCommand[] = [];

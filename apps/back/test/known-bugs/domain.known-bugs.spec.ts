@@ -389,6 +389,7 @@ describe('BUG-02 · deleteRows/deleteColumns atómicos', () => {
     const result = applyCommand(ctx, { cmd: 'deleteRows', id: 'T', rows: [0, 1] });
 
     expect(result.isLeft(), 'borrar todas las filas debe rechazarse').toBe(true);
+    if (result.isLeft()) expect(result.value.reason).toBe('tablixNeedsRow');
     expect(adapter.serialize(doc), 'un rechazo no debe dejar filas borradas a medias').toBe(before);
   });
 
@@ -399,6 +400,7 @@ describe('BUG-02 · deleteRows/deleteColumns atómicos', () => {
     const result = applyCommand(ctx, { cmd: 'deleteColumns', id: 'T', columns: [0, 1, 2] });
 
     expect(result.isLeft(), 'borrar todas las columnas debe rechazarse').toBe(true);
+    if (result.isLeft()) expect(result.value.reason).toBe('tablixNeedsColumn');
     expect(adapter.serialize(doc), 'un rechazo no debe dejar columnas borradas a medias').toBe(
       before,
     );
@@ -626,6 +628,7 @@ describe('BUG-11 · nombres de items y grupos no colisionan', () => {
     expect(renamed.isLeft(), `renombrar H2 a '${group}' (nombre de grupo) debe rechazarse`).toBe(
       true,
     );
+    if (renamed.isLeft()) expect(renamed.value.reason).toBe('nameTaken');
   });
 
   it('insertItem rechaza un nombre que ya usa un grupo', () => {
@@ -657,6 +660,7 @@ describe('BUG-11 · nombres de items y grupos no colisionan', () => {
       inserted.isLeft(),
       "insertar un textbox 'Category' (nombre de grupo) debe rechazarse",
     ).toBe(true);
+    if (inserted.isLeft()) expect(inserted.value.reason).toBe('nameTaken');
   });
 });
 

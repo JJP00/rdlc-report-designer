@@ -87,6 +87,10 @@ export interface EditorToolbarProps {
  * `aria-label` y tooltip).
  */
 export function EditorToolbar(props: EditorToolbarProps): ReactNode {
+  const t = useT();
+  // El botón ofrece el modo contrario al vigente.
+  const themeLabel = props.theme === 'dark' ? t('toolbar.theme.light') : t('toolbar.theme.dark');
+
   return (
     <TooltipProvider>
       <header className="flex items-center gap-1.5 overflow-x-auto border-b bg-chrome px-3 py-1.5">
@@ -136,13 +140,13 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
               size="sm"
               className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
               onClick={props.onOpenPalette}
-              aria-label="Paleta de comandos (Ctrl+K)"
+              aria-label={t('toolbar.palette.open')}
             >
               <Search />
               <span className="hidden 2xl:inline">Ctrl+K</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Paleta de comandos (Ctrl+K)</TooltipContent>
+          <TooltipContent>{t('toolbar.palette.open')}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -151,12 +155,12 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
               size="icon-sm"
               className="shrink-0"
               onClick={props.onToggleTheme}
-              aria-label={props.theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+              aria-label={themeLabel}
             >
               {props.theme === 'dark' ? <Sun /> : <Moon />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{props.theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</TooltipContent>
+          <TooltipContent>{themeLabel}</TooltipContent>
         </Tooltip>
         <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
         <ZoomGroup
@@ -207,18 +211,18 @@ function FileGroup({
       <DropdownMenuContent align="start" className="w-60">
         <DropdownMenuItem disabled={busy} onSelect={onNew}>
           <FilePlus />
-          Nuevo
+          {t('toolbar.file.new')}
           <DropdownMenuShortcut>Ctrl+N</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem disabled={busy} onSelect={onOpen}>
           <FolderOpen />
-          Abrir…
+          {t('toolbar.file.open')}
           <DropdownMenuShortcut>Ctrl+O</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger disabled={busy || recents.length === 0}>
             <History />
-            Recientes
+            {t('toolbar.file.recent')}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="max-w-96">
             {recents.map((path) => (
@@ -236,18 +240,18 @@ function FileGroup({
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasDocument || busy} onSelect={onSave}>
           <Save />
-          Guardar
+          {t('toolbar.file.save')}
           <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!hasDocument || busy} onSelect={onSaveAs}>
           <SaveAll />
-          Guardar como…
-          <DropdownMenuShortcut>Ctrl+Mayús+S</DropdownMenuShortcut>
+          {t('toolbar.file.saveAs')}
+          <DropdownMenuShortcut>{t('common.shortcuts.saveAs')}</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasDocument} onSelect={onClose}>
           <X />
-          Cerrar
+          {t('common.close')}
           <DropdownMenuShortcut>Ctrl+W</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -290,6 +294,8 @@ function ReportGroup({
   | 'onToggleVariables'
   | 'onToggleHierarchy'
 >): ReactNode {
+  const t = useT();
+
   return (
     <>
       <Tooltip>
@@ -300,13 +306,13 @@ function ReportGroup({
             className="shrink-0 px-[7px] xl:pl-1.5 xl:pr-2.5"
             onClick={onOpenProperties}
             disabled={!hasDocument}
-            aria-label="Informe…"
+            aria-label={t('toolbar.report.open')}
           >
             <Settings2 />
-            <span className="hidden xl:inline">Informe…</span>
+            <span className="hidden xl:inline">{t('toolbar.report.open')}</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Propiedades del informe…</TooltipContent>
+        <TooltipContent>{t('toolbar.report.propertiesTooltip')}</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -316,13 +322,13 @@ function ReportGroup({
             className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
             onClick={onToggleVariables}
             disabled={!hasDocument}
-            aria-label="Variables"
+            aria-label={t('toolbar.report.variables')}
           >
             <Variable />
-            <span className="hidden 2xl:inline">Variables</span>
+            <span className="hidden 2xl:inline">{t('toolbar.report.variables')}</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Mostrar u ocultar Variables</TooltipContent>
+        <TooltipContent>{t('toolbar.report.toggleVariables')}</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -332,13 +338,13 @@ function ReportGroup({
             className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
             onClick={onToggleHierarchy}
             disabled={!hasDocument}
-            aria-label="Jerarquía"
+            aria-label={t('toolbar.report.hierarchy')}
           >
             <ListTree />
-            <span className="hidden 2xl:inline">Jerarquía</span>
+            <span className="hidden 2xl:inline">{t('toolbar.report.hierarchy')}</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Mostrar u ocultar Jerarquía</TooltipContent>
+        <TooltipContent>{t('toolbar.report.toggleHierarchy')}</TooltipContent>
       </Tooltip>
     </>
   );
@@ -356,6 +362,12 @@ function EditGroup({
   EditorToolbarProps,
   'hasDocument' | 'hasSelection' | 'onDuplicate' | 'onDelete' | 'onUndo' | 'onRedo'
 >): ReactNode {
+  const t = useT();
+  const duplicateTooltip = t('toolbar.edit.duplicateTooltip', {
+    action: t('toolbar.edit.duplicate'),
+  });
+  const deleteTooltip = t('toolbar.edit.deleteTooltip', { action: t('toolbar.edit.delete') });
+
   return (
     <>
       <Tooltip>
@@ -365,12 +377,12 @@ function EditGroup({
             size="icon-sm"
             disabled={!hasSelection}
             onClick={onDuplicate}
-            aria-label="Duplicar (Ctrl+D)"
+            aria-label={duplicateTooltip}
           >
             <Copy />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Duplicar (Ctrl+D)</TooltipContent>
+        <TooltipContent>{duplicateTooltip}</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -379,12 +391,12 @@ function EditGroup({
             size="icon-sm"
             disabled={!hasSelection}
             onClick={onDelete}
-            aria-label="Eliminar (Supr)"
+            aria-label={deleteTooltip}
           >
             <Trash2 />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Eliminar (Supr)</TooltipContent>
+        <TooltipContent>{deleteTooltip}</TooltipContent>
       </Tooltip>
 
       <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
@@ -397,13 +409,15 @@ function EditGroup({
             className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
             onClick={onUndo}
             disabled={!hasDocument}
-            aria-label="Deshacer"
+            aria-label={t('common.undo')}
           >
             <Undo2 />
-            <span className="hidden 2xl:inline">Deshacer</span>
+            <span className="hidden 2xl:inline">{t('common.undo')}</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Deshacer (Ctrl+Z)</TooltipContent>
+        <TooltipContent>
+          {t('toolbar.edit.undoTooltip', { action: t('common.undo') })}
+        </TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -413,13 +427,15 @@ function EditGroup({
             className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
             onClick={onRedo}
             disabled={!hasDocument}
-            aria-label="Rehacer"
+            aria-label={t('common.redo')}
           >
             <Redo2 />
-            <span className="hidden 2xl:inline">Rehacer</span>
+            <span className="hidden 2xl:inline">{t('common.redo')}</span>
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Rehacer (Ctrl+Y)</TooltipContent>
+        <TooltipContent>
+          {t('toolbar.edit.redoTooltip', { action: t('common.redo') })}
+        </TooltipContent>
       </Tooltip>
     </>
   );
@@ -431,6 +447,8 @@ function ZoomGroup({
   onZoomChange,
   onZoomFitWidth,
 }: Pick<EditorToolbarProps, 'zoom' | 'onZoomChange' | 'onZoomFitWidth'>): ReactNode {
+  const t = useT();
+
   return (
     <div className="flex shrink-0 items-center gap-1">
       <Tooltip>
@@ -439,12 +457,12 @@ function ZoomGroup({
             variant="ghost"
             size="icon-sm"
             onClick={() => onZoomChange(clampZoom(zoom - 0.1))}
-            aria-label="Reducir zoom"
+            aria-label={t('toolbar.zoom.out')}
           >
             <Minus />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Reducir zoom</TooltipContent>
+        <TooltipContent>{t('toolbar.zoom.out')}</TooltipContent>
       </Tooltip>
 
       {/* Un clic en el porcentaje abre los presets y «ajustar al ancho». */}
@@ -454,26 +472,28 @@ function ZoomGroup({
             variant="ghost"
             size="sm"
             className="w-14 justify-center px-1 text-xs tabular-nums"
-            aria-label={`Zoom: ${Math.round(zoom * 100)} %`}
-            title="Zoom: presets y atajos"
+            aria-label={t('toolbar.zoom.ariaLabel', { percent: Math.round(zoom * 100) })}
+            title={t('toolbar.zoom.title')}
           >
             {Math.round(zoom * 100)}%
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Zoom</DropdownMenuLabel>
+          <DropdownMenuLabel>{t('toolbar.zoom.label')}</DropdownMenuLabel>
           <DropdownMenuItem onSelect={onZoomFitWidth}>
-            Ajustar al ancho
+            {t('toolbar.zoom.fitWidth')}
             <DropdownMenuShortcut>Ctrl+1</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onZoomChange(1)}>
-            Tamaño real (100 %)
+            {t('toolbar.zoom.actualSize')}
             <DropdownMenuShortcut>Ctrl+0</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {ZOOM_PRESETS.map((preset) => (
             <DropdownMenuItem key={preset} onSelect={() => onZoomChange(preset)}>
-              <span className="tabular-nums">{Math.round(preset * 100)} %</span>
+              <span className="tabular-nums">
+                {t('toolbar.zoom.percent', { percent: Math.round(preset * 100) })}
+              </span>
               {Math.abs(zoom - preset) < 0.005 ? <Check aria-hidden /> : null}
             </DropdownMenuItem>
           ))}
@@ -486,12 +506,12 @@ function ZoomGroup({
             variant="ghost"
             size="icon-sm"
             onClick={() => onZoomChange(clampZoom(zoom + 0.1))}
-            aria-label="Aumentar zoom"
+            aria-label={t('toolbar.zoom.in')}
           >
             <Plus />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Aumentar zoom</TooltipContent>
+        <TooltipContent>{t('toolbar.zoom.in')}</TooltipContent>
       </Tooltip>
     </div>
   );

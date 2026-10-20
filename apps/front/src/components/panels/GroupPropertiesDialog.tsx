@@ -1,4 +1,5 @@
 import type { RdlcCommand, ReportMetaDto, TablixMemberDto } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -58,9 +59,11 @@ export function GroupPropertiesDialog({
   onApply,
   onClose,
 }: GroupPropertiesDialogProps): ReactNode {
+  const t = useT();
   const [initial] = useState(() => groupPropertiesDraft(member));
   const [draft, setDraft] = useState(initial);
-  const variables = variableEntries(meta);
+  // Con `t`, cada entrada trae su `groupLabel` resuelta (namespace `report`).
+  const variables = variableEntries(meta, t);
   const valid = isGroupPropertiesValid(draft);
 
   const apply = (): void => {
@@ -86,19 +89,20 @@ export function GroupPropertiesDialog({
         }}
       >
         <DialogHeader className="shrink-0">
-          <DialogTitle>Propiedades del grupo{member.name ? ` · ${member.name}` : ''}</DialogTitle>
-          <DialogDescription>
-            Expresiones, saltos de página, ordenación y visibilidad del grupo. «Aplicar» envía solo
-            las secciones modificadas.
-          </DialogDescription>
+          <DialogTitle>
+            {member.name
+              ? t('tablix.groupProps.titleWithName', { name: member.name })
+              : t('tablix.groupProps.title')}
+          </DialogTitle>
+          <DialogDescription>{t('tablix.groupProps.subtitle')}</DialogDescription>
         </DialogHeader>
 
         <Tabs orientation="vertical" defaultValue="general" className="min-h-0 flex-1 gap-4">
           <TabsList className="shrink-0">
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="breaks">Saltos de página</TabsTrigger>
-            <TabsTrigger value="sorting">Ordenación</TabsTrigger>
-            <TabsTrigger value="visibility">Visibilidad</TabsTrigger>
+            <TabsTrigger value="general">{t('tablix.groupProps.tabGeneral')}</TabsTrigger>
+            <TabsTrigger value="breaks">{t('tablix.groupProps.tabBreaks')}</TabsTrigger>
+            <TabsTrigger value="sorting">{t('tablix.groupProps.tabSorting')}</TabsTrigger>
+            <TabsTrigger value="visibility">{t('tablix.groupProps.tabVisibility')}</TabsTrigger>
           </TabsList>
           <DialogBody className="pr-1">
             <TabsContent value="general">
@@ -118,10 +122,10 @@ export function GroupPropertiesDialog({
 
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
-          <Button title="Aplicar (Ctrl+Intro)" onClick={apply} disabled={!valid}>
-            Aplicar
+          <Button title={t('tablix.applyHint')} onClick={apply} disabled={!valid}>
+            {t('tablix.apply')}
           </Button>
         </DialogFooter>
       </ResizableDialogContent>
@@ -139,6 +143,7 @@ function GeneralTab({
   draft,
   setDraft,
 }: TabProps & { member: TablixMemberDto; variables: VariableEntry[] }): ReactNode {
+  const t = useT();
   const [fxIndex, setFxIndex] = useState<number | null>(null);
 
   const setExpression = (index: number, expression: string): void => {
@@ -153,21 +158,19 @@ function GeneralTab({
   return (
     <div className="grid gap-4">
       <div className="grid gap-1">
-        <Label htmlFor="group-name">Nombre</Label>
+        <Label htmlFor="group-name">{t('tablix.groupProps.name')}</Label>
         <Input
           id="group-name"
           value={draft.name}
           onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
         />
-        <p className="text-[11px] text-muted-foreground">
-          Único en el informe. Renombrar el grupo <strong>no reescribe</strong> las expresiones de
-          ámbito existentes (`Sum(…, "Grupo")`): revísalas si las usas.
-        </p>
+        {/* Barrido de microcopy (Trim): la advertencia se queda; fuera el relleno. */}
+        <p className="text-[11px] text-muted-foreground">{t('tablix.groupProps.nameNote')}</p>
       </div>
 
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
-          <Label>Expresiones de grupo</Label>
+          <Label>{t('tablix.groupProps.expressions')}</Label>
           <Button
             variant="outline"
             size="xs"
@@ -178,35 +181,38 @@ function GeneralTab({
               }))
             }
           >
-            <Plus /> Añadir
+            <Plus /> {t('tablix.add')}
           </Button>
         </div>
+        {/* Barrido (Keep): «Group on»/«And on» son jerga del XML, no se traducen. */}
         <p className="text-[11px] text-muted-foreground">
-          La primera es «Group on»; las siguientes acotan más el grupo («And on»).
+          {t('tablix.groupProps.expressionsNote')}
         </p>
 
         {draft.expressions.map((row, index) => (
           <div key={row.id} className="flex items-center gap-1">
             <span className="w-16 shrink-0 text-[11px] text-muted-foreground">
-              {index === 0 ? 'Group on' : 'And on'}
+              {index === 0 ? t('tablix.groupProps.groupOn') : t('tablix.groupProps.andOn')}
             </span>
             <VariableSelect
               variables={variables}
               value={row.expression}
               onChange={(next) => setExpression(index, next)}
               ariaLabel={
-                index === 0 ? 'Expresión de grupo' : `Expresión de grupo adicional ${index}`
+                index === 0
+                  ? t('tablix.groupProps.expression')
+                  : t('tablix.groupProps.expressionExtra', { index })
               }
             />
             <FxButton
-              label={`Editar la expresión ${index + 1} con el editor`}
+              label={t('tablix.groupProps.editExpression', { index: index + 1 })}
               onClick={() => setFxIndex(index)}
             />
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label={`Eliminar la expresión ${index + 1}`}
-              title="Eliminar esta expresión"
+              aria-label={t('tablix.groupProps.deleteExpression', { index: index + 1 })}
+              title={t('tablix.groupProps.deleteExpressionHint')}
               disabled={draft.expressions.length <= 1}
               onClick={() =>
                 setDraft((current) => ({
@@ -224,7 +230,7 @@ function GeneralTab({
 
       {fxIndex !== null ? (
         <ExpressionDialog
-          title={`Expresión de grupo ${fxIndex + 1}`}
+          title={t('tablix.groupProps.expressionTitle', { index: fxIndex + 1 })}
           value={draft.expressions[fxIndex]?.expression ?? ''}
           onClose={() => setFxIndex(null)}
           onApply={(value) => {
@@ -238,6 +244,7 @@ function GeneralTab({
 }
 
 function PageBreaksTab({ draft, setDraft }: TabProps): ReactNode {
+  const t = useT();
   const toggle = (key: keyof GroupPageBreakDraft) => (checked: boolean) =>
     setDraft((current) => ({
       ...current,
@@ -247,24 +254,24 @@ function PageBreaksTab({ draft, setDraft }: TabProps): ReactNode {
   return (
     <fieldset className="grid gap-3">
       <legend className="mb-1 text-xs font-medium text-muted-foreground">
-        Las opciones se escriben como `PageBreak → BreakLocation` del grupo.
+        {t('tablix.groupProps.breaksNote')}
       </legend>
       <CheckField
         id="break-between"
-        label="Entre cada instancia del grupo"
+        label={t('tablix.groupProps.breakBetween')}
         checked={draft.pageBreaks.between}
         onChange={toggle('between')}
       />
       <div className="ml-6 grid gap-3">
         <CheckField
           id="break-start"
-          label="También al inicio del grupo"
+          label={t('tablix.groupProps.breakStart')}
           checked={draft.pageBreaks.start}
           onChange={toggle('start')}
         />
         <CheckField
           id="break-end"
-          label="También al final del grupo"
+          label={t('tablix.groupProps.breakEnd')}
           checked={draft.pageBreaks.end}
           onChange={toggle('end')}
         />
@@ -278,6 +285,7 @@ function SortingTab({
   draft,
   setDraft,
 }: TabProps & { variables: VariableEntry[] }): ReactNode {
+  const t = useT();
   const [fxIndex, setFxIndex] = useState<number | null>(null);
 
   const update = (index: number, patch: Partial<GroupSortDraft>): void =>
@@ -301,7 +309,7 @@ function SortingTab({
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
-        <Label>Columnas de ordenación</Label>
+        <Label>{t('tablix.groupProps.sortColumns')}</Label>
         <Button
           variant="outline"
           size="xs"
@@ -312,47 +320,46 @@ function SortingTab({
             }))
           }
         >
-          <Plus /> Añadir
+          <Plus /> {t('tablix.add')}
         </Button>
       </div>
 
       {draft.sorting.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground">
-          Sin ordenación: el grupo respeta el orden del dataset.
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t('tablix.groupProps.noSorting')}</p>
       ) : null}
 
       {draft.sorting.map((sort, index) => (
         <div key={sort.id} className="flex items-center gap-1">
           <span className="w-16 shrink-0 text-[11px] text-muted-foreground">
-            {index === 0 ? 'Ordenar por' : 'Y por'}
+            {index === 0 ? t('tablix.groupProps.sortBy') : t('tablix.groupProps.thenBy')}
           </span>
           <VariableSelect
             variables={variables}
             value={sort.expression}
             onChange={(expression) => update(index, { expression })}
-            ariaLabel={`Expresión de ordenación ${index + 1}`}
+            ariaLabel={t('tablix.groupProps.sortExpression', { index: index + 1 })}
           />
           <select
-            aria-label={`Dirección de la ordenación ${index + 1}`}
+            aria-label={t('tablix.groupProps.sortDirection', { index: index + 1 })}
             value={sort.direction}
             onChange={(event) =>
               update(index, { direction: event.target.value as GroupSortDraft['direction'] })
             }
             className="h-7 shrink-0 rounded-md border bg-background px-1 text-xs"
           >
+            {/* Símbolos, no texto: iguales en EN y ES. */}
             <option value="Ascending">A → Z</option>
             <option value="Descending">Z → A</option>
           </select>
           <FxButton
-            label={`Editar la ordenación ${index + 1} con el editor`}
+            label={t('tablix.groupProps.editSort', { index: index + 1 })}
             onClick={() => setFxIndex(index)}
           />
           <Button
             variant="ghost"
             size="icon-xs"
-            aria-label={`Subir la ordenación ${index + 1}`}
-            title="Subir"
+            aria-label={t('tablix.groupProps.moveSortUp', { index: index + 1 })}
+            title={t('tablix.groupProps.moveUpHint')}
             disabled={index === 0}
             onClick={() => move(index, -1)}
           >
@@ -361,8 +368,8 @@ function SortingTab({
           <Button
             variant="ghost"
             size="icon-xs"
-            aria-label={`Bajar la ordenación ${index + 1}`}
-            title="Bajar"
+            aria-label={t('tablix.groupProps.moveSortDown', { index: index + 1 })}
+            title={t('tablix.groupProps.moveDownHint')}
             disabled={index === draft.sorting.length - 1}
             onClick={() => move(index, 1)}
           >
@@ -371,8 +378,8 @@ function SortingTab({
           <Button
             variant="ghost"
             size="icon-xs"
-            aria-label={`Eliminar la ordenación ${index + 1}`}
-            title="Eliminar"
+            aria-label={t('tablix.groupProps.deleteSort', { index: index + 1 })}
+            title={t('tablix.groupProps.deleteHint')}
             onClick={() =>
               setDraft((current) => ({
                 ...current,
@@ -388,7 +395,7 @@ function SortingTab({
 
       {fxIndex !== null ? (
         <ExpressionDialog
-          title={`Ordenación ${fxIndex + 1}`}
+          title={t('tablix.groupProps.sortTitle', { index: fxIndex + 1 })}
           value={draft.sorting[fxIndex]?.expression ?? ''}
           onClose={() => setFxIndex(null)}
           onApply={(value) => {
@@ -406,6 +413,7 @@ function VisibilityTab({
   setDraft,
   itemNames,
 }: TabProps & { itemNames: string[] }): ReactNode {
+  const t = useT();
   const [fxOpen, setFxOpen] = useState(false);
   const mode = draft.hidden === null ? 'show' : draft.hidden === true ? 'hide' : 'expression';
 
@@ -428,19 +436,19 @@ function VisibilityTab({
     <div className="grid gap-5">
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-xs font-medium text-muted-foreground">
-          Cuando el informe se ejecuta por primera vez
+          {t('tablix.groupProps.visibilityLegend')}
         </legend>
         <RadioField
           name="group-visibility"
           value="show"
-          label="Mostrar"
+          label={t('tablix.groupProps.show')}
           checked={mode === 'show'}
           onChange={() => setMode('show')}
         />
         <RadioField
           name="group-visibility"
           value="hide"
-          label="Ocultar"
+          label={t('tablix.groupProps.hide')}
           checked={mode === 'hide'}
           onChange={() => setMode('hide')}
         />
@@ -448,11 +456,14 @@ function VisibilityTab({
           <RadioField
             name="group-visibility"
             value="expression"
-            label="Mostrar u ocultar según una expresión"
+            label={t('tablix.groupProps.showByExpression')}
             checked={mode === 'expression'}
             onChange={() => setMode('expression')}
           />
-          <FxButton label="Editar la expresión de visibilidad" onClick={() => setFxOpen(true)} />
+          <FxButton
+            label={t('tablix.groupProps.editVisibilityExpression')}
+            onClick={() => setFxOpen(true)}
+          />
         </div>
         {typeof draft.hidden === 'string' && draft.hidden !== '=' ? (
           <code className="ml-6 truncate text-[11px] text-muted-foreground">{draft.hidden}</code>
@@ -462,7 +473,7 @@ function VisibilityTab({
       <div className="grid gap-1">
         <CheckField
           id="toggle-item"
-          label="La visibilidad se puede alternar con este elemento del informe"
+          label={t('tablix.groupProps.toggleItem')}
           checked={toggleItem !== null}
           onChange={(checked) =>
             setDraft((current) => ({
@@ -472,7 +483,7 @@ function VisibilityTab({
           }
         />
         <select
-          aria-label="Elemento que alterna la visibilidad"
+          aria-label={t('tablix.groupProps.toggleItemAria')}
           value={toggleItem ?? ''}
           disabled={toggleItem === null}
           onChange={(event) =>
@@ -481,7 +492,7 @@ function VisibilityTab({
           className="ml-6 h-7 rounded-md border bg-background px-2 text-xs disabled:opacity-50"
         >
           <option value="" disabled>
-            — elegir elemento —
+            {t('tablix.groupProps.chooseItem')}
           </option>
           {itemNames.map((name) => (
             <option key={name} value={name}>
@@ -493,7 +504,11 @@ function VisibilityTab({
 
       {fxOpen ? (
         <ExpressionDialog
-          title={`Visibilidad del grupo${draft.toggleItem ? ` ${draft.toggleItem}` : ''}`}
+          title={
+            draft.toggleItem
+              ? t('tablix.groupProps.visibilityTitleWithItem', { item: draft.toggleItem })
+              : t('tablix.groupProps.visibilityTitle')
+          }
           value={typeof draft.hidden === 'string' && draft.hidden !== '=' ? draft.hidden : ''}
           onClose={() => setFxOpen(false)}
           onApply={(value) => {
@@ -520,8 +535,14 @@ function VariableSelect({
   onChange: (expression: string) => void;
   ariaLabel: string;
 }): ReactNode {
+  const t = useT();
   const known = variableForExpression(variables, value);
-  const groups = [...new Set(variables.map((variable) => variable.group))];
+  // Grupo (clave estable) → etiqueta ya resuelta por `variableEntries(meta, t)`.
+  const groups = [
+    ...new Map(
+      variables.map((variable) => [variable.group, variable.groupLabel ?? variable.group]),
+    ).entries(),
+  ];
 
   return (
     <select
@@ -532,10 +553,12 @@ function VariableSelect({
       className="h-7 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs"
     >
       <option value="" disabled>
-        {value.trim() === '' ? '— elegir variable —' : 'Expresión personalizada (fx)…'}
+        {value.trim() === ''
+          ? t('tablix.groupProps.chooseVariable')
+          : t('tablix.groupProps.customExpression')}
       </option>
-      {groups.map((group) => (
-        <optgroup key={group} label={group}>
+      {groups.map(([group, label]) => (
+        <optgroup key={group} label={label}>
           {variables
             .filter((variable) => variable.group === group)
             .map((variable) => (
@@ -552,12 +575,13 @@ function VariableSelect({
 
 /** Botón `fx` (editor Monaco de expresiones). */
 function FxButton({ label, onClick }: { label: string; onClick: () => void }): ReactNode {
+  const t = useT();
   return (
     <Button
       variant="ghost"
       size="icon-xs"
       aria-label={label}
-      title="Editar con el editor de expresiones…"
+      title={t('tablix.groupProps.editWithEditor')}
       onClick={onClick}
       className="text-muted-foreground/70 hover:text-foreground"
     >

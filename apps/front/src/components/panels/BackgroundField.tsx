@@ -1,6 +1,7 @@
 import type { ItemDto, StylePatch } from '@rdlc-designer/contracts';
 import { Sigma, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useDeferredColor } from '@/hooks/useDeferredColor';
@@ -22,6 +23,7 @@ export interface BackgroundFieldProps {
  * lanza un comando por paso ni ralentiza el lienzo.
  */
 export function BackgroundField({ item, onSetStyle }: BackgroundFieldProps): ReactNode {
+  const t = useT();
   const current = item.style?.backgroundColor;
   const isExpression = typeof current === 'string' && current.startsWith('=');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -31,10 +33,10 @@ export function BackgroundField({ item, onSetStyle }: BackgroundFieldProps): Rea
 
   return (
     <div className="grid gap-1">
-      <Label className="text-[11px] text-muted-foreground">Color de fondo</Label>
+      <Label className="text-[11px] text-muted-foreground">{t('panels.background.label')}</Label>
       <div className="flex items-center gap-2">
         <label
-          title="Color de fondo"
+          title={t('panels.background.label')}
           className="relative flex h-7 w-14 cursor-pointer items-center justify-center rounded-md border bg-background"
         >
           <span className="h-4 w-9 rounded-sm border" style={{ backgroundColor: color }} />
@@ -42,15 +44,15 @@ export function BackgroundField({ item, onSetStyle }: BackgroundFieldProps): Rea
             type="color"
             className="absolute inset-0 size-full cursor-pointer opacity-0"
             value={color}
-            aria-label="Color de fondo"
+            aria-label={t('panels.background.label')}
             onChange={(event) => change(event.target.value)}
           />
         </label>
         <Button
           variant="outline"
           size="icon-xs"
-          title="Editor de expresiones (con números de línea)"
-          aria-label="Abrir editor de la expresión de color de fondo"
+          title={t('panels.expression.openEditor')}
+          aria-label={t('panels.background.openExpressionEditor')}
           onClick={() => setDialogOpen(true)}
         >
           <Sigma />
@@ -59,13 +61,13 @@ export function BackgroundField({ item, onSetStyle }: BackgroundFieldProps): Rea
           <Button
             variant="ghost"
             size="xs"
-            aria-label="Quitar color de fondo"
+            aria-label={t('panels.background.removeAria')}
             onClick={() => onSetStyle({ backgroundColor: null })}
           >
-            <X /> Quitar
+            <X /> {t('panels.background.remove')}
           </Button>
         ) : (
-          <span className="text-[11px] text-muted-foreground">Sin color</span>
+          <span className="text-[11px] text-muted-foreground">{t('panels.background.none')}</span>
         )}
       </div>
 
@@ -74,20 +76,19 @@ export function BackgroundField({ item, onSetStyle }: BackgroundFieldProps): Rea
           <ExpressionEditor
             value={current}
             mode="expression"
-            ariaLabel="Expresión del color de fondo"
+            ariaLabel={t('panels.background.expressionTitle')}
             onCommit={(value) => {
               if (value.trim() !== '' && value !== current) onSetStyle({ backgroundColor: value });
             }}
           />
-          <p className="text-[11px] text-muted-foreground">
-            Expresión de fondo: en diseño no se evalúa y se pinta por defecto.
-          </p>
+          {/* Barrido de microcopy (guía 0006): trim ligero — el hecho, sin relleno. */}
+          <p className="text-[11px] text-muted-foreground">{t('panels.background.note')}</p>
         </>
       ) : null}
 
       {dialogOpen ? (
         <ExpressionDialog
-          title="Expresión del color de fondo"
+          title={t('panels.background.expressionTitle')}
           value={isExpression ? current : ''}
           onClose={() => setDialogOpen(false)}
           onApply={(value) => {

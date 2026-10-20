@@ -206,6 +206,7 @@ describe('F2.b · setGroupExpression', () => {
       expression: ' = ',
     });
     expect(empty.isLeft()).toBe(true);
+    if (empty.isLeft()) expect(empty.value.reason).toBe('groupExpressionEmpty');
 
     // Tablix7: la cabecera de columna 0 es un miembro estático (sin Group).
     const staticMember = applyCommand(ctx, {
@@ -216,6 +217,7 @@ describe('F2.b · setGroupExpression', () => {
       expression: '=Fields!X.Value',
     });
     expect(staticMember.isLeft()).toBe(true);
+    if (staticMember.isLeft()) expect(staticMember.value.reason).toBe('notAGroup');
 
     const badPath = applyCommand(ctx, {
       cmd: 'setGroupExpression',
@@ -225,6 +227,7 @@ describe('F2.b · setGroupExpression', () => {
       expression: '=Fields!X.Value',
     });
     expect(badPath.isLeft()).toBe(true);
+    if (badPath.isLeft()) expect(badPath.value.reason).toBe('rowPathMissing');
   });
 
   it('rechaza grupos con varias expresiones (no se puede editar sin ambigüedad)', () => {
@@ -240,6 +243,7 @@ describe('F2.b · setGroupExpression', () => {
       },
     );
     expect(applied.isLeft()).toBe(true);
+    if (applied.isLeft()) expect(applied.value.reason).toBe('groupExpressionsMultiple');
   });
 });
 
@@ -335,17 +339,18 @@ describe('F2.b · addRowGroup', () => {
     const { doc, index } = open('SalesCreditMemoESP.rdlc');
     const ctx = { root: doc.root, index };
 
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addRowGroup',
-        id: 'Tablix3',
-        row: 9,
-        expression: '=Fields!A.Value',
-      }).isLeft(),
-    ).toBe(true);
-    expect(
-      applyCommand(ctx, { cmd: 'addRowGroup', id: 'Tablix3', row: 0, expression: ' ' }).isLeft(),
-    ).toBe(true);
+    const outOfRange = applyCommand(ctx, {
+      cmd: 'addRowGroup',
+      id: 'Tablix3',
+      row: 9,
+      expression: '=Fields!A.Value',
+    });
+    expect(outOfRange.isLeft()).toBe(true);
+    if (outOfRange.isLeft()) expect(outOfRange.value.reason).toBe('rowOutOfTablix');
+
+    const blank = applyCommand(ctx, { cmd: 'addRowGroup', id: 'Tablix3', row: 0, expression: ' ' });
+    expect(blank.isLeft()).toBe(true);
+    if (blank.isLeft()) expect(blank.value.reason).toBe('groupExpressionEmpty');
   });
 });
 
@@ -435,17 +440,23 @@ describe('F2.b · deleteRowGroup', () => {
     const ctx = { root: doc.root, index };
 
     // Columna estática de Tablix7 (tiene TablixHeader pero no Group).
-    expect(
-      applyCommand(ctx, {
-        cmd: 'deleteRowGroup',
-        id: 'Tablix7',
-        axis: 'column',
-        path: [0],
-      }).isLeft(),
-    ).toBe(true);
-    expect(
-      applyCommand(ctx, { cmd: 'deleteRowGroup', id: 'Tablix7', axis: 'row', path: [5] }).isLeft(),
-    ).toBe(true);
+    const staticMember = applyCommand(ctx, {
+      cmd: 'deleteRowGroup',
+      id: 'Tablix7',
+      axis: 'column',
+      path: [0],
+    });
+    expect(staticMember.isLeft()).toBe(true);
+    if (staticMember.isLeft()) expect(staticMember.value.reason).toBe('notAGroup');
+
+    const badPath = applyCommand(ctx, {
+      cmd: 'deleteRowGroup',
+      id: 'Tablix7',
+      axis: 'row',
+      path: [5],
+    });
+    expect(badPath.isLeft()).toBe(true);
+    if (badPath.isLeft()) expect(badPath.value.reason).toBe('rowPathMissing');
   });
 });
 
@@ -483,6 +494,7 @@ describe('F2.b.2 · deleteRowGroup eleva las filas y protege la cabecera', () =>
       { cmd: 'deleteRowGroup', id: 'T', axis: 'row', path: [0] },
     );
     expect(applied.isLeft()).toBe(true);
+    if (applied.isLeft()) expect(applied.value.reason).toBe('groupHeaderHasContent');
     // El documento queda intacto: se rechaza antes de tocar nada.
     expect(adapter.serialize(doc)).toBe(before);
   });
@@ -565,24 +577,25 @@ describe('F2.b.2 · setGroupExpressions', () => {
     const { doc, index } = open('SalesCreditMemoESP.rdlc');
     const ctx = { root: doc.root, index };
 
-    expect(
-      applyCommand(ctx, {
-        cmd: 'setGroupExpressions',
-        id: 'Tablix2',
-        axis: 'row',
-        path: [0],
-        expressions: [],
-      }).isLeft(),
-    ).toBe(true);
-    expect(
-      applyCommand(ctx, {
-        cmd: 'setGroupExpressions',
-        id: 'Tablix2',
-        axis: 'row',
-        path: [0],
-        expressions: [' '],
-      }).isLeft(),
-    ).toBe(true);
+    const none = applyCommand(ctx, {
+      cmd: 'setGroupExpressions',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      expressions: [],
+    });
+    expect(none.isLeft()).toBe(true);
+    if (none.isLeft()) expect(none.value.reason).toBe('groupNeedsExpression');
+
+    const blank = applyCommand(ctx, {
+      cmd: 'setGroupExpressions',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      expressions: [' '],
+    });
+    expect(blank.isLeft()).toBe(true);
+    if (blank.isLeft()) expect(blank.value.reason).toBe('groupExpressionEmpty');
   });
 });
 
@@ -888,12 +901,23 @@ describe('F2.b.3 · addRowToGroup (extender un grupo con filas contiguas)', () =
     const { doc, index } = open('SalesCreditMemoESP.rdlc');
     const ctx = { root: doc.root, index };
 
-    expect(
-      applyCommand(ctx, { cmd: 'addRowToGroup', id: 'Tablix1', row: 0, groupPath: [1] }).isLeft(),
-    ).toBe(true);
-    expect(
-      applyCommand(ctx, { cmd: 'addRowToGroup', id: 'Tablix7', row: 0, groupPath: [0] }).isLeft(),
-    ).toBe(true);
+    const leafGroup = applyCommand(ctx, {
+      cmd: 'addRowToGroup',
+      id: 'Tablix1',
+      row: 0,
+      groupPath: [1],
+    });
+    expect(leafGroup.isLeft()).toBe(true);
+    if (leafGroup.isLeft()) expect(leafGroup.value.reason).toBe('rowGroupIsLeaf');
+
+    const oddPath = applyCommand(ctx, {
+      cmd: 'addRowToGroup',
+      id: 'Tablix7',
+      row: 0,
+      groupPath: [0],
+    });
+    expect(oddPath.isLeft()).toBe(true);
+    if (oddPath.isLeft()) expect(oddPath.value.reason).toBe('rowIsThatGroup');
   });
 
   it('rechaza filas no contiguas, ya incluidas o destinos que no son grupo', () => {
@@ -901,45 +925,54 @@ describe('F2.b.3 · addRowToGroup (extender un grupo con filas contiguas)', () =
     const ctx = { root: doc.root, index };
 
     // La fila 0 no toca el rango del grupo [2] (hojas 2-3).
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addRowToGroup',
-        id: 'LinesTable',
-        row: 0,
-        groupPath: [2],
-      }).isLeft(),
-    ).toBe(true);
+    const nonContiguous = applyCommand(ctx, {
+      cmd: 'addRowToGroup',
+      id: 'LinesTable',
+      row: 0,
+      groupPath: [2],
+    });
+    expect(nonContiguous.isLeft()).toBe(true);
+    if (nonContiguous.isLeft()) expect(nonContiguous.value.reason).toBe('onlyContiguousRows');
+
     // Ya está dentro del grupo.
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addRowToGroup',
-        id: 'LinesTable',
-        row: 2,
-        groupPath: [2],
-      }).isLeft(),
-    ).toBe(true);
+    const inside = applyCommand(ctx, {
+      cmd: 'addRowToGroup',
+      id: 'LinesTable',
+      row: 2,
+      groupPath: [2],
+    });
+    expect(inside.isLeft()).toBe(true);
+    if (inside.isLeft()) expect(inside.value.reason).toBe('rowAlreadyInGroup');
+
     // El destino es una fila estática (no un grupo).
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addRowToGroup',
-        id: 'LinesTable',
-        row: 1,
-        groupPath: [0],
-      }).isLeft(),
-    ).toBe(true);
+    const notGroup = applyCommand(ctx, {
+      cmd: 'addRowToGroup',
+      id: 'LinesTable',
+      row: 1,
+      groupPath: [0],
+    });
+    expect(notGroup.isLeft()).toBe(true);
+    if (notGroup.isLeft()) expect(notGroup.value.reason).toBe('notAGroup');
+
     // La fila ya es ese grupo hoja.
-    expect(
-      applyCommand(ctx, { cmd: 'addRowToGroup', id: 'Tablix7', row: 0, groupPath: [0] }).isLeft(),
-    ).toBe(true);
+    const isThatGroup = applyCommand(ctx, {
+      cmd: 'addRowToGroup',
+      id: 'Tablix7',
+      row: 0,
+      groupPath: [0],
+    });
+    expect(isThatGroup.isLeft()).toBe(true);
+    if (isThatGroup.isLeft()) expect(isThatGroup.value.reason).toBe('rowIsThatGroup');
+
     // Fuera de rango.
-    expect(
-      applyCommand(ctx, {
-        cmd: 'addRowToGroup',
-        id: 'LinesTable',
-        row: 9,
-        groupPath: [2],
-      }).isLeft(),
-    ).toBe(true);
+    const outOfRange = applyCommand(ctx, {
+      cmd: 'addRowToGroup',
+      id: 'LinesTable',
+      row: 9,
+      groupPath: [2],
+    });
+    expect(outOfRange.isLeft()).toBe(true);
+    if (outOfRange.isLeft()) expect(outOfRange.value.reason).toBe('rowOutOfTablix');
   });
 
   it('rechaza mover la única fila de un grupo (lo dejaría sin hojas)', () => {
@@ -949,6 +982,7 @@ describe('F2.b.3 · addRowToGroup (extender un grupo con filas contiguas)', () =
       { cmd: 'addRowToGroup', id: 'T', row: 0, groupPath: [1] },
     );
     expect(applied.isLeft()).toBe(true);
+    if (applied.isLeft()) expect(applied.value.reason).toBe('rowOnlyLeafInGroup');
   });
 });
 
@@ -982,18 +1016,21 @@ describe('G11 · setGroupName (renombrar grupo)', () => {
       { cmd: 'setGroupName', id: 'Tablix2', axis: 'row', path: [0], name: 'Tablix2' },
     );
     expect(taken.isLeft()).toBe(true);
+    if (taken.isLeft()) expect(taken.value.reason).toBe('nameTaken');
 
     const blank = applyCommand(
       { root: doc.root, index },
       { cmd: 'setGroupName', id: 'Tablix2', axis: 'row', path: [0], name: '   ' },
     );
     expect(blank.isLeft()).toBe(true);
+    if (blank.isLeft()) expect(blank.value.reason).toBe('groupNameEmpty');
 
     const notGroup = applyCommand(
       { root: doc.root, index },
       { cmd: 'setGroupName', id: 'Tablix3', axis: 'row', path: [0], name: 'Otro' },
     );
     expect(notGroup.isLeft()).toBe(true);
+    if (notGroup.isLeft()) expect(notGroup.value.reason).toBe('notAGroup');
   });
 });
 

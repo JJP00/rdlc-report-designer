@@ -80,12 +80,12 @@ export function applySetStyle(
   command: SetStyleCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const unsupported = Object.keys(command.style).filter((key) => !SUPPORTED_KEYS.has(key));
   if (unsupported.length > 0) {
     return left(
-      CommandRejectedError.create(`setStyle no soporta todavía: ${unsupported.join(', ')}`),
+      CommandRejectedError.of('styleUnsupported', { properties: unsupported.join(', ') }),
     );
   }
 

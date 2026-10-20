@@ -96,12 +96,14 @@ describe('F2 · resizeColumn / resizeRow', () => {
       { cmd: 'resizeColumn', id: 'Tablix2', column: 99, width: { value: 1, unit: 'cm' } },
     );
     expect(column.isLeft()).toBe(true);
+    if (column.isLeft()) expect(column.value.reason).toBe('tablixHasNoColumn');
 
     const row = applyCommand(
       { root: doc.root, index },
       { cmd: 'resizeRow', id: 'Tablix2', row: 99, height: { value: 1, unit: 'cm' } },
     );
     expect(row.isLeft()).toBe(true);
+    if (row.isLeft()) expect(row.value.reason).toBe('tablixHasNoRow');
   });
 
   it('no baja del tamaño mínimo', () => {

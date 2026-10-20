@@ -1,5 +1,6 @@
 import { Eye, EyeOff, Sigma } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Button } from '@/components/ui/button';
 import { ExpressionDialog } from './ExpressionDialog';
 
@@ -22,6 +23,7 @@ export function MemberVisibilityControl({
   label,
   onChange,
 }: MemberVisibilityControlProps): ReactNode {
+  const t = useT();
   const [dialogOpen, setDialogOpen] = useState(false);
   const isExpression = typeof hidden === 'string';
   const isHidden = hidden === true || isExpression;
@@ -31,11 +33,17 @@ export function MemberVisibilityControl({
       <Button
         variant="ghost"
         size="icon-xs"
-        aria-label={isHidden ? `Mostrar ${label}` : `Ocultar ${label}`}
+        aria-label={
+          isHidden
+            ? t('panels.memberVisibility.show', { label })
+            : t('panels.memberVisibility.hide', { label })
+        }
         title={
           isHidden
-            ? `${label} oculta (${isExpression ? 'por expresión' : 'oculta'}): click = visible`
-            : `${label} visible: click = oculta`
+            ? isExpression
+              ? t('panels.memberVisibility.titleHiddenExpression', { label })
+              : t('panels.memberVisibility.titleHiddenLiteral', { label })
+            : t('panels.memberVisibility.titleVisible', { label })
         }
         onClick={() => onChange(isHidden ? null : true)}
         className="text-muted-foreground/70 hover:text-foreground"
@@ -45,8 +53,8 @@ export function MemberVisibilityControl({
       <Button
         variant="ghost"
         size="icon-xs"
-        aria-label={`Expresión de visibilidad de la ${label}`}
-        title="Visibilidad por expresión…"
+        aria-label={t('panels.memberVisibility.expressionAria', { label })}
+        title={t('panels.memberVisibility.expressionTitle')}
         onClick={() => setDialogOpen(true)}
         className="text-muted-foreground/70 hover:text-foreground"
       >
@@ -55,7 +63,7 @@ export function MemberVisibilityControl({
 
       {dialogOpen ? (
         <ExpressionDialog
-          title={`Visibilidad de la ${label}`}
+          title={t('panels.memberVisibility.dialogTitle', { label })}
           value={isExpression ? hidden : ''}
           onClose={() => setDialogOpen(false)}
           onApply={(value) => {

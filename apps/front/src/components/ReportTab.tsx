@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import type { TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
 import { useMemo, type ReactNode } from 'react';
 import { CanvasColumn } from '@/components/CanvasColumn';
@@ -163,6 +164,7 @@ function ReportBody({
 }: ReportTabProps): ReactNode {
   const { doc, status, error, dirty, conflict, fileMissing, reloads, hasBackend, setError } = core;
   const { selectedId, selectedIds, selectedItems, movableIds, selectedCell } = items;
+  const t = useT();
   const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
 
   /** Qué edita el panel de lote: multiselección de items o contenidos de celdas. */
@@ -232,7 +234,11 @@ function ReportBody({
         status={status}
         path={doc?.path ?? null}
         dirty={dirty}
-        stats={stats ? `${stats.total} elementos · ${formatKinds(stats.byKind)}` : null}
+        stats={
+          stats
+            ? t('app.status.stats', { count: stats.total, kinds: formatKinds(stats.byKind) })
+            : null
+        }
         reloads={reloads}
       />
     </>

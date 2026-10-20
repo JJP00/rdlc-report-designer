@@ -50,6 +50,11 @@ nsis:
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
   shortcutName: RDLC Report Designer
+  # Instalador multi-idioma EN/ES (fase 1.5 de i18n); el nombre del producto no
+  # cambia. El MSI de WiX es mono-idioma en electron-builder (no admite
+  # `installerLanguages`): se queda como está.
+  installerLanguages: [en_US, es_ES]
+  multiLanguageInstaller: true
   artifactName: RDLC-Report-Designer-${version}-setup.${ext}
 
 msi:

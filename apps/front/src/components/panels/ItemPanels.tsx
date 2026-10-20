@@ -6,6 +6,7 @@ import type {
   TextboxDto,
 } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { ImagePanel, type ImageOptionsPatch } from '@/components/panels/ImagePanel';
 import { PropertiesPanel, type ItemOptionsPatch } from '@/components/panels/PropertiesPanel';
 import { TextPanel } from '@/components/panels/TextPanel';
@@ -55,12 +56,9 @@ export function ItemPanels({
   embeddedImages,
   onEditText,
 }: ItemPanelsProps): ReactNode {
+  const t = useT();
   if (!item) {
-    return (
-      <p className="p-4 text-xs text-muted-foreground">
-        Selecciona un elemento en el lienzo para editar sus propiedades.
-      </p>
-    );
+    return <p className="p-4 text-xs text-muted-foreground">{t('panels.item.empty')}</p>;
   }
 
   return (

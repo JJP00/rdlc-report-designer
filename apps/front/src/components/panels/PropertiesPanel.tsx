@@ -1,4 +1,5 @@
 import type { ItemDto, Length, StylePatch } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -53,10 +54,11 @@ export function PropertiesPanel({
   onSetItemOptions,
   onSetPageBreak,
 }: PropertiesPanelProps): ReactNode {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">Propiedades</span>
+        <span className="text-sm font-semibold">{t('panels.properties.title')}</span>
         <Badge variant="outline">{item.kind}</Badge>
       </div>
 
@@ -64,16 +66,19 @@ export function PropertiesPanel({
 
       <Separator />
 
-      <div className="text-xs font-medium text-muted-foreground">Posición y tamaño (cm)</div>
+      <div className="text-xs font-medium text-muted-foreground">
+        {t('panels.properties.positionAndSize')}
+      </div>
       {cellContent ? (
         <p className="rounded-md border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
-          La celda fija la posición y el tamaño del contenido (igual que en Report Builder).
+          {/* Barrido de microcopy (guía 0006): trim — sobraba el paréntesis «igual que en Report Builder». */}
+          {t('panels.properties.cellNote')}
         </p>
       ) : null}
       <div className="grid grid-cols-2 gap-2">
         <LengthField
           key={`${item.id}-left`}
-          label="X"
+          label={t('panels.properties.x')}
           value={toCm(item.left)}
           disabled={cellContent}
           axis="x"
@@ -82,7 +87,7 @@ export function PropertiesPanel({
         />
         <LengthField
           key={`${item.id}-top`}
-          label="Y"
+          label={t('panels.properties.y')}
           value={toCm(item.top)}
           disabled={cellContent}
           axis="y"
@@ -91,7 +96,7 @@ export function PropertiesPanel({
         />
         <LengthField
           key={`${item.id}-width`}
-          label="Ancho"
+          label={t('panels.properties.width')}
           value={toCm(item.width)}
           disabled={cellContent}
           axis="x"
@@ -99,7 +104,7 @@ export function PropertiesPanel({
         />
         <LengthField
           key={`${item.id}-height`}
-          label="Alto"
+          label={t('panels.properties.height')}
           value={toCm(item.height)}
           disabled={cellContent}
           axis="y"
@@ -108,26 +113,30 @@ export function PropertiesPanel({
       </div>
 
       {item.zIndex !== undefined ? (
-        <div className="text-xs text-muted-foreground">ZIndex: {item.zIndex}</div>
+        <div className="text-xs text-muted-foreground">
+          {t('panels.properties.zIndex', { index: item.zIndex })}
+        </div>
       ) : null}
 
       {PAGE_BREAK_KINDS.has(item.kind) ? (
         <>
           <Separator />
           <div className="grid gap-1">
-            <Label className="text-[11px] text-muted-foreground">Salto de página</Label>
+            <Label className="text-[11px] text-muted-foreground">
+              {t('panels.properties.pageBreak')}
+            </Label>
             <select
               className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
-              aria-label="Salto de página"
+              aria-label={t('panels.properties.pageBreak')}
               value={item.pageBreak ?? 'None'}
               onChange={(event) =>
                 onSetPageBreak(event.target.value as 'Start' | 'End' | 'Between' | 'None')
               }
             >
-              <option value="None">Sin salto</option>
-              <option value="Start">Al inicio</option>
-              <option value="End">Al final</option>
-              <option value="Between">Entre instancias</option>
+              <option value="None">{t('panels.properties.pageBreakNone')}</option>
+              <option value="Start">{t('panels.properties.pageBreakStart')}</option>
+              <option value="End">{t('panels.properties.pageBreakEnd')}</option>
+              <option value="Between">{t('panels.properties.pageBreakBetween')}</option>
             </select>
           </div>
         </>
@@ -136,16 +145,18 @@ export function PropertiesPanel({
       {item.kind === 'textbox' ? (
         <>
           <Separator />
-          <div className="text-xs font-medium text-muted-foreground">Opciones</div>
+          <div className="text-xs font-medium text-muted-foreground">
+            {t('panels.properties.options')}
+          </div>
           <OptionField
             id="can-grow"
-            label="Crecer con el texto"
+            label={t('panels.properties.canGrow')}
             checked={item.canGrow ?? false}
             onChange={(canGrow) => onSetItemOptions({ canGrow })}
           />
           <OptionField
             id="keep-together"
-            label="Mantener junto"
+            label={t('panels.properties.keepTogether')}
             checked={item.keepTogether ?? false}
             onChange={(keepTogether) => onSetItemOptions({ keepTogether })}
           />
@@ -153,7 +164,9 @@ export function PropertiesPanel({
       ) : null}
 
       <Separator />
-      <div className="text-xs font-medium text-muted-foreground">Apariencia</div>
+      <div className="text-xs font-medium text-muted-foreground">
+        {t('panels.properties.appearance')}
+      </div>
       {/* `key` por item: al cambiar de selección el borrador diferido de color
           se entrega al item anterior (flush del desmontaje) en vez de pintar
           el nuevo (BUG-38). */}
@@ -203,6 +216,7 @@ function NameField({
   name: string;
   onCommit: (name: string) => void;
 }): ReactNode {
+  const t = useT();
   // Borrador mientras se teclea; el resto del tiempo manda la proyección.
   const [draft, setDraft] = useState<string | null>(null);
   const text = draft ?? name;
@@ -217,8 +231,8 @@ function NameField({
     <Input
       className="h-7 font-mono text-xs"
       value={text}
-      aria-label="Nombre del elemento"
-      title="Nombre del elemento (único). Las referencias existentes (ReportItems!…) no se reescriben."
+      aria-label={t('panels.properties.nameLabel')}
+      title={t('panels.properties.nameTitle')}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {

@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { cn } from 'cn';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 
@@ -90,6 +91,7 @@ function DialogContent({
   } | null>(null);
   /** Tamaño preferido por el usuario (px); el viewport lo recorta (BUG-62). */
   const [size, setSize] = React.useState<DialogSize | null>(null);
+  const t = useT();
 
   // Al cerrar, Radix desmonta el contenido (este contenedor sigue montado): el
   // tamaño vuelve al estado original, así el diálogo reabre como la primera vez
@@ -196,10 +198,10 @@ function DialogContent({
               variant="ghost"
               className="absolute top-2 right-2"
               size="icon-sm"
-              aria-label="Cerrar"
+              aria-label={t('common.close')}
             >
               <XIcon />
-              <span className="sr-only">Cerrar</span>
+              <span className="sr-only">{t('common.close')}</span>
             </Button>
           </DialogPrimitive.Close>
         )}
@@ -207,9 +209,9 @@ function DialogContent({
           <div
             data-rdlc-dialog-grip=""
             role="separator"
-            aria-label="Redimensionar el diálogo"
+            aria-label={t('lib.dialog.resizeAria')}
             aria-orientation="horizontal"
-            title="Arrastra para redimensionar (doble clic: tamaño original)"
+            title={t('lib.dialog.resizeTitle')}
             tabIndex={-1}
             className="absolute right-0 bottom-0 z-10 flex size-4 cursor-se-resize items-end justify-end text-muted-foreground/70 outline-none select-none hover:text-foreground"
             onPointerDown={startResize}
@@ -303,6 +305,8 @@ function DialogFooter({
 }: React.ComponentProps<'div'> & {
   showCloseButton?: boolean;
 }) {
+  const t = useT();
+
   return (
     <div
       data-slot="dialog-footer"
@@ -315,7 +319,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
+          <Button variant="outline">{t('common.close')}</Button>
         </DialogPrimitive.Close>
       )}
     </div>

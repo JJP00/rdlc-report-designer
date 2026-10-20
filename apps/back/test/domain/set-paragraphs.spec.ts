@@ -158,17 +158,23 @@ describe('setParagraphs · texto mixto', () => {
       { cmd: 'setParagraphs', id: 'LinesTable', paragraphs: [{ runs: [{ value: 'x' }] }] },
     );
     expect(notTextbox.isLeft()).toBe(true);
+    if (notTextbox.isLeft()) expect(notTextbox.value.reason).toBe('notATextbox');
 
     const noRuns = applyCommand(
       { root: doc.root, index },
       { cmd: 'setParagraphs', id: 'TextboxVATClauseDesc', paragraphs: [{ runs: [] }] },
     );
     expect(noRuns.isLeft()).toBe(true);
+    if (noRuns.isLeft()) {
+      expect(noRuns.value.reason).toBe('paragraphWithoutRuns');
+      expect(noRuns.value.params).toEqual({ index: 1 });
+    }
 
     const noParagraphs = applyCommand(
       { root: doc.root, index },
       { cmd: 'setParagraphs', id: 'TextboxVATClauseDesc', paragraphs: [] },
     );
     expect(noParagraphs.isLeft()).toBe(true);
+    if (noParagraphs.isLeft()) expect(noParagraphs.value.reason).toBe('paragraphsEmpty');
   });
 });

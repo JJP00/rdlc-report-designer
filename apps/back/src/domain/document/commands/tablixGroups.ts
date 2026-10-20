@@ -80,16 +80,12 @@ export function applySetGroupExpression(
 
   const existing = group.child('GroupExpressions')?.children('GroupExpression') ?? [];
   if (existing.length > 1) {
-    return left(
-      CommandRejectedError.create(
-        'El grupo tiene varias expresiones: edítalas desde «Propiedades del grupo»',
-      ),
-    );
+    return left(CommandRejectedError.of('groupExpressionsMultiple'));
   }
 
   const expression = normalizedExpression(command.expression);
   if (expression === null) {
-    return left(CommandRejectedError.create('La expresión del grupo no puede estar vacía'));
+    return left(CommandRejectedError.of('groupExpressionEmpty'));
   }
 
   const previous = existing[0]?.text();
@@ -115,12 +111,12 @@ export function applySetGroupExpressions(
   const { member, group } = found.value;
 
   if (command.expressions.length === 0) {
-    return left(CommandRejectedError.create('El grupo necesita al menos una expresión'));
+    return left(CommandRejectedError.of('groupNeedsExpression'));
   }
 
   const expressions = normalizedExpressions(command.expressions);
   if (expressions === null) {
-    return left(CommandRejectedError.create('La expresión del grupo no puede estar vacía'));
+    return left(CommandRejectedError.of('groupExpressionEmpty'));
   }
 
   const previous =
@@ -174,32 +170,38 @@ function addLeafGroup(
   wanted: string,
 ): Either<DomainError, CommandOutcome> {
   const tablix = ctx.index.get(id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id }));
 
-  const labels = leafLabels(axis);
   const hierarchy = tablix.child(axis === 'row' ? 'TablixRowHierarchy' : 'TablixColumnHierarchy');
   const leaves = axis === 'row' ? tablixRows(tablix) : tablixColumns(tablix);
   if (!hierarchy?.child('TablixMembers')) {
     return left(
-      CommandRejectedError.create(`El Tablix '${id}' no tiene jerarquía de ${labels.many}`),
+      CommandRejectedError.of(
+        axis === 'row' ? 'tablixHasNoRowHierarchy' : 'tablixHasNoColumnHierarchy',
+        { id },
+      ),
     );
   }
   if (index >= leaves.length) {
     return left(
-      CommandRejectedError.create(`La ${labels.one} ${index} está fuera del Tablix '${id}'`),
+      CommandRejectedError.of(
+        axis === 'row' ? 'rowOutOfTablix' : 'columnOutOfTablix',
+        axis === 'row' ? { id, row: index } : { id, column: index },
+      ),
     );
   }
 
   const expression = normalizedExpression(wanted);
   if (expression === null) {
-    return left(CommandRejectedError.create('La expresión del grupo no puede estar vacía'));
+    return left(CommandRejectedError.of('groupExpressionEmpty'));
   }
 
   const leaf = leafAt(hierarchy, index);
   if (!leaf) {
     return left(
-      CommandRejectedError.create(
-        `La jerarquía del Tablix '${id}' no tiene miembro para la ${labels.one} ${index}`,
+      CommandRejectedError.of(
+        axis === 'row' ? 'rowHierarchyMemberMissing' : 'columnHierarchyMemberMissing',
+        axis === 'row' ? { id, row: index } : { id, column: index },
       ),
     );
   }
@@ -267,60 +269,64 @@ function addLeafToGroup(
   groupPath: number[],
 ): Either<DomainError, CommandOutcome> {
   const tablix = ctx.index.get(id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id }));
 
-  const labels = leafLabels(axis);
   const hierarchy = tablix.child(axis === 'row' ? 'TablixRowHierarchy' : 'TablixColumnHierarchy');
   const root = hierarchy?.child('TablixMembers');
   const leaves = axis === 'row' ? tablixRows(tablix) : tablixColumns(tablix);
   if (!hierarchy || !root) {
     return left(
-      CommandRejectedError.create(`El Tablix '${id}' no tiene jerarquía de ${labels.many}`),
+      CommandRejectedError.of(
+        axis === 'row' ? 'tablixHasNoRowHierarchy' : 'tablixHasNoColumnHierarchy',
+        { id },
+      ),
     );
   }
   if (index >= leaves.length) {
     return left(
-      CommandRejectedError.create(`La ${labels.one} ${index} está fuera del Tablix '${id}'`),
+      CommandRejectedError.of(
+        axis === 'row' ? 'rowOutOfTablix' : 'columnOutOfTablix',
+        axis === 'row' ? { id, row: index } : { id, column: index },
+      ),
     );
   }
 
   const leaf = leafAt(hierarchy, index);
   if (!leaf) {
     return left(
-      CommandRejectedError.create(
-        `La jerarquía del Tablix '${id}' no tiene miembro para la ${labels.one} ${index}`,
+      CommandRejectedError.of(
+        axis === 'row' ? 'rowHierarchyMemberMissing' : 'columnHierarchyMemberMissing',
+        axis === 'row' ? { id, row: index } : { id, column: index },
       ),
     );
   }
 
   const target = memberAt(root, groupPath);
   if (!target?.child('Group')) {
-    return left(CommandRejectedError.create('El destino no es un grupo: no declara <Group>'));
+    return left(CommandRejectedError.of('notAGroup'));
   }
   if (target.equals(leaf.member)) {
-    return left(CommandRejectedError.create(`La ${labels.one} ya es ese grupo`));
+    return left(CommandRejectedError.of(axis === 'row' ? 'rowIsThatGroup' : 'columnIsThatGroup'));
   }
 
   // Un grupo hoja (sin miembros) ES su hoja: añadirle hijos la haría desaparecer.
   const nested = target.child('TablixMembers');
   if (!nested) {
-    return left(
-      CommandRejectedError.create(
-        `El grupo es una ${labels.one} (grupo hoja): no se le pueden añadir más ${labels.many}`,
-      ),
-    );
+    return left(CommandRejectedError.of(axis === 'row' ? 'rowGroupIsLeaf' : 'columnGroupIsLeaf'));
   }
 
   const range = memberLeafRange(hierarchy, target);
   if (!range) {
-    return left(CommandRejectedError.create('No se pudo localizar el rango de hojas del grupo'));
+    return left(CommandRejectedError.of('groupLeafRangeMissing'));
   }
   if (index >= range.start && index <= range.end) {
-    return left(CommandRejectedError.create(`La ${labels.one} ya está dentro del grupo`));
+    return left(
+      CommandRejectedError.of(axis === 'row' ? 'rowAlreadyInGroup' : 'columnAlreadyInGroup'),
+    );
   }
   if (index !== range.start - 1 && index !== range.end + 1) {
     return left(
-      CommandRejectedError.create(`Solo se pueden añadir ${labels.many} contiguas al grupo`),
+      CommandRejectedError.of(axis === 'row' ? 'onlyContiguousRows' : 'onlyContiguousColumns'),
     );
   }
 
@@ -330,7 +336,7 @@ function addLeafToGroup(
     leaf.container.parent?.tagName === 'TablixMember'
   ) {
     return left(
-      CommandRejectedError.create(`La ${labels.one} es la única de su grupo: muévela con el grupo`),
+      CommandRejectedError.of(axis === 'row' ? 'rowOnlyLeafInGroup' : 'columnOnlyLeafInGroup'),
     );
   }
 
@@ -342,14 +348,6 @@ function addLeafToGroup(
     inverse: [moveNode(leaf.member, position.container, position.index)],
     snapshotOut: true,
   });
-}
-
-/** Singular/plural de la hoja según el eje (mensajes de rechazo). */
-function leafLabels(axis: 'row' | 'column'): {
-  one: 'fila' | 'columna';
-  many: 'filas' | 'columnas';
-} {
-  return axis === 'row' ? { one: 'fila', many: 'filas' } : { one: 'columna', many: 'columnas' };
 }
 
 /* ------------------------------ setGroupName ----------------------------- */
@@ -370,7 +368,7 @@ export function applySetGroupName(
 
   const name = command.name.trim();
   if (name === '') {
-    return left(CommandRejectedError.create('El nombre del grupo no puede estar vacío'));
+    return left(CommandRejectedError.of('groupNameEmpty'));
   }
 
   const previous = group.attribute('Name');
@@ -381,9 +379,7 @@ export function applySetGroupName(
   // colisión es **sin distinguir mayúsculas** (RB resuelve con VB).
   const groupWithName = findGroupByName(ctx.root, name);
   if (ctx.index.has(name) || (groupWithName && !groupWithName.equals(group))) {
-    return left(
-      CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${name}'`),
-    );
+    return left(CommandRejectedError.of('nameTaken', { name }));
   }
 
   group.setAttribute('Name', name);
@@ -411,11 +407,7 @@ export function applyDeleteRowGroup(
   const children = member.child('TablixMembers')?.children('TablixMember') ?? [];
   if (children.length > 0) {
     if (headerHasContent(member)) {
-      return left(
-        CommandRejectedError.create(
-          'El grupo tiene una cabecera fuera de la rejilla con contenido: bórrala antes de quitar el grupo',
-        ),
-      );
+      return left(CommandRejectedError.of('groupHeaderHasContent'));
     }
     return right(hoistGroup(member, children));
   }
@@ -513,7 +505,7 @@ export function applySetGroupSorting(
   for (const sort of command.sorts) {
     const expression = normalizedExpression(sort.expression);
     if (expression === null) {
-      return left(CommandRejectedError.create('La expresión de ordenación no puede estar vacía'));
+      return left(CommandRejectedError.of('sortExpressionEmpty'));
     }
     sorts.push({ expression, direction: sort.direction ?? 'Ascending' });
   }
@@ -572,28 +564,31 @@ function findGroup(
   path: number[],
 ): Either<DomainError, FoundGroup> {
   const tablix = ctx.index.get(id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id }));
 
   const root = tablixHierarchy(tablix, axis);
   if (!root) {
     return left(
-      CommandRejectedError.create(
-        `El Tablix '${id}' no tiene jerarquía de ${axis === 'row' ? 'filas' : 'columnas'}`,
+      CommandRejectedError.of(
+        axis === 'row' ? 'tablixHasNoRowHierarchy' : 'tablixHasNoColumnHierarchy',
+        { id },
       ),
     );
   }
 
   const member = memberAt(root, path);
   if (!member) {
-    const what = axis === 'row' ? 'fila' : 'columna';
     return left(
-      CommandRejectedError.create(`No hay ${what} en la ruta ${path.join('.')} del Tablix '${id}'`),
+      CommandRejectedError.of(axis === 'row' ? 'rowPathMissing' : 'columnPathMissing', {
+        path: path.join('.'),
+        id,
+      }),
     );
   }
 
   const group = member.child('Group');
   if (!group) {
-    return left(CommandRejectedError.create('El miembro no es un grupo: no declara <Group>'));
+    return left(CommandRejectedError.of('notAGroup'));
   }
 
   return right({ member, group });

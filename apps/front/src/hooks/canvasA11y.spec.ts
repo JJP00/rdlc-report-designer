@@ -1,4 +1,5 @@
 import type { TextboxDto } from '@rdlc-designer/contracts';
+import { createTranslator } from '@rdlc-designer/i18n';
 import { describe, expect, it } from 'vitest';
 import {
   edgeReadingId,
@@ -7,6 +8,9 @@ import {
   nextReadingId,
   selectionAnnouncement,
 } from './canvasA11y';
+
+/** El módulo es puro: los textos llegan por el traductor (aquí, ES). */
+const es = createTranslator('es').t;
 
 const textbox = (id: string, left: number, top: number): TextboxDto => ({
   kind: 'textbox',
@@ -31,13 +35,13 @@ describe('formatCmEs', () => {
       left: { value: 1, unit: 'in' },
     };
     // 1 in = 2,54 cm
-    expect(selectionAnnouncement(inches)).toBe('Textbox1, x 2,54 cm, y 0,00 cm');
+    expect(selectionAnnouncement(inches, es)).toBe('Textbox1, x 2,54 cm, y 0,00 cm');
   });
 });
 
 describe('selectionAnnouncement', () => {
   it('anuncia el nombre y la posición en cm', () => {
-    expect(selectionAnnouncement(textbox('Textbox2', 2, 3.4))).toBe(
+    expect(selectionAnnouncement(textbox('Textbox2', 2, 3.4), es)).toBe(
       'Textbox2, x 2,00 cm, y 3,40 cm',
     );
   });
@@ -86,16 +90,16 @@ describe('edgeReadingId', () => {
 
 describe('insertDestinationLabel', () => {
   it('etiqueta las celdas como la Jerarquía', () => {
-    expect(insertDestinationLabel({ kind: 'tablixCell', id: 'Tablix1', row: 0, col: 1 })).toBe(
+    expect(insertDestinationLabel({ kind: 'tablixCell', id: 'Tablix1', row: 0, col: 1 }, es)).toBe(
       'Celda 1,2',
     );
   });
 
   it('nombra las bandas y los contenedores para el mensaje', () => {
-    expect(insertDestinationLabel({ kind: 'body' })).toBe('el cuerpo');
-    expect(insertDestinationLabel({ kind: 'pageHeader' })).toBe('el encabezado de página');
-    expect(insertDestinationLabel({ kind: 'pageFooter' })).toBe('el pie de página');
-    expect(insertDestinationLabel({ kind: 'rectangle', id: 'Rectangle1' })).toBe(
+    expect(insertDestinationLabel({ kind: 'body' }, es)).toBe('el cuerpo');
+    expect(insertDestinationLabel({ kind: 'pageHeader' }, es)).toBe('el encabezado de página');
+    expect(insertDestinationLabel({ kind: 'pageFooter' }, es)).toBe('el pie de página');
+    expect(insertDestinationLabel({ kind: 'rectangle', id: 'Rectangle1' }, es)).toBe(
       'el rectángulo Rectangle1',
     );
   });

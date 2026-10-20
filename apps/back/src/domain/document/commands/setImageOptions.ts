@@ -23,9 +23,9 @@ export function applySetImageOptions(
   command: SetImageOptionsCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
   if (node.tagName !== 'Image') {
-    return left(CommandRejectedError.create(`'${command.id}' no es una imagen`));
+    return left(CommandRejectedError.of('notAnImage', { id: command.id }));
   }
 
   const patch: Record<string, string | null | undefined> = {

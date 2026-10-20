@@ -22,16 +22,16 @@ export function applySetItemOptions(
   command: SetItemOptionsCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   if (command.canGrow === undefined && command.keepTogether === undefined) {
-    return left(CommandRejectedError.create('No hay ninguna opción que cambiar'));
+    return left(CommandRejectedError.of('noOptionToChange'));
   }
 
   // De momento solo el Textbox las proyecta; el resto se rechaza con motivo
   // (nunca ignorar en silencio).
   if (node.tagName !== 'Textbox') {
-    return left(CommandRejectedError.create(`'${command.id}' no admite CanGrow ni KeepTogether`));
+    return left(CommandRejectedError.of('itemOptionsUnsupported', { id: command.id }));
   }
 
   const inverse: DomainCommand[] = [];
