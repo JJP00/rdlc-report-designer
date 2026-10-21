@@ -350,6 +350,71 @@ describe('hitTestItems', () => {
     expect(hit.scope).toEqual(fallback);
   });
 
+  describe('el anillo del borde con `tablixBorder` (click derecho)', () => {
+    /** Tablix 8×2 con contenido que cubre la celda (0,0) — el borde lo taparía. */
+    function tablixWithContent(): TablixDto {
+      return {
+        kind: 'tablix',
+        id: 'Tablix1',
+        top: { value: 0, unit: 'cm' },
+        left: { value: 0, unit: 'cm' },
+        width: { value: 8, unit: 'cm' },
+        height: { value: 2, unit: 'cm' },
+        body: {
+          columns: [
+            { value: 4, unit: 'cm' },
+            { value: 4, unit: 'cm' },
+          ],
+          rows: [
+            {
+              height: { value: 2, unit: 'cm' },
+              cells: [{ content: box('Dentro', 0, 0, 4, 2) }, { content: null }],
+            },
+          ],
+        },
+        rowHierarchy: [],
+        columnHierarchy: [],
+      };
+    }
+
+    it('sin la opción, el borde sigue siendo de la celda (sin cambios)', () => {
+      const hit = hitTestItems([tablixWithContent()], { x: 0.01, y: 1 }, fallback);
+      expect(hit.item?.id).toBe('Dentro');
+      expect(hit.scope).toEqual({ kind: 'tablixCell', id: 'Tablix1', row: 0, col: 0 });
+    });
+
+    it('con la opción, 1 px dentro del borde manda la tabla', () => {
+      const hit = hitTestItems([tablixWithContent()], { x: 0.01, y: 1 }, fallback, {
+        tablixBorder: true,
+      });
+      expect(hit.item?.id).toBe('Tablix1');
+      expect(hit.scope).toEqual(fallback);
+    });
+
+    it('el anillo alcanza 4 px por fuera del borde', () => {
+      // 0.05 cm ≈ 1,9 px por fuera: sigue siendo el borde.
+      const hit = hitTestItems([tablixWithContent()], { x: -0.05, y: 1 }, fallback, {
+        tablixBorder: true,
+      });
+      expect(hit.item?.id).toBe('Tablix1');
+
+      // 0.2 cm ≈ 7,6 px por fuera: fuera del anillo, ya no es la tabla.
+      const lejos = hitTestItems([tablixWithContent()], { x: -0.2, y: 1 }, fallback, {
+        tablixBorder: true,
+      });
+      expect(lejos.item).toBeUndefined();
+      expect(lejos.scope).toEqual(fallback);
+    });
+
+    it('un item por encima del borde sigue ganando el hit', () => {
+      const encima = box('Encima', -0.05, 0.5, 0.5, 1, 10);
+      const hit = hitTestItems([tablixWithContent(), encima], { x: -0.05, y: 1 }, fallback, {
+        tablixBorder: true,
+      });
+      expect(hit.item?.id).toBe('Encima');
+    });
+  });
+
   it('un item anidado gana en el hit aunque el rectángulo esté detrás', () => {
     const nested = box('Anidado', 0, 0, 5, 5);
     const rectangle: RectangleDto = {

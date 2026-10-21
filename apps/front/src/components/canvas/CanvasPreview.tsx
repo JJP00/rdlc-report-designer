@@ -25,7 +25,7 @@ import { edgeReadingId, nextReadingId, selectionAnnouncement } from '@/hooks/can
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import { topLevelIds } from '@/lib/align';
 import { groupBoxCm, groupResizeCommands, type GroupResizeMember } from '@/lib/groupResize';
-import type { CanvasHit } from '@/lib/hit';
+import type { CanvasHit, HitOptions } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
 import { pageRulerSegments } from '@/lib/pageResize';
 import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
@@ -35,6 +35,7 @@ import {
   findItemInList,
   findItemScope,
   findParentItemId,
+  findSiblings,
   flattenItems,
   isCellContent,
   scopeInsideItem,
@@ -46,7 +47,7 @@ import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
 import { PageResizePreview, PageResizeZones, type PageRegion } from './PageResizeLayer';
 import { Paper } from './Paper';
 import { Ruler, type RulerMark } from './Ruler';
-import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
+import { SelectionFrame, tablixChromeAt, type SelectionFrameProps } from './SelectionFrame';
 import { TextEditContext } from './textEditContext';
 import { useMarqueeSelection } from './useMarqueeSelection';
 import { usePageResize } from './usePageResize';
@@ -121,8 +122,12 @@ export interface CanvasPreviewProps {
    * El padre lo guarda en un ref: no re-renderiza en cada resize.
    */
   onFitZoomChange?: (zoom: number) => void;
-  /** Click derecho sobre el lienzo: el item/contenedor bajo el cursor. */
-  onContextMenuHit?: (hit: CanvasHit) => void;
+  /**
+   * Click derecho sobre el lienzo: el item/contenedor bajo el cursor; `null`
+   * si el punto cae fuera del papel o de las bandas (el menú muestra entonces
+   * las acciones de la selección, sin Insertar/Pegar).
+   */
+  onContextMenuHit?: (hit: CanvasHit | null) => void;
   /** Un item de la toolbox soltado en el lienzo. */
   onDropItem?: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
   /** Abre el editor de texto de un textbox (doble clic, Enter, F2). */
@@ -581,6 +586,31 @@ export function CanvasPreview({
     }
   };
 
+  /**
+   * Click derecho sobre el «chrome» del marco de un Tablix (cabeceras de
+   * fila/columna o esquina, lo que dibuja `TablixHeaders`): manda la **tabla**
+   * —el mismo destino que su borde— en vez del item que queda debajo (o de su
+   * celda). Solo existe mientras el marco está visible (tabla o celda de ella
+   * seleccionada), como el propio chrome.
+   */
+  const tablixChromeHit = (event: { clientX: number; clientY: number }): CanvasHit | undefined => {
+    const stage = stageRef.current;
+    const framed = frameId ? findItem(projection, frameId) : undefined;
+    if (!stage || framed?.kind !== 'tablix' || !selectionRect || !selectedFrame?.grid) {
+      return undefined;
+    }
+    const container = stage.container().getBoundingClientRect();
+    const x = (event.clientX - container.left - stage.x()) / zoom;
+    const y = (event.clientY - container.top - stage.y()) / zoom;
+    if (!tablixChromeAt(selectionRect, selectedFrame.grid.offset, x, y)) return undefined;
+    return {
+      item: framed,
+      scope: findItemScope(projection, framed.id) ?? { kind: 'body' },
+      index: findSiblings(projection, framed.id)?.length ?? 0,
+      point: { x: toCm(framed.left), y: toCm(framed.top) },
+    };
+  };
+
   return (
     <TextEditContext.Provider value={onEditText ?? null}>
       <div
@@ -606,8 +636,15 @@ export function CanvasPreview({
         onKeyDown={handleKeyDown}
         onContextMenu={(event) => {
           const stage = stageRef.current;
-          const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
-          if (hit) onContextMenuHit?.(hit);
+          if (!stage) return;
+          // El «chrome» del marco (cabeceras/esquina) y el borde de la tabla
+          // mandan sobre celdas y contenido: así el click derecho ofrece las
+          // acciones de la tabla, como el click izquierdo la selecciona. Fuera
+          // del papel no hay hit (`null`): el menú queda con la selección.
+          const hit =
+            tablixChromeHit(event) ??
+            hitAtEvent(stage, zoom, layout, event, { tablixBorder: true });
+          onContextMenuHit?.(hit ?? null);
         }}
         onDragOver={(event) => {
           if (!event.dataTransfer.types.includes(ITEM_DRAG_TYPE)) return;
@@ -832,6 +869,7 @@ function hitAtEvent(
   zoom: number,
   layout: PaperLayout,
   event: { clientX: number; clientY: number },
+  options?: HitOptions,
 ): CanvasHit | undefined {
   const rect = stage.container().getBoundingClientRect();
   // El stage está desplazado a la ventana renderizada (`x`/`y` en px de
@@ -854,7 +892,7 @@ function hitAtEvent(
     x: clamp((contentX - band.x) / PX_PER_CM, 0, toCm(band.region.width)),
     y: clamp((contentY - band.y) / PX_PER_CM, 0, toCm(band.region.height)),
   };
-  return hitTestItems(band.region.items, point, scopeOfBand(band.key));
+  return hitTestItems(band.region.items, point, scopeOfBand(band.key), options);
 }
 
 /**

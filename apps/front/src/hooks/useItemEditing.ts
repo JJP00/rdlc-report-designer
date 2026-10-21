@@ -77,8 +77,13 @@ export interface ItemEditing {
   selectCellForContext: (cell: SelectedCell) => void;
   /** Último hit del click derecho: destino del menú, "Insertar" y "Pegar". */
   menuHit: CanvasHit | null;
-  /** Click derecho sobre el lienzo: fija el hit y ajusta la selección. */
-  showContextMenu: (hit: CanvasHit) => void;
+  /**
+   * Click derecho sobre el lienzo: fija el hit y ajusta la selección. `null`
+   * (click fuera del papel o de las bandas) limpia el destino: el menú queda
+   * con las **acciones de la selección** y sin Insertar/Pegar, que necesitan
+   * un hit fresco (antes se colaba el del click derecho anterior).
+   */
+  showContextMenu: (hit: CanvasHit | null) => void;
   /** Selecciona y pide al lienzo que traiga el elemento a la vista. */
   selectAndReveal: (id: string) => void;
   /** Sube un nivel en la jerarquía (Esc): selecciona el contenedor del item. */
@@ -461,11 +466,13 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
    * Click derecho: si cae dentro de una selección de celdas del Tablix (el
    * rectángulo o las añadidas con Ctrl+click, en el tablix que sea de la cadena
    * de anidados), el rango manda y no se pierde (fusión / borrado en lote). Si
-   * no, selecciona lo que hay debajo.
+   * no, selecciona lo que hay debajo. `null` (fuera del papel) solo limpia el
+   * destino: el menú queda con las acciones de la selección actual.
    */
   const showContextMenu = useCallback(
-    (hit: CanvasHit): void => {
+    (hit: CanvasHit | null): void => {
       setMenuHit(hit);
+      if (!hit) return;
       if (hitSelectionCell(hit.cells, selectedCell)) return;
       if (hit.item) {
         setSelectedId(hit.item.id);

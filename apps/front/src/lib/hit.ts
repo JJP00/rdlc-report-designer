@@ -7,6 +7,7 @@ import {
   type CellRef,
   type TablixCornerSlotBox,
   type TablixHeaderSlotBox,
+  type TablixLayout,
 } from './tablix';
 
 /**
@@ -24,6 +25,17 @@ import {
 export interface PointCm {
   x: number;
   y: number;
+}
+
+/** Opciones del hit-test para gestos que necesitan el **chrome** del Tablix. */
+export interface HitOptions {
+  /**
+   * El **borde** de un Tablix (anillo de 4 px de papel por fuera y 1 por
+   * dentro — el mismo del `hitFunc` de `ItemView.tablixBorderHit`) gana el hit
+   * por delante de cabeceras y celdas: el click derecho sobre el borde ofrece
+   * las acciones de la tabla, igual que el click izquierdo la selecciona.
+   */
+  tablixBorder?: boolean;
 }
 
 export interface CanvasHit {
@@ -45,12 +57,21 @@ export interface CanvasHit {
   slot?: { width: number; height: number };
 }
 
-export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRef): CanvasHit {
+/** Anillo de hit del borde del Tablix (cm): 4 px de papel por fuera, 1 dentro. */
+const TABLIX_BORDER_OUTSIDE_CM = 4 / (96 / 2.54);
+const TABLIX_BORDER_INSIDE_CM = 1 / (96 / 2.54);
+
+export function hitTestItems(
+  items: ItemDto[],
+  point: PointCm,
+  fallback: ScopeRef,
+  options?: HitOptions,
+): CanvasHit {
   // De arriba abajo: manda el ZIndex (a igualdad, el último hermano).
   const ordered = sortByZIndex(items);
   for (let index = ordered.length - 1; index >= 0; index -= 1) {
     const candidate = ordered[index];
-    if (!candidate || !contains(candidate, point)) continue;
+    if (!candidate) continue;
 
     const relX = point.x - toCm(candidate.left);
     const relY = point.y - toCm(candidate.top);
@@ -60,6 +81,13 @@ export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRe
     // y su **scope es la propia cabecera/esquina** (permite insertar/pegar en
     // los huecos vacíos y pegar en los ocupados se rechaza en el dominio).
     if (candidate.kind === 'tablix') {
+      const layout = tablixLayout(candidate);
+      const onBorder = options?.tablixBorder === true && withinTablixBorder(layout, relX, relY);
+      if (!onBorder && !contains(candidate, point, layout)) continue;
+      // Borde: manda la **tabla** (su borde también la selecciona al hacer
+      // click izquierdo en Konva); el punto se queda en su contenedor.
+      if (onBorder) return { item: candidate, scope: fallback, index: items.length, point };
+
       const header = tablixHeaderItems(candidate).find((entry) =>
         contains(entry, { x: relX, y: relY }),
       );
@@ -103,10 +131,12 @@ export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRe
       if (!cell.content) {
         return { scope, index: 0, point: local, cells: [cellRef] };
       }
-      const inner = hitTestItems([cell.content], local, scope);
+      const inner = hitTestItems([cell.content], local, scope, options);
       // La cadena va de fuera a dentro (un Tablix puede estar dentro de otro).
       return { ...inner, cells: [cellRef, ...(inner.cells ?? [])] };
     }
+
+    if (!contains(candidate, point)) continue;
 
     if (candidate.kind !== 'rectangle') {
       // El item tapa el punto, pero se inserta en el contenedor actual.
@@ -117,6 +147,7 @@ export function hitTestItems(items: ItemDto[], point: PointCm, fallback: ScopeRe
       candidate.children,
       { x: relX, y: relY },
       { kind: 'rectangle', id: candidate.id },
+      options,
     );
     return {
       item: inner.item ?? candidate,
@@ -163,18 +194,37 @@ function slotScope(id: string, slot: AnySlot): ScopeRef {
   return { kind: 'tablixCorner', id, row: slot.row, col: slot.col };
 }
 
-function contains(item: ItemDto, point: PointCm): boolean {
+function contains(item: ItemDto, point: PointCm, layout?: TablixLayout): boolean {
   const left = toCm(item.left);
   const top = toCm(item.top);
   // En un Tablix manda la rejilla: los ficheros de BC no siempre declaran su Width/Height.
-  const size =
-    item.kind === 'tablix'
-      ? tablixLayout(item)
-      : { width: toCm(item.width), height: toCm(item.height) };
+  const size = layout ?? { width: toCm(item.width), height: toCm(item.height) };
   return (
     point.x >= left &&
     point.x <= left + size.width &&
     point.y >= top &&
     point.y <= top + size.height
+  );
+}
+
+/**
+ * ¿El punto (cm, relativo al origen del Tablix) cae en el anillo de su borde?
+ * (4 px de papel por fuera del rectángulo de la rejilla y 1 px por dentro, como
+ * el `hitFunc` del borde en `ItemView`.)
+ */
+function withinTablixBorder(layout: TablixLayout, x: number, y: number): boolean {
+  if (
+    x < -TABLIX_BORDER_OUTSIDE_CM ||
+    x > layout.width + TABLIX_BORDER_OUTSIDE_CM ||
+    y < -TABLIX_BORDER_OUTSIDE_CM ||
+    y > layout.height + TABLIX_BORDER_OUTSIDE_CM
+  ) {
+    return false;
+  }
+  return (
+    x <= TABLIX_BORDER_INSIDE_CM ||
+    y <= TABLIX_BORDER_INSIDE_CM ||
+    x >= layout.width - TABLIX_BORDER_INSIDE_CM ||
+    y >= layout.height - TABLIX_BORDER_INSIDE_CM
   );
 }

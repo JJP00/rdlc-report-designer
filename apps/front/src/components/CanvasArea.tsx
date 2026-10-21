@@ -68,7 +68,11 @@ export interface CanvasAreaProps {
   /** Marco de selección: ids que intersectan la caja. */
   onSelectMany: (ids: string[]) => void;
   onSelectCell: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
-  onContextMenuHit: (hit: CanvasHit) => void;
+  /**
+   * Click derecho: hit bajo el cursor o `null` si cae fuera del papel (el menú
+   * queda con las acciones de la selección, sin Insertar/Pegar).
+   */
+  onContextMenuHit: (hit: CanvasHit | null) => void;
   onZoomChange: (zoom: number) => void;
   /** Publica el zoom de «ajustar al ancho» medido del hueco del lienzo. */
   onFitZoomChange: (zoom: number) => void;
@@ -400,7 +404,7 @@ function CanvasMenuContent({
 
       <ItemActionsMenu
         item={menuItem}
-        hasClipboard={hasClipboard && !headerOccupied}
+        hasClipboard={hasClipboard && menuHit !== null && !headerOccupied}
         onCut={onCut}
         onCopy={onCopy}
         onPaste={() => {
@@ -415,7 +419,7 @@ function CanvasMenuContent({
         onSendToBack={onSendToBack}
       />
 
-      {!headerOccupied ? (
+      {menuHit && !headerOccupied ? (
         <>
           <ContextMenuSeparator />
           <ContextMenuSub>

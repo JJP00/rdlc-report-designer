@@ -263,4 +263,13 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
       ganchos de QA y los guiones E2E suman `stage.x()/y()` al pasar de px de papel a
       pantalla.
 
+- [x] **Menú contextual del Tablix (2026-10-21)**: el click derecho dentro de una tabla
+      caía siempre en la celda o en el contenido de esta, así que «Orden» (Traer al
+      frente / Enviar atrás) solo se alcanzaba por atajo tras seleccionar la tabla por su
+      borde. Ahora el **borde** de la tabla (el mismo anillo de 4 px del click izquierdo)
+      y las **cabeceras de fila/columna y esquina** del marco mandan la tabla en el menú
+      contextual, con sus acciones (Orden incluido). Además, un click derecho **fuera del
+      papel** limpia el destino del menú: quedan las acciones de la selección, sin
+      Insertar/Pegar (antes se colaba el hit del click derecho anterior).
+
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20Report%20Designer%20-%20Pendientes.md).

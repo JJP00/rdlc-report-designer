@@ -371,6 +371,21 @@ async function nodeCenter(
   );
 }
 
+/** Punto de pantalla del centro del primer nodo Konva con ese `name`. */
+async function namedNodeCenter(name: string): Promise<{ x: number; y: number } | null> {
+  return page.evaluate((nodeName) => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      find(selector: (node: KonvaLike) => boolean): KonvaLike[];
+      container(): HTMLElement;
+    };
+    const node = stage.find((candidate) => candidate.name() === nodeName)[0];
+    if (!node) return null;
+    const container = stage.container().getBoundingClientRect();
+    const point = node.getAbsoluteTransform().point({ x: node.width() / 2, y: node.height() / 2 });
+    return { x: container.left + point.x, y: container.top + point.y };
+  }, name);
+}
+
 interface KonvaLike {
   className?: string;
   id(): string;
@@ -830,6 +845,12 @@ async function tablixColumnCount(id: string): Promise<number> {
   return findItem(proj.page.body.items, id)?.body?.columns.length ?? 0;
 }
 
+/** `ZIndex` proyectado de un item (0 si no declara orden). */
+async function itemZIndex(id: string): Promise<number> {
+  const proj = await projection();
+  return findItem(proj.page.body.items, id)?.zIndex ?? 0;
+}
+
 async function selectedCell(): Promise<{
   id: string;
   row: number;
@@ -1269,6 +1290,41 @@ test('el menú contextual de una celda inserta filas y columnas', async () => {
   await expect.poll(() => tablixColumnCount('LinesTable2')).toBe(columnsBefore + 1);
   await page.keyboard.press('Control+z');
   await expect.poll(() => tablixColumnCount('LinesTable2')).toBe(columnsBefore);
+});
+
+test('el click derecho en el marco de la tabla abre el menú de la tabla (borde y cabeceras)', async () => {
+  // 1) Borde de la tabla, sin selección previa: manda la tabla y trae «Orden»
+  //    (el bug era que el click derecho caía siempre en la celda o su contenido).
+  await clearSelection();
+  await scrollNodeIntoView('LinesTable2');
+  const border = await tablixBorderPoint('LinesTable2');
+  expect(border, 'borde de LinesTable2').not.toBeNull();
+  await page.mouse.click(border!.x, border!.y, { button: 'right' });
+  await expect(page.getByRole('menu')).toContainText('LinesTable2');
+  await expect(page.getByRole('menuitem', { name: 'Orden' })).toBeVisible();
+  await expect.poll(selectedId).toBe('LinesTable2');
+
+  // «Traer al frente» del menú mueve el z-order de la tabla (un paso de undo).
+  const zBefore = await itemZIndex('LinesTable2');
+  await page.getByRole('menuitem', { name: 'Orden' }).click();
+  await clickMenuItem('Traer al frente');
+  await expect(page.getByRole('menuitem', { name: 'Orden' })).toBeHidden();
+  await expect.poll(() => itemZIndex('LinesTable2')).toBeGreaterThan(zBefore);
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => itemZIndex('LinesTable2')).toBe(zBefore);
+
+  // 2) Cabeceras del marco (tiras de fila/columna), con la tabla seleccionada:
+  //    la tira manda la tabla, no el item de debajo ni la celda del contenido.
+  await selectTablix('LinesTable2');
+  for (const name of ['tablix-column-header', 'tablix-row-header']) {
+    await expect.poll(() => namedNodeCenter(name)).not.toBeNull();
+    const strip = await namedNodeCenter(name);
+    await page.mouse.click(strip!.x, strip!.y, { button: 'right' });
+    await expect(page.getByRole('menu')).toContainText('LinesTable2');
+    await expect.poll(selectedId, { message: `${name} debe mandar la tabla` }).toBe('LinesTable2');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menuitem', { name: 'Orden' })).toBeHidden();
+  }
 });
 
 test('el contenido de una celda está anclado: no se arrastra ni se sale de la celda', async () => {
