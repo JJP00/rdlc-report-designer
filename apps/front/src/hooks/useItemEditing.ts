@@ -237,6 +237,33 @@ function mergeStylePatch(style: StyleDto | undefined, patch: StylePatch): StyleD
   return nextStyle;
 }
 
+/**
+ * Parche optimista de un `StylePatch` sobre un item. `textAlign` se redirige al
+ * `<Style>` de **cada párrafo** (BC solo lo lee ahí: ver `setStyle` del dominio)
+ * y, si el item no tiene párrafos (Rectangle…), cae a su `<Style>` como en el
+ * backend. El resto del parche va al item como siempre. Sin esta redirección la
+ * barra de formato parecería no responder: los párrafos sombrean al item.
+ */
+function optimisticStylePatch(item: ItemDto, patch: StylePatch): Partial<ItemDto> {
+  const { textAlign, ...rest } = patch;
+  const toParagraphs =
+    textAlign !== undefined && item.kind === 'textbox' && item.paragraphs.length > 0;
+
+  const style = mergeStylePatch(item.style, toParagraphs ? rest : patch);
+  const paragraphs =
+    toParagraphs && item.kind === 'textbox'
+      ? item.paragraphs.map((paragraph) => ({
+          ...paragraph,
+          style: mergeStylePatch(paragraph.style, { textAlign }),
+        }))
+      : undefined;
+
+  return {
+    style: Object.keys(style).length > 0 ? style : undefined,
+    ...(paragraphs ? { paragraphs } : {}),
+  };
+}
+
 export function useItemEditing(core: WorkspaceCore): ItemEditing {
   const t = useT();
   const translator = useTranslator();
@@ -751,7 +778,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
           for (const id of selectedIds) {
             const item = findItem(next, id);
             if (!item) continue;
-            next = patchItem(next, id, { style: mergeStylePatch(item.style, patch) });
+            next = patchItem(next, id, optimisticStylePatch(item, patch));
           }
           return next;
         });
@@ -762,10 +789,11 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       if (!selectedItem) return;
       const id = selectedItem.id;
 
-      // Optimista: aplica el parche; `null` = quitar la propiedad.
-      const nextStyle = mergeStylePatch(selectedItem.style, patch);
-
-      updateProjection((projection) => patchItem(projection, id, { style: nextStyle }));
+      // Optimista: aplica el parche (TextAlign va a los párrafos); `null` =
+      // quitar la propiedad.
+      updateProjection((projection) =>
+        patchItem(projection, id, optimisticStylePatch(selectedItem, patch)),
+      );
       void sendCommand({ cmd: 'setStyle', id, style: patch });
     },
     [batchEdit, selectedIds, selectedItem, sendCommand, updateProjection],

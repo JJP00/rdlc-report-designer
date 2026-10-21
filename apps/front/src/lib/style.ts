@@ -11,16 +11,21 @@ import { toCm } from './projection';
  * Regla: un nivel manda solo si **todos** sus elementos declaran el valor y
  * coinciden (un textbox mixto no tiene "un" tamaño); si no, se cae al siguiente
  * nivel.
+ *
+ * `textAlign` es la excepción: **no cae al item** — BC solo lo lee en el
+ * `<Style>` de cada párrafo (ver `setStyle` del dominio), así que un
+ * `<TextAlign>` suelto en el item no se muestra como si alineara.
  */
 export function effectiveTextStyle(item: TextboxDto): StyleDto | undefined {
   const runs = item.paragraphs.flatMap((paragraph) => paragraph.runs);
   const result: StyleDto = {};
 
   for (const key of STYLE_KEYS) {
+    const fallback = key === 'textAlign' ? undefined : item.style?.[key];
     const value =
       agreed(runs.map((run) => run.style?.[key])) ??
       agreed(item.paragraphs.map((paragraph) => paragraph.style?.[key])) ??
-      item.style?.[key];
+      fallback;
     if (value !== undefined) {
       (result as Record<string, unknown>)[key] = value;
     }

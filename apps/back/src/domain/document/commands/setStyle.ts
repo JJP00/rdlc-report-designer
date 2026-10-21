@@ -3,6 +3,7 @@ import type {
   BorderSides,
   BorderSidesPatch,
   RdlcCommand,
+  StyleDto,
   StylePatch,
 } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
@@ -73,7 +74,8 @@ const SUPPORTED_KEYS = new Set<string>([
  * cambio se vería en el diseñador pero BC lo ignoraría.
  *
  * `Format` es la excepción: BC lo escribe en los **runs**, no en el item
- * (ver `applyFormat`).
+ * (ver `applyFormat`). `TextAlign` tiene la suya: BC lo escribe **y solo lo lee
+ * en los párrafos** — en el `<Style>` del item lo ignora (ver `writeTextAlign`).
  */
 export function applySetStyle(
   ctx: CommandContext,
@@ -92,8 +94,9 @@ export function applySetStyle(
   // `ListStyle` no es una propiedad de `<Style>`: se escribe como hijo directo
   // de cada `<Paragraph>` (donde lo espera el XSD). `Format` (F1 · formato
   // numérico) tampoco sigue la vía genérica del item: BC lo escribe en el
-  // `<Style>` de cada run (ver `applyFormat`). Se separan antes de tocar nada.
-  const { listStyle, format, ...stylePatch } = command.style as StylePatch & {
+  // `<Style>` de cada run (ver `applyFormat`). `TextAlign` va a los párrafos
+  // (ver `writeTextAlign`). Se separan antes de tocar nada.
+  const { listStyle, format, textAlign, ...stylePatch } = command.style as StylePatch & {
     listStyle?: 'None' | 'Bulleted' | 'Numbered' | null;
   };
   const runs = textRuns(node);
@@ -114,6 +117,12 @@ export function applySetStyle(
         changes: [] as DomainCommand[],
       };
   if (listStyle !== undefined) writeListStyle(node, listStyle, changes, removed, indexesOf);
+
+  if (textAlign !== undefined) {
+    writeTextAlign(node, textAlign, changes, removed, indexesOf);
+    // El fallback sin párrafos pudo crear el `<Style>` del item.
+    style ??= node.child('Style');
+  }
 
   const restored = syncShadowingStyles(node, stylePatch);
 
@@ -142,6 +151,14 @@ export function applySetStyle(
       name: entry.node.tagName,
     }));
 
+  // Con overrides, `ListStyle`, `TextAlign` o `format` tocados el front
+  // necesita la proyección nueva (párrafos y runs no viajan en `applied`).
+  const needsSnapshot =
+    restored.length > 0 ||
+    listStyle !== undefined ||
+    format !== undefined ||
+    textAlign !== undefined;
+
   return right({
     // Orden de los inversos: el journal los aplica al revés, así que el último
     // es el primero en deshacerse. Si el comando creó el `<Style>` (el item no
@@ -163,11 +180,7 @@ export function applySetStyle(
     // El item no se toca cuando el formato va a los runs: `applied` no puede
     // expresar el resultado, pero el front refresca la proyección.
     applied: [{ id: command.id, values: style ? { style: readStyle(style) } : {} }],
-    // Con overrides, `ListStyle` o `format` tocados el front necesita la
-    // proyección nueva (párrafos y runs no viajan en `applied`).
-    ...(restored.length > 0 || listStyle !== undefined || format !== undefined
-      ? { snapshotOut: true }
-      : {}),
+    ...(needsSnapshot ? { snapshotOut: true } : {}),
   });
 }
 
@@ -491,12 +504,12 @@ function writeTag(style: RdlcNode, tag: string, value: string): DomainCommand[] 
   return [{ cmd: 'removeNode', node: created }];
 }
 
-/** `<Style>` del run, creándolo si falta (inverso: quitarlo). */
-function ensureStyle(run: RdlcNode, inverse: DomainCommand[]): RdlcNode {
-  const existing = run.child('Style');
+/** `<Style>` del nodo (run o párrafo), creándolo si falta (inverso: quitarlo). */
+function ensureStyle(parent: RdlcNode, inverse: DomainCommand[]): RdlcNode {
+  const existing = parent.child('Style');
   if (existing) return existing;
-  const style = run.createElement('Style');
-  insertCanonical(run, 'Style', style);
+  const style = parent.createElement('Style');
+  insertCanonical(parent, 'Style', style);
   inverse.push({ cmd: 'removeNode', node: style });
   return style;
 }
@@ -629,6 +642,52 @@ function removeStyleChild(
   const index = indexesOf(container).get(node.tagName) ?? 0;
   removed.push({ style: container, node, index });
   node.remove();
+}
+
+/* ------------------------------ TextAlign -------------------------------- */
+
+/**
+ * `TextAlign` de un textbox: BC lo escribe **solo en el `<Style>` de cada
+ * `<Paragraph>`** y solo lo lee ahí — un `<TextAlign>` en el `<Style>` del item
+ * lo ignora al renderizar (verificado con `CartaCMR.rdlc`: `TextBoxPrueba` solo
+ * lo tenía en el item y no se alineaba). El comando lo escribe en **todos** los
+ * párrafos, creando su `<Style>` si falta.
+ *
+ * Si el item ya declara `<TextAlign>` (legado del editor anterior, que escribía
+ * en el item) se **sincroniza** al mismo valor — no se crea si no está, para no
+ * ensuciar los ficheros de BC. `null` lo quita de los tres sitios: dejar un
+ * override en el item lo resucitaría en el diseñador sin que BC lo pinte.
+ *
+ * Un item sin párrafos (Rectangle, textbox vacío…) cae al `<Style>` del item
+ * para no perderlo en silencio, como el formato sin runs.
+ */
+function writeTextAlign(
+  item: RdlcNode,
+  value: NonNullable<StyleDto['textAlign']> | null,
+  changes: DomainCommand[],
+  removed: RemovedStyleNode[],
+  indexesOf: OriginalIndexes,
+): void {
+  const paragraphs = item.child('Paragraphs')?.children('Paragraph') ?? [];
+  if (paragraphs.length === 0) {
+    const style = item.child('Style') ?? childOrCreate(item, 'Style');
+    if (value === null) removeTagNode(style, 'TextAlign', removed, indexesOf);
+    else changes.push(...writeTag(style, 'TextAlign', value));
+    return;
+  }
+
+  for (const paragraph of paragraphs) {
+    const style = paragraph.child('Style') ?? ensureStyle(paragraph, changes);
+    if (value === null) removeTagNode(style, 'TextAlign', removed, indexesOf);
+    else changes.push(...writeTag(style, 'TextAlign', value));
+  }
+
+  // Legado: `<TextAlign>` en el item → se sincroniza con el de los párrafos
+  // (que es el que BC lee). Si el item no lo declara, no se crea.
+  const itemStyle = item.child('Style');
+  if (!itemStyle?.child('TextAlign')) return;
+  if (value === null) removeTagNode(itemStyle, 'TextAlign', removed, indexesOf);
+  else changes.push(...writeTag(itemStyle, 'TextAlign', value));
 }
 
 /* --------------------------- lectura ------------------------------------ */

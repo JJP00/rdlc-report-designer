@@ -595,7 +595,7 @@ type CommandResult =
 | `setName`        | `{ id, name }`                        | rename; valida unicidad y actualiza índice                                                         |
 | `setVisibility`  | `{ id, hidden: boolean \| Expr }`     | `true/false` o expresión (evolutivo)                                                               |
 | `setItemOptions` | `{ id, canGrow?, keepTogether? }`     | propiedades del item, no de Style                                                                  |
-| `setStyle`       | `{ id, style: Partial<StyleBag> }`    | nivel item: fuente, color, fondo, bordes, alineación, padding...                                   |
+| `setStyle`       | `{ id, style: Partial<StyleBag> }`    | nivel item: fuente, color, fondo, bordes, padding… (`TextAlign` → párrafos, `ListStyle` → `Paragraph`, `Format` → runs: donde lo lee BC) |
 | `insertItem`     | `{ scope, index, item: NewItemSpec }` | `NewItemSpec` = textbox/rectangle/line/image (tablix en F2). La factory rellena hijos obligatorios |
 | `deleteItem`     | `{ id }`                              |                                                                                                    |
 | `moveItem`       | `{ id, toScope, toIndex }`            | reparentar/reordenar (rectángulo, header, celda...). Atómico para undo limpio                      |

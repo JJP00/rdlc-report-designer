@@ -3,8 +3,8 @@ import { runDisplayText } from './text';
 
 /**
  * Layout del texto de un textbox para el lienzo: **un run por nodo**, con la
- * alineación del párrafo (`TextAlign` del párrafo, que es donde lo pone BC) y la
- * precedencia RDL `run > párrafo > item`.
+ * alineación del párrafo (`TextAlign` del párrafo, que es el único que BC lee:
+ * el del item lo ignora) y la precedencia RDL `run > párrafo > item`.
  *
  * El alto de línea es el del párrafo (`fontSize` efectivo × 1,2) y tanto la
  * medición de ancho como la conversión de longitudes a px entran por parámetro
@@ -66,7 +66,9 @@ export function layoutTextbox(
       ctx.measure(runDisplayText(run), cssFont(mergeStyles(base, run.style), ctx)),
     );
     const total = widths.reduce((acc, value) => acc + value, 0);
-    const align = (base.textAlign ?? 'Left').toLowerCase();
+    // Solo el párrafo alinea: BC ignora el `<TextAlign>` del item (ver
+    // `effectiveTextStyle`).
+    const align = (paragraph.style?.textAlign ?? 'Left').toLowerCase();
     const start =
       align === 'center' ? (box.width - total) / 2 : align === 'right' ? box.width - total : 0;
 

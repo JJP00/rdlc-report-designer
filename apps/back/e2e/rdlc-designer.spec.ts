@@ -7,7 +7,7 @@ import {
   type Locator,
   type Page,
 } from '@playwright/test';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +24,8 @@ const fixture = join(here, '..', '..', '..', 'fixtures', 'corpus', 'SalesCreditM
 
 let app: ElectronApplication;
 let page: Page;
+/** Copia temporal del informe de la suite (la que se guarda en los tests). */
+let reportPath = '';
 /** Huella del informe recién abierto (la proyección sin su `version`). */
 let initialFingerprint = '';
 
@@ -32,6 +34,7 @@ test.beforeAll(async () => {
   mkdirSync(workspace, { recursive: true });
   const file = join(workspace, 'SalesCreditMemoESP.rdlc');
   copyFileSync(fixture, file);
+  reportPath = file;
 
   app = await electron.launch({
     args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
@@ -849,6 +852,47 @@ async function tablixColumnCount(id: string): Promise<number> {
 async function itemZIndex(id: string): Promise<number> {
   const proj = await projection();
   return findItem(proj.page.body.items, id)?.zIndex ?? 0;
+}
+
+/**
+ * Alineación declarada por el textbox: la del `<Style>` del item y la del primer
+ * párrafo (`null` si no declara). BC solo lee la del párrafo.
+ */
+async function textAlignOf(id: string): Promise<{ item: string | null; paragraph: string | null }> {
+  return page.evaluate((itemId) => {
+    const projection = (window as never as Record<string, unknown>)['__rdlcProjection'];
+    let found:
+      | { paragraphs?: { style?: { textAlign?: string } }[]; style?: { textAlign?: string } }
+      | undefined;
+    const walk = (value: unknown): void => {
+      if (found) return;
+      if (Array.isArray(value)) {
+        value.forEach(walk);
+        return;
+      }
+      if (value && typeof value === 'object') {
+        const node = value as Record<string, unknown>;
+        if (node['id'] === itemId && node['kind'] === 'textbox') {
+          found = node as never;
+          return;
+        }
+        Object.values(node).forEach(walk);
+      }
+    };
+    walk(projection);
+    return {
+      item: found?.style?.textAlign ?? null,
+      paragraph: found?.paragraphs?.[0]?.style?.textAlign ?? null,
+    };
+  }, id);
+}
+
+/** XML de un textbox guardado por `Name` (del tag de apertura a su cierre). */
+function textboxXml(xml: string, id: string): string {
+  const at = xml.indexOf(`<Textbox Name="${id}">`);
+  if (at === -1) throw new Error(`No está '${id}' en el XML guardado`);
+  const end = xml.indexOf('</Textbox>', at);
+  return xml.slice(at, end === -1 ? at + 8000 : end);
 }
 
 async function selectedCell(): Promise<{
@@ -2077,6 +2121,35 @@ test('la alineación del párrafo se refleja en el lienzo', async () => {
   await page.keyboard.press('Control+z');
   await page.keyboard.press('Control+z');
   await expect.poll(firstRunX).toBeGreaterThan(left! + 5);
+});
+
+test('la barra de formato escribe la alineación en el párrafo (BC solo lo lee ahí) y el XML lo refleja', async () => {
+  const proj = await projection();
+  const content = firstCellContent(proj, 'LinesTable2');
+  expect(content, 'LinesTable2 debe tener contenido en sus celdas').toBeTruthy();
+  const id = content!.id;
+
+  await selectItemViaPalette(id);
+  const before = await textAlignOf(id);
+  expect(before.item, 'la fixture no declara TextAlign en el item').toBeNull();
+  expect(before.paragraph, 'la fixture trae el párrafo centrado').toBe('Center');
+
+  // «Alinear derecha» de la barra de formato: la alineación va al **párrafo**
+  // (BC solo lo lee ahí); el `<Style>` del item no la declara ni la gana.
+  await page.getByRole('button', { name: 'Alinear derecha' }).click();
+  await expect.poll(() => textAlignOf(id)).toEqual({ item: null, paragraph: 'Right' });
+
+  // El XML guardado lo confirma (la proyección sale del DOM real del informe).
+  await page.keyboard.press('Control+s');
+  await expect(page.getByText(/Guardado/)).toBeVisible();
+  const textbox = textboxXml(readFileSync(reportPath, 'utf8'), id);
+  expect(textbox).toMatch(/<Paragraph>[\s\S]*<TextAlign>Right<\/TextAlign>/);
+  const itemTail = textbox.slice(textbox.lastIndexOf('</Paragraphs>'));
+  expect(itemTail, 'el <Style> del item no debe declarar TextAlign').not.toContain('<TextAlign>');
+
+  // El undo devuelve la alineación original del párrafo.
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => textAlignOf(id)).toEqual(before);
 });
 
 test('el click derecho sobre una celda suelta no pierde la selección', async () => {

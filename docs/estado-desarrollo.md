@@ -272,4 +272,15 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
       papel** limpia el destino del menú: quedan las acciones de la selección, sin
       Insertar/Pegar (antes se colaba el hit del click derecho anterior).
 
+- [x] **Alineación (`TextAlign`) donde BC la lee (2026-10-21)**: BC escribe y **solo lee**
+      `<TextAlign>` en el `<Style>` de **cada párrafo** — el del item lo ignora al
+      renderizar (el corpus lo confirma: 708 declaraciones en párrafos, 0 en items;
+      `CartaCMR.rdlc`: `TextBoxPrueba`, con el align solo en el item, no se alineaba en BC).
+      Ahora la barra de formato escribe la alineación en todos los párrafos (`setStyle` la
+      redirige, como `Format` va a los runs): un `<TextAlign>` legado del item se
+      **sincroniza** sin crear uno nuevo y `null` la quita de los tres niveles. El lienzo y
+      la barra también dejan de dar por buena la del item, así que muestran lo que BC
+      pintará. Con spec propio (`style-textalign.spec.ts`, golden del corpus y undo
+      byte-exacto) y E2E con guardado y undo; el editor de texto ya la escribía por párrafo.
+
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20Report%20Designer%20-%20Pendientes.md).
