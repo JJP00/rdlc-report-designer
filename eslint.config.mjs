@@ -30,7 +30,11 @@ export default tseslint.config(
   {
     // Guiones de QA que se evalúan dentro del renderer (page.evaluate):
     // usan `window`/`document` del navegador aunque se lancen desde Node.
-    files: ['apps/back/scripts/bench.mjs', 'apps/back/scripts/zoom-memory.mjs', 'apps/back/tmp-*.mjs'],
+    files: [
+      'apps/back/scripts/bench.mjs',
+      'apps/back/scripts/zoom-memory.mjs',
+      'apps/back/tmp-*.mjs',
+    ],
     languageOptions: {
       globals: { ...globals.browser },
     },
