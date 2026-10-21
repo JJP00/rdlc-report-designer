@@ -5,9 +5,11 @@ import log from 'electron-log/main';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { CatalogKey, MessageParams } from '@rdlc-designer/i18n';
 import { IPC_CHANNELS, IPC_EVENTS, windowCloseConfirmationSchema } from '@rdlc-designer/contracts';
 import { AppModule } from './app.module.js';
 import { ElectronEventBusAdapter } from './infrastructure/events/ElectronEventBusAdapter.js';
+import { LocaleRuntime } from './infrastructure/locale/LocaleRuntime.js';
 import { IpcController } from './presentation/ipc/IpcController.js';
 import { createWindowLifecycle, type WindowLifecycle } from './lifecycle/windowLifecycle.js';
 import { isNavigationAllowed, isPermissionAllowed } from './security/navigation.js';
@@ -37,6 +39,18 @@ let appUrl = '';
 
 /** Ciclo de vida (cierre sin acuse, render caído, «no responde») de la ventana actual. */
 let lifecycle: WindowLifecycle | null = null;
+
+/** Idioma vigente del main (se crea en `bootstrap`, antes de la primera ventana). */
+let localeRuntime: LocaleRuntime | null = null;
+
+/**
+ * Traducción del main para los diálogos nativos: cada llamada usa el idioma
+ * vigente (`LocaleRuntime`), de modo que un cambio de idioma del renderer se
+ * aplica en caliente. Sin runtime (después del cierre), devuelve la clave.
+ */
+function translate(key: CatalogKey, params?: MessageParams): string {
+  return localeRuntime ? localeRuntime.translator.t(key, params) : key;
+}
 
 /**
  * Endurecimiento común a todo `webContents` (T2): sin ventanas nuevas, sin
@@ -137,6 +151,7 @@ async function createWindow(): Promise<BrowserWindow> {
     destroyWindow: () => window.destroy(),
     reload: () => window.webContents.reload(),
     isDestroyed: () => window.isDestroyed(),
+    t: translate,
     log,
   });
   lifecycle = windowLifecycle;
@@ -197,6 +212,12 @@ async function bootstrap(): Promise<void> {
 
   const events = nest.get(ElectronEventBusAdapter);
   events.attach(() => mainWindow);
+
+  // Idioma: preferencia guardada → SO → EN, leída **antes** de crear la ventana
+  // (los diálogos nativos del main se muestran con el idioma vigente).
+  const runtime = nest.get(LocaleRuntime);
+  await runtime.init();
+  localeRuntime = runtime;
 
   const ipc = nest.get(IpcController);
   ipc.setPendingOpen(findInitialFile());

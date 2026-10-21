@@ -1,4 +1,5 @@
 import type Konva from 'konva';
+import { useT } from '@rdlc-designer/i18n/react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { makeProjection, summarize, type BenchResult } from '@/lib/bench';
@@ -18,6 +19,7 @@ const DRAG_AMPLITUDE_PX = 20;
  * p50 en el escenario de 972 textboxes.
  */
 export function BenchPage({ count }: { count: number }): ReactNode {
+  const t = useT();
   const base = useMemo(() => makeProjection(count), [count]);
   const stageRef = useRef<Konva.Stage | null>(null);
   const [phase, setPhase] = useState<'montando' | 'midiendo' | 'hecho'>('montando');
@@ -134,11 +136,11 @@ export function BenchPage({ count }: { count: number }): ReactNode {
   return (
     <div className="flex h-full flex-col bg-background">
       <header className="flex items-center gap-2 border-b px-3 py-1.5">
-        <span className="text-sm font-semibold">Benchmark de lienzo — {count} textboxes</span>
+        <span className="text-sm font-semibold">{t('lib.bench.title', { count })}</span>
         <div className="flex-1" />
         {phase === 'hecho' ? (
           <Button variant="outline" size="sm" onClick={restart}>
-            Repetir
+            {t('lib.bench.repeat')}
           </Button>
         ) : null}
       </header>
@@ -147,19 +149,24 @@ export function BenchPage({ count }: { count: number }): ReactNode {
         <div className="border-b bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
           {result ? (
             <span>
-              p50 {result.fpsP50} fps · p95 {result.fpsP95} fps · min {result.minFps} fps ·{' '}
-              {result.frames} frames · montaje {result.mountMs} ms · heap{' '}
-              {result.heapMB === null ? 'n/d' : `${result.heapMB} MB`}
+              {t('lib.bench.stats', {
+                p50: result.fpsP50,
+                p95: result.fpsP95,
+                min: result.minFps,
+                frames: result.frames,
+                mount: result.mountMs,
+                heap: result.heapMB === null ? t('lib.bench.notAvailable') : `${result.heapMB} MB`,
+              })}
             </span>
           ) : (
-            <span>{phase === 'montando' ? 'Montando…' : 'Midiendo drag simulado (3 s)…'}</span>
+            <span>{t(phase === 'montando' ? 'lib.bench.mounting' : 'lib.bench.measuring')}</span>
           )}
         </div>
         <CanvasPreview projection={base} zoom={ZOOM} stageRef={stageRef} />
       </main>
 
       <footer className="border-t px-3 py-1 text-xs text-muted-foreground">
-        Abre esta página en Electron/Chromium para medir el coste real del lienzo.
+        {t('lib.bench.hint')}
       </footer>
     </div>
   );

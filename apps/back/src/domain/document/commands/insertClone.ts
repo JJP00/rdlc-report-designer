@@ -19,11 +19,11 @@ export function applyInsertClone(
 ): Either<DomainError, CommandOutcome> {
   const container = resolveScope(ctx, command.scope);
   if (!container) {
-    return left(CommandRejectedError.create('No se encontró el contenedor del scope'));
+    return left(CommandRejectedError.of('scopeContainerMissing'));
   }
 
   const occupied = occupiedCell(container, command.scope);
-  if (occupied) return left(CommandRejectedError.create(occupied));
+  if (occupied) return left(CommandRejectedError.of(occupied));
 
   const { name, clone } = insertCloneAt(
     ctx,

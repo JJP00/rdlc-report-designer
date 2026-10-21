@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import type { ReactNode } from 'react';
 
 export interface StatusBarProps {
@@ -12,6 +13,8 @@ export interface StatusBarProps {
 
 /** Pie: mensaje de estado + info del documento (ruta, dirty, recargas, conteo). */
 export function StatusBar({ status, path, dirty, stats, reloads }: StatusBarProps): ReactNode {
+  const t = useT();
+
   return (
     <footer className="flex items-center gap-3 border-t bg-chrome px-3 py-1 text-xs text-muted-foreground">
       <span className="truncate" role="status">
@@ -26,7 +29,7 @@ export function StatusBar({ status, path, dirty, stats, reloads }: StatusBarProp
           {stats ? <span>{stats}</span> : null}
           {reloads > 0 ? (
             <span className="text-amber-700 dark:text-amber-400">
-              {reloads} recarga(s) externa(s)
+              {t('status.reloads', { count: reloads })}
             </span>
           ) : null}
         </span>

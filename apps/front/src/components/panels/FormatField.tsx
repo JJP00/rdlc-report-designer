@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
@@ -24,11 +25,6 @@ export interface FormatFieldProps {
   className?: string;
 }
 
-/** Aviso común (el título del `<select>` y del editor). */
-const FORMAT_TITLE =
-  'Formato RDL (<Format>): cadena .NET (N2, P0, C2, d…) o expresión =Fields!… ' +
-  'Se conserva tal cual. El resultado depende del idioma del usuario en Business Central (<Language>).';
-
 /**
  * Campo de formato (`<Format>`) en columna: **selector de presets** .NET arriba
  * y **editor** debajo — Monaco si el valor es una expresión de BC
@@ -41,9 +37,13 @@ export function FormatField({
   value,
   onChange,
   ariaLabel,
-  placeholder = 'General',
+  placeholder,
   className,
 }: FormatFieldProps): ReactNode {
+  const t = useT();
+  // Aviso común (el título del `<select>` y del editor).
+  const formatTitle = t('toolbar.formatField.title');
+  const fieldAriaLabel = t('toolbar.formatField.ariaLabel', { label: ariaLabel });
   const inputRef = useRef<HTMLInputElement | null>(null);
   /** Modo manual del selector mientras se teclea (`null` = sigue al valor). */
   const [manual, setManual] = useState<'custom' | 'expression' | null>(null);
@@ -154,22 +154,22 @@ export function FormatField({
         className="h-7 w-full rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
         value={selected}
         aria-label={ariaLabel}
-        title={FORMAT_TITLE}
+        title={formatTitle}
         onChange={(event) => changeSelection(event.target.value)}
       >
         {value === 'mixed' ? (
           <option value="mixed" disabled>
-            Mixto
+            {t('toolbar.formatField.mixed')}
           </option>
         ) : null}
-        <option value="general">General (sin formato)</option>
+        <option value="general">{t('toolbar.formatField.generalNoFormat')}</option>
         {FORMAT_PRESETS.map((preset) => (
           <option key={preset.id} value={preset.id}>
-            {preset.label}
+            {t(preset.labelKey)}
           </option>
         ))}
-        <option value="custom">Personalizado…</option>
-        <option value="expression">Expresión…</option>
+        <option value="custom">{t('toolbar.formatField.custom')}</option>
+        <option value="expression">{t('toolbar.formatField.expression')}</option>
       </select>
 
       {expression ? (
@@ -177,7 +177,7 @@ export function FormatField({
           <ExpressionEditor
             value={text}
             mode="expression"
-            ariaLabel={`${ariaLabel}: cadena o expresión`}
+            ariaLabel={fieldAriaLabel}
             autoFocus={focusEditor}
             onCommit={commitEditor}
           />
@@ -188,9 +188,9 @@ export function FormatField({
           data-rdlc-format-literal=""
           className="h-7 border-input px-1 font-mono text-xs"
           value={text}
-          placeholder={placeholder}
-          aria-label={`${ariaLabel}: cadena o expresión`}
-          title={FORMAT_TITLE}
+          placeholder={placeholder ?? t('toolbar.formatField.general')}
+          aria-label={fieldAriaLabel}
+          title={formatTitle}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commitDraft}
           onKeyDown={(event) => {

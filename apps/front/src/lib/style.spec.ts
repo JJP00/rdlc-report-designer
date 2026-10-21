@@ -60,6 +60,16 @@ describe('effectiveTextStyle', () => {
     expect(effectiveTextStyle(item)?.textAlign).toBe('Center');
   });
 
+  it('el item no alinea: un `<TextAlign>` suelto en el item se ignora (BC no lo lee)', () => {
+    const item = textbox({ style: { textAlign: 'Right' } });
+
+    // Ni la barra de formato lo marca como activo…
+    expect(effectiveTextStyle(item)?.textAlign).toBeUndefined();
+    // …ni el resto de claves del item dejan de caer (la excepción es solo textAlign).
+    const mixed = textbox({ style: { textAlign: 'Right', fontWeight: 'Bold' } });
+    expect(effectiveTextStyle(mixed)?.fontWeight).toBe('Bold');
+  });
+
   it('si los niveles discrepan se cae al nivel superior (no miente)', () => {
     const item = textbox({
       style: { fontSize: { value: 10, unit: 'pt' } },

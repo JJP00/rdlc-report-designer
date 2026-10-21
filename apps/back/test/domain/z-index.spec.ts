@@ -101,5 +101,6 @@ describe('F1 · setZIndex', () => {
       { cmd: 'setZIndex', id: 'NoExiste', zIndex: 1 },
     );
     expect(result.isLeft()).toBe(true);
+    if (result.isLeft()) expect(result.value.reason).toBe('itemMissing');
   });
 });

@@ -1,14 +1,35 @@
 /**
- * Mensajes de error de la API para el usuario. El banner muestra el motivo
- * (`message`) y, cuando el backend adjunta detalles (`data`: p. ej. los
- * problemas del XSD al guardar), se listan debajo para que se puedan leer y
- * copiar. El código (`E_...`) queda para los logs de diagnóstico.
+ * Mensajes de error de la API para el usuario (borde de traducción, fase 2 de
+ * i18n): el backend manda `code` + `reason` + `params` y aquí se compone el
+ * texto visible con el catálogo del idioma vigente.
+ *
+ * El banner muestra el motivo traducido y, cuando el backend adjunta detalles
+ * (`data`: p. ej. los problemas del XSD al guardar), se listan debajo para que
+ * se puedan leer y copiar. `message` (diagnóstico en inglés) solo se usa si el
+ * motivo no tiene traducción; el código (`E_...`) queda para los logs.
  */
+import { translateError, type MessageParams, type Translator } from '@rdlc-designer/i18n';
+
+export interface ApiErrorLike {
+  code?: string;
+  reason?: string;
+  params?: MessageParams;
+  message?: string;
+  data?: unknown;
+}
+
 export function apiErrorMessage(
-  result: { message?: string; data?: unknown },
+  result: ApiErrorLike,
+  translator: Translator,
   fallback: string,
 ): string {
-  const message = result.message?.trim() || fallback;
+  // Precedencia: motivo traducido → mensaje específico del backend (rutas sin
+  // `reason`, p. ej. la validación de payload o rechazos inyectados) → fallback
+  // genérico por código → el del llamante.
+  const byReason = translateError(translator, { reason: result.reason }, result.params);
+  const byCode = translateError(translator, { code: result.code });
+  const fromApi = result.message?.trim();
+  const message = byReason ?? (fromApi || byCode || fallback);
   const details = errorDetails(result.data);
   if (details.length === 0) return message;
   return [message, ...details.map((detail) => `• ${detail}`)].join('\n');

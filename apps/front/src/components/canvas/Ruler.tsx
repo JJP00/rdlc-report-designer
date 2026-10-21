@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import type { PageRulerSegment } from '@/lib/pageResize';
 import { RULER_PX, PX_PER_CM } from './geometry';
 
@@ -142,6 +143,7 @@ function RulerMarkHandle({
   maxCm: number;
   cmFromPointer: (event: PointerEvent<HTMLDivElement>) => number;
 }): ReactNode {
+  const t = useT();
   const [dragging, setDragging] = useState(false);
   const size = 12;
   const horizontal = orientation === 'horizontal';
@@ -162,7 +164,7 @@ function RulerMarkHandle({
       aria-valuemax={Math.round(maxCm * 100) / 100}
       aria-valuenow={Math.round(mark.cm * 100) / 100}
       tabIndex={0}
-      title={`${mark.label} (arrastra en la regla)`}
+      title={t('canvas.ruler.dragHint', { label: mark.label })}
       className={`absolute z-10 outline-none before:absolute before:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${
         horizontal
           ? 'cursor-ew-resize before:-inset-x-1.5 before:-inset-y-0.5'

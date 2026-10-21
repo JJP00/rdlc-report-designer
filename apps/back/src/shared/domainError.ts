@@ -1,37 +1,49 @@
 import type { ErrorCode } from '@rdlc-designer/contracts';
+import type { ErrorReason } from './errorReasons.js';
 
 /**
  * Errores de dominio (patrón 3DChess): factorías `static create()` y ningún
- * `throw` cruzando capas. `code` es el código del contrato IPC.
+ * `throw` cruzando capas. `code` es el código del contrato IPC; `reason` es el
+ * motivo estable (i18n) y `params` los valores de su plantilla.
+ *
+ * El dominio **no compone prosa**: la traducción vive en los bordes (front,
+ * main, MCP) con los catálogos `errors.<reason>`.
  */
 export interface DomainError {
   readonly code: ErrorCode;
-  readonly errorMessage: string;
+  readonly reason: ErrorReason;
+  readonly params?: Readonly<Record<string, string | number>>;
+  /** Datos adjuntos para la UI (p. ej. la lista de problemas del XSD). */
   readonly data?: unknown;
 }
 
 export class FileNotFoundError implements DomainError {
   readonly code = 'E_NOT_FOUND' as const;
+  readonly reason = 'fileMissing' as const;
 
-  private constructor(readonly errorMessage: string) {}
+  private constructor(readonly params: { path: string }) {}
 
   static create(path: string): FileNotFoundError {
-    return new FileNotFoundError(`No existe el fichero: ${path}`);
+    return new FileNotFoundError({ path });
   }
 }
 
 export class InvalidXmlError implements DomainError {
   readonly code = 'E_INVALID_XML' as const;
+  readonly reason: 'invalidXml' | 'invalidXmlDetail';
 
   private constructor(
-    readonly errorMessage: string,
+    reason: 'invalidXml' | 'invalidXmlDetail',
+    readonly params: { path: string; detail?: string },
     readonly data?: unknown,
-  ) {}
+  ) {
+    this.reason = reason;
+  }
 
   static create(path: string, detail?: string): InvalidXmlError {
-    return new InvalidXmlError(
-      `El fichero no es un XML RDLC válido: ${path}${detail ? ` (${detail})` : ''}`,
-    );
+    return detail
+      ? new InvalidXmlError('invalidXmlDetail', { path, detail })
+      : new InvalidXmlError('invalidXml', { path });
   }
 }
 
@@ -42,33 +54,50 @@ export class InvalidXmlError implements DomainError {
  */
 export class UnsupportedRdlSchemaError implements DomainError {
   readonly code = 'E_UNSUPPORTED_SCHEMA' as const;
+  readonly reason:
+    'unsupportedSchemaVersion' | 'unsupportedSchemaNamespace' | 'unsupportedSchemaUnknown';
 
-  private constructor(readonly errorMessage: string) {}
+  private constructor(
+    reason: UnsupportedRdlSchemaError['reason'],
+    readonly params: { path: string; version?: string; namespace?: string },
+  ) {
+    this.reason = reason;
+  }
 
   static create(path: string, namespace: string | undefined): UnsupportedRdlSchemaError {
     const version = namespace?.match(/\/(\d{4})\/\d{2}\/reportdefinition/i)?.[1];
-    const found = version
-      ? `el esquema RDL ${version}`
-      : namespace
-        ? `un esquema distinto ('${namespace}')`
-        : 'sin namespace RDL';
-    return new UnsupportedRdlSchemaError(
-      `El fichero usa ${found}; esta versión solo edita RDL/RDLC 2016/01. ` +
-        `Ábrelo con Report Builder 2016 o superior, guárdalo para actualizarlo a 2016 y vuelve a intentarlo: ${path}`,
-    );
+    if (version)
+      return new UnsupportedRdlSchemaError('unsupportedSchemaVersion', { path, version });
+    if (namespace) {
+      return new UnsupportedRdlSchemaError('unsupportedSchemaNamespace', { path, namespace });
+    }
+    return new UnsupportedRdlSchemaError('unsupportedSchemaUnknown', { path });
   }
 }
+
+/** Operaciones del puerto de fichero (`reason` = `io<X>Failed`). */
+export type IoOperation = 'read' | 'write' | 'watch';
+
+const IO_REASONS: Record<
+  IoOperation,
+  ErrorReason & ('ioReadFailed' | 'ioWriteFailed' | 'ioWatchFailed')
+> = {
+  read: 'ioReadFailed',
+  write: 'ioWriteFailed',
+  watch: 'ioWatchFailed',
+};
 
 export class IoError implements DomainError {
   readonly code = 'E_IO' as const;
 
   private constructor(
-    readonly errorMessage: string,
+    readonly reason: ErrorReason,
+    readonly params: { path: string },
     readonly data?: unknown,
   ) {}
 
-  static create(operation: string, path: string, error: unknown): IoError {
-    return new IoError(`Error de E/S al ${operation} ${path}`, error);
+  static create(operation: IoOperation, path: string, error: unknown): IoError {
+    return new IoError(IO_REASONS[operation], { path }, error);
   }
 }
 
@@ -80,24 +109,23 @@ export class IoError implements DomainError {
  */
 export class FileConflictError implements DomainError {
   readonly code = 'E_CONFLICT' as const;
+  readonly reason = 'fileChangedOnDisk' as const;
 
-  private constructor(readonly errorMessage: string) {}
+  private constructor(readonly params: { path: string }) {}
 
   static create(path: string): FileConflictError {
-    return new FileConflictError(
-      `El fichero cambió en disco desde la última lectura y no se guardó nada: ${path}. ` +
-        `Recarga el informe o usa «Guardar como…» para no perder la edición externa.`,
-    );
+    return new FileConflictError({ path });
   }
 }
 
 export class UnknownSessionError implements DomainError {
   readonly code = 'E_NOT_FOUND' as const;
+  readonly reason = 'sessionUnknown' as const;
 
-  private constructor(readonly errorMessage: string) {}
+  private constructor(readonly params: { sessionId: string }) {}
 
   static create(sessionId: string): UnknownSessionError {
-    return new UnknownSessionError(`Sesión desconocida: ${sessionId}`);
+    return new UnknownSessionError({ sessionId });
   }
 }
 
@@ -105,50 +133,57 @@ export class CommandRejectedError implements DomainError {
   readonly code = 'E_COMMAND_REJECTED' as const;
 
   private constructor(
-    readonly errorMessage: string,
+    readonly reason: ErrorReason,
+    readonly params?: Readonly<Record<string, string | number>>,
     readonly data?: unknown,
   ) {}
 
-  static create(message: string, data?: unknown): CommandRejectedError {
-    return new CommandRejectedError(message, data);
+  static of(
+    reason: ErrorReason,
+    params?: Readonly<Record<string, string | number>>,
+    data?: unknown,
+  ): CommandRejectedError {
+    return new CommandRejectedError(reason, params, data);
   }
 }
 
 export class InvalidCommandError implements DomainError {
   readonly code = 'E_INVALID_COMMAND' as const;
 
-  private constructor(readonly errorMessage: string) {}
+  private constructor(
+    readonly reason: ErrorReason,
+    readonly params?: Readonly<Record<string, string | number>>,
+  ) {}
 
-  static create(message: string): InvalidCommandError {
-    return new InvalidCommandError(message);
+  static of(
+    reason: ErrorReason,
+    params?: Readonly<Record<string, string | number>>,
+  ): InvalidCommandError {
+    return new InvalidCommandError(reason, params);
   }
 }
 
 export class ValidationFailedError implements DomainError {
   readonly code = 'E_VALIDATION' as const;
+  readonly reason = 'xsdValidationFailed' as const;
 
   private constructor(
-    readonly errorMessage: string,
-    readonly data?: unknown,
+    readonly params: { count: number },
+    readonly data: string[],
   ) {}
 
   static create(problems: string[]): ValidationFailedError {
-    return new ValidationFailedError(
-      `El XML no valida contra el esquema RDL 2016/01 (${problems.length} problema(s)); no se escribió el fichero`,
-      problems,
-    );
+    return new ValidationFailedError({ count: problems.length }, problems);
   }
 }
 
 export class UnexpectedError implements DomainError {
   readonly code = 'E_UNEXPECTED' as const;
+  readonly reason = 'unexpected' as const;
 
-  private constructor(
-    readonly errorMessage: string,
-    readonly data?: unknown,
-  ) {}
+  private constructor(readonly data?: unknown) {}
 
   static create(error: unknown): UnexpectedError {
-    return new UnexpectedError('Error inesperado', error);
+    return new UnexpectedError(error);
   }
 }

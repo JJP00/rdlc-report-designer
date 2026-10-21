@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createTranslator } from '@rdlc-designer/i18n';
 import {
   CLOSE_ACK_TIMEOUT_MS,
   createWindowLifecycle,
@@ -8,7 +9,8 @@ import {
 /**
  * Ciclo de vida de la ventana (BUG-51): vigilante de cierre sin acuse, render
  * caído y «no responde». Sin Electron: diálogo y acciones inyectados, timers
- * falsos de vitest.
+ * falsos de vitest. La traducción usa el catálogo ES real (los textos visibles
+ * son los mismos que en producción).
  */
 
 interface PendingDialog {
@@ -40,6 +42,7 @@ function setup(overrides: { isBench?: boolean } = {}) {
     destroyWindow,
     reload,
     isDestroyed: () => destroyed,
+    t: createTranslator('es').t,
     log,
   });
 

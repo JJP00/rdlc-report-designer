@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import { useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +35,7 @@ export function ExpressionDialog({
   onClose,
   onApply,
 }: ExpressionDialogProps): ReactNode {
+  const t = useT();
   // El commit del editor (blur o Ctrl+Intro) puede llegar en el mismo gesto que
   // el click en «Aplicar»: el ref garantiza el valor más reciente.
   const draftRef = useRef(value);
@@ -48,15 +50,13 @@ export function ExpressionDialog({
       <ResizableDialogContent className="max-h-[90vh] max-w-2xl sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Expresión RDL con resaltado y autocompletado. Ctrl+Intro o «Aplicar» para confirmar.
-          </DialogDescription>
+          <DialogDescription>{t('text.expression.description')}</DialogDescription>
         </DialogHeader>
         <DialogBody className="pr-1">
           <ExpressionEditor
             value={value}
             mode="code"
-            ariaLabel={`Editor de ${title}`}
+            ariaLabel={t('text.expression.editorAria', { title })}
             onSubmit={(value) => onApply(value)}
             onCommit={(next) => {
               draftRef.current = next;
@@ -65,9 +65,9 @@ export function ExpressionDialog({
         </DialogBody>
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={onClose}>
-            Cancelar
+            {t('common.cancel')}
           </Button>
-          <Button onClick={() => onApply(draftRef.current)}>Aplicar</Button>
+          <Button onClick={() => onApply(draftRef.current)}>{t('text.dialog.apply')}</Button>
         </DialogFooter>
       </ResizableDialogContent>
     </Dialog>

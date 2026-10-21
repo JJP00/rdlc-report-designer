@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { setExpressionInserter } from '@/lib/expressionEditor';
 import type { ExpressionEditorHandles } from '@/lib/monacoSetup';
@@ -45,6 +46,7 @@ export function ExpressionEditor({
   height,
   autoFocus = false,
 }: ExpressionEditorProps): ReactNode {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<ExpressionEditorHandles | null>(null);
   // Se captura al montar: el foco es de la acción que provocó el montaje.
@@ -70,7 +72,7 @@ export function ExpressionEditor({
 
       handles = host.createExpressionEditor(
         container,
-        { value, mode, ariaLabel },
+        { value, mode, ariaLabel, t },
         {
           onCommit: () => {
             if (disposed) return;

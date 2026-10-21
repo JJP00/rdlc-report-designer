@@ -416,10 +416,10 @@ describe('F1 · setStyle · precedencia run > párrafo > item', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('sincroniza el override del párrafo (TextAlign) con el valor del item', () => {
+  it('escribe TextAlign en el párrafo (BC solo lo lee ahí) y no lo añade al item', () => {
     const { xml, doc, index } = open('PalletOutput.rdlc');
 
-    // Textbox25 tiene <TextAlign>Center</TextAlign> en el párrafo.
+    // Textbox25 tiene <TextAlign>Center</TextAlign> en el párrafo (y nada en el item).
     const applied = applyCommand(
       { root: doc.root, index },
       { cmd: 'setStyle', id: 'Textbox25', style: { textAlign: 'Right' } },
@@ -429,8 +429,7 @@ describe('F1 · setStyle · precedencia run > párrafo > item', () => {
 
     const textbox = itemSlice(adapter.serialize(doc), 'Textbox25');
     expect(textbox).not.toContain('<TextAlign>Center</TextAlign>');
-    expect(textbox).toContain('<TextAlign>Right</TextAlign>');
-    expect(textbox.match(/<TextAlign>Right<\/TextAlign>/g)).toHaveLength(2);
+    expect(textbox.match(/<TextAlign>Right<\/TextAlign>/g)).toHaveLength(1);
 
     const undone = undoAll({ root: doc.root, index }, applied.value);
     expect(undone.isRight()).toBe(true);

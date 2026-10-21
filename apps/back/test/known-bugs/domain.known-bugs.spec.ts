@@ -6,6 +6,7 @@ import { applyCommand } from '../../src/domain/document/commands/applyCommand.js
 import type { CommandContext } from '../../src/domain/document/commands/CommandContext.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
 import type { RdlcNode } from '../../src/domain/document/tree/RdlcNode.js';
+import { describeError } from '../../src/shared/describeError.js';
 import { TrueFormatXmlAdapter } from '../../src/infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { cleanupTempDirs, makeService } from '../application/test-utils.js';
 import { undoAll } from '../domain/command-test-utils.js';
@@ -388,6 +389,7 @@ describe('BUG-02 · deleteRows/deleteColumns atómicos', () => {
     const result = applyCommand(ctx, { cmd: 'deleteRows', id: 'T', rows: [0, 1] });
 
     expect(result.isLeft(), 'borrar todas las filas debe rechazarse').toBe(true);
+    if (result.isLeft()) expect(result.value.reason).toBe('tablixNeedsRow');
     expect(adapter.serialize(doc), 'un rechazo no debe dejar filas borradas a medias').toBe(before);
   });
 
@@ -398,6 +400,7 @@ describe('BUG-02 · deleteRows/deleteColumns atómicos', () => {
     const result = applyCommand(ctx, { cmd: 'deleteColumns', id: 'T', columns: [0, 1, 2] });
 
     expect(result.isLeft(), 'borrar todas las columnas debe rechazarse').toBe(true);
+    if (result.isLeft()) expect(result.value.reason).toBe('tablixNeedsColumn');
     expect(adapter.serialize(doc), 'un rechazo no debe dejar columnas borradas a medias').toBe(
       before,
     );
@@ -625,6 +628,7 @@ describe('BUG-11 · nombres de items y grupos no colisionan', () => {
     expect(renamed.isLeft(), `renombrar H2 a '${group}' (nombre de grupo) debe rechazarse`).toBe(
       true,
     );
+    if (renamed.isLeft()) expect(renamed.value.reason).toBe('nameTaken');
   });
 
   it('insertItem rechaza un nombre que ya usa un grupo', () => {
@@ -656,6 +660,7 @@ describe('BUG-11 · nombres de items y grupos no colisionan', () => {
       inserted.isLeft(),
       "insertar un textbox 'Category' (nombre de grupo) debe rechazarse",
     ).toBe(true);
+    if (inserted.isLeft()) expect(inserted.value.reason).toBe('nameTaken');
   });
 });
 
@@ -717,7 +722,7 @@ describe('BUG-13 · ampliar una celda ya combinada', () => {
     });
     expect(
       extended.isRight(),
-      `ampliar la fusión debe aplicarse (rechazo: ${extended.isLeft() ? extended.value.errorMessage : ''})`,
+      `ampliar la fusión debe aplicarse (rechazo: ${extended.isLeft() ? describeError(extended.value) : ''})`,
     ).toBe(true);
     const anchor = rowCells(tablixRows(ctx2.index.get('T'))[0])[0];
     expect(anchor?.child('CellContents')?.child('ColSpan')?.text()).toBe('3');
@@ -807,7 +812,7 @@ describe('BUG-16 · el índice se reconstruye tras borrar filas/columnas', () =>
     const path = join(tmp, 'KnownBugs.rdlc');
     await writeFile(path, BASE_XML, 'utf8');
     const opened = await service.open(path);
-    if (!opened.isRight()) throw new Error(`no abrió: ${opened.value.errorMessage}`);
+    if (!opened.isRight()) throw new Error(`no abrió: ${describeError(opened.value)}`);
     return { commands: new CommandService(service), service, sessionId: opened.value.sessionId };
   }
 

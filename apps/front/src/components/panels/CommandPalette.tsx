@@ -1,4 +1,5 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import {
   Braces,
   ArrowLeftToLine,
@@ -42,6 +43,7 @@ import {
 import {
   PALETTE_ACTIONS,
   PALETTE_ACTION_MARK,
+  PALETTE_CATEGORY_KEYS,
   paletteDisabledActions,
   paletteFilter,
   paletteElements,
@@ -105,10 +107,11 @@ export function CommandPalette({
   onAction,
   capabilities,
 }: CommandPaletteProps): ReactNode {
+  const t = useT();
   const elements = useMemo(() => (projection ? paletteElements(projection) : []), [projection]);
   const variables = useMemo(
-    () => (projection ? variableEntries(projection.meta) : []),
-    [projection],
+    () => (projection ? variableEntries(projection.meta, t) : []),
+    [projection, t],
   );
   const disabledActions = useMemo(() => paletteDisabledActions(capabilities), [capabilities]);
 
@@ -121,32 +124,36 @@ export function CommandPalette({
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Paleta de comandos"
-      description="Busca elementos del informe, variables o acciones del editor"
+      title={t('palette.dialog.title')}
+      description={t('palette.dialog.description')}
     >
       <Command filter={paletteFilter}>
-        <CommandInput placeholder="Buscar elemento, variable o acción…" />
+        <CommandInput placeholder={t('palette.search.placeholder')} />
         <CommandList>
-          <CommandEmpty>Sin resultados.</CommandEmpty>
+          <CommandEmpty>{t('palette.search.empty')}</CommandEmpty>
 
-          <CommandGroup heading="Acciones">
+          <CommandGroup heading={t('palette.section.actions')}>
             {PALETTE_ACTIONS.map((action) => {
               const disabled = disabledActions.has(action.id);
+              const label = t(action.labelKey);
+              const group = t(PALETTE_CATEGORY_KEYS[action.group]);
               return (
                 <CommandItem
                   key={action.id}
-                  value={`${PALETTE_ACTION_MARK}${action.label}`}
-                  keywords={[action.group]}
+                  value={`${PALETTE_ACTION_MARK}${label}`}
+                  keywords={[group]}
                   disabled={disabled}
                   onSelect={() => run(() => onAction(action.id))}
                 >
                   {ACTION_ICONS[action.id]}
-                  <span>{action.label}</span>
-                  {action.shortcut ? (
-                    <CommandShortcut>{action.shortcut}</CommandShortcut>
+                  <span>{label}</span>
+                  {action.shortcutKey || action.shortcut ? (
+                    <CommandShortcut>
+                      {action.shortcutKey ? t(action.shortcutKey) : action.shortcut}
+                    </CommandShortcut>
                   ) : (
                     <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                      {action.group}
+                      {group}
                     </span>
                   )}
                 </CommandItem>
@@ -157,7 +164,7 @@ export function CommandPalette({
           {elements.length > 0 ? (
             <>
               <CommandSeparator />
-              <CommandGroup heading="Elementos del informe">
+              <CommandGroup heading={t('palette.section.elements')}>
                 {elements.map((element) => (
                   <CommandItem
                     key={element.id}
@@ -179,18 +186,18 @@ export function CommandPalette({
           {variables.length > 0 ? (
             <>
               <CommandSeparator />
-              <CommandGroup heading="Variables">
+              <CommandGroup heading={t('palette.section.variables')}>
                 {variables.map((entry) => (
                   <CommandItem
                     key={`${entry.group}.${entry.name}`}
                     value={`${entry.name} ${entry.expression}`}
-                    keywords={[entry.group, entry.detail ?? '']}
+                    keywords={[entry.groupLabel ?? entry.group, entry.detail ?? '']}
                     onSelect={() => run(() => onPickExpression(entry.expression, entry.name))}
                   >
                     <Braces />
                     <span className="truncate font-mono text-xs">{entry.name}</span>
                     <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                      {entry.group}
+                      {entry.groupLabel ?? entry.group}
                     </span>
                   </CommandItem>
                 ))}

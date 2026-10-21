@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
@@ -85,6 +86,7 @@ export function NumberInput({
   const [focused, setFocused] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const t = useT();
   const text = draft ?? (value === null ? '' : value.toFixed(decimals));
 
   const commitText = (): void => {
@@ -205,8 +207,8 @@ export function NumberInput({
             (lo cazó el E2E del panel de Estructura). */}
         <button
           type="button"
-          aria-label={`${label}: aumentar`}
-          title="Aumentar (↑)"
+          aria-label={t('lib.numberInput.increaseAria', { label })}
+          title={t('lib.numberInput.increaseTitle')}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => stepBy(1)}
           className="relative flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground before:absolute before:-top-0.5 before:bottom-0 before:-left-0.5 before:-right-1.5 before:content-[''] hover:bg-muted hover:text-foreground"
@@ -215,8 +217,8 @@ export function NumberInput({
         </button>
         <button
           type="button"
-          aria-label={`${label}: reducir`}
-          title="Reducir (↓)"
+          aria-label={t('lib.numberInput.decreaseAria', { label })}
+          title={t('lib.numberInput.decreaseTitle')}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => stepBy(-1)}
           className="relative flex h-3 w-4 items-center justify-center rounded-sm text-muted-foreground before:absolute before:top-0 before:-bottom-0.5 before:-left-0.5 before:-right-1.5 before:content-[''] hover:bg-muted hover:text-foreground"

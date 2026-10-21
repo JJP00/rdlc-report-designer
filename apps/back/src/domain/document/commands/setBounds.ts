@@ -18,7 +18,7 @@ export function applySetBounds(
   command: SetBoundsCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const previous = {
     top: readLength(node, 'Top') ?? { value: 0, unit: 'cm' },

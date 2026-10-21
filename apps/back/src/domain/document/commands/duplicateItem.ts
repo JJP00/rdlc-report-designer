@@ -15,17 +15,15 @@ export function applyDuplicateItem(
   command: DuplicateItemCommand,
 ): Either<DomainError, CommandOutcome> {
   const source = ctx.index.get(command.id);
-  if (!source) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!source) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const container = source.parent;
   if (!container) {
-    return left(CommandRejectedError.create(`El elemento '${command.id}' no tiene contenedor`));
+    return left(CommandRejectedError.of('itemHasNoContainer', { id: command.id }));
   }
 
   if (command.name && (ctx.index.has(command.name) || hasGroupNamed(ctx.root, command.name))) {
-    return left(
-      CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${command.name}'`),
-    );
+    return left(CommandRejectedError.of('nameTaken', { name: command.name }));
   }
 
   // Justo después del original, respetando el orden de los hermanos.

@@ -31,7 +31,7 @@ export function applySetVisibility(
   command: SetVisibilityCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   if (command.hidden === null) {
     return right({ inverse: clearHidden(node), applied: [{ id: command.id, values: {} }] });
@@ -50,7 +50,7 @@ export function applySetVisibility(
 export function visibilityValue(hidden: boolean | string): Either<DomainError, string> {
   const value = typeof hidden === 'boolean' ? String(hidden) : hidden;
   if (value.trim() === '') {
-    return left(CommandRejectedError.create('La expresión de visibilidad no puede estar vacía'));
+    return left(CommandRejectedError.of('visibilityExpressionEmpty'));
   }
   return right(value);
 }

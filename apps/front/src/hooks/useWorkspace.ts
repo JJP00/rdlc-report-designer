@@ -1,13 +1,9 @@
 import type { CommandResult, ItemDto, ProjectionDto, RdlcCommand } from '@rdlc-designer/contracts';
+import { useT, useTranslator } from '@rdlc-designer/i18n/react';
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { setCompletionMeta } from '@/lib/completionMeta';
 import { apiErrorMessage, hasErrorDetails, isPersistentErrorCode } from '@/lib/errors';
-import {
-  createSerialQueue,
-  createSessionOps,
-  QUEUED_OPERATION_STATUS,
-  visibleBusyLabel,
-} from '@/lib/fileOps';
+import { createSerialQueue, createSessionOps, visibleBusyLabel } from '@/lib/fileOps';
 import { patchItem } from '@/lib/projection';
 import { loadTabUi, removeTabUi, saveTabUi } from '@/lib/tabUiStorage';
 import { formatWindowTitle } from '@/lib/windowTitle';
@@ -22,7 +18,6 @@ import {
   applyFileMissingChanged,
   applySavedEvent,
   applySessionClosed,
-  CLOSED_STATUS,
   createTab,
   createWorkspace,
   createdStatus,
@@ -30,14 +25,12 @@ import {
   cycleTab as cycleWorkspaceTab,
   EMPTY_TAB_UI,
   findTabByPath,
-  IDLE_STATUS,
   markClipboard,
   moveTab as moveWorkspaceTab,
   normalizePath,
   openTab,
   openedStatus,
   patchTabProjection,
-  RELOADED_STATUS,
   removeTab,
   updateTab,
   updateTabUi as patchTabUi,
@@ -188,6 +181,8 @@ const UI_PERSIST_MS = 300;
 const WORKSPACE_ERROR_KEY = '__workspace__';
 
 export function useWorkspace(): WorkspaceCore {
+  const t = useT();
+  const translator = useTranslator();
   const [state, setState] = useState<WorkspaceState>(createWorkspace);
   const stateRef = useRef(state);
 
@@ -200,7 +195,7 @@ export function useWorkspace(): WorkspaceCore {
     });
   }, []);
 
-  const [workspaceStatus, setWorkspaceStatus] = useState(IDLE_STATUS);
+  const [workspaceStatus, setWorkspaceStatus] = useState(() => t('app.status.idle'));
   const [workspaceError, setWorkspaceErrorState] = useState<string | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
   const [pendingIntent, setPendingIntent] = useState<PendingIntent | null>(null);
@@ -415,7 +410,7 @@ export function useWorkspace(): WorkspaceCore {
       }
       const result = await window.api.openFile(path);
       if (!result.ok) {
-        setWorkspaceError(apiErrorMessage(result, 'error al abrir'), {
+        setWorkspaceError(apiErrorMessage(result, translator, t('app.error.open')), {
           persistent: isPersistentErrorCode(result.code),
         });
         return false;
@@ -427,13 +422,13 @@ export function useWorkspace(): WorkspaceCore {
             sessionId: result.sessionId,
             path,
             projection: result.projection,
-            status: openedStatus(path),
+            status: openedStatus(path, t),
           }),
         ),
       );
       return true;
     },
-    [setWorkspace, setWorkspaceError],
+    [setWorkspace, setWorkspaceError, t, translator],
   );
 
   // `openOne` es estable, pero se mantiene un ref para no re-suscribir el
@@ -448,7 +443,7 @@ export function useWorkspace(): WorkspaceCore {
     (paths: string[]): void => {
       if (paths.length === 0) return;
       const started = openQueue.current.enqueue(async () => {
-        const endOperation = beginOperation(null, 'Abriendo…');
+        const endOperation = beginOperation(null, t('app.status.opening'));
         try {
           setWorkspaceError(null);
           const activeId = stateRef.current.activeSessionId;
@@ -469,9 +464,9 @@ export function useWorkspace(): WorkspaceCore {
       });
       // Nada de retornos silenciosos: si hay una apertura en curso, la nueva se
       // encola (se hará a continuación) y el pie lo dice.
-      if (!started) setStatus(QUEUED_OPERATION_STATUS);
+      if (!started) setStatus(t('app.status.queued'));
     },
-    [beginOperation, openOne, setStatus, setTabError, setWorkspaceError],
+    [beginOperation, openOne, setStatus, setTabError, setWorkspaceError, t],
   );
 
   const openPath = useCallback(
@@ -491,10 +486,10 @@ export function useWorkspace(): WorkspaceCore {
   /** Nuevo: pide ruta, escribe la plantilla en blanco y la abre en su pestaña. */
   const createNew = useCallback((): void => {
     const job = async (): Promise<void> => {
-      const endOperation = beginOperation(null, 'Creando…');
+      const endOperation = beginOperation(null, t('app.status.creating'));
       try {
         setWorkspaceError(null);
-        const picked = await window.api.pickSavePath('Nuevo informe.rdlc');
+        const picked = await window.api.pickSavePath(t('app.file.newReportName'));
         if (!picked.ok || !picked.path) return;
         const path = picked.path;
 
@@ -507,7 +502,7 @@ export function useWorkspace(): WorkspaceCore {
         }
         const result = await window.api.createNew(path);
         if (!result.ok) {
-          setWorkspaceError(apiErrorMessage(result, 'no se pudo crear el informe'), {
+          setWorkspaceError(apiErrorMessage(result, translator, t('app.error.create')), {
             persistent: isPersistentErrorCode(result.code),
           });
           return;
@@ -519,7 +514,7 @@ export function useWorkspace(): WorkspaceCore {
               sessionId: result.sessionId,
               path,
               projection: result.projection,
-              status: createdStatus(path),
+              status: createdStatus(path, t),
             }),
           ),
         );
@@ -528,15 +523,15 @@ export function useWorkspace(): WorkspaceCore {
         endOperation();
       }
     };
-    if (!openQueue.current.enqueue(job)) setStatus(QUEUED_OPERATION_STATUS);
-  }, [beginOperation, setStatus, setWorkspace, setWorkspaceError]);
+    if (!openQueue.current.enqueue(job)) setStatus(t('app.status.queued'));
+  }, [beginOperation, setStatus, setWorkspace, setWorkspaceError, t, translator]);
 
   /** Cuerpo del guardado (sin guarda): lo ejecuta `saveTab` bajo la guarda por sesión. */
   const runSave = useCallback(
     async (sessionId: string): Promise<boolean> => {
       const tab = stateRef.current.tabs.get(sessionId);
       if (!tab) return false;
-      const endOperation = beginOperation(sessionId, 'Guardando…');
+      const endOperation = beginOperation(sessionId, t('app.status.saving'));
       try {
         setWorkspaceError(null);
         setTabError(sessionId, null);
@@ -548,21 +543,29 @@ export function useWorkspace(): WorkspaceCore {
           if (result.code === 'E_CONFLICT') {
             setWorkspace((current) => updateTab(current, sessionId, { conflict: tab.path }));
           }
-          setTabError(sessionId, apiErrorMessage(result, 'error al guardar'), {
+          setTabError(sessionId, apiErrorMessage(result, translator, t('app.error.save')), {
             persistent: isPersistentErrorCode(result.code),
           });
           return false;
         }
-        const saved = result.bytesIdentical
-          ? `Guardado — bytes idénticos al original ✓ (${result.path})`
-          : `Guardado: ${result.path}`;
-        // El aviso no bloqueante del backend (p. ej. watcher no montado, BUG-56)
-        // se suma al estado del guardado.
+        // Estado del guardado: el aviso no bloqueante del backend (p. ej.
+        // watcher no montado, BUG-56) va dentro del mismo mensaje del catálogo
+        // (`result.warning` ya viene traducido del main).
+        const status = result.warning
+          ? t(
+              result.bytesIdentical
+                ? 'app.status.savedIdenticalWithWarning'
+                : 'app.status.savedWithWarning',
+              { path: result.path, warning: result.warning },
+            )
+          : t(result.bytesIdentical ? 'app.status.savedIdentical' : 'app.status.saved', {
+              path: result.path,
+            });
         setWorkspace((current) =>
           updateTab(current, sessionId, {
             conflict: null,
             fileMissing: null,
-            status: result.warning ? `${saved} — ${result.warning}` : saved,
+            status,
           }),
         );
         return true;
@@ -570,7 +573,7 @@ export function useWorkspace(): WorkspaceCore {
         endOperation();
       }
     },
-    [beginOperation, setTabError, setWorkspace, setWorkspaceError],
+    [beginOperation, setTabError, setWorkspace, setWorkspaceError, t, translator],
   );
 
   /** Guardar: `true` si se escribió (para encadenar «guardar y …»). */
@@ -594,7 +597,7 @@ export function useWorkspace(): WorkspaceCore {
     async (sessionId: string): Promise<boolean> => {
       const tab = stateRef.current.tabs.get(sessionId);
       if (!tab) return false;
-      const endOperation = beginOperation(sessionId, 'Guardando…');
+      const endOperation = beginOperation(sessionId, t('app.status.saving'));
       try {
         setWorkspaceError(null);
         setTabError(sessionId, null);
@@ -608,7 +611,7 @@ export function useWorkspace(): WorkspaceCore {
         const otherSessionId = findTabByPath(stateRef.current, picked.path);
         if (otherSessionId !== undefined && otherSessionId !== sessionId) {
           const otherPath = stateRef.current.tabs.get(otherSessionId)?.path ?? picked.path;
-          setTabError(sessionId, `Esa ruta ya está abierta en otra pestaña: ${otherPath}`, {
+          setTabError(sessionId, t('app.error.pathAlreadyOpen', { path: otherPath }), {
             persistent: true,
           });
           return false;
@@ -616,18 +619,20 @@ export function useWorkspace(): WorkspaceCore {
         const result = await window.api.saveAs(sessionId, picked.path);
         if (!stateRef.current.tabs.has(sessionId)) return false;
         if (!result.ok) {
-          setTabError(sessionId, apiErrorMessage(result, 'error al guardar'), {
+          setTabError(sessionId, apiErrorMessage(result, translator, t('app.error.save')), {
             persistent: isPersistentErrorCode(result.code),
           });
           return false;
         }
-        const saved = `Guardado como: ${result.path}`;
+        const status = result.warning
+          ? t('app.status.savedAsWithWarning', { path: result.path, warning: result.warning })
+          : t('app.status.savedAs', { path: result.path });
         setWorkspace((current) =>
           updateTab(current, sessionId, {
             path: result.path,
             conflict: null,
             fileMissing: null,
-            status: result.warning ? `${saved} — ${result.warning}` : saved,
+            status,
           }),
         );
         refreshRecentsRef.current();
@@ -636,7 +641,7 @@ export function useWorkspace(): WorkspaceCore {
         endOperation();
       }
     },
-    [beginOperation, setTabError, setWorkspace, setWorkspaceError],
+    [beginOperation, setTabError, setWorkspace, setWorkspaceError, t, translator],
   );
 
   const saveAsTab = useCallback(
@@ -661,7 +666,7 @@ export function useWorkspace(): WorkspaceCore {
       const result = await window.api.reloadFile(sessionId);
       if (!stateRef.current.tabs.has(sessionId)) return;
       if (!result.ok) {
-        setTabError(sessionId, apiErrorMessage(result, 'no se pudo recargar'), {
+        setTabError(sessionId, apiErrorMessage(result, translator, t('app.error.reload')), {
           persistent: isPersistentErrorCode(result.code),
         });
         return;
@@ -672,14 +677,14 @@ export function useWorkspace(): WorkspaceCore {
           dirty: false,
           conflict: null,
           fileMissing: null,
-          status: RELOADED_STATUS,
+          status: t('app.status.reloaded'),
           // El backend descarta el documento local al recargar: su portapapeles
           // (nodos del árbol viejo) también se va.
           hasClipboard: false,
         }),
       );
     },
-    [setTabError, setWorkspace],
+    [setTabError, setWorkspace, t, translator],
   );
 
   const reloadFromDisk = useCallback(async (): Promise<void> => {
@@ -699,7 +704,7 @@ export function useWorkspace(): WorkspaceCore {
         // `needsConfirmation` es inalcanzable en este camino; un fallo real
         // (E_IO…) siempre trae `code`. La rama estrecha el tipo.
         if ('code' in result) {
-          setTabError(sessionId, apiErrorMessage(result, 'no se pudo cerrar'), {
+          setTabError(sessionId, apiErrorMessage(result, translator, t('app.error.close')), {
             persistent: isPersistentErrorCode(result.code),
           });
         }
@@ -708,9 +713,9 @@ export function useWorkspace(): WorkspaceCore {
       const remaining = stateRef.current.order.filter((id) => id !== sessionId).length;
       setWorkspace((current) => removeTab(current, sessionId));
       // Cerrar la última pestaña deja el editor vacío, no cierra la ventana.
-      if (remaining === 0) setWorkspaceStatus(CLOSED_STATUS);
+      if (remaining === 0) setWorkspaceStatus(t('app.status.closed'));
     },
-    [setTabError, setWorkspace],
+    [setTabError, setWorkspace, t, translator],
   );
 
   /** Cerrar una pestaña: con cambios sin guardar, guarda scoped a esa pestaña. */
@@ -956,7 +961,7 @@ export function useWorkspace(): WorkspaceCore {
           if (typeof window.api.listSessions !== 'function') return;
           const listed = await window.api.listSessions();
           if (cancelled || !listed.ok || listed.sessions.length === 0) return;
-          setWorkspace((current) => adoptSessions(current, listed.sessions, loadTabUi));
+          setWorkspace((current) => adoptSessions(current, listed.sessions, loadTabUi, t));
           return;
         }
         await openOneRef.current(pending.path);
@@ -969,21 +974,21 @@ export function useWorkspace(): WorkspaceCore {
     return () => {
       cancelled = true;
     };
-  }, [hasBackend, setWorkspace, setWorkspaceError]);
+  }, [hasBackend, setWorkspace, setWorkspaceError, t]);
 
   useEffect(() => {
     if (!hasBackend) return;
 
     const offDocument = window.api.onDocumentChanged((event) =>
-      setWorkspace((current) => applyDocumentChanged(current, event)),
+      setWorkspace((current) => applyDocumentChanged(current, event, t)),
     );
     const offDirty = window.api.onDirtyChanged((event) =>
-      setWorkspace((current) => applyDirtyChanged(current, event)),
+      setWorkspace((current) => applyDirtyChanged(current, event, t)),
     );
     const offConflict =
       typeof window.api.onConflictDetected === 'function'
         ? window.api.onConflictDetected((event) =>
-            setWorkspace((current) => applyConflictDetected(current, event)),
+            setWorkspace((current) => applyConflictDetected(current, event, t)),
           )
         : () => {};
     const offFileMissing =
@@ -995,7 +1000,7 @@ export function useWorkspace(): WorkspaceCore {
     const offReloadFailed =
       typeof window.api.onExternalReloadFailed === 'function'
         ? window.api.onExternalReloadFailed((event) =>
-            setWorkspace((current) => applyExternalReloadFailed(current, event)),
+            setWorkspace((current) => applyExternalReloadFailed(current, event, t)),
           )
         : () => {};
     const offSaved =
@@ -1012,7 +1017,7 @@ export function useWorkspace(): WorkspaceCore {
             const order = stateRef.current.order;
             const wasLast = order.length === 1 && order[0] === event.sessionId;
             setWorkspace((current) => applySessionClosed(current, event));
-            if (wasLast) setWorkspaceStatus(CLOSED_STATUS);
+            if (wasLast) setWorkspaceStatus(t('app.status.closed'));
           })
         : () => {};
 
@@ -1025,7 +1030,7 @@ export function useWorkspace(): WorkspaceCore {
       offSaved();
       offClosed();
     };
-  }, [hasBackend, setWorkspace]);
+  }, [hasBackend, setWorkspace, t]);
 
   useEffect(() => {
     if (!hasBackend || typeof window.api.onCloseRequested !== 'function') return;
@@ -1073,7 +1078,7 @@ export function useWorkspace(): WorkspaceCore {
         );
       }
       if (!result.ok) {
-        setTabError(targetSessionId, apiErrorMessage(result, 'comando rechazado'));
+        setTabError(targetSessionId, apiErrorMessage(result, translator, t('app.error.command')));
         void resyncProjection(targetSessionId);
         return result;
       }
@@ -1094,7 +1099,7 @@ export function useWorkspace(): WorkspaceCore {
       // pie: el lienzo ya muestra el resultado (BUG-58).
       return result;
     },
-    [resyncProjection, setTabError, setWorkspace],
+    [resyncProjection, setTabError, setWorkspace, t, translator],
   );
 
   const updateProjection = useCallback(
@@ -1192,18 +1197,22 @@ export function useWorkspace(): WorkspaceCore {
     if (sessionId === null) return;
     const result = await window.api.undo(sessionId);
     if (!stateRef.current.tabs.has(sessionId)) return;
-    if (!result.ok) setTabError(sessionId, apiErrorMessage(result, 'no se pudo deshacer'));
-    else setWorkspace((current) => updateTab(current, sessionId, { status: 'Deshecho' }));
-  }, [setTabError, setWorkspace]);
+    if (!result.ok)
+      setTabError(sessionId, apiErrorMessage(result, translator, t('app.error.undo')));
+    else
+      setWorkspace((current) => updateTab(current, sessionId, { status: t('app.status.undone') }));
+  }, [setTabError, setWorkspace, t, translator]);
 
   const redo = useCallback(async (): Promise<void> => {
     const sessionId = stateRef.current.activeSessionId;
     if (sessionId === null) return;
     const result = await window.api.redo(sessionId);
     if (!stateRef.current.tabs.has(sessionId)) return;
-    if (!result.ok) setTabError(sessionId, apiErrorMessage(result, 'no se pudo rehacer'));
-    else setWorkspace((current) => updateTab(current, sessionId, { status: 'Rehecho' }));
-  }, [setTabError, setWorkspace]);
+    if (!result.ok)
+      setTabError(sessionId, apiErrorMessage(result, translator, t('app.error.redo')));
+    else
+      setWorkspace((current) => updateTab(current, sessionId, { status: t('app.status.redone') }));
+  }, [setTabError, setWorkspace, t, translator]);
 
   /* -------------------------------- vista --------------------------------- */
 

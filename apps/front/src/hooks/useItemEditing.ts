@@ -12,6 +12,7 @@ import type {
   TextboxDto,
   TextRunDto,
 } from '@rdlc-designer/contracts';
+import { useT, useTranslator } from '@rdlc-designer/i18n/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { insertDestinationLabel } from '@/hooks/canvasA11y';
 import { topLevelIds } from '@/lib/align';
@@ -76,8 +77,13 @@ export interface ItemEditing {
   selectCellForContext: (cell: SelectedCell) => void;
   /** Último hit del click derecho: destino del menú, "Insertar" y "Pegar". */
   menuHit: CanvasHit | null;
-  /** Click derecho sobre el lienzo: fija el hit y ajusta la selección. */
-  showContextMenu: (hit: CanvasHit) => void;
+  /**
+   * Click derecho sobre el lienzo: fija el hit y ajusta la selección. `null`
+   * (click fuera del papel o de las bandas) limpia el destino: el menú queda
+   * con las **acciones de la selección** y sin Insertar/Pegar, que necesitan
+   * un hit fresco (antes se colaba el del click derecho anterior).
+   */
+  showContextMenu: (hit: CanvasHit | null) => void;
   /** Selecciona y pide al lienzo que traiga el elemento a la vista. */
   selectAndReveal: (id: string) => void;
   /** Sube un nivel en la jerarquía (Esc): selecciona el contenedor del item. */
@@ -231,7 +237,36 @@ function mergeStylePatch(style: StyleDto | undefined, patch: StylePatch): StyleD
   return nextStyle;
 }
 
+/**
+ * Parche optimista de un `StylePatch` sobre un item. `textAlign` se redirige al
+ * `<Style>` de **cada párrafo** (BC solo lo lee ahí: ver `setStyle` del dominio)
+ * y, si el item no tiene párrafos (Rectangle…), cae a su `<Style>` como en el
+ * backend. El resto del parche va al item como siempre. Sin esta redirección la
+ * barra de formato parecería no responder: los párrafos sombrean al item.
+ */
+function optimisticStylePatch(item: ItemDto, patch: StylePatch): Partial<ItemDto> {
+  const { textAlign, ...rest } = patch;
+  const toParagraphs =
+    textAlign !== undefined && item.kind === 'textbox' && item.paragraphs.length > 0;
+
+  const style = mergeStylePatch(item.style, toParagraphs ? rest : patch);
+  const paragraphs =
+    toParagraphs && item.kind === 'textbox'
+      ? item.paragraphs.map((paragraph) => ({
+          ...paragraph,
+          style: mergeStylePatch(paragraph.style, { textAlign }),
+        }))
+      : undefined;
+
+  return {
+    style: Object.keys(style).length > 0 ? style : undefined,
+    ...(paragraphs ? { paragraphs } : {}),
+  };
+}
+
 export function useItemEditing(core: WorkspaceCore): ItemEditing {
+  const t = useT();
+  const translator = useTranslator();
   const {
     doc,
     sendCommand,
@@ -458,11 +493,13 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
    * Click derecho: si cae dentro de una selección de celdas del Tablix (el
    * rectángulo o las añadidas con Ctrl+click, en el tablix que sea de la cadena
    * de anidados), el rango manda y no se pierde (fusión / borrado en lote). Si
-   * no, selecciona lo que hay debajo.
+   * no, selecciona lo que hay debajo. `null` (fuera del papel) solo limpia el
+   * destino: el menú queda con las acciones de la selección actual.
    */
   const showContextMenu = useCallback(
-    (hit: CanvasHit): void => {
+    (hit: CanvasHit | null): void => {
       setMenuHit(hit);
+      if (!hit) return;
       if (hitSelectionCell(hit.cells, selectedCell)) return;
       if (hit.item) {
         setSelectedId(hit.item.id);
@@ -538,7 +575,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       // El contenido directo de una celda está anclado: la celda fija su
       // posición (Report Builder tampoco deja moverlo).
       if (selectedIds.length <= 1 && isCellContent(doc.projection, group[0]!.id)) {
-        setStatus('La celda fija el contenido: no se puede mover');
+        setStatus(t('app.status.cellLocked'));
         return;
       }
 
@@ -596,7 +633,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
         return next;
       });
     },
-    [doc, movableIds, selectedIds, selectedItem, selectedItems, setStatus, updateProjection],
+    [doc, movableIds, selectedIds, selectedItem, selectedItems, setStatus, t, updateProjection],
   );
 
   /* --------------------------- geometría y estilo ------------------------- */
@@ -605,14 +642,14 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     (id: string, top: Length, left: Length): void => {
       // Cualquier camino (drag, panel, atajos) respeta el anclaje de la celda.
       if (doc && isCellContent(doc.projection, id)) {
-        setStatus('La celda fija el contenido: no se puede mover');
+        setStatus(t('app.status.cellLocked'));
         return;
       }
       // Optimista: el lienzo ya movió el nodo; aquí se refleja en la proyección.
       updateProjection((projection) => patchItem(projection, id, { top, left }));
       void sendCommand({ cmd: 'setLocation', id, top, left });
     },
-    [doc, sendCommand, setStatus, updateProjection],
+    [doc, sendCommand, setStatus, t, updateProjection],
   );
 
   /** Arrastre de una multiselección: todos a la vez, un solo paso de undo. */
@@ -741,7 +778,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
           for (const id of selectedIds) {
             const item = findItem(next, id);
             if (!item) continue;
-            next = patchItem(next, id, { style: mergeStylePatch(item.style, patch) });
+            next = patchItem(next, id, optimisticStylePatch(item, patch));
           }
           return next;
         });
@@ -752,10 +789,11 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       if (!selectedItem) return;
       const id = selectedItem.id;
 
-      // Optimista: aplica el parche; `null` = quitar la propiedad.
-      const nextStyle = mergeStylePatch(selectedItem.style, patch);
-
-      updateProjection((projection) => patchItem(projection, id, { style: nextStyle }));
+      // Optimista: aplica el parche (TextAlign va a los párrafos); `null` =
+      // quitar la propiedad.
+      updateProjection((projection) =>
+        patchItem(projection, id, optimisticStylePatch(selectedItem, patch)),
+      );
       void sendCommand({ cmd: 'setStyle', id, style: patch });
     },
     [batchEdit, selectedIds, selectedItem, sendCommand, updateProjection],
@@ -1024,10 +1062,15 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
         // El elemento nace fuera de la vista a veces: se trae a la vista y el
         // pie dice dónde quedó (hallazgo 7).
         setReveal({ id: result.id, nonce: Date.now(), sessionId: doc.sessionId });
-        setStatus(`«${result.id}» insertado en ${insertDestinationLabel(hit.scope)}`);
+        setStatus(
+          t('app.status.inserted', {
+            name: result.id,
+            destination: insertDestinationLabel(hit.scope, t),
+          }),
+        );
       });
     },
-    [doc, sendCommand, setSelectedId, setStatus],
+    [doc, sendCommand, setSelectedId, setStatus, t],
   );
 
   const insertItem = useCallback(
@@ -1105,13 +1148,17 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     if (!doc || ids.length === 0) return;
     void window.api.copy(doc.sessionId, ids).then((result) => {
       if (!result.ok) {
-        setError(apiErrorMessage(result, 'no se pudo copiar'));
+        setError(apiErrorMessage(result, translator, t('app.error.copy')));
         return;
       }
       markClipboard(doc.sessionId);
-      setStatus(ids.length === 1 ? `Copiado: ${ids[0]}` : `Copiados ${ids.length} elementos`);
+      setStatus(
+        ids.length === 1
+          ? t('app.status.copied', { name: ids[0]! })
+          : t('app.status.copiedMany', { count: ids.length }),
+      );
     });
-  }, [doc, markClipboard, selectedIds, selectedItem, setError, setStatus]);
+  }, [doc, markClipboard, selectedIds, selectedItem, setError, setStatus, t, translator]);
 
   const cutSelected = useCallback((): void => {
     const ids = selectedIds.length > 0 ? selectedIds : selectedItem ? [selectedItem.id] : [];
@@ -1119,12 +1166,16 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     flushNudge();
     void window.api.cut(doc.sessionId, ids).then((result) => {
       if (!result.ok) {
-        setError(apiErrorMessage(result, 'no se pudo cortar'));
+        setError(apiErrorMessage(result, translator, t('app.error.cut')));
         return;
       }
       markClipboard(doc.sessionId);
       setSelectedIds([]);
-      setStatus(ids.length === 1 ? `Cortado: ${ids[0]}` : `Cortados ${ids.length} elementos`);
+      setStatus(
+        ids.length === 1
+          ? t('app.status.cut', { name: ids[0]! })
+          : t('app.status.cutMany', { count: ids.length }),
+      );
     });
   }, [
     doc,
@@ -1135,6 +1186,8 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     setError,
     setSelectedIds,
     setStatus,
+    t,
+    translator,
   ]);
 
   const pasteAt = useCallback(
@@ -1142,19 +1195,19 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       if (!doc) return;
       void window.api.paste(doc.sessionId, scope, index).then((result) => {
         if (!result.ok) {
-          setError(apiErrorMessage(result, 'no se pudo pegar'));
+          setError(apiErrorMessage(result, translator, t('app.error.paste')));
           return;
         }
         if (result.ids && result.ids.length > 0) setSelectedIds(result.ids);
         else if (result.id) setSelectedId(result.id);
         setStatus(
           result.ids && result.ids.length > 1
-            ? `Pegados ${result.ids.length} elementos`
-            : `Pegado: ${result.id ?? ''}`,
+            ? t('app.status.pastedMany', { count: result.ids.length })
+            : t('app.status.pasted', { name: result.id ?? '' }),
         );
       });
     },
-    [doc, setError, setSelectedId, setSelectedIds, setStatus],
+    [doc, setError, setSelectedId, setSelectedIds, setStatus, t, translator],
   );
 
   /* --------------------------- página y código ---------------------------- */

@@ -11,16 +11,14 @@ export function applySetText(
   command: SetTextCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const paragraph = node.child('Paragraphs')?.children('Paragraph')[command.p];
   const run = paragraph?.child('TextRuns')?.children('TextRun')[command.r];
   const value = run?.child('Value');
   if (!value) {
     return left(
-      CommandRejectedError.create(
-        `El Textbox '${command.id}' no tiene el run [${command.p}][${command.r}]`,
-      ),
+      CommandRejectedError.of('runMissing', { id: command.id, p: command.p, r: command.r }),
     );
   }
 

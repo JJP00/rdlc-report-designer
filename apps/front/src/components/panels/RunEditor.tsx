@@ -1,4 +1,5 @@
 import type { StylePatch, TextRunDto } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import { ArrowDown, ArrowUp, Bold, Copy, Italic, Trash2, Underline, WholeWord } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +54,7 @@ export function RunEditor({
   onMove,
   onRemove,
 }: RunEditorProps): ReactNode {
+  const t = useT();
   const isExpression = isExpressionRun(run);
   const style = run.style;
 
@@ -63,14 +65,14 @@ export function RunEditor({
           {position}
         </Badge>
         <Badge variant={isExpression ? 'default' : 'outline'} className="text-[10px]">
-          {isExpression ? 'expresión' : 'texto'}
+          {isExpression ? t('text.run.kindExpression') : t('text.run.kindText')}
         </Badge>
         <input
           className="h-5 w-40 rounded-md border bg-background px-1 font-mono text-[10px]"
           value={run.label ?? ''}
-          placeholder="etiqueta (Label)"
-          title="Etiqueta de Business Central (<Label>): BC muestra esta etiqueta en lugar de la expresión"
-          aria-label={`Etiqueta del run ${position}`}
+          placeholder={t('text.run.labelPlaceholder')}
+          title={t('text.run.labelTitle')}
+          aria-label={t('text.run.labelAria', { index: position })}
           onChange={(event) => onLabel(event.target.value)}
         />
         {isExpression && (run.label ?? '') !== '' ? (
@@ -81,8 +83,8 @@ export function RunEditor({
           <Button
             variant="ghost"
             size="icon-xs"
-            title={isExpression ? 'Convertir en texto' : 'Convertir en expresión'}
-            aria-label={isExpression ? 'Convertir en texto' : 'Convertir en expresión'}
+            title={isExpression ? t('text.run.toText') : t('text.run.toExpression')}
+            aria-label={isExpression ? t('text.run.toText') : t('text.run.toExpression')}
             onClick={onToggleKind}
           >
             <WholeWord />
@@ -90,8 +92,8 @@ export function RunEditor({
           <Button
             variant="ghost"
             size="icon-xs"
-            title="Duplicar run"
-            aria-label="Duplicar run"
+            title={t('text.run.duplicate')}
+            aria-label={t('text.run.duplicate')}
             onClick={onDuplicate}
           >
             <Copy />
@@ -99,8 +101,8 @@ export function RunEditor({
           <Button
             variant="ghost"
             size="icon-xs"
-            title="Subir run"
-            aria-label="Subir run"
+            title={t('text.run.up')}
+            aria-label={t('text.run.up')}
             disabled={!canMoveUp}
             onClick={() => onMove(-1)}
           >
@@ -109,8 +111,8 @@ export function RunEditor({
           <Button
             variant="ghost"
             size="icon-xs"
-            title="Bajar run"
-            aria-label="Bajar run"
+            title={t('text.run.down')}
+            aria-label={t('text.run.down')}
             disabled={!canMoveDown}
             onClick={() => onMove(1)}
           >
@@ -119,8 +121,8 @@ export function RunEditor({
           <Button
             variant="ghost"
             size="icon-xs"
-            title="Eliminar run"
-            aria-label="Eliminar run"
+            title={t('text.run.remove')}
+            aria-label={t('text.run.remove')}
             disabled={!canRemove}
             onClick={onRemove}
           >
@@ -136,14 +138,14 @@ export function RunEditor({
           <ExpressionEditor
             value={run.value}
             mode="expression"
-            ariaLabel={`Expresión del run ${position}`}
+            ariaLabel={t('text.run.expressionAria', { index: position })}
             onCommit={onValue}
           />
         ) : (
           <Input
             className="h-7 font-mono text-xs"
             value={run.value}
-            aria-label={`Valor del run ${position}`}
+            aria-label={t('text.run.valueAria', { index: position })}
             onChange={(event) => onValue(event.target.value)}
           />
         )}
@@ -154,16 +156,16 @@ export function RunEditor({
           list={fontListId}
           className="h-6 w-28 rounded-md border bg-background px-1 text-[11px]"
           value={style?.fontFamily ?? ''}
-          placeholder="(heredada)"
-          aria-label={`Fuente del run ${position}`}
+          placeholder={t('text.run.fontPlaceholder')}
+          aria-label={t('text.run.fontAria', { index: position })}
           onChange={(event) => onStyle({ fontFamily: event.target.value })}
         />
 
         <NumberInput
           className="h-6 w-14 shrink-0"
           value={style?.fontSize ? Math.round(toPt(style.fontSize)) : null}
-          label={`Tamaño del run ${position}`}
-          title="Tamaño (pt): flechas o arrastre (enteros)"
+          label={t('text.run.sizeAria', { index: position })}
+          title={t('text.run.sizeTitle')}
           axis="x"
           min={4}
           max={72}
@@ -177,8 +179,8 @@ export function RunEditor({
         <Button
           variant={style?.fontWeight === 'Bold' ? 'secondary' : 'ghost'}
           size="icon-xs"
-          title="Negrita"
-          aria-label={`Negrita del run ${position}`}
+          title={t('text.run.bold')}
+          aria-label={t('text.run.boldAria', { index: position })}
           onClick={() => onStyle({ fontWeight: style?.fontWeight === 'Bold' ? 'Normal' : 'Bold' })}
         >
           <Bold />
@@ -186,8 +188,8 @@ export function RunEditor({
         <Button
           variant={style?.fontStyle === 'Italic' ? 'secondary' : 'ghost'}
           size="icon-xs"
-          title="Cursiva"
-          aria-label={`Cursiva del run ${position}`}
+          title={t('text.run.italic')}
+          aria-label={t('text.run.italicAria', { index: position })}
           onClick={() =>
             onStyle({ fontStyle: style?.fontStyle === 'Italic' ? 'Normal' : 'Italic' })
           }
@@ -197,8 +199,8 @@ export function RunEditor({
         <Button
           variant={style?.textDecoration === 'Underline' ? 'secondary' : 'ghost'}
           size="icon-xs"
-          title="Subrayado"
-          aria-label={`Subrayado del run ${position}`}
+          title={t('text.run.underline')}
+          aria-label={t('text.run.underlineAria', { index: position })}
           onClick={() =>
             onStyle({
               textDecoration: style?.textDecoration === 'Underline' ? 'None' : 'Underline',
@@ -209,16 +211,16 @@ export function RunEditor({
         </Button>
 
         <ColorButton
-          title="Color de texto"
-          ariaLabel={`Color del run ${position}`}
+          title={t('text.run.color')}
+          ariaLabel={t('text.run.colorAria', { index: position })}
           size="sm"
           value={style?.color}
           fallback="#111827"
           onChange={(color) => onStyle({ color })}
         />
         <ColorButton
-          title="Resaltado"
-          ariaLabel={`Resaltado del run ${position}`}
+          title={t('text.run.highlight')}
+          ariaLabel={t('text.run.highlightAria', { index: position })}
           size="sm"
           value={style?.backgroundColor}
           fallback="#ffffff"
@@ -231,8 +233,8 @@ export function RunEditor({
           className="min-w-[13.5rem] flex-1"
           value={style?.format}
           onChange={(format) => onStyle({ format })}
-          ariaLabel={`Formato del run ${position}`}
-          placeholder="(heredado)"
+          ariaLabel={t('text.run.formatAria', { index: position })}
+          placeholder={t('text.run.formatPlaceholder')}
         />
       </div>
     </div>

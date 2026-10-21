@@ -1,10 +1,12 @@
 import type { ItemDto, ProjectionDto } from '@rdlc-designer/contracts';
+import type { CatalogKey } from '@rdlc-designer/i18n';
 import { flattenItems } from './projection';
 
 /**
  * Datos de la paleta de comandos (Ctrl+K): elementos del informe para saltar a
  * ellos, variables para insertar y acciones del editor (cada una declara qué
- * contexto necesita para estar habilitada).
+ * contexto necesita para estar habilitada y las claves `palette.*` con su
+ * nombre visible: la paleta es su superficie).
  */
 
 export interface PaletteElement {
@@ -87,99 +89,164 @@ export type PaletteActionId =
 /** Contexto que necesita una acción para poder ejecutarse. */
 export type PaletteContext = 'none' | 'document' | 'textbox' | 'tablix';
 
+/** Categoría visible que agrupa una acción en la paleta (etiqueta de la derecha). */
+export type PaletteCategory = 'report' | 'view' | 'tabs' | 'edit' | 'insert';
+
+/** Claves del catálogo de cada categoría. */
+export const PALETTE_CATEGORY_KEYS: Record<PaletteCategory, CatalogKey> = {
+  report: 'palette.category.report',
+  view: 'palette.category.view',
+  tabs: 'palette.category.tabs',
+  edit: 'palette.category.edit',
+  insert: 'palette.category.insert',
+};
+
 export interface PaletteAction {
   id: PaletteActionId;
-  label: string;
-  group: string;
+  /** Clave del catálogo del nombre visible («Deshacer» reutiliza `common.undo`). */
+  labelKey: CatalogKey;
+  /** Categoría visible de la acción (también es palabra clave de búsqueda). */
+  group: PaletteCategory;
+  /** Atajo neutral al idioma (símbolos/nombres de tecla iguales en EN y ES). */
   shortcut?: string;
+  /** Atajo con nombre de tecla localizable (`common.shortcuts.*`). */
+  shortcutKey?: CatalogKey;
   /** Contexto mínimo para ejecutarla (por defecto `none`: siempre disponible). */
   needs?: PaletteContext;
 }
 
 /** Acciones del editor que ofrece la paleta. */
 export const PALETTE_ACTIONS: PaletteAction[] = [
-  { id: 'new', label: 'Nuevo informe', group: 'Informe', shortcut: 'Ctrl+N' },
-  { id: 'open', label: 'Abrir informe…', group: 'Informe', shortcut: 'Ctrl+O' },
-  { id: 'save', label: 'Guardar', group: 'Informe', shortcut: 'Ctrl+S', needs: 'document' },
+  { id: 'new', labelKey: 'palette.action.new', group: 'report', shortcut: 'Ctrl+N' },
+  { id: 'open', labelKey: 'palette.action.open', group: 'report', shortcut: 'Ctrl+O' },
+  {
+    id: 'save',
+    labelKey: 'palette.action.save',
+    group: 'report',
+    shortcut: 'Ctrl+S',
+    needs: 'document',
+  },
   {
     id: 'save-as',
-    label: 'Guardar como…',
-    group: 'Informe',
-    shortcut: 'Ctrl+Mayús+S',
+    labelKey: 'palette.action.saveAs',
+    group: 'report',
+    shortcutKey: 'common.shortcuts.saveAs',
     needs: 'document',
   },
   {
     id: 'close',
-    label: 'Cerrar informe',
-    group: 'Informe',
+    labelKey: 'palette.action.close',
+    group: 'report',
     shortcut: 'Ctrl+W',
     needs: 'document',
   },
   {
     id: 'report-properties',
-    label: 'Propiedades del informe…',
-    group: 'Informe',
+    labelKey: 'palette.action.reportProperties',
+    group: 'report',
     needs: 'document',
   },
-  { id: 'toggle-variables', label: 'Mostrar u ocultar variables', group: 'Ver', needs: 'document' },
-  { id: 'toggle-hierarchy', label: 'Mostrar u ocultar jerarquía', group: 'Ver', needs: 'document' },
-  { id: 'toggle-theme', label: 'Modo oscuro / modo claro', group: 'Ver' },
+  {
+    id: 'toggle-variables',
+    labelKey: 'palette.action.toggleVariables',
+    group: 'view',
+    needs: 'document',
+  },
+  {
+    id: 'toggle-hierarchy',
+    labelKey: 'palette.action.toggleHierarchy',
+    group: 'view',
+    needs: 'document',
+  },
+  { id: 'toggle-theme', labelKey: 'palette.action.toggleTheme', group: 'view' },
   {
     id: 'tab:next',
-    label: 'Pestaña siguiente',
-    group: 'Pestañas',
+    labelKey: 'palette.action.nextTab',
+    group: 'tabs',
     shortcut: 'Ctrl+Tab',
     needs: 'document',
   },
   {
     id: 'tab:prev',
-    label: 'Pestaña anterior',
-    group: 'Pestañas',
-    shortcut: 'Ctrl+Mayús+Tab',
+    labelKey: 'palette.action.prevTab',
+    group: 'tabs',
+    shortcutKey: 'common.shortcuts.prevTab',
     needs: 'document',
   },
   {
     id: 'tab:move-left',
-    label: 'Mover pestaña a la izquierda',
-    group: 'Pestañas',
-    shortcut: 'Ctrl+Mayús+RePág',
+    labelKey: 'palette.action.moveTabLeft',
+    group: 'tabs',
+    shortcutKey: 'common.shortcuts.pageUp',
     needs: 'document',
   },
   {
     id: 'tab:move-right',
-    label: 'Mover pestaña a la derecha',
-    group: 'Pestañas',
-    shortcut: 'Ctrl+Mayús+AvPág',
+    labelKey: 'palette.action.moveTabRight',
+    group: 'tabs',
+    shortcutKey: 'common.shortcuts.pageDown',
     needs: 'document',
   },
   {
     id: 'zoom:fit-width',
-    label: 'Ajustar al ancho',
-    group: 'Ver',
+    labelKey: 'palette.action.zoomFitWidth',
+    group: 'view',
     shortcut: 'Ctrl+1',
     needs: 'document',
   },
   {
     id: 'zoom:100',
-    label: 'Zoom 100 % (tamaño real)',
-    group: 'Ver',
+    labelKey: 'palette.action.zoom100',
+    group: 'view',
     shortcut: 'Ctrl+0',
     needs: 'document',
   },
-  { id: 'undo', label: 'Deshacer', group: 'Edición', shortcut: 'Ctrl+Z', needs: 'document' },
-  { id: 'redo', label: 'Rehacer', group: 'Edición', shortcut: 'Ctrl+Y', needs: 'document' },
   {
-    id: 'edit-text',
-    label: 'Editar el texto del textbox…',
-    group: 'Edición',
-    needs: 'textbox',
+    id: 'undo',
+    labelKey: 'common.undo',
+    group: 'edit',
+    shortcut: 'Ctrl+Z',
+    needs: 'document',
   },
-  { id: 'tablix-filters', label: 'Filtros del Tablix…', group: 'Edición', needs: 'tablix' },
-  { id: 'insert:textbox', label: 'Insertar textbox', group: 'Insertar', needs: 'document' },
-  { id: 'insert:rectangle', label: 'Insertar rectángulo', group: 'Insertar', needs: 'document' },
-  { id: 'insert:line', label: 'Insertar línea', group: 'Insertar', needs: 'document' },
-  { id: 'insert:image', label: 'Insertar imagen', group: 'Insertar', needs: 'document' },
-  { id: 'insert:tablix', label: 'Insertar tabla (Tablix)', group: 'Insertar', needs: 'document' },
+  {
+    id: 'redo',
+    labelKey: 'common.redo',
+    group: 'edit',
+    shortcut: 'Ctrl+Y',
+    needs: 'document',
+  },
+  { id: 'edit-text', labelKey: 'palette.action.editText', group: 'edit', needs: 'textbox' },
+  {
+    id: 'tablix-filters',
+    labelKey: 'palette.action.tablixFilters',
+    group: 'edit',
+    needs: 'tablix',
+  },
+  {
+    id: 'insert:textbox',
+    labelKey: 'palette.action.insertTextbox',
+    group: 'insert',
+    needs: 'document',
+  },
+  {
+    id: 'insert:rectangle',
+    labelKey: 'palette.action.insertRectangle',
+    group: 'insert',
+    needs: 'document',
+  },
+  { id: 'insert:line', labelKey: 'palette.action.insertLine', group: 'insert', needs: 'document' },
+  {
+    id: 'insert:image',
+    labelKey: 'palette.action.insertImage',
+    group: 'insert',
+    needs: 'document',
+  },
+  {
+    id: 'insert:tablix',
+    labelKey: 'palette.action.insertTablix',
+    group: 'insert',
+    needs: 'document',
+  },
 ];
 
 /** Estado del editor del que depende cada acción de la paleta. */

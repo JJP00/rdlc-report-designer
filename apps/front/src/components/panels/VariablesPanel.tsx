@@ -1,4 +1,5 @@
 import type { ReportMetaDto } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -22,12 +23,13 @@ interface VariablesPanelProps {
  * Monaco llega con el dominio `expression`).
  */
 export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     [VARIABLE_GROUPS.fields]: true,
   });
 
-  const entries = useMemo<VariableEntry[]>(() => variableEntries(meta), [meta]);
+  const entries = useMemo<VariableEntry[]>(() => variableEntries(meta, t), [meta, t]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -35,7 +37,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
     return entries.filter(
       (entry) =>
         entry.name.toLowerCase().includes(needle) ||
-        entry.group.toLowerCase().includes(needle) ||
+        (entry.groupLabel ?? '').toLowerCase().includes(needle) ||
         entry.expression.toLowerCase().includes(needle),
     );
   }, [entries, query]);
@@ -73,14 +75,20 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-col gap-2 border-b p-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground">Variables</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            {t('report.variables.title')}
+          </span>
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-muted-foreground">{filtered.length}</span>
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
-              title={allCollapsed ? 'Expandir todo' : 'Colapsar todo'}
+              aria-label={
+                allCollapsed ? t('report.variables.expandAll') : t('report.variables.collapseAll')
+              }
+              title={
+                allCollapsed ? t('report.variables.expandAll') : t('report.variables.collapseAll')
+              }
               onClick={toggleAll}
             >
               {allCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
@@ -89,8 +97,8 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
         </div>
         <Input
           className="h-7 text-xs"
-          placeholder="Buscar campo, parámetro, función…"
-          aria-label="Buscar variables"
+          placeholder={t('report.variables.searchPlaceholder')}
+          aria-label={t('report.variables.searchAria')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -102,6 +110,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
           {groups.map(([group, list]) => {
             // Al buscar, los grupos con resultados se muestran siempre abiertos.
             const isOpen = searching || !collapsed[group];
+            const label = list[0]?.groupLabel ?? group;
             return (
               <Collapsible
                 key={group}
@@ -116,7 +125,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
                     <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
                   )}
                   <span className="flex-1 text-[11px] font-medium text-muted-foreground">
-                    {group}
+                    {label}
                   </span>
                   <span className="text-[10px] text-muted-foreground">{list.length}</span>
                 </CollapsibleTrigger>
@@ -144,7 +153,7 @@ export function VariablesPanel({ meta, onPick }: VariablesPanelProps): ReactNode
             );
           })}
           {groups.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Sin resultados.</p>
+            <p className="text-xs text-muted-foreground">{t('report.variables.noResults')}</p>
           ) : null}
         </div>
       </div>

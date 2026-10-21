@@ -17,9 +17,15 @@ export interface SaveSessionResult {
   path: string;
   /** true si el documento no se tocó: se re-escribieron exactamente los mismos bytes. */
   bytesIdentical: boolean;
-  /** Aviso no bloqueante tras un guardado correcto (p. ej. watcher que no arrancó, BUG-56). */
-  warning?: string;
+  /**
+   * Aviso no bloqueante tras un guardado correcto, como motivo estable de i18n
+   * (`native.saveWarnings.<reason>`, BUG-56): el dominio no compone prosa.
+   */
+  warningReason?: SaveWarningReason;
 }
+
+/** Motivos de aviso de guardado (i18n: `native.saveWarnings.<reason>`). */
+export type SaveWarningReason = 'watchUnsupported';
 
 /** Resultado de cerrar: puede pedir confirmación si hay cambios sin guardar. */
 export type CloseSessionResult = { closed: true } | { closed: false; reason: 'dirty' };

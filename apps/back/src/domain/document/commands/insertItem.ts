@@ -1,6 +1,7 @@
 import type { RdlcCommand, ScopeRef } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
+import type { ErrorReason } from '../../../shared/errorReasons.js';
 import { clampPosition } from '../geometry/geometry.js';
 import type { Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
@@ -52,20 +53,18 @@ export function applyInsertItem(
 ): Either<DomainError, CommandOutcome> {
   const container = resolveScope(ctx, command.scope);
   if (!container) {
-    return left(CommandRejectedError.create('No se encontró el contenedor del scope'));
+    return left(CommandRejectedError.of('scopeContainerMissing'));
   }
 
   const name = command.item.name ?? nextItemName(ctx, command.item.kind);
   // Grupos y items comparten namespace (BUG-11): el nombre no puede ser el de
   // un grupo existente aunque el índice de items no lo vea.
   if (ctx.index.has(name) || hasGroupNamed(ctx.root, name)) {
-    return left(
-      CommandRejectedError.create(`Ya existe un elemento o grupo con el nombre '${name}'`),
-    );
+    return left(CommandRejectedError.of('nameTaken', { name }));
   }
 
   const occupied = occupiedCell(container, command.scope);
-  if (occupied) return left(CommandRejectedError.create(occupied));
+  if (occupied) return left(CommandRejectedError.of(occupied));
 
   // Un item soltado cerca del borde no debe salirse de su banda: se normaliza la
   // posición igual que hace el drag (`clampPosition`). En contenedores que no
@@ -131,15 +130,13 @@ function boundsForRegion(
 
 /**
  * Una celda de cabecera o esquina admite **un** report item (como en RB).
- * Devuelve el motivo si ya tiene contenido (ignorando `ColSpan`/`RowSpan`).
+ * Devuelve el motivo (`reason`) si ya tiene contenido (ignorando `ColSpan`/`RowSpan`).
  */
-export function occupiedCell(container: RdlcNode, scope: ScopeRef): string | undefined {
+export function occupiedCell(container: RdlcNode, scope: ScopeRef): ErrorReason | undefined {
   if (scope.kind !== 'tablixHeader' && scope.kind !== 'tablixCorner') return undefined;
   const hasContent = container
     .children()
     .some((child) => !['ColSpan', 'RowSpan', 'Height'].includes(child.tagName));
   if (!hasContent) return undefined;
-  return scope.kind === 'tablixHeader'
-    ? 'La celda de cabecera ya tiene contenido'
-    : 'La celda de la esquina ya tiene contenido';
+  return scope.kind === 'tablixHeader' ? 'headerCellOccupied' : 'cornerCellOccupied';
 }

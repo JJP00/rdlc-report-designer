@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import { Check, Copy, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
@@ -25,6 +26,8 @@ export function EditorBanners({
   onDismissError,
   onResolveConflict,
 }: EditorBannersProps): ReactNode {
+  const t = useT();
+
   return (
     <>
       {error ? (
@@ -38,8 +41,8 @@ export function EditorBanners({
           <CopyErrorButton error={error} />
           <button
             type="button"
-            aria-label="Cerrar el aviso"
-            title="Cerrar el aviso"
+            aria-label={t('app.banner.dismiss')}
+            title={t('app.banner.dismiss')}
             className="shrink-0 rounded p-0.5 transition-colors hover:bg-destructive/15"
             onClick={onDismissError}
           >
@@ -56,12 +59,8 @@ export function EditorBanners({
           className="flex items-center gap-3 border-b border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs text-amber-800 dark:text-amber-300"
         >
           <span className="min-w-0 flex-1 line-clamp-2 break-words">
-            {conflict ? (
-              <>El fichero cambió por fuera y hay cambios sin guardar: no se ha recargado. </>
-            ) : null}
-            {fileMissing ? (
-              <>El fichero ya no existe en disco: guardar lo recreará, o usa «Guardar como…». </>
-            ) : null}
+            {conflict ? <>{t('app.banner.conflict')} </> : null}
+            {fileMissing ? <>{t('app.banner.fileMissing')} </> : null}
             <span className="font-mono" title={conflict ?? fileMissing ?? undefined}>
               {conflict ?? fileMissing}
             </span>
@@ -72,15 +71,14 @@ export function EditorBanners({
               className="shrink-0 rounded border border-amber-600/40 px-2 py-0.5 text-xs font-medium transition-colors hover:bg-amber-500/20"
               onClick={onResolveConflict}
             >
-              Resolver…
+              {t('app.banner.resolve')}
             </button>
           ) : null}
         </div>
       ) : null}
       {!hasBackend ? (
         <div className="border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-destructive">
-          Modo navegador: sin backend IPC. Arranca la aplicación con{' '}
-          <code>pnpm --filter @rdlc-designer/back dev</code>.
+          {t('app.banner.noBackend', { command: 'pnpm --filter @rdlc-designer/back dev' })}
         </div>
       ) : null}
     </>
@@ -89,6 +87,7 @@ export function EditorBanners({
 
 /** Copia el error completo (con sus detalles de validación) al portapapeles. */
 function CopyErrorButton({ error }: { error: string }): ReactNode {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   const copy = (): void => {
@@ -103,8 +102,8 @@ function CopyErrorButton({ error }: { error: string }): ReactNode {
   return (
     <button
       type="button"
-      aria-label="Copiar el error"
-      title="Copiar el error"
+      aria-label={t('app.banner.copyError')}
+      title={t('app.banner.copyError')}
       className="shrink-0 rounded p-0.5 transition-colors hover:bg-destructive/15"
       onClick={copy}
     >

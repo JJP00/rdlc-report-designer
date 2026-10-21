@@ -173,18 +173,21 @@ describe('F2 · setMemberVisibility', () => {
       { cmd: 'setMemberVisibility', id: 'LinesTable2', axis: 'row', path: [99], hidden: true },
     );
     expect(badPath.isLeft()).toBe(true);
+    if (badPath.isLeft()) expect(badPath.value.reason).toBe('rowPathMissing');
 
     const notTablix = applyCommand(
       { root: doc.root, index },
       { cmd: 'setMemberVisibility', id: 'Textbox4', axis: 'row', path: [0], hidden: true },
     );
     expect(notTablix.isLeft()).toBe(true);
+    if (notTablix.isLeft()) expect(notTablix.value.reason).toBe('tablixHasNoRowHierarchy');
 
     const empty = applyCommand(
       { root: doc.root, index },
       { cmd: 'setMemberVisibility', id: 'LinesTable2', axis: 'row', path: [0], hidden: '  ' },
     );
     expect(empty.isLeft()).toBe(true);
+    if (empty.isLeft()) expect(empty.value.reason).toBe('visibilityExpressionEmpty');
 
     expect(adapter.serialize(doc)).toBe(xml);
   });

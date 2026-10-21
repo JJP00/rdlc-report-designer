@@ -9,6 +9,7 @@ import type {
 import type Konva from 'konva';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
+import { useT } from '@rdlc-designer/i18n/react';
 import { computeDragEnd } from '@/lib/drag';
 import type { DropInfo } from '@/lib/dragTypes';
 import { tablixGrid } from '@/lib/grid';
@@ -658,6 +659,7 @@ function ImagePlaceholder({
   source?: string;
   border?: StyleDto['border'];
 }): ReactNode {
+  const t = useT();
   const inset = Math.min(width, height) * 0.15;
   const frame = {
     x: inset,
@@ -713,7 +715,7 @@ function ImagePlaceholder({
       />
       {showLabel ? (
         <KonvaText
-          text={source ?? 'Imagen'}
+          text={source ?? t('canvas.image.placeholder')}
           x={frame.x + 2}
           y={frame.y + frame.height - 11}
           width={Math.max(frame.width - 4, 0)}

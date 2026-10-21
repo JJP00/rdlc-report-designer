@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import {
   Dialog,
   DialogDescription,
@@ -27,13 +28,14 @@ export function ReportPropertiesDialog({
   onOpenChange,
   ...form
 }: ReportPropertiesDialogProps): ReactNode {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <ResizableDialogContent className="max-h-[90vh] max-w-2xl sm:max-w-2xl">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Propiedades del informe</DialogTitle>
+          <DialogTitle>{t('report.properties.title')}</DialogTitle>
           <DialogDescription>
-            Configuración de página y código VB del informe ({form.projection.reportName}).
+            {t('report.properties.subtitle', { name: form.projection.reportName })}
           </DialogDescription>
         </DialogHeader>
 

@@ -17,26 +17,22 @@ export function applySetParagraphs(
   command: SetParagraphsCommand,
 ): Either<DomainError, CommandOutcome> {
   const textbox = ctx.index.get(command.id);
-  if (!textbox) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!textbox) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
   if (textbox.tagName !== 'Textbox') {
-    return left(CommandRejectedError.create(`El elemento '${command.id}' no es un Textbox`));
+    return left(CommandRejectedError.of('notATextbox', { id: command.id }));
   }
 
   const original = textbox.child('Paragraphs');
   if (!original) {
-    return left(CommandRejectedError.create(`El Textbox '${command.id}' no tiene <Paragraphs>`));
+    return left(CommandRejectedError.of('paragraphsMissing', { id: command.id }));
   }
   // El XSD exige al menos un párrafo y un TextRun por párrafo.
   if (command.paragraphs.length === 0) {
-    return left(CommandRejectedError.create('El Textbox necesita al menos un párrafo'));
+    return left(CommandRejectedError.of('paragraphsEmpty'));
   }
   const emptyParagraph = command.paragraphs.findIndex((paragraph) => paragraph.runs.length === 0);
   if (emptyParagraph !== -1) {
-    return left(
-      CommandRejectedError.create(
-        `El párrafo ${emptyParagraph + 1} no tiene TextRuns: cada párrafo necesita al menos uno`,
-      ),
-    );
+    return left(CommandRejectedError.of('paragraphWithoutRuns', { index: emptyParagraph + 1 }));
   }
 
   const container = original.parent ?? textbox;

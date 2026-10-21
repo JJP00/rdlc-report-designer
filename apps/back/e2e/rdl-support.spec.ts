@@ -9,6 +9,7 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appEnv } from './launch.js';
 
 /**
  * Soporte `.rdl`: los RDL 2016 comparten el esquema 2016/01 con los RDLC
@@ -47,6 +48,7 @@ test.describe('RDL 2016 (.rdl)', () => {
 
     app = await electron.launch({
       args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
+      env: appEnv(),
     });
     page = await app.firstWindow();
     await page.waitForFunction(() =>
@@ -95,6 +97,7 @@ test.describe('RDL anterior a 2016', () => {
 
     app = await electron.launch({
       args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
+      env: appEnv(),
     });
     page = await app.firstWindow();
   });

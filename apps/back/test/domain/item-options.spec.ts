@@ -74,12 +74,14 @@ describe('F1 · setItemOptions', () => {
       { cmd: 'setItemOptions', id: 'Rectangle1', keepTogether: true },
     );
     expect(rectangle.isLeft()).toBe(true);
+    if (rectangle.isLeft()) expect(rectangle.value.reason).toBe('itemOptionsUnsupported');
 
     const empty = applyCommand(
       { root: doc.root, index },
       { cmd: 'setItemOptions', id: 'Textbox25' },
     );
     expect(empty.isLeft()).toBe(true);
+    if (empty.isLeft()) expect(empty.value.reason).toBe('noOptionToChange');
   });
 });
 

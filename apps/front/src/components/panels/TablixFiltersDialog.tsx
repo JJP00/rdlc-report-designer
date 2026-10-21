@@ -1,4 +1,6 @@
 import type { TablixFilterDto, TablixFilterOperator } from '@rdlc-designer/contracts';
+import type { CatalogKey } from '@rdlc-designer/i18n';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -23,20 +25,20 @@ import { Textarea } from '@/components/ui/textarea';
  * cuerpo.
  */
 
-const OPERATORS: { value: TablixFilterOperator; label: string }[] = [
-  { value: 'Equal', label: 'Igual a' },
-  { value: 'NotEqual', label: 'Distinto de' },
-  { value: 'Like', label: 'Como (Like)' },
-  { value: 'GreaterThan', label: 'Mayor que' },
-  { value: 'GreaterThanOrEqual', label: 'Mayor o igual' },
-  { value: 'LessThan', label: 'Menor que' },
-  { value: 'LessThanOrEqual', label: 'Menor o igual' },
-  { value: 'In', label: 'En la lista (In)' },
-  { value: 'Between', label: 'Entre (Between)' },
-  { value: 'TopN', label: 'Top N' },
-  { value: 'BottomN', label: 'Bottom N' },
-  { value: 'TopPercent', label: 'Top %' },
-  { value: 'BottomPercent', label: 'Bottom %' },
+const OPERATORS: { value: TablixFilterOperator; key: CatalogKey }[] = [
+  { value: 'Equal', key: 'tablix.filters.operators.equal' },
+  { value: 'NotEqual', key: 'tablix.filters.operators.notEqual' },
+  { value: 'Like', key: 'tablix.filters.operators.like' },
+  { value: 'GreaterThan', key: 'tablix.filters.operators.greaterThan' },
+  { value: 'GreaterThanOrEqual', key: 'tablix.filters.operators.greaterThanOrEqual' },
+  { value: 'LessThan', key: 'tablix.filters.operators.lessThan' },
+  { value: 'LessThanOrEqual', key: 'tablix.filters.operators.lessThanOrEqual' },
+  { value: 'In', key: 'tablix.filters.operators.in' },
+  { value: 'Between', key: 'tablix.filters.operators.between' },
+  { value: 'TopN', key: 'tablix.filters.operators.topN' },
+  { value: 'BottomN', key: 'tablix.filters.operators.bottomN' },
+  { value: 'TopPercent', key: 'tablix.filters.operators.topPercent' },
+  { value: 'BottomPercent', key: 'tablix.filters.operators.bottomPercent' },
 ];
 
 interface FilterDraft {
@@ -58,6 +60,7 @@ export function TablixFiltersDialog({
   onApply,
   onClose,
 }: TablixFiltersDialogProps): ReactNode {
+  const t = useT();
   const [drafts, setDrafts] = useState<FilterDraft[]>(() =>
     filters.map((filter) => ({
       id: crypto.randomUUID(),
@@ -110,28 +113,25 @@ export function TablixFiltersDialog({
         }}
       >
         <DialogHeader className="shrink-0">
-          <DialogTitle>Filtros del Tablix</DialogTitle>
-          <DialogDescription>
-            Se evalúan por fila del dataset antes de agrupar. Los valores van uno por línea (permite
-            expresiones con comas).
-          </DialogDescription>
+          <DialogTitle>{t('tablix.filters.title')}</DialogTitle>
+          <DialogDescription>{t('tablix.filters.subtitle')}</DialogDescription>
         </DialogHeader>
 
         <DialogBody className="flex flex-col gap-3 pr-1">
           {drafts.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Sin filtros.</p>
+            <p className="text-xs text-muted-foreground">{t('tablix.filters.empty')}</p>
           ) : null}
 
           {drafts.map((draft, index) => (
             <div key={draft.id} className="grid gap-2 rounded-md border p-3">
               <div className="flex items-center justify-between">
                 <Label className="text-[11px] font-medium text-muted-foreground">
-                  Filtro {index + 1}
+                  {t('tablix.filters.row', { index: index + 1 })}
                 </Label>
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  aria-label={`Quitar filtro ${index + 1}`}
+                  aria-label={t('tablix.filters.remove', { index: index + 1 })}
                   onClick={() =>
                     setDrafts((current) => current.filter((_, position) => position !== index))
                   }
@@ -142,13 +142,13 @@ export function TablixFiltersDialog({
               <Input
                 className="h-7 font-mono text-xs"
                 placeholder="=Fields!X.Value"
-                aria-label={`Expresión del filtro ${index + 1}`}
+                aria-label={t('tablix.filters.expression', { index: index + 1 })}
                 value={draft.expression}
                 onChange={(event) => update(index, { expression: event.target.value })}
               />
               <select
                 className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
-                aria-label={`Operador del filtro ${index + 1}`}
+                aria-label={t('tablix.filters.operator', { index: index + 1 })}
                 value={draft.operator}
                 onChange={(event) =>
                   update(index, { operator: event.target.value as TablixFilterOperator })
@@ -156,14 +156,14 @@ export function TablixFiltersDialog({
               >
                 {OPERATORS.map((operator) => (
                   <option key={operator.value} value={operator.value}>
-                    {operator.label}
+                    {t(operator.key)}
                   </option>
                 ))}
               </select>
               <Textarea
                 className="min-h-16 font-mono text-xs"
                 placeholder={'0\n=Fields!Otro.Value'}
-                aria-label={`Valores del filtro ${index + 1}`}
+                aria-label={t('tablix.filters.values', { index: index + 1 })}
                 value={draft.valuesText}
                 onChange={(event) => update(index, { valuesText: event.target.value })}
               />
@@ -186,14 +186,14 @@ export function TablixFiltersDialog({
               ])
             }
           >
-            <Plus /> Añadir filtro
+            <Plus /> {t('tablix.filters.add')}
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
-            <Button title="Aplicar (Ctrl+Intro)" onClick={apply} disabled={!valid}>
-              Aplicar
+            <Button title={t('tablix.applyHint')} onClick={apply} disabled={!valid}>
+              {t('tablix.apply')}
             </Button>
           </div>
         </DialogFooter>

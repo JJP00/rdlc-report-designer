@@ -22,6 +22,7 @@ import {
   Underline,
 } from 'lucide-react';
 import { useMemo } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Button } from '@/components/ui/button';
 import { NumberInput } from '@/components/ui/number-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -90,6 +91,7 @@ export function MultiSelectionPanel({
   isCellContentId,
   label = 'elementos',
 }: MultiSelectionPanelProps): ReactNode {
+  const t = useT();
   const movable = alignBoxes(items, movableIds);
   const count = items.length;
   // Un hijo seleccionado junto a su contenedor viaja con él: borrar ambos por
@@ -119,12 +121,14 @@ export function MultiSelectionPanel({
   return (
     <div className="flex flex-col gap-3 border-b p-3" data-testid="multi-selection-panel">
       <header className="text-sm font-medium">
-        Selección múltiple
+        {t('panels.multiSelection.title')}
         <span className="ml-1 text-xs font-normal text-muted-foreground">
-          ({count} {label})
+          {label === 'celdas'
+            ? t('panels.multiSelection.countCells', { count })
+            : t('panels.multiSelection.countItems', { count })}
         </span>
         <p className="mt-0.5 text-xs font-normal text-muted-foreground">
-          Los cambios se aplican a todos en un solo paso de undo. «—» = valores distintos.
+          {t('panels.multiSelection.hint')}
         </p>
       </header>
 
@@ -140,9 +144,12 @@ export function MultiSelectionPanel({
         onClick={() => onBatchEdit(deletableIds.map((id) => ({ cmd: 'deleteItem', id })))}
       >
         <Trash2 data-icon="inline-start" />
-        {label === 'celdas'
-          ? `Eliminar el contenido de ${count} celdas`
-          : `Eliminar los ${count} elementos`}
+        {t(
+          label === 'celdas'
+            ? 'panels.multiSelection.deleteCells'
+            : 'panels.multiSelection.deleteItems',
+          { count },
+        )}
       </Button>
     </div>
   );
@@ -167,6 +174,7 @@ function TextSection({
   items: ItemDto[];
   onStyle: (patch: StylePatch) => void;
 }): ReactNode {
+  const t = useT();
   const fonts = useAvailableFonts();
   const disabled = items.length === 0;
   const familyOptions = useMemo(() => {
@@ -201,12 +209,14 @@ function TextSection({
 
   return (
     <section className="flex flex-col gap-2">
-      <span className="text-xs font-medium text-muted-foreground">Texto</span>
+      <span className="text-xs font-medium text-muted-foreground">
+        {t('panels.multiSelection.text')}
+      </span>
       <div className="flex items-center gap-1.5">
         <select
           className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
           value={family ?? ''}
-          aria-label="Fuente de la selección"
+          aria-label={t('panels.multiSelection.fontFamily')}
           disabled={disabled}
           onChange={(event) => {
             if (event.target.value) onStyle({ fontFamily: event.target.value });
@@ -225,7 +235,7 @@ function TextSection({
           min={1}
           max={200}
           suffix="pt"
-          label="Tamaño de la selección (pt)"
+          label={t('panels.multiSelection.fontSize')}
           step={1}
           perPx={0.1}
           decimals={0}
@@ -238,7 +248,7 @@ function TextSection({
         <Button
           variant={bold ? 'secondary' : 'ghost'}
           size="icon-sm"
-          aria-label="Negrita en la selección"
+          aria-label={t('panels.multiSelection.bold')}
           aria-pressed={bold}
           disabled={disabled}
           onClick={() => onStyle({ fontWeight: bold ? 'Normal' : 'Bold' })}
@@ -248,7 +258,7 @@ function TextSection({
         <Button
           variant={italic ? 'secondary' : 'ghost'}
           size="icon-sm"
-          aria-label="Cursiva en la selección"
+          aria-label={t('panels.multiSelection.italic')}
           aria-pressed={italic}
           disabled={disabled}
           onClick={() => onStyle({ fontStyle: italic ? 'Normal' : 'Italic' })}
@@ -258,7 +268,7 @@ function TextSection({
         <Button
           variant={underlined ? 'secondary' : 'ghost'}
           size="icon-sm"
-          aria-label="Subrayado en la selección"
+          aria-label={t('panels.multiSelection.underline')}
           aria-pressed={underlined}
           disabled={disabled}
           onClick={() => onStyle({ textDecoration: underlined ? 'None' : 'Underline' })}
@@ -266,10 +276,10 @@ function TextSection({
           <Underline />
         </Button>
         <label className="ml-1 flex items-center gap-1 text-xs text-muted-foreground">
-          Color{color === undefined ? ' —' : ''}
+          {t('panels.multiSelection.textColor', { mixed: color === undefined ? 'yes' : 'no' })}
           <input
             type="color"
-            aria-label="Color de texto de la selección"
+            aria-label={t('panels.multiSelection.textColorAria')}
             value={/^#[0-9a-fA-F]{6}$/.test(color ?? '') ? color! : DEFAULT_TEXT_COLOR}
             disabled={disabled}
             onChange={(event) => onStyle({ color: event.target.value })}
@@ -277,10 +287,12 @@ function TextSection({
           />
         </label>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
-          Fondo{background === undefined ? ' —' : ''}
+          {t('panels.multiSelection.backgroundColor', {
+            mixed: background === undefined ? 'yes' : 'no',
+          })}
           <input
             type="color"
-            aria-label="Color de fondo de la selección"
+            aria-label={t('panels.multiSelection.backgroundColorAria')}
             value={/^#[0-9a-fA-F]{6}$/.test(background ?? '') ? background! : DEFAULT_BACKGROUND}
             disabled={disabled}
             onChange={(event) => onStyle({ backgroundColor: event.target.value })}
@@ -333,6 +345,7 @@ function VisibilitySection({
   items: ItemDto[];
   onBatchEdit: (commands: BatchableCommand[]) => void;
 }): ReactNode {
+  const t = useT();
   const effectiveHidden = (item: ItemDto): boolean | string =>
     item.hidden === true
       ? true
@@ -342,10 +355,12 @@ function VisibilitySection({
   const hidden = common(items, effectiveHidden);
   return (
     <div className="flex items-center gap-1.5">
-      <span className="w-16 shrink-0 text-xs text-muted-foreground">Visibilidad</span>
+      <span className="w-16 shrink-0 text-xs text-muted-foreground">
+        {t('panels.visibility.label')}
+      </span>
       <select
         className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
-        aria-label="Visibilidad de la selección"
+        aria-label={t('panels.multiSelection.visibilityAria')}
         value={hidden === true ? 'hidden' : hidden === false ? 'visible' : ''}
         onChange={(event) => {
           if (!event.target.value) return;
@@ -356,8 +371,8 @@ function VisibilitySection({
         }}
       >
         <option value="">—</option>
-        <option value="visible">Visible</option>
-        <option value="hidden">Oculta</option>
+        <option value="visible">{t('panels.visibility.visible')}</option>
+        <option value="hidden">{t('panels.visibility.hidden')}</option>
       </select>
     </div>
   );
@@ -371,61 +386,62 @@ function AlignSection({
   movable: AlignBox[];
   onBatchEdit: (commands: BatchableCommand[]) => void;
 }): ReactNode {
+  const t = useT();
   return (
     <section className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-muted-foreground">
-        Alinear {movable.length < 2 ? '(necesita 2 elementos movibles)' : ''}
+        {t('panels.align.title', { state: movable.length < 2 ? 'insufficient' : 'ok' })}
       </span>
       <div className="flex flex-wrap items-center gap-1">
         <AlignButton
-          label="Alinear a la izquierda"
+          label={t('panels.align.left')}
           icon={<AlignStartVertical />}
           disabled={movable.length < 2}
           onClick={() => onBatchEdit(alignCommands(movable, 'left'))}
         />
         <AlignButton
-          label="Centrar horizontalmente"
+          label={t('panels.align.centerHorizontal')}
           icon={<AlignCenterVertical />}
           disabled={movable.length < 2}
           onClick={() => onBatchEdit(alignCommands(movable, 'centerX'))}
         />
         <AlignButton
-          label="Alinear a la derecha"
+          label={t('panels.align.right')}
           icon={<AlignEndVertical />}
           disabled={movable.length < 2}
           onClick={() => onBatchEdit(alignCommands(movable, 'right'))}
         />
         <AlignButton
-          label="Alinear arriba"
+          label={t('panels.align.top')}
           icon={<AlignStartHorizontal />}
           disabled={movable.length < 2}
           onClick={() => onBatchEdit(alignCommands(movable, 'top'))}
         />
         <AlignButton
-          label="Centrar verticalmente"
+          label={t('panels.align.middleVertical')}
           icon={<AlignCenterHorizontal />}
           disabled={movable.length < 2}
           onClick={() => onBatchEdit(alignCommands(movable, 'middleY'))}
         />
         <AlignButton
-          label="Alinear abajo"
+          label={t('panels.align.bottom')}
           icon={<AlignEndHorizontal />}
           disabled={movable.length < 2}
           onClick={() => onBatchEdit(alignCommands(movable, 'bottom'))}
         />
       </div>
       <span className="text-xs font-medium text-muted-foreground">
-        Distribuir {movable.length < 3 ? '(necesita 3 elementos movibles)' : ''}
+        {t('panels.align.distributeTitle', { state: movable.length < 3 ? 'insufficient' : 'ok' })}
       </span>
       <div className="flex items-center gap-1">
         <AlignButton
-          label="Distribuir horizontalmente"
+          label={t('panels.align.distributeHorizontal')}
           icon={<AlignHorizontalDistributeCenter />}
           disabled={movable.length < 3}
           onClick={() => onBatchEdit(distributeCommands(movable, 'x'))}
         />
         <AlignButton
-          label="Distribuir verticalmente"
+          label={t('panels.align.distributeVertical')}
           icon={<AlignVerticalDistributeCenter />}
           disabled={movable.length < 3}
           onClick={() => onBatchEdit(distributeCommands(movable, 'y'))}

@@ -14,11 +14,11 @@ export function applyDeleteItem(
   command: DeleteItemCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const container = node.parent;
   if (!container) {
-    return left(CommandRejectedError.create(`El elemento '${command.id}' no tiene contenedor`));
+    return left(CommandRejectedError.of('itemHasNoContainer', { id: command.id }));
   }
 
   const index = container.children().findIndex((sibling) => sibling.equals(node));

@@ -5,6 +5,7 @@ import { IPC_CHANNELS } from '@rdlc-designer/contracts';
 import { dialog } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 import { IpcController } from '../../src/presentation/ipc/IpcController.js';
+import { LocaleRuntime } from '../../src/infrastructure/locale/LocaleRuntime.js';
 import { right } from '../../src/shared/either.js';
 
 /**
@@ -43,7 +44,13 @@ function registerController(
     list: async () => overrides.recents ?? [],
     add: async (path: string) => [path],
   } as unknown as ConstructorParameters<typeof IpcController>[3];
-  const controller = new IpcController(sessions, {} as never, {} as never, recents);
+  // Idioma fijo (`RDLC_LOCALE`) para que los títulos nativos sean estables.
+  const locale = new LocaleRuntime(
+    { read: async () => null, write: async () => undefined } as never,
+    'en',
+    'es-ES',
+  );
+  const controller = new IpcController(sessions, {} as never, {} as never, recents, locale);
   controller.register(() => null);
 }
 

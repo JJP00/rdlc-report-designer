@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Command as CommandPrimitive } from 'cmdk';
 import { cn } from 'cn';
 
@@ -26,8 +27,8 @@ function Command({ className, ...props }: React.ComponentProps<typeof CommandPri
 }
 
 function CommandDialog({
-  title = 'Command Palette',
-  description = 'Search for a command to run...',
+  title,
+  description,
   children,
   className,
   showCloseButton = false,
@@ -38,11 +39,15 @@ function CommandDialog({
   className?: string;
   showCloseButton?: boolean;
 }) {
+  // Título y descripción por defecto de la primitiva; la paleta (Ctrl+K) pasa
+  // los suyos (`palette.dialog.*`).
+  const t = useT();
+
   return (
     <Dialog {...props}>
       <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
+        <DialogTitle>{title ?? t('lib.command.dialogTitle')}</DialogTitle>
+        <DialogDescription>{description ?? t('lib.command.dialogDescription')}</DialogDescription>
       </DialogHeader>
       <DialogContent
         className={cn('top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0', className)}

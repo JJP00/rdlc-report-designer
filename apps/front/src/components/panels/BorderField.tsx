@@ -1,5 +1,6 @@
 import type { BorderSide, BorderSides, BorderStyle, StylePatch } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Label } from '@/components/ui/label';
 import { NumberInput } from '@/components/ui/number-input';
 import { useDeferredColor } from '@/hooks/useDeferredColor';
@@ -13,19 +14,19 @@ import { toPt } from '@/lib/style';
  */
 
 const SIDES = [
-  { key: 'top', label: 'Superior' },
-  { key: 'left', label: 'Izquierdo' },
-  { key: 'bottom', label: 'Inferior' },
-  { key: 'right', label: 'Derecho' },
+  { key: 'top', labelKey: 'common.top' },
+  { key: 'left', labelKey: 'common.left' },
+  { key: 'bottom', labelKey: 'common.bottom' },
+  { key: 'right', labelKey: 'common.right' },
 ] as const;
 
-const BORDER_STYLES: { value: BorderStyle; label: string }[] = [
-  { value: 'None', label: 'Sin borde' },
-  { value: 'Solid', label: 'Sólido' },
-  { value: 'Dashed', label: 'Discontinuo' },
-  { value: 'Dotted', label: 'Punteado' },
-  { value: 'Double', label: 'Doble' },
-];
+const BORDER_STYLES = [
+  { value: 'None', labelKey: 'toolbar.border.styleNone' },
+  { value: 'Solid', labelKey: 'toolbar.border.styleSolid' },
+  { value: 'Dashed', labelKey: 'toolbar.border.styleDashed' },
+  { value: 'Dotted', labelKey: 'toolbar.border.styleDotted' },
+  { value: 'Double', labelKey: 'toolbar.border.styleDouble' },
+] as const;
 
 interface BorderFieldProps {
   border: BorderSides | undefined;
@@ -39,14 +40,16 @@ interface BorderFieldProps {
 }
 
 export function BorderField({ border, onSetStyle, mixedSides }: BorderFieldProps): ReactNode {
+  const t = useT();
+
   return (
     <div className="grid gap-1.5">
-      <Label className="text-[11px] text-muted-foreground">Bordes</Label>
+      <Label className="text-[11px] text-muted-foreground">{t('toolbar.border.title')}</Label>
       {SIDES.map((side) => (
         <BorderSideRow
           key={side.key}
           side={side.key}
-          label={side.label}
+          label={t(side.labelKey)}
           value={border?.[side.key]}
           mixed={mixedSides?.has(side.key) ?? false}
           onSetStyle={onSetStyle}
@@ -69,6 +72,7 @@ function BorderSideRow({
   mixed: boolean;
   onSetStyle: (patch: StylePatch) => void;
 }): ReactNode {
+  const t = useT();
   const current: BorderSide = value ?? { style: 'None' };
   // Con un lado mezclado no se bloquea nada: color y grosor también se editan
   // (si el estilo representado es «Sin borde», editar color/grosor lo pone Sólido).
@@ -106,7 +110,7 @@ function BorderSideRow({
       </span>
       <select
         className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
-        aria-label={`Borde ${label.toLowerCase()}: estilo`}
+        aria-label={t('toolbar.border.styleAria', { side: label.toLowerCase() })}
         value={mixed ? '' : current.style}
         onChange={(event) => {
           const style = event.target.value as BorderStyle;
@@ -120,19 +124,19 @@ function BorderSideRow({
         ) : null}
         {BORDER_STYLES.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {t(option.labelKey)}
           </option>
         ))}
       </select>
       <label
-        title={`Color del borde ${label.toLowerCase()}`}
+        title={t('toolbar.border.colorTitle', { side: label.toLowerCase() })}
         className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-background ${isNone ? 'opacity-40' : 'cursor-pointer'}`}
       >
         <span className="h-4 w-4 rounded-sm border" style={{ backgroundColor: color }} />
         <input
           type="color"
           className={`absolute inset-0 size-full opacity-0 ${isNone ? '' : 'cursor-pointer'}`}
-          aria-label={`Borde ${label.toLowerCase()}: color`}
+          aria-label={t('toolbar.border.colorAria', { side: label.toLowerCase() })}
           value={color}
           disabled={isNone}
           onChange={(event) => change(event.target.value)}
@@ -141,8 +145,8 @@ function BorderSideRow({
       <NumberInput
         className="h-7 w-16 shrink-0"
         value={widthPt}
-        label={`Borde ${label.toLowerCase()}: grosor (pt)`}
-        title="Grosor en puntos (flechas o arrastre)"
+        label={t('toolbar.border.widthAria', { side: label.toLowerCase() })}
+        title={t('toolbar.border.widthTitle')}
         axis="x"
         min={0.25}
         step={0.25}

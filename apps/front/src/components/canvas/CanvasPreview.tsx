@@ -19,19 +19,23 @@ import {
   type RefObject,
 } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
+import type { Translator } from '@rdlc-designer/i18n';
+import { useT } from '@rdlc-designer/i18n/react';
 import { edgeReadingId, nextReadingId, selectionAnnouncement } from '@/hooks/canvasA11y';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
 import { topLevelIds } from '@/lib/align';
 import { groupBoxCm, groupResizeCommands, type GroupResizeMember } from '@/lib/groupResize';
-import type { CanvasHit } from '@/lib/hit';
+import type { CanvasHit, HitOptions } from '@/lib/hit';
 import { hitTestItems } from '@/lib/hit';
 import { pageRulerSegments } from '@/lib/pageResize';
+import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 import {
   cm,
   findItem,
   findItemInList,
   findItemScope,
   findParentItemId,
+  findSiblings,
   flattenItems,
   isCellContent,
   scopeInsideItem,
@@ -43,7 +47,7 @@ import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
 import { PageResizePreview, PageResizeZones, type PageRegion } from './PageResizeLayer';
 import { Paper } from './Paper';
 import { Ruler, type RulerMark } from './Ruler';
-import { SelectionFrame, type SelectionFrameProps } from './SelectionFrame';
+import { SelectionFrame, tablixChromeAt, type SelectionFrameProps } from './SelectionFrame';
 import { TextEditContext } from './textEditContext';
 import { useMarqueeSelection } from './useMarqueeSelection';
 import { usePageResize } from './usePageResize';
@@ -54,7 +58,9 @@ import {
 } from './useSelectionMeasure';
 import { useVisibleRect } from './useVisibleRect';
 import { bandAt, paperLayout, type PaperLayout } from './bands';
+import { CULL_MIN_ITEMS, countProjectionItems, type VisibleRect } from './culling';
 import { CANVAS_PADDING_PX, clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
+import { fallbackWindow } from './window';
 
 /** Scope del contrato para cada banda del papel. */
 function scopeOfBand(key: string): ScopeRef {
@@ -116,8 +122,12 @@ export interface CanvasPreviewProps {
    * El padre lo guarda en un ref: no re-renderiza en cada resize.
    */
   onFitZoomChange?: (zoom: number) => void;
-  /** Click derecho sobre el lienzo: el item/contenedor bajo el cursor. */
-  onContextMenuHit?: (hit: CanvasHit) => void;
+  /**
+   * Click derecho sobre el lienzo: el item/contenedor bajo el cursor; `null`
+   * si el punto cae fuera del papel o de las bandas (el menú muestra entonces
+   * las acciones de la selección, sin Insertar/Pegar).
+   */
+  onContextMenuHit?: (hit: CanvasHit | null) => void;
   /** Un item de la toolbox soltado en el lienzo. */
   onDropItem?: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
   /** Abre el editor de texto de un textbox (doble clic, Enter, F2). */
@@ -161,6 +171,7 @@ export function CanvasPreview({
   reveal,
   stageRef: stageRefProp,
 }: CanvasPreviewProps): ReactNode {
+  const t = useT();
   const localStageRef = useRef<Konva.Stage | null>(null);
   const stageRef = stageRefProp ?? localStageRef;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -184,14 +195,39 @@ export function CanvasPreview({
   const layout = paperLayout(projection);
   const visibleBands = layout.bands.filter((band) => band.visible);
 
-  // Culling (T3): ventana visible en px de papel (null = pinta todo).
+  /**
+   * Cámara + culling (T3/T4): ventana visible en px de papel. El stage cubre
+   * **solo esta ventana**, no el papel entero a `papel × zoom`: así el coste de
+   * memoria del canvas depende del hueco del lienzo, no del zoom ni del tamaño
+   * del papel (un A4 a 400 % serían ~57 MB por canvas). `null` hasta la primera
+   * medida; el stage arranca con la ventana provisional de `window.ts`.
+   */
   const visibleRect = useVisibleRect({
     containerRef: scrollRef,
-    projection,
     zoom,
     sheetWidth: layout.sheetWidth,
     sheetHeight: layout.sheetHeight,
   });
+  const itemCount = useMemo(() => countProjectionItems(projection), [projection]);
+  // El culling (T3) se reserva a informes grandes: los normales se pintan enteros.
+  const cull = itemCount >= CULL_MIN_ITEMS ? visibleRect : null;
+  // Sin medida todavía (primera pasada): ventana provisional pequeña, para que
+  // el stage monte ya con un canvas acotado. No llega a pintarse: la medida
+  // real se publica antes del primer pintado (`useVisibleRect`).
+  const stageWindow = useMemo<VisibleRect>(
+    () =>
+      visibleRect ??
+      fallbackWindow({ sheetWidth: layout.sheetWidth, sheetHeight: layout.sheetHeight, zoom }),
+    [visibleRect, layout.sheetWidth, layout.sheetHeight, zoom],
+  );
+
+  // QA: el stage real (los guiones consultan `getIntersection` y el zoom). Depende
+  // de la ventana porque el stage se monta en cuanto hay una medida.
+  useEffect(() => {
+    if (TEST_HOOKS_ENABLED) {
+      (window as Window & { __rdlcStage?: Konva.Stage | null }).__rdlcStage = stageRef.current;
+    }
+  }, [visibleRect, stageRef]);
 
   /**
    * «Ajustar al ancho»: mide el hueco real del lienzo (menos paddings y reglas)
@@ -315,8 +351,9 @@ export function CanvasPreview({
     ...(onSelectCell ? { onSelectCell } : {}),
   });
 
-  const stageWidth = layout.sheetWidth * zoom;
-  const stageHeight = layout.sheetHeight * zoom;
+  /** Tamaño del papel en px de pantalla (el stage solo cubre la ventana). */
+  const paperWidth = layout.sheetWidth * zoom;
+  const paperHeight = layout.sheetHeight * zoom;
 
   /* --------------------- redimensionado de página (U10) ------------------- */
 
@@ -448,9 +485,18 @@ export function CanvasPreview({
     const base = wheelTargetRef.current ?? zoom;
     const target = roundZoom(clampZoom(base * (deltaY > 0 ? 1 / 1.1 : 1.1)));
     wheelTargetRef.current = target;
-    if (paperRef.current) {
-      paperRef.current.style.transformOrigin = '0 0';
-      paperRef.current.style.transform = `scale(${target / zoom})`;
+    const paper = paperRef.current;
+    const container = scrollRef.current;
+    if (paper) {
+      // El preview escala sobre el **centro del hueco** (no sobre el origen del
+      // papel): lo que el usuario está mirando se queda quieto y la ventana del
+      // stage no deja huecos con un paso de rueda.
+      const originX =
+        (container?.scrollLeft ?? 0) + (container?.clientWidth ?? 0) / 2 - CANVAS_PADDING_PX;
+      const originY =
+        (container?.scrollTop ?? 0) + (container?.clientHeight ?? 0) / 2 - CANVAS_PADDING_PX;
+      paper.style.transformOrigin = `${originX}px ${originY}px`;
+      paper.style.transform = `scale(${target / zoom})`;
     }
     window.clearTimeout(wheelTimerRef.current);
     wheelTimerRef.current = window.setTimeout(() => {
@@ -477,19 +523,22 @@ export function CanvasPreview({
   useEffect(() => {
     if (!selectedItem) {
       announcedSelectionRef.current = null;
-      if (items.length === 0) setLiveMessage('La página no tiene elementos');
+      if (items.length === 0) setLiveMessage(t('canvas.a11y.emptyPage'));
       return;
     }
     // Selección nueva: se anuncia al instante; mover con flechas, con retardo
     // para no encadenar mensajes.
     if (announcedSelectionRef.current !== selectedItem.id) {
       announcedSelectionRef.current = selectedItem.id;
-      setLiveMessage(selectionAnnouncement(selectedItem));
+      setLiveMessage(selectionAnnouncement(selectedItem, t));
       return;
     }
-    const timer = window.setTimeout(() => setLiveMessage(selectionAnnouncement(selectedItem)), 300);
+    const timer = window.setTimeout(
+      () => setLiveMessage(selectionAnnouncement(selectedItem, t)),
+      300,
+    );
     return () => window.clearTimeout(timer);
-  }, [selectedItem, items.length]);
+  }, [selectedItem, items.length, t]);
 
   const revealItem = (id: string): void => {
     const container = scrollRef.current;
@@ -537,6 +586,31 @@ export function CanvasPreview({
     }
   };
 
+  /**
+   * Click derecho sobre el «chrome» del marco de un Tablix (cabeceras de
+   * fila/columna o esquina, lo que dibuja `TablixHeaders`): manda la **tabla**
+   * —el mismo destino que su borde— en vez del item que queda debajo (o de su
+   * celda). Solo existe mientras el marco está visible (tabla o celda de ella
+   * seleccionada), como el propio chrome.
+   */
+  const tablixChromeHit = (event: { clientX: number; clientY: number }): CanvasHit | undefined => {
+    const stage = stageRef.current;
+    const framed = frameId ? findItem(projection, frameId) : undefined;
+    if (!stage || framed?.kind !== 'tablix' || !selectionRect || !selectedFrame?.grid) {
+      return undefined;
+    }
+    const container = stage.container().getBoundingClientRect();
+    const x = (event.clientX - container.left - stage.x()) / zoom;
+    const y = (event.clientY - container.top - stage.y()) / zoom;
+    if (!tablixChromeAt(selectionRect, selectedFrame.grid.offset, x, y)) return undefined;
+    return {
+      item: framed,
+      scope: findItemScope(projection, framed.id) ?? { kind: 'body' },
+      index: findSiblings(projection, framed.id)?.length ?? 0,
+      point: { x: toCm(framed.left), y: toCm(framed.top) },
+    };
+  };
+
   return (
     <TextEditContext.Provider value={onEditText ?? null}>
       <div
@@ -544,14 +618,14 @@ export function CanvasPreview({
         className="canvas-dots flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
         tabIndex={0}
         role="group"
-        aria-label={pageLabel(items.length)}
+        aria-label={pageLabel(items.length, t)}
         aria-describedby={descriptionId}
         onFocus={(event) => {
           // Solo al llegar con teclado (no con clic): selecciona el primero.
           if (event.target !== event.currentTarget) return;
           if (!event.currentTarget.matches(':focus-visible')) return;
           if (itemIds.length === 0) {
-            setLiveMessage('La página no tiene elementos');
+            setLiveMessage(t('canvas.a11y.emptyPage'));
             return;
           }
           if (!selectedId || !itemIds.includes(selectedId)) {
@@ -562,8 +636,15 @@ export function CanvasPreview({
         onKeyDown={handleKeyDown}
         onContextMenu={(event) => {
           const stage = stageRef.current;
-          const hit = stage ? hitAtEvent(stage, zoom, layout, event) : undefined;
-          if (hit) onContextMenuHit?.(hit);
+          if (!stage) return;
+          // El «chrome» del marco (cabeceras/esquina) y el borde de la tabla
+          // mandan sobre celdas y contenido: así el click derecho ofrece las
+          // acciones de la tabla, como el click izquierdo la selecciona. Fuera
+          // del papel no hay hit (`null`): el menú queda con la selección.
+          const hit =
+            tablixChromeHit(event) ??
+            hitAtEvent(stage, zoom, layout, event, { tablixBorder: true });
+          onContextMenuHit?.(hit ?? null);
         }}
         onDragOver={(event) => {
           if (!event.dataTransfer.types.includes(ITEM_DRAG_TYPE)) return;
@@ -581,8 +662,7 @@ export function CanvasPreview({
         }}
       >
         <span id={descriptionId} className="sr-only">
-          Usa Tab para recorrer los elementos, las flechas para mover el seleccionado, F2 para
-          editar su texto y Esc para salir del lienzo.
+          {t('canvas.a11y.keyboardHelp')}
         </span>
         <div aria-live="polite" aria-atomic="true" className="sr-only">
           {liveMessage}
@@ -590,21 +670,32 @@ export function CanvasPreview({
         <div
           ref={paperRef}
           className="relative"
-          style={{ width: RULER_PX + stageWidth, height: RULER_PX + stageHeight }}
+          style={{ width: RULER_PX + paperWidth, height: RULER_PX + paperHeight }}
         >
           <CanvasRulers
             projection={projection}
             zoom={zoom}
-            stageWidth={stageWidth}
-            stageHeight={stageHeight}
+            widthPx={paperWidth}
+            heightPx={paperHeight}
             rulerMarks={rulerMarks}
           />
 
-          <div className="absolute" style={{ left: RULER_PX, top: RULER_PX }}>
+          {/* Cámara (T4): el stage ocupa solo la ventana visible del papel y
+              desplaza el contenido a su origen (`x`/`y`). El canvas, así, mide
+              el hueco y no `papel × zoom`. */}
+          <div
+            className="absolute"
+            style={{
+              left: RULER_PX + stageWindow.x * zoom,
+              top: RULER_PX + stageWindow.y * zoom,
+            }}
+          >
             <Stage
               ref={stageRef}
-              width={stageWidth}
-              height={stageHeight}
+              width={stageWindow.width * zoom}
+              height={stageWindow.height * zoom}
+              x={-stageWindow.x * zoom}
+              y={-stageWindow.y * zoom}
               scaleX={zoom}
               scaleY={zoom}
               style={{ background: '#dcdce2' }}
@@ -646,7 +737,7 @@ export function CanvasPreview({
                 selectedCell={selectedCell}
                 onSelectCell={onSelectCell}
                 draggable={onMoveTo !== undefined}
-                cull={visibleRect}
+                cull={cull}
               />
 
               <SelectionFrame {...frameProps} />
@@ -680,16 +771,18 @@ export function CanvasPreview({
 function CanvasRulers({
   projection,
   zoom,
-  stageWidth,
-  stageHeight,
+  widthPx,
+  heightPx,
   rulerMarks,
 }: {
   projection: ProjectionDto;
   zoom: number;
-  stageWidth: number;
-  stageHeight: number;
+  /** Tamaño del papel en px de pantalla (la regla lo recorre entero). */
+  widthPx: number;
+  heightPx: number;
   rulerMarks: (axis: 'x' | 'y') => RulerMark[];
 }): ReactNode {
+  const t = useT();
   return (
     <>
       {/* Esquina de las reglas */}
@@ -700,16 +793,16 @@ function CanvasRulers({
       <Ruler
         orientation="horizontal"
         zoom={zoom}
-        lengthPx={stageWidth}
+        lengthPx={widthPx}
         marks={rulerMarks('x')}
-        segments={pageRulerSegments(projection.page, 'x')}
+        segments={pageRulerSegments(projection.page, 'x', t)}
       />
       <Ruler
         orientation="vertical"
         zoom={zoom}
-        lengthPx={stageHeight}
+        lengthPx={heightPx}
         marks={rulerMarks('y')}
-        segments={pageRulerSegments(projection.page, 'y')}
+        segments={pageRulerSegments(projection.page, 'y', t)}
       />
     </>
   );
@@ -776,10 +869,13 @@ function hitAtEvent(
   zoom: number,
   layout: PaperLayout,
   event: { clientX: number; clientY: number },
+  options?: HitOptions,
 ): CanvasHit | undefined {
   const rect = stage.container().getBoundingClientRect();
-  const contentX = (event.clientX - rect.left) / zoom;
-  const contentY = (event.clientY - rect.top) / zoom;
+  // El stage está desplazado a la ventana renderizada (`x`/`y` en px de
+  // pantalla): el punto se mide desde el origen del **papel**.
+  const contentX = (event.clientX - rect.left - stage.x()) / zoom;
+  const contentY = (event.clientY - rect.top - stage.y()) / zoom;
   if (
     contentX < 0 ||
     contentY < 0 ||
@@ -796,12 +892,15 @@ function hitAtEvent(
     x: clamp((contentX - band.x) / PX_PER_CM, 0, toCm(band.region.width)),
     y: clamp((contentY - band.y) / PX_PER_CM, 0, toCm(band.region.height)),
   };
-  return hitTestItems(band.region.items, point, scopeOfBand(band.key));
+  return hitTestItems(band.region.items, point, scopeOfBand(band.key), options);
 }
 
-/** Etiqueta accesible del grupo: «Página del informe, 3 elementos». */
-function pageLabel(count: number): string {
-  return `Página del informe, ${count} ${count === 1 ? 'elemento' : 'elementos'}`;
+/**
+ * Etiqueta accesible del grupo: «Página del informe, 3 elementos» (plural ICU).
+ * Helper puro: el traductor entra por parámetro, como en `canvasA11y`.
+ */
+function pageLabel(count: number, t: Translator['t']): string {
+  return t('canvas.a11y.pageLabel', { count });
 }
 
 /**

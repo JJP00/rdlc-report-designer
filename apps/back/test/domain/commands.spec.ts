@@ -154,6 +154,7 @@ describe('F1 · setLocation', () => {
       },
     );
     expect(result.isLeft()).toBe(true);
+    if (result.isLeft()) expect(result.value.reason).toBe('itemMissing');
     if (result.isLeft()) expect(result.value.code).toBe('E_COMMAND_REJECTED');
   });
 });

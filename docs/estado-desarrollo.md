@@ -251,4 +251,36 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
       resuelta la deuda real que destapó ESLint (imports y variables sin usar, escapes
       innecesarios, asignaciones muertas).
 
+- [x] **Cámara del lienzo — memoria del zoom (2026-10-20)**: el `Stage` medía el
+      papel entero a `papel × zoom` y cada capa asigna un canvas de ese tamaño (un A4 a
+      400 % son 3176 × 4492 px, ~57 MB por canvas): el renderer llegaba a **310 MB** de
+      working set y el pico se repetía en cada paso de zoom. Ahora el stage cubre la
+      **ventana visible** (hueco + margen, cuantizada en px de pantalla) y desplaza el
+      contenido con `x`/`y`; el scroll sigue siendo solo compositor (sin JS por frame).
+      A 400 %: **272 → 34 MB** de canvas de escena y **310 → 220 MB** de renderer, y ya
+      no crece con el zoom ni con el tamaño de página. Detalle y medición en
+      [`docs/perf/0002-camara-lienzo-zoom.md`](./perf/0002-camara-lienzo-zoom.md); los
+      ganchos de QA y los guiones E2E suman `stage.x()/y()` al pasar de px de papel a
+      pantalla.
+
+- [x] **Menú contextual del Tablix (2026-10-21)**: el click derecho dentro de una tabla
+      caía siempre en la celda o en el contenido de esta, así que «Orden» (Traer al
+      frente / Enviar atrás) solo se alcanzaba por atajo tras seleccionar la tabla por su
+      borde. Ahora el **borde** de la tabla (el mismo anillo de 4 px del click izquierdo)
+      y las **cabeceras de fila/columna y esquina** del marco mandan la tabla en el menú
+      contextual, con sus acciones (Orden incluido). Además, un click derecho **fuera del
+      papel** limpia el destino del menú: quedan las acciones de la selección, sin
+      Insertar/Pegar (antes se colaba el hit del click derecho anterior).
+
+- [x] **Alineación (`TextAlign`) donde BC la lee (2026-10-21)**: BC escribe y **solo lee**
+      `<TextAlign>` en el `<Style>` de **cada párrafo** — el del item lo ignora al
+      renderizar (el corpus lo confirma: 708 declaraciones en párrafos, 0 en items;
+      `CartaCMR.rdlc`: `TextBoxPrueba`, con el align solo en el item, no se alineaba en BC).
+      Ahora la barra de formato escribe la alineación en todos los párrafos (`setStyle` la
+      redirige, como `Format` va a los runs): un `<TextAlign>` legado del item se
+      **sincroniza** sin crear uno nuevo y `null` la quita de los tres niveles. El lienzo y
+      la barra también dejan de dar por buena la del item, así que muestran lo que BC
+      pintará. Con spec propio (`style-textalign.spec.ts`, golden del corpus y undo
+      byte-exacto) y E2E con guardado y undo; el editor de texto ya la escribía por párrafo.
+
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20Report%20Designer%20-%20Pendientes.md).

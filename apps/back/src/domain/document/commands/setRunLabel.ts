@@ -57,7 +57,9 @@ function findRun(ctx: CommandContext, command: SetRunLabelCommand): RdlcNode | u
 }
 
 function missingRun(command: SetRunLabelCommand): DomainError {
-  return CommandRejectedError.create(
-    `El Textbox '${command.id}' no tiene el run [${command.p}][${command.r}]`,
-  );
+  return CommandRejectedError.of('runMissing', {
+    id: command.id,
+    p: command.p,
+    r: command.r,
+  });
 }

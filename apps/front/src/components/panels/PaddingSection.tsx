@@ -1,5 +1,6 @@
 import type { Padding, StylePatch } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Label } from '@/components/ui/label';
 import { NumberInput } from '@/components/ui/number-input';
 import { toPt } from '@/lib/style';
@@ -11,10 +12,10 @@ import { toPt } from '@/lib/style';
  */
 
 const PADDING_SIDES = [
-  { key: 'top', label: 'Superior', axis: 'y' },
-  { key: 'left', label: 'Izquierdo', axis: 'x' },
-  { key: 'bottom', label: 'Inferior', axis: 'y' },
-  { key: 'right', label: 'Derecho', axis: 'x' },
+  { key: 'top', labelKey: 'common.top', axis: 'y' },
+  { key: 'left', labelKey: 'common.left', axis: 'x' },
+  { key: 'bottom', labelKey: 'common.bottom', axis: 'y' },
+  { key: 'right', labelKey: 'common.right', axis: 'x' },
 ] as const;
 
 export function PaddingSection({
@@ -24,14 +25,16 @@ export function PaddingSection({
   padding?: Padding;
   onSetStyle: (patch: StylePatch) => void;
 }): ReactNode {
+  const t = useT();
+
   return (
     <div className="grid gap-2">
-      <Label className="text-[11px] text-muted-foreground">Relleno (pt)</Label>
+      <Label className="text-[11px] text-muted-foreground">{t('toolbar.padding.title')}</Label>
       <div className="grid grid-cols-2 gap-2">
         {PADDING_SIDES.map((side) => (
           <PaddingField
             key={side.key}
-            label={side.label}
+            label={t(side.labelKey)}
             axis={side.axis}
             value={padding?.[side.key] ? Math.round(toPt(padding[side.key]!) * 100) / 100 : 0}
             onCommit={(valuePt) =>
@@ -55,13 +58,15 @@ function PaddingField({
   value: number;
   onCommit: (value: number) => void;
 }): ReactNode {
+  const t = useT();
+
   return (
     <div className="grid gap-1">
       <Label className="text-[10px] text-muted-foreground">{label}</Label>
       <NumberInput
         className="h-7 flex-1 text-xs"
         value={value}
-        label={`Padding ${label.toLowerCase()}`}
+        label={t('toolbar.padding.fieldLabel', { side: label.toLowerCase() })}
         axis={axis}
         min={0}
         suffix="pt"

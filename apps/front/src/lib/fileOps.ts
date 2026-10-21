@@ -135,6 +135,3 @@ export function visibleBusyLabel(
   if (own) return own.label;
   return operations.find((op) => op.sessionId === null)?.label ?? null;
 }
-
-/** Aviso cuando una apertura/creación queda encolada tras otra en curso. */
-export const QUEUED_OPERATION_STATUS = 'Ya hay una operación en curso… se hará a continuación.';

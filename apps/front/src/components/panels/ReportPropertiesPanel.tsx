@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import { useT } from '@rdlc-designer/i18n/react';
 import {
   ReportPropertiesForm,
   reportPropertiesSignature,
@@ -19,13 +20,14 @@ export function ReportPropertiesPanel({
   projection,
   ...form
 }: ReportPropertiesPanelProps): ReactNode {
+  const t = useT();
   const [tab, setTab] = useState('page');
   return (
-    <section aria-label="Propiedades del informe" className="flex flex-col">
+    <section aria-label={t('report.properties.title')} className="flex flex-col">
       <header className="flex flex-col gap-1 border-b p-3">
-        <h2 className="text-sm font-semibold">Propiedades del informe</h2>
+        <h2 className="text-sm font-semibold">{t('report.properties.title')}</h2>
         <p className="text-xs text-muted-foreground">
-          Configuración de página y código VB del informe ({projection.reportName}).
+          {t('report.properties.subtitle', { name: projection.reportName })}
         </p>
       </header>
       <ReportPropertiesForm

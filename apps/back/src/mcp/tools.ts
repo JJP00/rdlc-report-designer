@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { DomainError } from '../shared/domainError.js';
 import { UnexpectedError } from '../shared/domainError.js';
+import { describeError } from '../shared/describeError.js';
+import { createTranslator } from '@rdlc-designer/i18n';
 import type { Either } from '../shared/either.js';
 import type { HeadlessContext } from './headlessContext.js';
 import { describeReport, findItem, outlineOf } from './outline.js';
@@ -51,10 +53,21 @@ function toolError(code: string, message: string, extra: Record<string, unknown>
   return text(JSON.stringify({ ok: false, code, message, ...extra }), true);
 }
 
+/**
+ * El MCP mantiene **inglés estable** para agentes (decisión de
+ * `docs/features/0005-i18n.md`): los avisos del dominio se componen con el
+ * catálogo EN, nunca con el idioma del usuario.
+ */
+const tEn = createTranslator('en');
+
+function warningText(reason: string): string | undefined {
+  return tEn.tUnsafe(`native.saveWarnings.${reason}`);
+}
+
 function domainError(error: DomainError): ToolReply {
   return toolError(
     error.code,
-    error.errorMessage,
+    describeError(error),
     error.data === undefined ? {} : { data: error.data },
   );
 }
@@ -277,7 +290,7 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
           ok: true,
           path: saved.value.path,
           bytesIdentical: saved.value.bytesIdentical,
-          ...(saved.value.warning ? { warning: saved.value.warning } : {}),
+          ...(saved.value.warningReason ? { warning: warningText(saved.value.warningReason) } : {}),
         },
         id,
       );
@@ -321,7 +334,7 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
         {
           ok: true,
           path: saved.value.path,
-          ...(saved.value.warning ? { warning: saved.value.warning } : {}),
+          ...(saved.value.warningReason ? { warning: warningText(saved.value.warningReason) } : {}),
         },
         id,
       );
@@ -542,7 +555,7 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
         const outcome = commands.execute(id, command);
         if (outcome.isLeft()) {
           const rolledBack = atomic !== false ? rollBack(id, results.length) : undefined;
-          return toolError(outcome.value.code, outcome.value.errorMessage, {
+          return toolError(outcome.value.code, describeError(outcome.value), {
             failedIndex: index,
             failedCommand: command.cmd,
             appliedBeforeFailure: results.length,

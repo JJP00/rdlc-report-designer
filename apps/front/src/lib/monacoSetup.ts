@@ -1,4 +1,5 @@
 import * as monaco from 'monaco-editor';
+import { type Translator } from '@rdlc-designer/i18n';
 // monaco 0.56 mapea `monaco-editor/*` → `esm/vs/*.js` (no hay que poner `esm/vs`).
 import editorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import { getCompletionMeta } from './completionMeta';
@@ -70,24 +71,27 @@ function overflowWidgetsHost(): HTMLElement {
 }
 
 const KEYWORD_SET = new Set(VB_KEYWORDS.map((keyword) => keyword.toLowerCase()));
-const BUILTIN_SET = new Set(
-  expressionCompletions({ code: { text: '', functions: [] }, fields: [], parameters: [] })
-    .filter((entry) => entry.kind === 'builtin')
-    .map((entry) => entry.label.toLowerCase()),
-);
 
 let registered = false;
 
 /* ------------------------------- lenguaje -------------------------------- */
 
-function registerRdlcLanguage(): void {
+function registerRdlcLanguage(t: Translator['t']): void {
   if (registered) return;
   registered = true;
+
+  /** Nombres de las funciones del estándar (van como `builtins` del Monarch). */
+  const builtins = new Set(
+    expressionCompletions({ code: { text: '', functions: [] }, fields: [], parameters: [] }, t)
+      .filter((entry) => entry.kind === 'builtin')
+      .map((entry) => entry.label.toLowerCase()),
+  );
 
   monaco.languages.register({
     id: RDLC_LANGUAGE_ID,
     extensions: ['.vbexpr'],
-    aliases: ['Expresión RDL', 'rdlc'],
+    // Nombre visible del lenguaje (picker de Monaco); se registra una sola vez.
+    aliases: [t('lib.monaco.languageAlias'), 'rdlc'],
   });
 
   monaco.languages.setMonarchTokensProvider(RDLC_LANGUAGE_ID, {
@@ -120,7 +124,7 @@ function registerRdlcLanguage(): void {
         [/[(),.]/, 'delimiter'],
       ],
     },
-    builtins: [...BUILTIN_SET],
+    builtins: [...builtins],
     keywords: [...KEYWORD_SET],
   } as monaco.languages.IMonarchLanguage);
 
@@ -174,7 +178,7 @@ function registerRdlcLanguage(): void {
       );
 
       return {
-        suggestions: completionSuggestions(meta).map((entry) => ({
+        suggestions: completionSuggestions(meta, t).map((entry) => ({
           label: entry.labelDetail
             ? { label: entry.label, detail: ` ${entry.labelDetail}` }
             : entry.label,
@@ -216,6 +220,11 @@ export interface ExpressionEditorOptions {
   /** `expression`: una línea, sin números ni plegado. `code`: bloque VB. */
   mode: 'expression' | 'code';
   ariaLabel: string;
+  /**
+   * Etiquetas del editor (acciones de Monaco). Se lee **al crear** el editor:
+   * el cambio de idioma necesita volver a montarlo (como `ariaLabel`).
+   */
+  t: Translator['t'];
 }
 
 export interface ExpressionEditorHandles {
@@ -240,7 +249,8 @@ export function createExpressionEditor(
   options: ExpressionEditorOptions,
   callbacks: { onCommit(): void; onFocus(): void; onSubmit?(): void },
 ): ExpressionEditorHandles {
-  registerRdlcLanguage();
+  const t = options.t;
+  registerRdlcLanguage(t);
   watchDocumentTheme();
 
   const mode = options.mode;
@@ -283,14 +293,14 @@ export function createExpressionEditor(
   // registrado (monaco#2947) y puede secuestrar sus atajos (BUG-45).
   editor.addAction({
     id: 'rdlc-submit',
-    label: 'Aplicar',
+    label: t('lib.monaco.apply'),
     keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
     run: () => submit(),
   });
   if (mode === 'expression') {
     editor.addAction({
       id: 'rdlc-submit-enter',
-      label: 'Aplicar (Enter)',
+      label: t('lib.monaco.applyEnter'),
       keybindings: [monaco.KeyCode.Enter],
       // Con el desplegable de sugerencias abierto, Enter la acepta.
       precondition: '!suggestWidgetVisible',

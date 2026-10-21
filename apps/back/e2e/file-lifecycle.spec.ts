@@ -9,6 +9,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appEnv } from './launch.js';
 
 /**
  * U1/U2 — ciclo de vida de fichero sobre la app real: Nuevo/Guardar como,
@@ -43,6 +44,7 @@ test.beforeAll(async () => {
 
   app = await electron.launch({
     args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
+    env: appEnv(),
   });
   page = await app.firstWindow();
   await page.waitForFunction(() =>

@@ -30,13 +30,13 @@ export function applySetRegionHeight(
 ): Either<DomainError, CommandOutcome> {
   const section = reportSection(ctx);
   if (!section) {
-    return left(CommandRejectedError.create('El documento no tiene ReportSection'));
+    return left(CommandRejectedError.of('reportSectionMissing'));
   }
 
   // El cuerpo cuelga directo de la sección (`Body > Height`).
   if (command.region === 'body') {
     const body = section.child('Body');
-    if (!body) return left(CommandRejectedError.create('El documento no tiene Body'));
+    if (!body) return left(CommandRejectedError.of('bodyMissing'));
     return right(writeHeight(body, clampBandHeight(body, command.height)));
   }
 
@@ -90,7 +90,7 @@ export function applySetSectionWidth(
 ): Either<DomainError, CommandOutcome> {
   const section = reportSection(ctx);
   if (!section) {
-    return left(CommandRejectedError.create('El documento no tiene ReportSection'));
+    return left(CommandRejectedError.of('reportSectionMissing'));
   }
 
   const contentCm = contentRightCm(section);
@@ -162,7 +162,7 @@ export function applySetRegionPresent(
 ): Either<DomainError, CommandOutcome> {
   const section = reportSection(ctx);
   if (!section) {
-    return left(CommandRejectedError.create('El documento no tiene ReportSection'));
+    return left(CommandRejectedError.of('reportSectionMissing'));
   }
 
   const tag = regionTag(command.region);
@@ -217,12 +217,12 @@ export function applySetHeaderFooterOptions(
   command: SetHeaderFooterOptionsCommand,
 ): Either<DomainError, CommandOutcome> {
   if (command.printOnFirstPage === undefined && command.printOnLastPage === undefined) {
-    return left(CommandRejectedError.create('No hay ninguna opción que cambiar'));
+    return left(CommandRejectedError.of('noOptionToChange'));
   }
 
   const section = reportSection(ctx);
   if (!section) {
-    return left(CommandRejectedError.create('El documento no tiene ReportSection'));
+    return left(CommandRejectedError.of('reportSectionMissing'));
   }
 
   const tag = regionTag(command.region);

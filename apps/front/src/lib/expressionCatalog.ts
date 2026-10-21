@@ -1,4 +1,5 @@
 import type { ReportMetaDto } from '@rdlc-designer/contracts';
+import { type Translator } from '@rdlc-designer/i18n';
 import { VARIABLE_GROUPS, variableEntries } from './variables';
 
 /**
@@ -231,8 +232,11 @@ const GROUP_ORDER: CompletionKind[] = ['field', 'parameter', 'code', 'global', '
 /**
  * Entradas del autocompletado: variables del informe (sin el `=` inicial, que
  * solo tiene sentido al empezar la expresión) + funciones del estándar.
+ *
+ * El módulo es puro: el detalle visible llega ya traducido (el consumidor pasa
+ * el `t` de `useT()`); el traductor entra por parámetro, como en `canvasA11y`.
  */
-export function expressionCompletions(meta: ReportMetaDto): CompletionEntry[] {
+export function expressionCompletions(meta: ReportMetaDto, t: Translator['t']): CompletionEntry[] {
   const variables: CompletionEntry[] = variableEntries(meta).map((entry) => ({
     label: entry.name,
     insertText: entry.expression.replace(/^=/, ''),
@@ -244,7 +248,7 @@ export function expressionCompletions(meta: ReportMetaDto): CompletionEntry[] {
     label: name,
     insertText: `${name}(`,
     kind: 'builtin',
-    detail: 'función RDL',
+    detail: t('lib.expression.builtinDetail'),
   }));
 
   return [...variables, ...builtins];
@@ -255,8 +259,11 @@ export function expressionCompletions(meta: ReportMetaDto): CompletionEntry[] {
  * firma al lado (`BlankNeg (v)`) y se insertan **con el paréntesis cerrado**
  * dejando el cursor dentro (`Code.BlankNeg($0)`).
  */
-export function completionSuggestions(meta: ReportMetaDto): CompletionSuggestion[] {
-  return expressionCompletions(meta).map((entry) => {
+export function completionSuggestions(
+  meta: ReportMetaDto,
+  t: Translator['t'],
+): CompletionSuggestion[] {
+  return expressionCompletions(meta, t).map((entry) => {
     const isCallable = entry.kind === 'builtin' || entry.kind === 'code';
     const order = GROUP_ORDER.indexOf(entry.kind);
 

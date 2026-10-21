@@ -29,23 +29,22 @@ export function applyMoveItem(
   command: MoveItemCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   // `resolveScope` crea el contenedor si falta (`ReportItems`/`CellContents`):
   // si lo creó este comando, el inverso lo quita (nada de nodos vacíos).
   const existing = findScope(ctx, command.toScope);
   const container = existing ?? resolveScope(ctx, command.toScope);
   if (!container) {
-    return left(CommandRejectedError.create('No se encontró el contenedor del scope'));
+    return left(CommandRejectedError.of('scopeContainerMissing'));
   }
   const containerCreated = existing === undefined;
   if (isSelfOrDescendant(container, node)) {
-    return left(CommandRejectedError.create('No se puede mover un elemento dentro de sí mismo'));
+    return left(CommandRejectedError.of('moveIntoSelf'));
   }
 
   const source = node.parent;
-  if (!source)
-    return left(CommandRejectedError.create(`El elemento '${command.id}' no tiene contenedor`));
+  if (!source) return left(CommandRejectedError.of('itemHasNoContainer', { id: command.id }));
   const sourceIndex = source.children().findIndex((child) => child.equals(node));
 
   const inverse: DomainCommand[] = [];

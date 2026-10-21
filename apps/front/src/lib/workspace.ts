@@ -1,3 +1,4 @@
+import { createTranslator, type Translator } from '@rdlc-designer/i18n';
 import type {
   ConflictDetectedEvent,
   DirtyChangedEvent,
@@ -63,14 +64,22 @@ export interface WorkspaceState {
   activeSessionId: string | null;
 }
 
-/** Estado del pie sin ninguna pestaña abierta. */
-export const IDLE_STATUS = 'Listo. Abre un informe .rdlc de Business Central o un .rdl 2016.';
-/** Pie tras cerrar la última pestaña (no se cierra la ventana). */
-export const CLOSED_STATUS = 'Informe cerrado.';
-/** Aviso al detectar un cambio externo con cambios locales (conflicto). */
-export const CONFLICT_STATUS = 'El fichero cambió en disco. Tus cambios siguen en el editor.';
+type T = Translator['t'];
+
+/**
+ * Traductor por defecto de las transiciones puras: las pruebas las ejercen sin
+ * React y afirman los textos ES del catálogo. La app pasa siempre el traductor
+ * del idioma vigente.
+ */
+const defaultT: T = createTranslator('es').t;
+
+/**
+ * Estado del pie sin ninguna pestaña abierta (ES del catálogo; el pie real usa
+ * `app.status.idle` con el idioma vigente). Exportada para las pruebas.
+ */
+export const IDLE_STATUS = defaultT('app.status.idle');
 /** Recarga externa aplicada (evento `documentChanged` con `reason: 'external'`). */
-export const RELOADED_STATUS = 'Recargado desde disco';
+export const RELOADED_STATUS = defaultT('app.status.reloaded');
 
 /** Estado de UI por defecto de una pestaña nueva. */
 export function createTabUiState(): TabUiState {
@@ -161,16 +170,16 @@ export function resolveTabUiPatch(ui: TabUiState, patch: TabUiPatch): Partial<Ta
   return typeof patch === 'function' ? patch(ui) : patch;
 }
 
-export function openedStatus(path: string): string {
-  return `Abierto: ${path}`;
+export function openedStatus(path: string, t: T = defaultT): string {
+  return t('app.status.opened', { path });
 }
 
-export function createdStatus(path: string): string {
-  return `Nuevo informe: ${path}`;
+export function createdStatus(path: string, t: T = defaultT): string {
+  return t('app.status.created', { path });
 }
 
-export function recoveredStatus(path: string): string {
-  return `Sesión recuperada: ${path}`;
+export function recoveredStatus(path: string, t: T = defaultT): string {
+  return t('app.status.recovered', { path });
 }
 
 export interface CreateTabInput {
@@ -385,6 +394,7 @@ export function adoptSessions(
   state: WorkspaceState,
   sessions: readonly ListedSession[],
   restoreUi?: (sessionId: string) => TabUiState | undefined,
+  t: T = defaultT,
 ): WorkspaceState {
   if (sessions.length === 0) return state;
   const tabs = new Map(state.tabs);
@@ -396,7 +406,7 @@ export function adoptSessions(
       path: session.filePath,
       projection: session.projection,
       dirty: session.dirty,
-      status: recoveredStatus(session.filePath),
+      status: recoveredStatus(session.filePath, t),
     });
     tabs.set(session.sessionId, {
       ...created,
@@ -423,6 +433,7 @@ export function adoptSessions(
 export function applyDocumentChanged(
   state: WorkspaceState,
   event: DocumentChangedEvent,
+  t: T = defaultT,
 ): WorkspaceState {
   const tab = state.tabs.get(event.sessionId);
   if (!tab) return state;
@@ -435,7 +446,7 @@ export function applyDocumentChanged(
     next = updateTab(next, event.sessionId, {
       conflict: null,
       reloads: tab.reloads + 1,
-      status: RELOADED_STATUS,
+      status: t('app.status.reloaded'),
       // La recarga externa descarta el documento anterior: su portapapeles
       // (nodos del árbol viejo) también se va en el backend.
       hasClipboard: false,
@@ -445,17 +456,21 @@ export function applyDocumentChanged(
 }
 
 /** Mensaje de guardado: deja de ser cierto en cuanto el documento vuelve a editarse. */
-export function isSavedStatus(status: string): boolean {
-  return /^Guardado/.test(status);
+export function isSavedStatus(status: string, t: T = defaultT): boolean {
+  return status.startsWith(t('app.status.savedPrefix'));
 }
 
 /** Pie vacío: el estado «neutro» de una pestaña cuando caduca un mensaje de acción. */
 export const EMPTY_STATUS = '';
 
-export function applyDirtyChanged(state: WorkspaceState, event: DirtyChangedEvent): WorkspaceState {
+export function applyDirtyChanged(
+  state: WorkspaceState,
+  event: DirtyChangedEvent,
+  t: T = defaultT,
+): WorkspaceState {
   const tab = state.tabs.get(event.sessionId);
   // Al editar, «Guardado…» miente (el título ya lleva `*`): se limpia.
-  if (tab && event.dirty && isSavedStatus(tab.status)) {
+  if (tab && event.dirty && isSavedStatus(tab.status, t)) {
     return updateTab(state, event.sessionId, { dirty: true, status: EMPTY_STATUS });
   }
   return updateTab(state, event.sessionId, { dirty: event.dirty });
@@ -474,10 +489,11 @@ export function expireStatus(
 export function applyConflictDetected(
   state: WorkspaceState,
   event: ConflictDetectedEvent,
+  t: T = defaultT,
 ): WorkspaceState {
   return updateTab(state, event.sessionId, {
     conflict: event.filePath,
-    status: CONFLICT_STATUS,
+    status: t('app.status.conflict'),
   });
 }
 
@@ -502,13 +518,14 @@ export function applyFileMissingChanged(
 export function applyExternalReloadFailed(
   state: WorkspaceState,
   event: ExternalReloadFailedEvent,
+  t: T = defaultT,
 ): WorkspaceState {
   return updateTab(state, event.sessionId, {
     conflict: null,
     status:
       event.reason === 'unsupportedSchema'
-        ? 'El fichero cambió en disco a un RDL anterior a 2016; no se recargó.'
-        : 'El fichero cambió en disco, pero no se pudo leer (puede estar a medias). Se mantiene la copia en memoria.',
+        ? t('app.status.reloadUnsupportedSchema')
+        : t('app.status.reloadUnreadable'),
   });
 }
 

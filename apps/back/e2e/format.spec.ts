@@ -1,3 +1,4 @@
+import { appEnv } from './launch.js';
 import {
   _electron as electron,
   expect,
@@ -53,6 +54,7 @@ async function launch(): Promise<Ctx> {
   const original = readFileSync(file);
   const app = await electron.launch({
     args: [mainEntry, file, `--user-data-dir=${join(workspace, 'user-data')}`],
+    env: appEnv(),
   });
   const page = await app.firstWindow();
   await page.waitForFunction(() =>

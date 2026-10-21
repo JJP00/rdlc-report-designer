@@ -66,8 +66,8 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
     expect(opened.isLeft()).toBe(true);
     if (opened.isRight()) return;
     expect(opened.value.code).toBe('E_UNSUPPORTED_SCHEMA');
-    expect(opened.value.errorMessage).toContain('RDL 2008');
-    expect(opened.value.errorMessage).toContain('2016');
+    expect(opened.value.reason).toBe('unsupportedSchemaVersion');
+    expect(opened.value.params?.['version']).toBe('2008');
   });
 
   it('rechaza un XML cuya raíz no es <Report>', async () => {

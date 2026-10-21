@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
   IPC_CHANNELS,
   IPC_EVENTS,
+  type AppLocale,
   type CloseResult,
   type CommandResult,
   type ConflictDetectedEvent,
@@ -11,6 +12,7 @@ import {
   type FileMissingChangedEvent,
   type FontListResult,
   type ListedSessionsResult,
+  type LocaleResult,
   type OpenFileResult,
   type PendingOpenResult,
   type PickFileResult,
@@ -78,6 +80,11 @@ const api: RdlcApi = {
     ipcRenderer.invoke(IPC_CHANNELS.acknowledgeCloseRequest),
 
   listSessions: (): Promise<ListedSessionsResult> => ipcRenderer.invoke(IPC_CHANNELS.listSessions),
+
+  getLocale: (): Promise<LocaleResult> => ipcRenderer.invoke(IPC_CHANNELS.getLocale),
+
+  setLocale: (locale: AppLocale): Promise<LocaleResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.setLocale, { locale }),
 
   executeCommand: (sessionId: string, command: RdlcCommand): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.executeCommand, { sessionId, command }),

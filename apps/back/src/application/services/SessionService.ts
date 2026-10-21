@@ -41,6 +41,7 @@ import type {
   ISessionService,
   OpenSessionResult,
   SaveSessionResult,
+  SaveWarningReason,
   TouchOptions,
 } from './ISessionService.js';
 
@@ -114,7 +115,7 @@ export class SessionService implements ISessionService {
     try {
       diskStat = await this.fileSystem.stat(filePath);
     } catch (error) {
-      return left(IoError.create('leer', filePath, error));
+      return left(IoError.create('read', filePath, error));
     }
 
     // Validación de esquema al importar: avisa, no bloquea (el usuario puede
@@ -157,7 +158,7 @@ export class SessionService implements ISessionService {
         },
       );
     } catch (error) {
-      return left(IoError.create('vigilar', filePath, error));
+      return left(IoError.create('watch', filePath, error));
     }
     session.unwatch = unwatch;
     this.sessions.set(sessionId, session);
@@ -177,7 +178,7 @@ export class SessionService implements ISessionService {
     try {
       await this.fileSystem.writeFile(filePath, Buffer.from(BLANK_REPORT_XML, 'utf8'));
     } catch (error) {
-      return left(IoError.create('escribir', filePath, error));
+      return left(IoError.create('write', filePath, error));
     }
     return this.open(filePath);
   }
@@ -247,7 +248,7 @@ export class SessionService implements ISessionService {
     // (permisos, límite de descriptores…), el guardado ya está consumado y la
     // sesión sigue siendo consistente; solo se avisa de que no hay vigilancia.
     let unwatch: Unwatch | undefined;
-    let warning: string | undefined;
+    let warningReason: SaveWarningReason | undefined;
     try {
       unwatch = await this.fileWatcher.watch(
         filePath,
@@ -259,7 +260,7 @@ export class SessionService implements ISessionService {
         },
       );
     } catch {
-      warning = 'Guardado, pero no se vigilan cambios externos en el fichero nuevo.';
+      warningReason = 'watchUnsupported';
     }
 
     // La sesión pasa a apuntar al fichero nuevo; el watcher viejo (ruta
@@ -272,7 +273,7 @@ export class SessionService implements ISessionService {
     return right({
       path: filePath,
       bytesIdentical: serialized.value.bytesIdentical,
-      ...(warning ? { warning } : {}),
+      ...(warningReason ? { warningReason } : {}),
     });
   }
 
@@ -300,7 +301,7 @@ export class SessionService implements ISessionService {
     try {
       diskStat = await this.fileSystem.stat(session.filePath);
     } catch (error) {
-      return left(IoError.create('leer', session.filePath, error));
+      return left(IoError.create('read', session.filePath, error));
     }
 
     // Se valida antes de tocar la sesión: un validador que lance no la deja a
@@ -375,7 +376,7 @@ export class SessionService implements ISessionService {
     const nodes: RdlcNode[] = [];
     for (const id of ids) {
       const node = session.index.get(id);
-      if (!node) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+      if (!node) return left(CommandRejectedError.of('itemMissing', { id }));
       nodes.push(node.clone());
     }
     session.clipboard = nodes;
@@ -692,7 +693,7 @@ export class SessionService implements ISessionService {
       this.clearMissing(session, filePath);
       return right(undefined);
     } catch (error) {
-      return left(IoError.create('escribir', filePath, error));
+      return left(IoError.create('write', filePath, error));
     } finally {
       session.writing = false;
     }
@@ -712,7 +713,7 @@ export class SessionService implements ISessionService {
     try {
       return right(await this.fileSystem.readFile(filePath));
     } catch (error) {
-      return left(IoError.create('leer', filePath, error));
+      return left(IoError.create('read', filePath, error));
     }
   }
 

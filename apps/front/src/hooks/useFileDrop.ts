@@ -1,3 +1,4 @@
+import { useT } from '@rdlc-designer/i18n/react';
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 
 /**
@@ -30,6 +31,7 @@ export function useFileDrop(options: FileDropOptions): {
   dropActive: boolean;
   dropHandlers: FileDropHandlers;
 } {
+  const t = useT();
   const [dropActive, setDropActive] = useState(false);
   const depth = useRef(0);
   const optionsRef = useRef(options);
@@ -56,19 +58,22 @@ export function useFileDrop(options: FileDropOptions): {
     if (depth.current === 0) setDropActive(false);
   }, []);
 
-  const onDrop = useCallback((event: DragEvent): void => {
-    const { enabled, onOpenPaths, onInvalid } = optionsRef.current;
-    if (!enabled) return;
-    event.preventDefault();
-    depth.current = 0;
-    setDropActive(false);
-    const files = Array.from(event.dataTransfer.files);
-    const paths = files
-      .map((file) => window.api.pathForFile(file))
-      .filter((path) => /\.(rdlc|rdl)$/i.test(path));
-    if (paths.length > 0) onOpenPaths(paths);
-    else if (files.length > 0) onInvalid('Solo se pueden abrir ficheros .rdlc o .rdl');
-  }, []);
+  const onDrop = useCallback(
+    (event: DragEvent): void => {
+      const { enabled, onOpenPaths, onInvalid } = optionsRef.current;
+      if (!enabled) return;
+      event.preventDefault();
+      depth.current = 0;
+      setDropActive(false);
+      const files = Array.from(event.dataTransfer.files);
+      const paths = files
+        .map((file) => window.api.pathForFile(file))
+        .filter((path) => /\.(rdlc|rdl)$/i.test(path));
+      if (paths.length > 0) onOpenPaths(paths);
+      else if (files.length > 0) onInvalid(t('app.fileDrop.invalid'));
+    },
+    [t],
+  );
 
   return { dropActive, dropHandlers: { onDragEnter, onDragOver, onDragLeave, onDrop } };
 }

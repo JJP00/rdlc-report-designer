@@ -17,7 +17,7 @@ export function applySetItemPageBreak(
   command: SetItemPageBreakCommand,
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
-  if (!node) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   if (command.breakLocation === null || command.breakLocation === 'None') {
     const pageBreak = node.child('PageBreak');

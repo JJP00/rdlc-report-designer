@@ -1,3 +1,5 @@
+import { createTranslator, type Translator } from '@rdlc-designer/i18n';
+import { useT } from '@rdlc-designer/i18n/react';
 import { AlertTriangle, Check, ChevronDown, X } from 'lucide-react';
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import {
@@ -38,14 +40,26 @@ export interface TabStripProps {
 }
 
 /**
+ * Traductor por defecto de los helpers puros de la tira: los tests los ejercen
+ * sin React y afirman los textos ES del catálogo; la app pasa siempre el
+ * traductor del idioma vigente.
+ */
+const defaultT: Translator['t'] = createTranslator('es').t;
+
+/**
  * Nombre accesible de la pestaña: nombre del fichero y, si procede, el estado
  * que un lector de pantalla no puede deducir del `*` ámbar (hallazgo 9). El
  * conflicto puede darse sin cambios locales.
  */
-export function tabAriaLabel(name: string, dirty: boolean, conflict: boolean): string {
+export function tabAriaLabel(
+  name: string,
+  dirty: boolean,
+  conflict: boolean,
+  t: Translator['t'] = defaultT,
+): string {
   const states = [
-    dirty ? 'con cambios sin guardar' : null,
-    conflict ? 'conflicto: el fichero cambió en disco' : null,
+    dirty ? t('app.tabs.stateDirty') : null,
+    conflict ? t('app.tabs.stateConflict') : null,
   ].filter((state): state is string => state !== null);
   return [name, ...states].join(', ');
 }
@@ -88,8 +102,13 @@ export function moveTargetIndex(index: number, delta: number, count: number): nu
 }
 
 /** Texto del anuncio del reordenado (hallazgo 21): «nombre», posición i de N. */
-export function moveAnnouncement(name: string, index: number, count: number): string {
-  return `«${name}», posición ${index + 1} de ${count}`;
+export function moveAnnouncement(
+  name: string,
+  index: number,
+  count: number,
+  t: Translator['t'] = defaultT,
+): string {
+  return t('app.tabs.moveAnnouncement', { name, position: index + 1, count });
 }
 
 /**
@@ -113,6 +132,8 @@ export function TabStrip({
   onClose,
   onCloseMany,
 }: TabStripProps): ReactNode {
+  const t = useT();
+
   // Reordenar por arrastre (HTML5 DnD): `dragId` es la pestaña en vuelo y
   // `drop` la ranura de destino (índice de inserción en la lista **actual**).
   const [dragId, setDragId] = useState<string | null>(null);
@@ -188,7 +209,7 @@ export function TabStrip({
       if (moved) {
         const target = dropTargetIndex(from, drop);
         onMove(dragId, target);
-        announce(moveAnnouncement(fileBasename(moved.path), target, tabs.length));
+        announce(moveAnnouncement(fileBasename(moved.path), target, tabs.length, t));
       }
     }
     endDrag();
@@ -199,7 +220,7 @@ export function TabStrip({
       <div
         ref={scrollerRef}
         role="tablist"
-        aria-label="Informes abiertos"
+        aria-label={t('app.tabs.listLabel')}
         className="flex min-w-0 flex-1 items-stretch gap-0.5 overflow-x-auto px-1 pt-1"
       >
         {tabs.map((tab, index) => {
@@ -223,7 +244,7 @@ export function TabStrip({
                   id={`tab-${tab.sessionId}`}
                   aria-controls={active ? `panel-${tab.sessionId}` : undefined}
                   aria-selected={active}
-                  aria-label={tabAriaLabel(name, tab.dirty, tab.conflict !== null)}
+                  aria-label={tabAriaLabel(name, tab.dirty, tab.conflict !== null, t)}
                   tabIndex={active ? 0 : -1}
                   data-testid="tab-item"
                   draggable
@@ -280,7 +301,7 @@ export function TabStrip({
                         tabs.length,
                       );
                       onMove(tab.sessionId, target);
-                      announce(moveAnnouncement(name, target, tabs.length));
+                      announce(moveAnnouncement(name, target, tabs.length, t));
                       return;
                     }
                     // Roving: ←/→ (circular) e Inicio/Fin mueven el foco y activan.
@@ -294,11 +315,7 @@ export function TabStrip({
                   }}
                 >
                   {tab.conflict ? (
-                    <span
-                      role="img"
-                      aria-label="Conflicto: el fichero cambió en disco"
-                      className="shrink-0"
-                    >
+                    <span role="img" aria-label={t('app.tabs.stateConflict')} className="shrink-0">
                       <AlertTriangle
                         className="size-3 text-amber-700 dark:text-amber-400"
                         aria-hidden
@@ -325,8 +342,8 @@ export function TabStrip({
                     type="button"
                     data-testid="tab-close"
                     tabIndex={-1}
-                    aria-label={`Cerrar ${name}`}
-                    title={`Cerrar ${name}`}
+                    aria-label={t('app.tabs.closeTab', { name })}
+                    title={t('app.tabs.closeTab', { name })}
                     className="-my-1 ml-0.5 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-70 transition-colors hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -339,30 +356,30 @@ export function TabStrip({
               </ContextMenuTrigger>
               <ContextMenuContent className="w-56" data-testid="tab-context-menu">
                 <ContextMenuItem onSelect={() => onCloseMany('self', tab.sessionId)}>
-                  Cerrar
+                  {t('common.close')}
                   <ContextMenuShortcut>Ctrl+W</ContextMenuShortcut>
                 </ContextMenuItem>
                 <ContextMenuItem
                   disabled={!hasSaved}
                   onSelect={() => onCloseMany('saved', tab.sessionId)}
                 >
-                  Cerrar las que no tienen cambios
+                  {t('app.tabs.closeSaved')}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem
                   disabled={tabs.length < 2}
                   onSelect={() => onCloseMany('others', tab.sessionId)}
                 >
-                  Cerrar otras
+                  {t('app.tabs.closeOthers')}
                 </ContextMenuItem>
                 <ContextMenuItem
                   disabled={index >= tabs.length - 1}
                   onSelect={() => onCloseMany('right', tab.sessionId)}
                 >
-                  Cerrar a la derecha
+                  {t('app.tabs.closeRight')}
                 </ContextMenuItem>
                 <ContextMenuItem onSelect={() => onCloseMany('all', tab.sessionId)}>
-                  Cerrar todas
+                  {t('app.tabs.closeAll')}
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
@@ -375,8 +392,8 @@ export function TabStrip({
             <button
               type="button"
               data-testid="tab-overflow"
-              aria-label={`Todas las pestañas (${tabs.length})`}
-              title={`Todas las pestañas (${tabs.length})`}
+              aria-label={t('app.tabs.overflowLabel', { count: tabs.length })}
+              title={t('app.tabs.overflowLabel', { count: tabs.length })}
               className="m-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background/60 hover:text-foreground"
             >
               <ChevronDown className="size-4" aria-hidden />
@@ -386,10 +403,11 @@ export function TabStrip({
             {tabs.map((tab) => {
               const name = fileBasename(tab.path);
               const active = tab.sessionId === activeSessionId;
+              const label = tabAriaLabel(name, tab.dirty, tab.conflict !== null, t);
               return (
                 <DropdownMenuItem
                   key={tab.sessionId}
-                  aria-label={`${tabAriaLabel(name, tab.dirty, tab.conflict !== null)}${active ? ', activa' : ''}`}
+                  aria-label={active ? t('app.tabs.menuItemLabelActive', { label }) : label}
                   title={tab.path}
                   onSelect={() => onActivate(tab.sessionId)}
                 >

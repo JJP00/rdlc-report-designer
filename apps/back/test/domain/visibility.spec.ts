@@ -127,6 +127,7 @@ describe('F1 · setVisibility', () => {
       { cmd: 'setVisibility', id: 'Textbox4', hidden: '   ' },
     );
     expect(applied.isLeft()).toBe(true);
+    if (applied.isLeft()) expect(applied.value.reason).toBe('visibilityExpressionEmpty');
     expect(adapter.serialize(doc)).toBe(xml);
   });
 });

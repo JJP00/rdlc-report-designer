@@ -1,4 +1,5 @@
 import type { Length, ProjectionDto } from '@rdlc-designer/contracts';
+import { useT } from '@rdlc-designer/i18n/react';
 import { Plus, RectangleHorizontal, RectangleVertical, Trash2 } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
@@ -120,6 +121,7 @@ export function ReportPropertiesForm({
   tab,
   onTabChange,
 }: ReportPropertiesFormProps): ReactNode {
+  const t = useT();
   const [width, setWidth] = useState(() => toCm(projection.page.width));
   const [height, setHeight] = useState(() => toCm(projection.page.height));
   const [margins, setMargins] = useState(() => ({
@@ -271,15 +273,15 @@ export function ReportPropertiesForm({
   const applyButton =
     activeTab === 'code' ? (
       <Button
-        title="Aplicar (Ctrl+Intro)"
+        title={t('report.applyShortcut')}
         onClick={() => {
           onSetReportCode(code);
         }}
       >
-        Aplicar
+        {t('report.apply')}
       </Button>
     ) : (
-      <Button onClick={applyPage}>Aplicar</Button>
+      <Button onClick={applyPage}>{t('report.apply')}</Button>
     );
 
   const pageTab = (
@@ -297,16 +299,16 @@ export function ReportPropertiesForm({
       }}
     >
       <div className="flex flex-col gap-2">
-        <Label className="text-xs text-muted-foreground">Papel</Label>
+        <Label className="text-xs text-muted-foreground">{t('report.paper.label')}</Label>
         <div className="flex flex-wrap items-end gap-4">
           <div className="grid w-44 gap-1">
             <Label htmlFor={`${uid}-paper-size`} className="text-[11px] text-muted-foreground">
-              Tamaño
+              {t('report.paper.size')}
             </Label>
             <select
               id={`${uid}-paper-size`}
               className="h-8 rounded-md border border-input bg-background px-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
-              aria-label="Tamaño de papel"
+              aria-label={t('report.paper.sizeAria')}
               value={selectedPaper}
               onChange={(event) => selectPaper(event.target.value)}
             >
@@ -315,15 +317,17 @@ export function ReportPropertiesForm({
                   {preset.name}
                 </option>
               ))}
-              <option value="custom">Custom</option>
+              <option value="custom">{t('report.paper.custom')}</option>
             </select>
           </div>
 
           <div className="grid gap-1">
-            <span className="text-[11px] text-muted-foreground">Orientación</span>
+            <span className="text-[11px] text-muted-foreground">
+              {t('report.paper.orientation')}
+            </span>
             <div
               role="radiogroup"
-              aria-label="Orientación del papel"
+              aria-label={t('report.paper.orientationAria')}
               className="flex h-8 items-center gap-3"
             >
               <label className="flex cursor-pointer items-center gap-1.5 text-xs">
@@ -333,10 +337,10 @@ export function ReportPropertiesForm({
                   className="accent-primary"
                   checked={!landscape}
                   onChange={() => setOrientation(false)}
-                  aria-label="Vertical"
+                  aria-label={t('report.paper.portrait')}
                 />
                 <RectangleVertical className="size-4 text-muted-foreground" />
-                Vertical
+                {t('report.paper.portrait')}
               </label>
               <label className="flex cursor-pointer items-center gap-1.5 text-xs">
                 <input
@@ -345,10 +349,10 @@ export function ReportPropertiesForm({
                   className="accent-primary"
                   checked={landscape}
                   onChange={() => setOrientation(true)}
-                  aria-label="Horizontal"
+                  aria-label={t('report.paper.landscape')}
                 />
                 <RectangleHorizontal className="size-4 text-muted-foreground" />
-                Horizontal
+                {t('report.paper.landscape')}
               </label>
             </div>
           </div>
@@ -356,33 +360,33 @@ export function ReportPropertiesForm({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <NumberField label="Ancho (cm)" value={width} onChange={setWidth} axis="x" />
-        <NumberField label="Alto (cm)" value={height} onChange={setHeight} axis="y" />
+        <NumberField label={t('report.page.width')} value={width} onChange={setWidth} axis="x" />
+        <NumberField label={t('report.page.height')} value={height} onChange={setHeight} axis="y" />
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label className="text-xs text-muted-foreground">Márgenes (cm)</Label>
+        <Label className="text-xs text-muted-foreground">{t('report.page.margins')}</Label>
         <div className="grid grid-cols-2 gap-3">
           <NumberField
-            label="Superior"
+            label={t('common.top')}
             value={margins.top}
             axis="y"
             onChange={(value) => setMargins((m) => ({ ...m, top: value }))}
           />
           <NumberField
-            label="Inferior"
+            label={t('common.bottom')}
             value={margins.bottom}
             axis="y"
             onChange={(value) => setMargins((m) => ({ ...m, bottom: value }))}
           />
           <NumberField
-            label="Izquierdo"
+            label={t('common.left')}
             value={margins.left}
             axis="x"
             onChange={(value) => setMargins((m) => ({ ...m, left: value }))}
           />
           <NumberField
-            label="Derecho"
+            label={t('common.right')}
             value={margins.right}
             axis="x"
             onChange={(value) => setMargins((m) => ({ ...m, right: value }))}
@@ -391,13 +395,14 @@ export function ReportPropertiesForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label className="text-xs text-muted-foreground">Encabezado y pie</Label>
+        <Label className="text-xs text-muted-foreground">{t('report.page.headerFooter')}</Label>
         {/* En el inspector (320 px) las tarjetas van en vertical: en dos
               columnas la etiqueta larga saltaba de línea y descuadraba el campo. */}
         <div className={variant === 'panel' ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3'}>
           <RegionFields
             idPrefix={`${uid}-header`}
-            title="Encabezado"
+            title={t('report.region.headerTitle')}
+            name={t('report.region.headerName')}
             present={headerPresent}
             onTogglePresent={() => setHeaderPresent((value) => !value)}
             height={headerHeight}
@@ -409,7 +414,8 @@ export function ReportPropertiesForm({
           />
           <RegionFields
             idPrefix={`${uid}-footer`}
-            title="Pie"
+            title={t('report.region.footerTitle')}
+            name={t('report.region.footerName')}
             present={footerPresent}
             onTogglePresent={() => setFooterPresent((value) => !value)}
             height={footerHeight}
@@ -423,16 +429,16 @@ export function ReportPropertiesForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label className="text-xs text-muted-foreground">Cuerpo</Label>
+        <Label className="text-xs text-muted-foreground">{t('report.page.body')}</Label>
         <div className="grid grid-cols-2 gap-3">
           <NumberField
-            label="Ancho del cuerpo (cm)"
+            label={t('report.page.bodyWidth')}
             value={bodyWidth}
             axis="x"
             onChange={setBodyWidth}
           />
           <NumberField
-            label="Alto del cuerpo (cm)"
+            label={t('report.page.bodyHeight')}
             value={bodyHeight}
             axis="y"
             onChange={setBodyHeight}
@@ -442,7 +448,7 @@ export function ReportPropertiesForm({
 
       {variant === 'panel' ? (
         <PanelFooter>
-          <Button onClick={applyPage}>Aplicar</Button>
+          <Button onClick={applyPage}>{t('report.apply')}</Button>
         </PanelFooter>
       ) : null}
     </TabsContent>
@@ -450,14 +456,11 @@ export function ReportPropertiesForm({
 
   const codeTab = (
     <TabsContent value="code" className="flex flex-col gap-2 pt-2">
-      <p className="text-xs text-muted-foreground">
-        Bloque <code>&lt;Code&gt;</code> VB (funciones <code>Code.</code>). Se reemplaza como un
-        todo: un paso de undo.
-      </p>
+      <p className="text-xs text-muted-foreground">{t('report.code.note')}</p>
       <ExpressionEditor
         value={code}
         mode="code"
-        ariaLabel="Código VB del informe"
+        ariaLabel={t('report.code.aria')}
         onCommit={setCode}
         onSubmit={(value) => {
           // Ctrl+Intro: commit + aplicar el código recién leído del editor.
@@ -468,12 +471,12 @@ export function ReportPropertiesForm({
       {variant === 'panel' ? (
         <PanelFooter>
           <Button
-            title="Aplicar (Ctrl+Intro)"
+            title={t('report.applyShortcut')}
             onClick={() => {
               onSetReportCode(code);
             }}
           >
-            Aplicar
+            {t('report.apply')}
           </Button>
         </PanelFooter>
       ) : null}
@@ -487,8 +490,8 @@ export function ReportPropertiesForm({
       className={variant === 'panel' ? 'gap-3 p-3' : 'min-h-0 flex-1 flex-col gap-3'}
     >
       <TabsList>
-        <TabsTrigger value="page">Configurar página</TabsTrigger>
-        <TabsTrigger value="code">Código</TabsTrigger>
+        <TabsTrigger value="page">{t('report.tab.page')}</TabsTrigger>
+        <TabsTrigger value="code">{t('report.tab.code')}</TabsTrigger>
       </TabsList>
 
       {variant === 'dialog' ? (
@@ -525,6 +528,7 @@ function PanelFooter({ children }: { children: ReactNode }): ReactNode {
 function RegionFields({
   idPrefix,
   title,
+  name,
   present,
   onTogglePresent,
   height,
@@ -535,7 +539,10 @@ function RegionFields({
   onLast,
 }: {
   idPrefix: string;
+  /** Etiqueta de la banda («Encabezado»/«Pie»). */
   title: string;
+  /** Nombre de la banda para las frases («encabezado»/«pie»). */
+  name: string;
   present: boolean;
   onTogglePresent: () => void;
   height: number;
@@ -545,7 +552,7 @@ function RegionFields({
   last: boolean;
   onLast: (value: boolean) => void;
 }): ReactNode {
-  const name = title.toLowerCase();
+  const t = useT();
   return (
     <div className="flex flex-col gap-2 rounded-md border p-2">
       <div className="flex items-center justify-between gap-2">
@@ -553,21 +560,25 @@ function RegionFields({
         <Button
           variant={present ? 'ghost' : 'outline'}
           size="xs"
-          aria-label={present ? `Quitar el ${name}` : `Insertar el ${name}`}
+          aria-label={
+            present
+              ? t('report.region.removeAria', { name })
+              : t('report.region.insertAria', { name })
+          }
           title={
             present
-              ? `Quitar el ${name} del informe (se puede deshacer)`
-              : `Insertar un ${name} nuevo`
+              ? t('report.region.removeTitle', { name })
+              : t('report.region.insertTitle', { name })
           }
           onClick={onTogglePresent}
         >
           {present ? (
             <>
-              <Trash2 /> Quitar
+              <Trash2 /> {t('report.region.remove')}
             </>
           ) : (
             <>
-              <Plus /> Insertar
+              <Plus /> {t('report.region.insert')}
             </>
           )}
         </Button>
@@ -575,30 +586,28 @@ function RegionFields({
       {present ? (
         <>
           <NumberField
-            label={`Alto del ${name} (cm)`}
+            label={t('report.region.height', { name })}
             value={height}
             onChange={onHeight}
             axis="y"
           />
           <CheckField
             id={`${idPrefix}-first`}
-            label="Primera página"
-            ariaLabel={`Imprimir el ${name} en la primera página`}
+            label={t('report.region.firstPage')}
+            ariaLabel={t('report.region.printFirstAria', { name })}
             checked={first}
             onChange={onFirst}
           />
           <CheckField
             id={`${idPrefix}-last`}
-            label="Última página"
-            ariaLabel={`Imprimir el ${name} en la última página`}
+            label={t('report.region.lastPage')}
+            ariaLabel={t('report.region.printLastAria', { name })}
             checked={last}
             onChange={onLast}
           />
         </>
       ) : (
-        <p className="text-[11px] text-muted-foreground">
-          Sin {name}. Pulsa «Insertar» y luego «Aplicar» para añadirlo.
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t('report.region.empty', { name })}</p>
       )}
     </div>
   );

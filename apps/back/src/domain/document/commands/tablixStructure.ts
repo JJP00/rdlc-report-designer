@@ -99,9 +99,7 @@ export function applyAddRow(
   const { rows, members } = parts.value;
 
   if (command.row > rows.length) {
-    return left(
-      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
-    );
+    return left(CommandRejectedError.of('rowOutOfTablix', { id: command.id, row: command.row }));
   }
 
   // Miembro estático en la posición de hoja equivalente (dentro del grupo).
@@ -131,29 +129,28 @@ export function applyAddRowOutsideGroup(
   const { rows, hierarchy } = parts.value;
 
   if (command.row >= rows.length) {
-    return left(
-      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
-    );
+    return left(CommandRejectedError.of('rowOutOfTablix', { id: command.id, row: command.row }));
   }
 
   const chain = memberChainAt(hierarchy, command.row);
   if (!chain || chain.length === 0) {
     return left(
-      CommandRejectedError.create(
-        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
-      ),
+      CommandRejectedError.of('rowHierarchyMemberMissing', {
+        id: command.id,
+        row: command.row,
+      }),
     );
   }
 
   // El grupo más interno de la cadena (el propio miembro puede ser grupo hoja).
   const group = [...chain].reverse().find((ref) => ref.member.child('Group'));
   if (!group) {
-    return left(CommandRejectedError.create('La fila no está dentro de un grupo'));
+    return left(CommandRejectedError.of('rowNotInAGroup'));
   }
 
   const range = memberLeafRange(hierarchy, group.member);
   if (!range) {
-    return left(CommandRejectedError.create('No se pudo localizar el rango de hojas del grupo'));
+    return left(CommandRejectedError.of('groupLeafRangeMissing'));
   }
 
   const above = command.where === 'above';
@@ -183,24 +180,23 @@ export function applyAddRowInsideGroup(
   const { rows, hierarchy } = parts.value;
 
   if (command.row >= rows.length) {
-    return left(
-      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
-    );
+    return left(CommandRejectedError.of('rowOutOfTablix', { id: command.id, row: command.row }));
   }
 
   const chain = memberChainAt(hierarchy, command.row);
   if (!chain || chain.length === 0) {
     return left(
-      CommandRejectedError.create(
-        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
-      ),
+      CommandRejectedError.of('rowHierarchyMemberMissing', {
+        id: command.id,
+        row: command.row,
+      }),
     );
   }
 
   const leaf = chain[chain.length - 1]!;
   const group = [...chain].reverse().find((ref) => ref.member.child('Group'));
   if (!group) {
-    return left(CommandRejectedError.create('La fila no está dentro de un grupo'));
+    return left(CommandRejectedError.of('rowNotInAGroup'));
   }
 
   const above = command.where === 'above';
@@ -259,28 +255,27 @@ export function applyAddTotalRow(
   const { rows, hierarchy, columns } = parts.value;
 
   if (command.row >= rows.length) {
-    return left(
-      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
-    );
+    return left(CommandRejectedError.of('rowOutOfTablix', { id: command.id, row: command.row }));
   }
 
   const chain = memberChainAt(hierarchy, command.row);
   if (!chain || chain.length === 0) {
     return left(
-      CommandRejectedError.create(
-        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
-      ),
+      CommandRejectedError.of('rowHierarchyMemberMissing', {
+        id: command.id,
+        row: command.row,
+      }),
     );
   }
 
   const group = [...chain].reverse().find((ref) => ref.member.child('Group'));
   if (!group) {
-    return left(CommandRejectedError.create('La fila no está dentro de un grupo'));
+    return left(CommandRejectedError.of('rowNotInAGroup'));
   }
 
   const range = memberLeafRange(hierarchy, group.member);
   if (!range) {
-    return left(CommandRejectedError.create('No se pudo localizar el rango de hojas del grupo'));
+    return left(CommandRejectedError.of('groupLeafRangeMissing'));
   }
 
   const textFor = totalExpressions(ctx.root, rows, columns.length, range, group.member);
@@ -401,11 +396,7 @@ function performAddRow(
   const changes: TextChange[] = [];
   const covered = coverByRowSpan(rows, plan.row, columns.length, changes);
   if (covered.every(Boolean)) {
-    return left(
-      CommandRejectedError.create(
-        'Todas las columnas de esa posición están cubiertas por celdas fusionadas',
-      ),
-    );
+    return left(CommandRejectedError.of('rowCoveredByMergedCells'));
   }
 
   // Fila nueva (vacía) con una celda por columna descubierta.
@@ -453,31 +444,26 @@ export function applyDeleteRow(
   const { columns, hierarchy, rows } = parts.value;
 
   if (rows.length <= 1) {
-    return left(CommandRejectedError.create('No se puede dejar el Tablix sin filas'));
+    return left(CommandRejectedError.of('tablixNeedsRow'));
   }
   if (command.row >= rows.length) {
-    return left(
-      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
-    );
+    return left(CommandRejectedError.of('rowOutOfTablix', { id: command.id, row: command.row }));
   }
 
   const row = rows[command.row]!;
   for (const entry of positionedCells(row, columns.length)) {
     if (entry.rowSpan > 1) {
-      return left(
-        CommandRejectedError.create(
-          'La fila contiene celdas fusionadas verticalmente: quita la fusión antes de borrarla',
-        ),
-      );
+      return left(CommandRejectedError.of('rowHasVerticalMerge'));
     }
   }
 
   const leaf = leafAt(hierarchy, command.row);
   if (!leaf) {
     return left(
-      CommandRejectedError.create(
-        `La jerarquía del Tablix '${command.id}' no tiene miembro para la fila ${command.row}`,
-      ),
+      CommandRejectedError.of('rowHierarchyMemberMissing', {
+        id: command.id,
+        row: command.row,
+      }),
     );
   }
 
@@ -516,9 +502,7 @@ export function applyAddColumn(
 
   if (command.column > columns.length) {
     return left(
-      CommandRejectedError.create(
-        `La columna ${command.column} está fuera del Tablix '${command.id}'`,
-      ),
+      CommandRejectedError.of('columnOutOfTablix', { id: command.id, column: command.column }),
     );
   }
 
@@ -617,22 +601,21 @@ export function applyDeleteColumn(
   const { columns, rows, columnHierarchy } = parts.value;
 
   if (columns.length <= 1) {
-    return left(CommandRejectedError.create('No se puede dejar el Tablix sin columnas'));
+    return left(CommandRejectedError.of('tablixNeedsColumn'));
   }
   if (command.column >= columns.length) {
     return left(
-      CommandRejectedError.create(
-        `La columna ${command.column} está fuera del Tablix '${command.id}'`,
-      ),
+      CommandRejectedError.of('columnOutOfTablix', { id: command.id, column: command.column }),
     );
   }
 
   const leaf = leafAt(columnHierarchy, command.column);
   if (!leaf) {
     return left(
-      CommandRejectedError.create(
-        `La jerarquía del Tablix '${command.id}' no tiene miembro para la columna ${command.column}`,
-      ),
+      CommandRejectedError.of('columnHierarchyMemberMissing', {
+        id: command.id,
+        column: command.column,
+      }),
     );
   }
 
@@ -644,19 +627,16 @@ export function applyDeleteColumn(
     const entry = cellCovering(row, command.column, columnCount);
     if (!entry) {
       return left(
-        CommandRejectedError.create(
-          `La rejilla del Tablix '${command.id}' no cubre la columna ${command.column}`,
-        ),
+        CommandRejectedError.of('gridDoesNotCoverColumn', {
+          id: command.id,
+          column: command.column,
+        }),
       );
     }
 
     if (entry.colSpan === 1) {
       if (entry.rowSpan > 1) {
-        return left(
-          CommandRejectedError.create(
-            'La columna contiene celdas fusionadas verticalmente: quita la fusión antes de borrarla',
-          ),
-        );
+        return left(CommandRejectedError.of('columnHasVerticalMerge'));
       }
       removedCells.push({ node: entry.cell, restore: detach(entry.cell) });
       continue;
@@ -753,20 +733,16 @@ export function applyMergeCells(
   // Solo tramos horizontales: una fusión que se come celdas de otras filas
   // descarta su contenido (las celdas cubiertas se eliminan) y no se admite.
   if (rowSpan > 1) {
-    return left(
-      CommandRejectedError.create('Solo se pueden combinar celdas contiguas de la misma fila'),
-    );
+    return left(CommandRejectedError.of('mergeNeedsSingleRow'));
   }
   if (colSpan <= 1) {
-    return left(CommandRejectedError.create('No hay nada que combinar en una sola celda'));
+    return left(CommandRejectedError.of('mergeSingleCell'));
   }
 
   const row1 = command.row + rowSpan;
   const col1 = command.col + colSpan;
   if (row1 > rows.length || col1 > columns.length) {
-    return left(
-      CommandRejectedError.create(`El bloque a combinar sale del Tablix '${command.id}'`),
-    );
+    return left(CommandRejectedError.of('mergeOutOfTablix', { id: command.id }));
   }
 
   const anchor = positionedCells(rows[command.row]!, columnCount).find(
@@ -774,9 +750,11 @@ export function applyMergeCells(
   );
   if (!anchor) {
     return left(
-      CommandRejectedError.create(
-        `No hay celda en (${command.row}, ${command.col}) del Tablix '${command.id}'`,
-      ),
+      CommandRejectedError.of('cellMissing', {
+        id: command.id,
+        row: command.row,
+        col: command.col,
+      }),
     );
   }
 
@@ -791,18 +769,18 @@ export function applyMergeCells(
           row >= command.row &&
           entry.col + entry.colSpan > command.col
         ) {
-          return left(CommandRejectedError.create('La selección corta una celda fusionada'));
+          return left(CommandRejectedError.of('selectionCutsMergedCell'));
         }
         continue;
       }
       if (entry.col + entry.colSpan > col1 || row + entry.rowSpan > row1) {
-        return left(CommandRejectedError.create('La selección corta una celda fusionada'));
+        return left(CommandRejectedError.of('selectionCutsMergedCell'));
       }
       // El ancla ya fusionada se reconoce por **nodo**, no por identidad del
       // objeto `PositionedCell` (cada `positionedCells` devuelve objetos nuevos):
       // ampliar una fusión existente es válido; otra celda fusionada no.
       if (!entry.cell.equals(anchor.cell) && (entry.colSpan > 1 || entry.rowSpan > 1)) {
-        return left(CommandRejectedError.create('La selección contiene celdas ya fusionadas'));
+        return left(CommandRejectedError.of('selectionHasMergedCells'));
       }
     }
   }
@@ -811,9 +789,7 @@ export function applyMergeCells(
       const reachesRow = row + entry.rowSpan > command.row;
       const overlapsCols = entry.col + entry.colSpan > command.col && entry.col < col1;
       if (reachesRow && overlapsCols) {
-        return left(
-          CommandRejectedError.create('La selección cruza una celda fusionada verticalmente'),
-        );
+        return left(CommandRejectedError.of('selectionCrossesVerticalMerge'));
       }
     }
   }
@@ -861,9 +837,7 @@ export function applyUnmergeCells(
 
   const row = rows[command.row];
   if (!row) {
-    return left(
-      CommandRejectedError.create(`La fila ${command.row} está fuera del Tablix '${command.id}'`),
-    );
+    return left(CommandRejectedError.of('rowOutOfTablix', { id: command.id, row: command.row }));
   }
 
   const entry = positionedCells(row, columnCount).find(
@@ -871,13 +845,15 @@ export function applyUnmergeCells(
   );
   if (!entry) {
     return left(
-      CommandRejectedError.create(
-        `No hay celda en (${command.row}, ${command.col}) del Tablix '${command.id}'`,
-      ),
+      CommandRejectedError.of('cellMissing', {
+        id: command.id,
+        row: command.row,
+        col: command.col,
+      }),
     );
   }
   if (entry.colSpan === 1 && entry.rowSpan === 1) {
-    return left(CommandRejectedError.create('La celda no está combinada'));
+    return left(CommandRejectedError.of('cellNotMerged'));
   }
 
   const removed: { node: RdlcNode; restore: Detached }[] = [];
@@ -945,7 +921,7 @@ interface TablixParts {
 /** Piezas obligatorias del Tablix; si falta alguna, el comando se rechaza. */
 function tablixParts(ctx: CommandContext, id: string): Either<DomainError, TablixParts> {
   const tablix = ctx.index.get(id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id }));
 
   const body = tablix.child('TablixBody');
   const rowsContainer = body?.child('TablixRows');
@@ -965,11 +941,7 @@ function tablixParts(ctx: CommandContext, id: string): Either<DomainError, Tabli
     !columnHierarchy ||
     !columnMembers
   ) {
-    return left(
-      CommandRejectedError.create(
-        `El elemento '${id}' no es un Tablix completo (rejilla + jerarquías)`,
-      ),
-    );
+    return left(CommandRejectedError.of('tablixIncomplete', { id }));
   }
 
   return right({

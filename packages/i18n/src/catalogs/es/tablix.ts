@@ -1,0 +1,185 @@
+/**
+ * Tablix: estructura, grupos, filtros y jerarquía (ES).
+ *
+ * Valores **byte a byte** los que había hardcodeados, salvo los recortes del
+ * barrido de microcopy (nota del nombre del grupo: Trim). Lo que no se traduce
+ * (`Group on`/`And on`, `Total (before|after)`, `Filters > Filter`…) conserva el
+ * texto original; por eso vive en el catálogo y no en el código.
+ */
+export const tablix = {
+  apply: 'Aplicar',
+  applyHint: 'Aplicar (Ctrl+Intro)',
+  add: 'Añadir',
+
+  structure: {
+    aria: 'Estructura del Tablix',
+    title: 'Estructura',
+    /** Pluralea «1 fila × 1 columna» (antes: «1 filas × 1 columnas»). */
+    summary:
+      '{rows, plural, one {# fila} other {# filas}} × {columns, plural, one {# columna} other {# columnas}}',
+    filtersHint: 'Filtros del Tablix (Filters > Filter)',
+    filtersCount: 'Filtros ({count})',
+    filters: 'Filtros…',
+  },
+
+  rows: {
+    title: 'Filas',
+    delete: 'Eliminar fila {row}',
+    select: 'Seleccionar fila {row}',
+    selectInGroup: 'Seleccionar fila {row} (grupo {expression})',
+    addAtEnd: 'Añadir fila al final',
+    sizeLabel: 'Alto de la fila {row}',
+    sizeHint:
+      'Alto de la fila {row} (cm). El contenido de la celda se ajusta a la celda. Arrastra, usa las flechas o teclea el valor.',
+    group: 'Agrupar la fila {row}…',
+    groupHint: 'Agrupar la fila en un grupo nuevo…',
+    groupTitle: 'Agrupar la fila {row}',
+    groupProperties: 'Propiedades del grupo de la fila {row}',
+    ungroup: 'Quitar grupo de la fila {row}',
+    addToGroup: 'Añadir la fila {row} al grupo',
+    addPreviousHint: 'Añadir la fila anterior a este grupo',
+    addNextHint: 'Añadir la fila siguiente a este grupo',
+  },
+
+  columns: {
+    title: 'Columnas',
+    delete: 'Eliminar columna {column}',
+    select: 'Seleccionar columna {column}',
+    selectInGroup: 'Seleccionar columna {column} (grupo {expression})',
+    addAtEnd: 'Añadir columna al final',
+    sizeLabel: 'Ancho de la columna {column}',
+    sizeHint:
+      'Ancho de la columna {column} (cm). El contenido de la celda se ajusta a la celda. Arrastra, usa las flechas o teclea el valor.',
+    group: 'Agrupar la columna {column}…',
+    groupHint: 'Agrupar la columna en un grupo nuevo…',
+    groupTitle: 'Agrupar la columna {column}',
+    groupProperties: 'Propiedades del grupo de la columna {column}',
+    ungroup: 'Quitar grupo de la columna {column}',
+    addToGroup: 'Añadir la columna {column} al grupo',
+    addPreviousHint: 'Añadir la columna anterior a este grupo',
+    addNextHint: 'Añadir la columna siguiente a este grupo',
+  },
+
+  member: {
+    row: 'fila {index}',
+    column: 'columna {index}',
+    group: 'grupo {expression}',
+    groupPlain: 'grupo',
+  },
+
+  group: {
+    placeholder: 'Grupo',
+    properties: 'Propiedades del grupo',
+    propertiesHint: 'Propiedades del grupo (expresiones, saltos, ordenación, visibilidad)…',
+    remove: 'Quitar grupo',
+    removeHint: 'Quitar el grupo (las filas se quedan como filas estáticas)',
+    removeLeafHint: 'Quitar el grupo (la fila se queda como fila estática)',
+  },
+
+  total: {
+    before: 'Total (before)',
+    after: 'Total (after)',
+  },
+
+  groupProps: {
+    title: 'Propiedades del grupo',
+    titleWithName: 'Propiedades del grupo · {name}',
+    subtitle:
+      'Expresiones, saltos de página, ordenación y visibilidad del grupo. «Aplicar» envía solo las secciones modificadas.',
+    tabGeneral: 'General',
+    tabBreaks: 'Saltos de página',
+    tabSorting: 'Ordenación',
+    tabVisibility: 'Visibilidad',
+    name: 'Nombre',
+    /** Trim del barrido: fuera «existentes», «: revísalas si las usas», el ejemplo y las negritas. */
+    nameNote: 'Único en el informe. Renombrar el grupo no reescribe las expresiones de ámbito.',
+    expressions: 'Expresiones de grupo',
+    expressionsNote: 'La primera es «Group on»; las siguientes acotan más el grupo («And on»).',
+    groupOn: 'Group on',
+    andOn: 'And on',
+    expression: 'Expresión de grupo',
+    expressionExtra: 'Expresión de grupo adicional {index}',
+    editExpression: 'Editar la expresión {index} con el editor',
+    deleteExpression: 'Eliminar la expresión {index}',
+    deleteExpressionHint: 'Eliminar esta expresión',
+    expressionTitle: 'Expresión de grupo {index}',
+    breaksNote: 'Las opciones se escriben como `PageBreak → BreakLocation` del grupo.',
+    breakBetween: 'Entre cada instancia del grupo',
+    breakStart: 'También al inicio del grupo',
+    breakEnd: 'También al final del grupo',
+    sortColumns: 'Columnas de ordenación',
+    noSorting: 'Sin ordenación: el grupo respeta el orden del dataset.',
+    sortBy: 'Ordenar por',
+    thenBy: 'Y por',
+    sortExpression: 'Expresión de ordenación {index}',
+    sortDirection: 'Dirección de la ordenación {index}',
+    editSort: 'Editar la ordenación {index} con el editor',
+    moveSortUp: 'Subir la ordenación {index}',
+    moveSortDown: 'Bajar la ordenación {index}',
+    moveUpHint: 'Subir',
+    moveDownHint: 'Bajar',
+    deleteSort: 'Eliminar la ordenación {index}',
+    deleteHint: 'Eliminar',
+    sortTitle: 'Ordenación {index}',
+    visibilityLegend: 'Cuando el informe se ejecuta por primera vez',
+    show: 'Mostrar',
+    hide: 'Ocultar',
+    showByExpression: 'Mostrar u ocultar según una expresión',
+    editVisibilityExpression: 'Editar la expresión de visibilidad',
+    toggleItem: 'La visibilidad se puede alternar con este elemento del informe',
+    toggleItemAria: 'Elemento que alterna la visibilidad',
+    chooseItem: '— elegir elemento —',
+    visibilityTitle: 'Visibilidad del grupo',
+    visibilityTitleWithItem: 'Visibilidad del grupo {item}',
+    chooseVariable: '— elegir variable —',
+    customExpression: 'Expresión personalizada (fx)…',
+    editWithEditor: 'Editar con el editor de expresiones…',
+  },
+
+  filters: {
+    title: 'Filtros del Tablix',
+    subtitle:
+      'Se evalúan por fila del dataset antes de agrupar. Los valores van uno por línea (permite expresiones con comas).',
+    empty: 'Sin filtros.',
+    row: 'Filtro {index}',
+    remove: 'Quitar filtro {index}',
+    expression: 'Expresión del filtro {index}',
+    operator: 'Operador del filtro {index}',
+    values: 'Valores del filtro {index}',
+    add: 'Añadir filtro',
+    operators: {
+      equal: 'Igual a',
+      notEqual: 'Distinto de',
+      like: 'Como (Like)',
+      greaterThan: 'Mayor que',
+      greaterThanOrEqual: 'Mayor o igual',
+      lessThan: 'Menor que',
+      lessThanOrEqual: 'Menor o igual',
+      in: 'En la lista (In)',
+      between: 'Entre (Between)',
+      topN: 'Top N',
+      bottomN: 'Bottom N',
+      topPercent: 'Top %',
+      bottomPercent: 'Bottom %',
+    },
+  },
+
+  hierarchy: {
+    title: 'Jerarquía',
+    treeAria: 'Jerarquía del informe',
+    search: 'Buscar en la jerarquía',
+    searchPlaceholder: 'Buscar elemento o celda…',
+    expandAll: 'Expandir todo',
+    collapseAll: 'Colapsar todo',
+    expand: 'Expandir',
+    collapse: 'Colapsar',
+    expandNode: 'Expandir {label}',
+    collapseNode: 'Colapsar {label}',
+    noResults: 'Sin resultados.',
+    report: 'Informe',
+    regionHeader: 'Encabezado',
+    regionBody: 'Cuerpo',
+    regionFooter: 'Pie',
+    cell: 'Celda {row},{col}',
+  },
+} as const;

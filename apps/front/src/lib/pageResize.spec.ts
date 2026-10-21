@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PageDto } from '@rdlc-designer/contracts';
+import { createTranslator } from '@rdlc-designer/i18n';
 import {
   bandContentMinCm,
   bandHeightFrom,
@@ -11,6 +12,9 @@ import {
   sectionWidthFrom,
   snapCm,
 } from './pageResize';
+
+/** El módulo es puro: los textos llegan por el traductor (aquí, ES). */
+const es = createTranslator('es').t;
 
 /**
  * U10 · matemática del redimensionado de página: alto de bandas (encabezado,
@@ -146,13 +150,13 @@ describe('U10 · tramos de la regla', () => {
   }
 
   it('la regla horizontal resalta solo el área imprimible (entre márgenes)', () => {
-    expect(pageRulerSegments(page(), 'x')).toEqual([
+    expect(pageRulerSegments(page(), 'x', es)).toEqual([
       { key: 'printable', from: 2, to: 19, kind: 'printable', label: 'Área imprimible' },
     ]);
   });
 
   it('la regla vertical añade el encabezado y el pie (anclados a sus bordes)', () => {
-    expect(pageRulerSegments(page(3, 4), 'y')).toEqual([
+    expect(pageRulerSegments(page(3, 4), 'y', es)).toEqual([
       { key: 'printable', from: 1.5, to: 28.7, kind: 'printable', label: 'Área imprimible' },
       { key: 'header', from: 1.5, to: 4.5, kind: 'band', label: 'Encabezado' },
       { key: 'footer', from: 24.7, to: 28.7, kind: 'band', label: 'Pie' },
@@ -160,7 +164,7 @@ describe('U10 · tramos de la regla', () => {
   });
 
   it('las bandas a 0 no se pintan', () => {
-    expect(pageRulerSegments(page(0, 0), 'y')).toEqual([
+    expect(pageRulerSegments(page(0, 0), 'y', es)).toEqual([
       { key: 'printable', from: 1.5, to: 28.7, kind: 'printable', label: 'Área imprimible' },
     ]);
   });
@@ -168,6 +172,6 @@ describe('U10 · tramos de la regla', () => {
   it('convierte las unidades declaradas (pt) a cm', () => {
     const custom = page();
     custom.margins = { ...custom.margins, left: { value: 72, unit: 'pt' } };
-    expect(pageRulerSegments(custom, 'x')[0]).toMatchObject({ from: 2.54, to: 19 });
+    expect(pageRulerSegments(custom, 'x', es)[0]).toMatchObject({ from: 2.54, to: 19 });
   });
 });

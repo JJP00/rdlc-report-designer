@@ -43,6 +43,15 @@ describe('layoutTextbox', () => {
     expect(ys[2]).toBeCloseTo(28.8, 6);
   });
 
+  it('el `<TextAlign>` del item no alinea (BC no lo lee): el párrafo sin align queda a la izquierda', () => {
+    const item = textbox({
+      style: { textAlign: 'Right' },
+      paragraphs: [{ runs: [{ value: 'abcd' }] }], // 4 px de ancho
+    });
+    const layout = layoutTextbox(item, { width: 20, height: 20 }, item.style, ctx);
+    expect(layout.runs.map((run) => run.x)).toEqual([0]);
+  });
+
   it('el estilo del run gana al del párrafo y al del item', () => {
     const item = textbox({
       style: { fontSize: { value: 12, unit: 'pt' }, color: '#000000' },

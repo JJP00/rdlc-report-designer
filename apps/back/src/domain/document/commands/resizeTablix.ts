@@ -32,14 +32,12 @@ export function applyResizeColumn(
   command: ResizeColumnCommand,
 ): Either<DomainError, CommandOutcome> {
   const tablix = ctx.index.get(command.id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const column = tablixColumns(tablix)[command.column];
   if (!column) {
     return left(
-      CommandRejectedError.create(
-        `El Tablix '${command.id}' no tiene la columna ${command.column}`,
-      ),
+      CommandRejectedError.of('tablixHasNoColumn', { id: command.id, column: command.column }),
     );
   }
 
@@ -70,13 +68,11 @@ export function applyResizeRow(
   command: ResizeRowCommand,
 ): Either<DomainError, CommandOutcome> {
   const tablix = ctx.index.get(command.id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const row = tablixRows(tablix)[command.row];
   if (!row) {
-    return left(
-      CommandRejectedError.create(`El Tablix '${command.id}' no tiene la fila ${command.row}`),
-    );
+    return left(CommandRejectedError.of('tablixHasNoRow', { id: command.id, row: command.row }));
   }
 
   const previous = readLength(row, 'Height') ?? { value: 0, unit: 'cm' };
@@ -106,12 +102,12 @@ export function applyResizeTable(
   command: ResizeTableCommand,
 ): Either<DomainError, CommandOutcome> {
   const tablix = ctx.index.get(command.id);
-  if (!tablix) return left(CommandRejectedError.create(`No existe el elemento '${command.id}'`));
+  if (!tablix) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
 
   const columns = tablixColumns(tablix);
   const rows = tablixRows(tablix);
   if (columns.length === 0 && rows.length === 0) {
-    return left(CommandRejectedError.create(`El elemento '${command.id}' no es un Tablix`));
+    return left(CommandRejectedError.of('notATablix', { id: command.id }));
   }
 
   const created: RdlcNode[] = [];

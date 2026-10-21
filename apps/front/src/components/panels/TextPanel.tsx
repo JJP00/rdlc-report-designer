@@ -1,4 +1,6 @@
 import type { StylePatch, TextRunDto, TextboxDto } from '@rdlc-designer/contracts';
+import type { Translator } from '@rdlc-designer/i18n';
+import { useT } from '@rdlc-designer/i18n/react';
 import { PencilLine } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -35,18 +37,21 @@ export function TextPanel({
   onSetStyle,
   onOpenEditor,
 }: TextPanelProps): ReactNode {
+  const t = useT();
   const simple = isSimpleText(item.paragraphs);
   const firstRun = item.paragraphs[0]?.runs[0];
+  const runCount = item.paragraphs.reduce((acc, paragraph) => acc + paragraph.runs.length, 0);
 
   return (
     <div className="flex flex-col border-t">
       <div className="flex flex-col gap-3 p-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">Texto y expresión</span>
+          <span className="text-sm font-semibold">{t('text.panel.title')}</span>
           <Badge variant="outline">
-            {item.paragraphs.length} párr. ·{' '}
-            {item.paragraphs.reduce((acc, paragraph) => acc + paragraph.runs.length, 0)}{' '}
-            fragmento(s)
+            {t('text.document.mixedBadge', {
+              paragraphs: item.paragraphs.length,
+              runs: runCount,
+            })}
           </Badge>
         </div>
 
@@ -59,57 +64,50 @@ export function TextPanel({
             onLabel={(label) => onSetLabel(0, 0, label)}
           />
         ) : (
-          <>
-            <p className="text-xs text-muted-foreground">
-              Este textbox tiene texto mixto (varios párrafos o fragmentos). Ábrelo en el editor de
-              texto para escribir, insertar expresiones o cambiar el formato de cada fragmento.
-            </p>
-            <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-              {item.paragraphs.slice(0, 4).map((paragraph, p) => (
-                <li key={p} className="truncate">
-                  <span className="font-medium">Párrafo {p + 1}:</span>{' '}
-                  {paragraph.runs.map(runSummary).join(' · ')}
-                </li>
-              ))}
-              {item.paragraphs.length > 4 ? <li>…</li> : null}
-            </ul>
-          </>
+          /* Caso mixto sin nota: el badge de arriba y el botón de abajo ya
+             hacen el trabajo (barrido de microcopy). */
+          <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+            {item.paragraphs.slice(0, 4).map((paragraph, p) => (
+              <li key={p} className="truncate">
+                <span className="font-medium">{t('text.panel.paragraph', { index: p + 1 })}</span>{' '}
+                {paragraph.runs.map((run) => runSummary(t, run)).join(' · ')}
+              </li>
+            ))}
+            {item.paragraphs.length > 4 ? <li>…</li> : null}
+          </ul>
         )}
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] text-muted-foreground">Formato</span>
+          <span className="text-[11px] text-muted-foreground">{t('text.panel.formatLabel')}</span>
           {/* Efectivo (run > párrafo > item); con runs distintos muestra «Mixto»
               y el cambio lo aplica el comando a todos los runs. Las expresiones
               se editan con Monaco; las cadenas .NET, con el campo simple. */}
           <FormatField
             value={commonEffectiveFormat(item.paragraphs, item.style)}
             onChange={(format) => onSetStyle({ format })}
-            ariaLabel="Formato del textbox"
+            ariaLabel={t('text.panel.formatAria')}
           />
         </div>
 
         <Button variant="outline" size="xs" className="self-start" onClick={onOpenEditor}>
-          <PencilLine /> Abrir editor de texto
+          <PencilLine /> {t('text.panel.openEditor')}
         </Button>
 
         <Separator />
-        <p className="text-[11px] text-muted-foreground">
-          Texto plano o expresión con <code>=Fields!Campo.Value</code>,{' '}
-          <code>=Parameters!X.Value</code>… Las expresiones se editan en Monaco con resaltado y
-          autocompletado (Ctrl+Espacio): campos, parámetros, funciones de <code>Code.</code>,
-          Globals! y User!. El panel de variables inserta en la posición del cursor.
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t('text.panel.hint')}</p>
       </div>
     </div>
   );
 }
 
 /** Resumen corto de un run para el caso mixto. */
-function runSummary(run: TextRunDto): string {
+function runSummary(t: Translator['t'], run: TextRunDto): string {
   if (run.value.trimStart().startsWith('=')) {
-    return run.label !== undefined && run.label !== '' ? `[${run.label}]` : '[expresión]';
+    return run.label !== undefined && run.label !== ''
+      ? `[${run.label}]`
+      : t('text.document.expressionSummary');
   }
-  return run.value === '' ? '(vacío)' : run.value;
+  return run.value === '' ? t('text.document.emptyRun') : run.value;
 }
 
 function RunField({
@@ -126,6 +124,7 @@ function RunField({
   onCommit: (value: string) => void;
   onLabel: (label: string | null) => void;
 }): ReactNode {
+  const t = useT();
   // Borrador mientras se teclea: un cambio de la proyección no pisa el texto.
   const [draft, setDraft] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState<string | null>(null);
@@ -159,9 +158,9 @@ function RunField({
         <input
           className="h-6 w-36 rounded-md border bg-background px-1 font-mono text-[10px]"
           value={labelText}
-          placeholder="etiqueta (Label)"
-          title="Etiqueta de Business Central (<Label>): BC muestra esta etiqueta en lugar de la expresión"
-          aria-label={`Etiqueta del run ${index}`}
+          placeholder={t('text.run.labelPlaceholder')}
+          title={t('text.run.labelTitle')}
+          aria-label={t('text.run.labelAria', { index })}
           onChange={(event) => setLabelDraft(event.target.value)}
           onBlur={commitLabel}
           onKeyDown={(event) => {
@@ -170,23 +169,23 @@ function RunField({
           }}
         />
         {isExpression ? (
-          <Badge className="text-[10px]">expresión</Badge>
+          <Badge className="text-[10px]">{t('text.run.kindExpression')}</Badge>
         ) : (
-          <span className="text-[10px] text-muted-foreground">texto</span>
+          <span className="text-[10px] text-muted-foreground">{t('text.run.kindText')}</span>
         )}
       </div>
       {isExpression ? (
         <ExpressionEditor
           value={value}
           mode="expression"
-          ariaLabel={`Expresión del run ${index}`}
+          ariaLabel={t('text.run.expressionAria', { index })}
           onCommit={commitDraftValue}
         />
       ) : (
         <Input
           className="h-7 font-mono text-xs"
           value={text}
-          aria-label={`Valor del run ${index}`}
+          aria-label={t('text.run.valueAria', { index })}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={(event) => {
