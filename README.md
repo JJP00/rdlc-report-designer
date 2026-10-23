@@ -125,6 +125,7 @@ args = ["-y", "@jjp00/rdlc-designer-mcp"]
 | `rdlc_get_report`            | Page, regions, item counts, dataset fields, parameters, VB code (`includeCode`)            |
 | `rdlc_get_outline`           | Layout map (`region`, `id`, `maxLines` to bound it)                                        |
 | `rdlc_get_item`              | Full JSON of one item                                                                      |
+| `rdlc_find`                  | Find text/expressions/ids (and the `<Code>` block): item `id` + exact spot, replaces grep  |
 | `rdlc_list_commands`         | Signatures of all commands, or the exact JSON Schema of the named ones (`names`)           |
 | `rdlc_apply_commands`        | Apply a list of commands in order (`atomic`)                                               |
 | `rdlc_undo` / `rdlc_redo`    | Session journal                                                                            |

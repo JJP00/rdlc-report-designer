@@ -89,6 +89,7 @@ describe('servidor MCP rdlc', () => {
         'rdlc_create',
         'rdlc_save',
         'rdlc_get_outline',
+        'rdlc_find',
         'rdlc_apply_commands',
         'rdlc_list_commands',
         'rdlc_undo',
@@ -250,6 +251,76 @@ describe('servidor MCP rdlc', () => {
     // rdlc_get_item siempre trae el texto íntegro.
     const item = await call('rdlc_get_item', { sessionId, id: 'Long' });
     expect(JSON.stringify(item['item'])).toContain('\\"end\\")');
+  });
+
+  it('las instrucciones prefieren el MCP al XML pero admiten editarlo si no hay comando', () => {
+    const instructions = client.getInstructions() ?? '';
+    expect(instructions).toContain('rdlc_find');
+    expect(instructions).toContain('setVisibility');
+    expect(instructions).toMatch(/Only if NO command or tool covers the action/);
+  });
+
+  it('rdlc_find localiza textos, etiquetas, visibilidad y código con el id y el sitio exactos', async () => {
+    const { sessionId } = await createBlank();
+    const long = `=IIF(Fields!Carrier.Value = "", "none", ${'Fields!X.Value & '.repeat(30)}"end")`;
+    await call('rdlc_apply_commands', {
+      sessionId,
+      commands: [
+        textbox('Title', 'Invoice Carrier'),
+        textbox('Long', long),
+        { cmd: 'setVisibility', id: 'Title', hidden: '=Code.SetData(Fields!Carrier.Value)' },
+        {
+          cmd: 'setReportCode',
+          code: 'Function SetData(x)\n  Return x ' + '& "carrier"\nEnd Function',
+        },
+      ],
+    });
+
+    const found = await call('rdlc_find', { sessionId, query: 'carrier' });
+    expect(found.isError).toBe(false);
+    const hits = found['hits'] as { id?: string; region: string; where: string; text: string }[];
+    expect(hits.map((h) => `${h.region}:${h.id ?? ''}:${h.where}`)).toEqual(
+      expect.arrayContaining([
+        'body:Title:text p0.r0',
+        'body:Title:hidden',
+        'body:Long:text p0.r0',
+        'code::line 2',
+      ]),
+    );
+    // Texto largo: ventana alrededor de la coincidencia, no el texto entero.
+    const longHit = hits.find((h) => h.id === 'Long');
+    expect(longHit?.text.length).toBeLessThan(long.length);
+    expect(longHit?.text).toContain('Carrier');
+
+    // Acotar por región deja fuera el bloque <Code>.
+    const bodyOnly = await call('rdlc_find', { sessionId, query: 'carrier', region: 'body' });
+    expect((bodyOnly['hits'] as { region: string }[]).some((h) => h.region === 'code')).toBe(false);
+
+    // Distingue mayúsculas bajo demanda y admite regex.
+    const cased = await call('rdlc_find', { sessionId, query: 'Carrier', caseSensitive: true });
+    expect(cased['total']).toBeLessThan(found['total'] as number);
+    const re = await call('rdlc_find', { sessionId, query: '^Invoice\\s+Carr', regex: true });
+    expect(re['total']).toBe(1);
+
+    const none = await call('rdlc_find', { sessionId, query: 'no-such-text' });
+    expect(none['total']).toBe(0);
+    expect(none['hits']).toEqual([]);
+  });
+
+  it('rdlc_find recorta con maxResults e informa del total; una regex inválida da error', async () => {
+    const { sessionId } = await createBlank();
+    await call('rdlc_apply_commands', {
+      sessionId,
+      commands: [textbox('A1', 'dup'), textbox('A2', 'dup'), textbox('A3', 'dup')],
+    });
+    const limited = await call('rdlc_find', { sessionId, query: 'dup', maxResults: 2 });
+    expect(limited['total']).toBe(3);
+    expect(limited['hits']).toHaveLength(2);
+    expect(String(limited['truncated'])).toContain('2 of 3');
+
+    const bad = await call('rdlc_find', { sessionId, query: '(', regex: true });
+    expect(bad.isError).toBe(true);
+    expect(bad['code']).toBe('E_INVALID_QUERY');
   });
 
   it('reabrir una sesión limpia relee el disco; con cambios sin guardar no pisa nada', async () => {

@@ -35,7 +35,8 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
 - [x] **Lienzo fiel al estilo RDL**: el texto se pinta por run con la precedencia
       `run > párrafo > item` (fuente, tamaño, color, negrita/cursiva/subrayado) y la
       **alineación del párrafo**; el texto de diseño muestra la **etiqueta** `[X]`, el nombre
-      del campo, `[exp]` o el texto. Marco y tiradores miden la caja del item.
+      del campo, `Función(Campo)` si es un agregado simple, `[exp]` o el texto. Marco y
+      tiradores miden la caja del item.
 - [x] Barra de formato con las **fuentes disponibles en Business Central** (lista oficial
       vía IPC).
 - [x] **Paleta de comandos Ctrl+K** (elementos por nombre y contenido, variables, acciones)

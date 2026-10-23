@@ -60,8 +60,8 @@ export function layoutTextbox(
     lineHeight = Math.max(lineHeight, currentLineHeight);
 
     // Ancho de cada run del párrafo, para colocar el bloque según el `TextAlign`.
-    // Se mide el **texto de diseño** (etiqueta de BC o `<Exp>`), que es lo que
-    // se pinta y no la expresión cruda.
+    // Se mide el **texto de diseño** (etiqueta de BC, agregado o `[exp]`), que
+    // es lo que se pinta y no la expresión cruda.
     const widths = paragraph.runs.map((run) =>
       ctx.measure(runDisplayText(run), cssFont(mergeStyles(base, run.style), ctx)),
     );
