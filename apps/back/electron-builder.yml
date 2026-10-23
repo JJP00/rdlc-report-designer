@@ -30,6 +30,19 @@ extraResources:
 npmRebuild: false
 publish: null
 
+# Asociación de ficheros: el instalador registra la app como programa para los
+# informes `.rdlc`/`.rdl` (doble clic en el Explorador). Solo la registran NSIS
+# (exige `perMachine: true`) y MSI; portable y zip no. En Windows 10/11 el SO
+# puede pedir confirmación la primera vez si el usuario ya tenía un programa
+# predeterminado para la extensión.
+fileAssociations:
+  - ext: rdlc
+    name: RDLCReport
+    description: RDLC Report
+  - ext: rdl
+    name: RDLReport
+    description: RDL Report
+
 win:
   target:
     - nsis
@@ -46,7 +59,9 @@ win:
 
 nsis:
   oneClick: false
-  perMachine: false
+  # Por máquina: NSIS solo registra las asociaciones de fichero (fileAssociations)
+  # en este modo; además deja el registro y las rutas a nivel de sistema.
+  perMachine: true
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
   shortcutName: RDLC Report Designer

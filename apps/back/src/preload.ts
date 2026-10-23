@@ -14,6 +14,7 @@ import {
   type ListedSessionsResult,
   type LocaleResult,
   type OpenFileResult,
+  type OpenRequestedEvent,
   type PendingOpenResult,
   type PickFileResult,
   type PickSavePathResult,
@@ -139,6 +140,9 @@ const api: RdlcApi = {
 
   onSaved: (callback: (event: SavedEvent) => void): (() => void) =>
     subscribe(IPC_EVENTS.saved, callback),
+
+  onOpenRequested: (callback: (event: OpenRequestedEvent) => void): (() => void) =>
+    subscribe(IPC_EVENTS.openRequested, callback),
 };
 
 contextBridge.exposeInMainWorld('api', api);

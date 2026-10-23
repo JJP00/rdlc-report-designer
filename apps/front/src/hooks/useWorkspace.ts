@@ -954,7 +954,13 @@ export function useWorkspace(): WorkspaceCore {
       try {
         const pending = await window.api.consumePendingOpen();
         if (cancelled) return;
-        if (!pending.path) {
+        // Fichero inicial + aperturas externas llegadas antes de montar
+        // (2.ª instancia de la asociación de ficheros: doble clic con la app
+        // aún arrancando). Se abren en orden, cada una en su pestaña.
+        const paths = [pending.path, ...(pending.paths ?? [])].filter(
+          (path): path is string => path !== null,
+        );
+        if (paths.length === 0) {
           // Sin fichero pendiente, el renderer viene de recargar la interfaz
           // (o de un arranque en caliente): se re-adoptan **todas** las
           // sesiones vivas del backend como pestañas (BUG-51).
@@ -964,7 +970,10 @@ export function useWorkspace(): WorkspaceCore {
           setWorkspace((current) => adoptSessions(current, listed.sessions, loadTabUi, t));
           return;
         }
-        await openOneRef.current(pending.path);
+        for (const path of paths) {
+          if (cancelled) return;
+          await openOneRef.current(path);
+        }
         if (!cancelled) refreshRecentsRef.current();
       } catch (error) {
         if (!cancelled) setWorkspaceError(error instanceof Error ? error.message : String(error));
@@ -1007,6 +1016,16 @@ export function useWorkspace(): WorkspaceCore {
       typeof window.api.onSaved === 'function'
         ? window.api.onSaved((event) => setWorkspace((current) => applySavedEvent(current, event)))
         : () => {};
+    const offOpenRequested =
+      typeof window.api.onOpenRequested === 'function'
+        ? window.api.onOpenRequested((event) => {
+            // Abrir un informe pedido desde fuera (2.ª instancia: doble clic en
+            // el Explorador con la app ya abierta).
+            void openOneRef.current(event.path).then((opened) => {
+              if (opened) refreshRecentsRef.current();
+            });
+          })
+        : () => {};
     const offClosed =
       typeof window.api.onSessionClosed === 'function'
         ? window.api.onSessionClosed((event) => {
@@ -1028,6 +1047,7 @@ export function useWorkspace(): WorkspaceCore {
       offFileMissing();
       offReloadFailed();
       offSaved();
+      offOpenRequested();
       offClosed();
     };
   }, [hasBackend, setWorkspace, t]);

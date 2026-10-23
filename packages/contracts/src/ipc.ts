@@ -66,6 +66,11 @@ export const IPC_EVENTS = {
   fileMissingChanged: 'rdlc:evt:fileMissingChanged',
   /** Cambio externo que no se pudo recargar y la sesión no tenía cambios (BUG-53). */
   externalReloadFailed: 'rdlc:evt:externalReloadFailed',
+  /**
+   * Abrir un informe pedido **desde fuera** con la app ya abierta (2.ª
+   * instancia de la asociación de ficheros: doble clic en el Explorador).
+   */
+  openRequested: 'rdlc:evt:openRequested',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];
 
@@ -222,6 +227,12 @@ export type RecentFilesResult = z.infer<typeof recentFilesResultSchema>;
 export const pendingOpenResultSchema = z.object({
   ok: z.literal(true),
   path: z.string().nullable(),
+  /**
+   * Aperturas externas (2.ª instancia: doble clic con la app ya arrancando)
+   * llegadas antes de montar el renderer: se entregan con el fichero inicial,
+   * en orden.
+   */
+  paths: z.array(z.string()),
 });
 export type PendingOpenResult = z.infer<typeof pendingOpenResultSchema>;
 
@@ -310,6 +321,12 @@ export const savedEventSchema = z.object({
   path: z.string(),
 });
 export type SavedEvent = z.infer<typeof savedEventSchema>;
+
+/** Apertura pedida desde fuera (2.ª instancia) con la app ya abierta. */
+export const openRequestedEventSchema = z.object({
+  path: z.string(),
+});
+export type OpenRequestedEvent = z.infer<typeof openRequestedEventSchema>;
 
 export const sessionClosedEventSchema = z.object({
   sessionId: z.string(),

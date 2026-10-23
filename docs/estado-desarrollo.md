@@ -284,4 +284,17 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
       pintará. Con spec propio (`style-textalign.spec.ts`, golden del corpus y undo
       byte-exacto) y E2E con guardado y undo; el editor de texto ya la escribía por párrafo.
 
+- [x] **Agregados en el lienzo y asociación de ficheros (2026-10-23)**: el texto de diseño
+      pinta los **agregados simples** sobre un campo como `Función(Campo)`
+      (`=First(Fields!BTCDtoLbl1.Value, "DataSet_Result")` → `First(BTCDtoLbl1)`;
+      `=Sum(Fields!X.Value)` → `Sum(X)`) en vez de `[exp]`: una única llamada con el campo
+      como argumento directo y literales de ámbito; anidar o combinar expresiones sigue
+      siendo `[exp]`. Y la app puede ser el **programa predeterminado** de `.rdlc`/`.rdl`:
+      el instalador registra las asociaciones (`fileAssociations`; NSIS pasa a
+      `perMachine: true`, requisito de NSIS, y el MSI ya las soporta) y una **2.ª instancia**
+      (doble clic con la app abierta) abre su informe como pestaña en la ventana viva, no
+      solo la trae al frente (cola de aperturas con entrega inicial única + evento
+      `openRequested`), con E2E propio (`single-instance.spec.ts`). **466 back + 378 front**
+      unit verdes.
+
 Estado detallado, **backlog de gaps auditado** (G/U/T, 2026-09-29) y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20Report%20Designer%20-%20Pendientes.md).

@@ -38,16 +38,16 @@ describe('runDisplayText', () => {
   });
 
   it('un agregado simple sobre un campo muestra `Función(Campo)`', () => {
-    expect(
-      runDisplayText({ value: '=First(Fields!BTCDtoLbl1.Value, "DataSet_Result")' }),
-    ).toBe('First(BTCDtoLbl1)');
+    expect(runDisplayText({ value: '=First(Fields!BTCDtoLbl1.Value, "DataSet_Result")' })).toBe(
+      'First(BTCDtoLbl1)',
+    );
     expect(runDisplayText({ value: '=Sum(Fields!BTCQuantity.Value)' })).toBe('Sum(BTCQuantity)');
     expect(runDisplayText({ value: '=Last(Fields!BTCTotalInvoice.Value)' })).toBe(
       'Last(BTCTotalInvoice)',
     );
-    expect(
-      runDisplayText({ value: '=Max(Fields!BTCPaymenDiscountAmount.Value, "Details")' }),
-    ).toBe('Max(BTCPaymenDiscountAmount)');
+    expect(runDisplayText({ value: '=Max(Fields!BTCPaymenDiscountAmount.Value, "Details")' })).toBe(
+      'Max(BTCPaymenDiscountAmount)',
+    );
     // El ámbito no se pinta; la etiqueta de BC sigue mandando.
     expect(runDisplayText({ value: '=Sum(Fields!A.Value)', label: 'Total' })).toBe('[Total]');
   });

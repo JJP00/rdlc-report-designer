@@ -12,6 +12,7 @@ import type {
   ListedSessionsResult,
   LocaleResult,
   OpenFileResult,
+  OpenRequestedEvent,
   PendingOpenResult,
   PickFileResult,
   PickSavePathResult,
@@ -107,4 +108,9 @@ export interface RdlcApi {
   onSessionClosed(callback: (event: SessionClosedEvent) => void): () => void;
   /** Guardado consumado en el backend (robustez del estado por pestaña, fase A). */
   onSaved(callback: (event: SavedEvent) => void): () => void;
+  /**
+   * Abrir un informe pedido desde fuera con la app ya abierta (2.ª instancia
+   * de la asociación de ficheros: doble clic en el Explorador).
+   */
+  onOpenRequested(callback: (event: OpenRequestedEvent) => void): () => void;
 }

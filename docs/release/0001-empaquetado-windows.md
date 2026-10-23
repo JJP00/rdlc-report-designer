@@ -68,7 +68,22 @@ pnpm dist:portable                          # solo el portable en apps/back/rele
 4. `dist` completo: `RDLC-Report-Designer-0.1.0-setup.exe` (NSIS, 111 MB) y
    `RDLC-Report-Designer-0.1.0.msi` (125 MB) en `apps/back/release/`.
 
+## Asociación de ficheros (`.rdlc`/`.rdl`)
+
+El instalador registra la app para abrir informes con doble clic
+(`fileAssociations` en `apps/back/electron-builder.yml`): el **NSIS** la registra
+porque pasó a `perMachine: true` (requisito de NSIS; instala con elevación y a
+nivel de máquina) y el **MSI** también. **Portable y zip no registran** nada (se
+puede asociar a mano con «Abrir con → Elegir otra aplicación»). En Windows
+10/11 el SO conserva el programa predeterminado que el usuario ya tuviera: se
+cambia desde el diálogo de apertura o Configuración → Aplicaciones
+predeterminadas.
+
+Con la app **abierta**, una segunda instancia (doble clic) no abre otra ventana:
+el lock de instancia única la cierra y su informe se abre como pestaña en la
+ventana viva (cubierto por el e2e `single-instance.spec.ts`).
+
 ## Pendiente (futuro)
 
 - Firma real cuando haya certificado (`CSC_LINK` + `CSC_KEY_PASSWORD`).
-- Evaluar `fileAssociations` (`.rdlc`) y `Squirrel`/auto-update si el despliegue interno lo pide.
+- Evaluar `Squirrel`/auto-update si el despliegue interno lo pide.
