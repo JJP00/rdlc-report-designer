@@ -21,6 +21,8 @@ import type {
   SaveResult,
   SavedEvent,
   SessionClosedEvent,
+  UpdateState,
+  UpdateStateResult,
 } from './ipc.js';
 
 /**
@@ -68,6 +70,19 @@ export interface RdlcApi {
   /** Cambia el idioma de la app (Fichero → Idioma): persiste en `userData`. */
   setLocale(locale: AppLocale): Promise<LocaleResult>;
 
+  /** Estado vigente de las actualizaciones (al montar el renderer). */
+  getUpdateState(): Promise<UpdateStateResult>;
+  /** Comprobación manual: ignora «omitir versión» y siempre informa del resultado. */
+  checkForUpdates(): Promise<UpdateStateResult>;
+  /** Descarga la versión ofrecida (instalaciones que se pueden actualizar). */
+  downloadUpdate(): Promise<UpdateStateResult>;
+  /** Reinicia e instala la versión descargada (tras la guarda de cambios sin guardar). */
+  installUpdate(): Promise<UpdateStateResult>;
+  /** Omite la versión ofrecida: no se vuelve a proponer sola. */
+  skipUpdateVersion(): Promise<UpdateStateResult>;
+  /** Abre la página de releases en el navegador (instalaciones no actualizables). */
+  openReleasePage(): Promise<void>;
+
   /** Ejecuta un comando de edición (el backend queda sincronizado al momento). */
   executeCommand(sessionId: string, command: RdlcCommand): Promise<CommandResult>;
   undo(sessionId: string): Promise<CommandResult>;
@@ -113,4 +128,6 @@ export interface RdlcApi {
    * de la asociación de ficheros: doble clic en el Explorador).
    */
   onOpenRequested(callback: (event: OpenRequestedEvent) => void): () => void;
+  /** Cambió el estado de las actualizaciones (comprobación, descarga, listo…). */
+  onUpdateStateChanged(callback: (state: UpdateState) => void): () => void;
 }

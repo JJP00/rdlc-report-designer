@@ -12,6 +12,9 @@ export const toolbar = {
     recent: 'Recientes',
     save: 'Guardar',
     saveAs: 'Guardar como…',
+    checkForUpdates: 'Buscar actualizaciones…',
+    updateAvailable: 'Actualización disponible ({version})…',
+    updateReady: 'Reiniciar para actualizar ({version})…',
   },
   edit: {
     duplicate: 'Duplicar',

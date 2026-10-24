@@ -29,4 +29,28 @@ export const dialogs = {
     discardAll: 'Descartar todas',
     saveAll: 'Guardar todas',
   },
+  update: {
+    title: 'Actualización de la aplicación',
+    checking: 'Buscando actualizaciones…',
+    upToDate: 'Tienes la última versión ({version}).',
+    availableTitle: 'La versión {version} está disponible',
+    availableDescription:
+      'Estás usando la versión {current}. Actualiza para tener los últimos cambios; tus informes abiertos no se tocan.',
+    notInstallable:
+      'Esta copia no se instaló con el instalador, así que no puede actualizarse sola. Descarga la nueva versión desde la página de versiones.',
+    notesHeading: 'Notas de la versión',
+    noNotes: 'No hay notas disponibles para esta versión.',
+    download: 'Actualizar ahora',
+    later: 'Más tarde',
+    skip: 'Omitir esta versión',
+    openReleasePage: 'Abrir página de descarga',
+    downloading: 'Descargando la versión {version}… {percent}%',
+    readyTitle: 'La versión {version} está lista para instalar',
+    readyDescription:
+      'Reinicia para terminar de actualizar. Antes se te preguntará por los cambios sin guardar y Windows puede pedir permiso. Si eliges Más tarde, se instala la próxima vez que cierres la aplicación.',
+    restart: 'Reiniciar e instalar',
+    errorTitle: 'No se pudo buscar actualizaciones',
+    errorDescription: 'Comprueba tu conexión a internet e inténtalo de nuevo.',
+    retry: 'Reintentar',
+  },
 } as const;

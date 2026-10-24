@@ -70,6 +70,8 @@ jobs:
             apps/back/release/*.exe
             apps/back/release/*.msi
             apps/back/release/*.zip
+            apps/back/release/latest.yml
+            apps/back/release/*.blockmap
           if-no-files-found: error
 
       - name: Publish GitHub release
@@ -94,6 +96,8 @@ jobs:
             apps/back/release/*.exe
             apps/back/release/*.msi
             apps/back/release/*.zip
+            apps/back/release/latest.yml
+            apps/back/release/*.blockmap
 
   npm:
     name: npm publish (@jjp00/rdlc-designer-mcp)

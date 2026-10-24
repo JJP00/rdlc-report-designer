@@ -26,6 +26,8 @@ import {
   type SavedEvent,
   type ScopeRef,
   type SessionClosedEvent,
+  type UpdateState,
+  type UpdateStateResult,
 } from '@rdlc-designer/contracts';
 
 /**
@@ -87,6 +89,20 @@ const api: RdlcApi = {
   setLocale: (locale: AppLocale): Promise<LocaleResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.setLocale, { locale }),
 
+  getUpdateState: (): Promise<UpdateStateResult> => ipcRenderer.invoke(IPC_CHANNELS.getUpdateState),
+
+  checkForUpdates: (): Promise<UpdateStateResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
+
+  downloadUpdate: (): Promise<UpdateStateResult> => ipcRenderer.invoke(IPC_CHANNELS.downloadUpdate),
+
+  installUpdate: (): Promise<UpdateStateResult> => ipcRenderer.invoke(IPC_CHANNELS.installUpdate),
+
+  skipUpdateVersion: (): Promise<UpdateStateResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.skipUpdateVersion),
+
+  openReleasePage: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.openReleasePage),
+
   executeCommand: (sessionId: string, command: RdlcCommand): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.executeCommand, { sessionId, command }),
 
@@ -143,6 +159,9 @@ const api: RdlcApi = {
 
   onOpenRequested: (callback: (event: OpenRequestedEvent) => void): (() => void) =>
     subscribe(IPC_EVENTS.openRequested, callback),
+
+  onUpdateStateChanged: (callback: (state: UpdateState) => void): (() => void) =>
+    subscribe(IPC_EVENTS.updateStateChanged, callback),
 };
 
 contextBridge.exposeInMainWorld('api', api);

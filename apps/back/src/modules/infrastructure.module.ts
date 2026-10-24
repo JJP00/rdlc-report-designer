@@ -8,6 +8,8 @@ import { FILE_WATCHER_PORT } from '../application/ports/out/FileWatcherPort.js';
 import { LOCALE_PREFERENCE_PORT } from '../application/ports/out/LocalePreferencePort.js';
 import type { LocalePreferencePort } from '../application/ports/out/LocalePreferencePort.js';
 import { RECENT_FILES_PORT } from '../application/ports/out/RecentFilesPort.js';
+import { UPDATE_PREFERENCE_PORT } from '../application/ports/out/UpdatePreferencePort.js';
+import { UPDATER_PORT } from '../application/ports/out/UpdaterPort.js';
 import { RDLC_PROJECTION_PORT } from '../application/ports/out/RdlcProjectionPort.js';
 import { RDLC_PARSER_PORT } from '../application/ports/out/RdlcParserPort.js';
 import { RDLC_SERIALIZER_PORT } from '../application/ports/out/RdlcSerializerPort.js';
@@ -19,6 +21,8 @@ import { NodeFileSystemAdapter } from '../infrastructure/fs/NodeFileSystemAdapte
 import { JsonLocalePreferenceAdapter } from '../infrastructure/locale/JsonLocalePreferenceAdapter.js';
 import { LocaleRuntime } from '../infrastructure/locale/LocaleRuntime.js';
 import { JsonRecentFilesAdapter } from '../infrastructure/recent/JsonRecentFilesAdapter.js';
+import { ElectronUpdaterAdapter } from '../infrastructure/updates/ElectronUpdaterAdapter.js';
+import { JsonUpdatePreferenceAdapter } from '../infrastructure/updates/JsonUpdatePreferenceAdapter.js';
 import { TrueFormatProjectionAdapter } from '../infrastructure/rdlc/TrueFormatProjectionAdapter.js';
 import { TrueFormatXmlAdapter } from '../infrastructure/rdlc/TrueFormatXmlAdapter.js';
 import { LibXml2SchemaValidatorAdapter } from '../infrastructure/validation/LibXml2SchemaValidatorAdapter.js';
@@ -64,6 +68,12 @@ const RDL_SCHEMA_PATH = app.isPackaged
         new LocaleRuntime(preference, process.env['RDLC_LOCALE'], app.getLocale()),
       inject: [LOCALE_PREFERENCE_PORT],
     },
+    { provide: UPDATER_PORT, useClass: ElectronUpdaterAdapter },
+    {
+      provide: UPDATE_PREFERENCE_PORT,
+      useFactory: () =>
+        new JsonUpdatePreferenceAdapter(join(app.getPath('userData'), 'updates.json')),
+    },
     ElectronEventBusAdapter,
     { provide: EVENT_BUS_PORT, useExisting: ElectronEventBusAdapter },
   ],
@@ -78,6 +88,8 @@ const RDL_SCHEMA_PATH = app.isPackaged
     RECENT_FILES_PORT,
     LOCALE_PREFERENCE_PORT,
     LocaleRuntime,
+    UPDATER_PORT,
+    UPDATE_PREFERENCE_PORT,
     EVENT_BUS_PORT,
     ElectronEventBusAdapter,
   ],

@@ -8,9 +8,11 @@ import { pathToFileURL } from 'node:url';
 import type { CatalogKey, MessageParams } from '@rdlc-designer/i18n';
 import { IPC_CHANNELS, IPC_EVENTS, windowCloseConfirmationSchema } from '@rdlc-designer/contracts';
 import { AppModule } from './app.module.js';
+import { UpdateService } from './application/services/UpdateService.js';
 import { ElectronEventBusAdapter } from './infrastructure/events/ElectronEventBusAdapter.js';
 import { LocaleRuntime } from './infrastructure/locale/LocaleRuntime.js';
 import { IpcController } from './presentation/ipc/IpcController.js';
+import { UpdateController } from './presentation/ipc/UpdateController.js';
 import { findRdlcArg } from './lifecycle/reportArgs.js';
 import { createWindowLifecycle, type WindowLifecycle } from './lifecycle/windowLifecycle.js';
 import { isNavigationAllowed, isPermissionAllowed } from './security/navigation.js';
@@ -46,6 +48,12 @@ let localeRuntime: LocaleRuntime | null = null;
 
 /** Controlador IPC (se crea en `bootstrap`): entrega aperturas externas al front. */
 let ipcController: IpcController | null = null;
+
+/** Actualizaciones (se crea en `bootstrap`): decide si la salida instala y relanza. */
+let updateService: UpdateService | null = null;
+
+/** Espera tras el arranque antes de la comprobación automática de actualizaciones. */
+const STARTUP_UPDATE_CHECK_DELAY_MS = 5000;
 
 /** Fichero de una 2.ª instancia llegado antes de crear el controlador IPC. */
 let queuedSecondInstanceFile: string | null = null;
@@ -236,6 +244,10 @@ async function bootstrap(): Promise<void> {
     queuedSecondInstanceFile = null;
   }
 
+  const updates = nest.get(UpdateService);
+  updateService = updates;
+  nest.get(UpdateController).register(() => mainWindow);
+
   // El renderer acusa la petición de cierre: está vivo y atendiendo. Cancela
   // el vigilante para que no salte el diálogo de «no responde» (BUG-51).
   ipcMain.handle(IPC_CHANNELS.acknowledgeCloseRequest, () => {
@@ -248,6 +260,7 @@ async function bootstrap(): Promise<void> {
     // vigilante ya no procede.
     lifecycle?.cancelCloseWatchdog();
     const parsed = windowCloseConfirmationSchema.safeParse(payload);
+    if (parsed.success && !parsed.data.proceed) updates.cancelRestart();
     if (!parsed.success || !parsed.data.proceed) return;
     if (lifecycle) lifecycle.allowClose = true;
     mainWindow?.close();
@@ -255,6 +268,14 @@ async function bootstrap(): Promise<void> {
 
   mainWindow = await createWindow();
   log.info('RDLC Report Designer iniciado');
+
+  // Comprobación automática de actualizaciones: solo en la app empaquetada (no
+  // en desarrollo, ni en e2e ni en benchmark) y con la ventana ya en marcha.
+  if (app.isPackaged && !E2E_MODE && process.env['RDLC_BENCH'] === undefined) {
+    setTimeout(() => {
+      void updates.checkAutomatically().catch((error: unknown) => log.warn(error));
+    }, STARTUP_UPDATE_CHECK_DELAY_MS);
+  }
 
   await maybeCaptureScreenshot(mainWindow);
 }
@@ -299,6 +320,12 @@ app.on('activate', () => {
 });
 
 app.on('window-all-closed', () => {
+  // «Reiniciar e instalar»: la ventana ya se cerró por la guarda de cambios sin
+  // guardar, así que la salida instala la actualización en silencio y relanza.
+  if (updateService?.takeRestartRequest()) {
+    updateService.quitAndInstall();
+    return;
+  }
   if (process.platform !== 'darwin') app.quit();
 });
 

@@ -28,7 +28,15 @@ extraResources:
 
 # Sin dependencias nativas: no hace falta recompilar.
 npmRebuild: false
-publish: null
+
+# Auto-update (electron-updater): inserta `app-update.yml` en la app y genera
+# `latest.yml` + `*.exe.blockmap` junto al instalador NSIS. Los scripts `dist*` usan
+# `--publish never`: electron-builder no sube nada, de la release se encarga
+# `.github/workflows/release.yml` (que sí debe adjuntar `latest.yml` y el blockmap).
+publish:
+  provider: github
+  owner: JJP00
+  repo: rdlc-report-designer
 
 # Asociación de ficheros: el instalador registra la app como programa para los
 # informes `.rdlc`/`.rdl` (doble clic en el Explorador). Solo la registran NSIS

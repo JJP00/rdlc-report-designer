@@ -9,6 +9,9 @@ export const toolbar = {
     recent: 'Recent',
     save: 'Save',
     saveAs: 'Save as…',
+    checkForUpdates: 'Check for updates…',
+    updateAvailable: 'Update available ({version})…',
+    updateReady: 'Restart to update ({version})…',
   },
   edit: {
     duplicate: 'Duplicate',

@@ -31,4 +31,28 @@ export const dialogs = {
     discardAll: 'Discard all',
     saveAll: 'Save all',
   },
+  update: {
+    title: 'Software update',
+    checking: 'Checking for updates…',
+    upToDate: 'You are on the latest version ({version}).',
+    availableTitle: 'Version {version} is available',
+    availableDescription:
+      'You are using version {current}. Update to get the latest changes; your open reports are not touched.',
+    notInstallable:
+      'This copy was not set up with the installer, so it cannot update itself. Download the new version from the releases page.',
+    notesHeading: 'Release notes',
+    noNotes: 'No release notes are available for this version.',
+    download: 'Update now',
+    later: 'Later',
+    skip: 'Skip this version',
+    openReleasePage: 'Open download page',
+    downloading: 'Downloading version {version}… {percent}%',
+    readyTitle: 'Version {version} is ready to install',
+    readyDescription:
+      'Restart to finish updating. You will be asked about unsaved changes first, and Windows may ask for permission. If you choose Later, it installs the next time you close the app.',
+    restart: 'Restart and install',
+    errorTitle: 'Could not check for updates',
+    errorDescription: 'Check your internet connection and try again.',
+    retry: 'Try again',
+  },
 } as const;

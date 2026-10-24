@@ -42,6 +42,18 @@ export const IPC_CHANNELS = {
   getLocale: 'rdlc:getLocale',
   /** Cambia el idioma (Fichero → Idioma): persiste y actualiza main y renderer. */
   setLocale: 'rdlc:setLocale',
+  /** Estado vigente de las actualizaciones (el renderer lo pide al montar). */
+  getUpdateState: 'rdlc:getUpdateState',
+  /** Comprobación manual (Fichero → Buscar actualizaciones…): ignora «omitir versión». */
+  checkForUpdates: 'rdlc:checkForUpdates',
+  /** Descarga la versión ofrecida (solo en instalaciones que se pueden actualizar). */
+  downloadUpdate: 'rdlc:downloadUpdate',
+  /** Reinicia e instala la versión descargada (pasa por la guarda de cambios sin guardar). */
+  installUpdate: 'rdlc:installUpdate',
+  /** Omite la versión ofrecida: no se vuelve a proponer sola. */
+  skipUpdateVersion: 'rdlc:skipUpdateVersion',
+  /** Abre la página de la release en el navegador (instalaciones no actualizables). */
+  openReleasePage: 'rdlc:openReleasePage',
   close: 'rdlc:close',
   executeCommand: 'rdlc:executeCommand',
   undo: 'rdlc:undo',
@@ -71,6 +83,8 @@ export const IPC_EVENTS = {
    * instancia de la asociación de ficheros: doble clic en el Explorador).
    */
   openRequested: 'rdlc:evt:openRequested',
+  /** Cambió el estado de las actualizaciones (comprobando, disponible, descargando…). */
+  updateStateChanged: 'rdlc:evt:updateStateChanged',
 } as const;
 export type IpcEvent = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS];
 
@@ -96,6 +110,48 @@ export const localeResultSchema = z.object({
   locales: z.array(localeSchema),
 });
 export type LocaleResult = z.infer<typeof localeResultSchema>;
+
+/* --------------------------- Actualizaciones ----------------------------- */
+
+export const UPDATE_STATUSES = [
+  'idle',
+  'checking',
+  'upToDate',
+  'available',
+  'downloading',
+  'downloaded',
+  'error',
+] as const;
+export const updateStatusSchema = z.enum(UPDATE_STATUSES);
+export type UpdateStatus = z.infer<typeof updateStatusSchema>;
+
+/**
+ * Estado de las actualizaciones, calculado por el main (el renderer nunca toca
+ * la red). `version`/`notes` describen la versión ofrecida; `canInstall` es
+ * `false` en portable/MSI/zip/desarrollo, donde solo se avisa y se enlaza a la
+ * página de la release.
+ */
+export const updateStateSchema = z.object({
+  status: updateStatusSchema,
+  currentVersion: z.string(),
+  /** Versión ofrecida (`available`/`downloading`/`downloaded`). */
+  version: z.string().optional(),
+  /** Notas de la release (Markdown de GitHub) como texto; `null` si no se pudieron leer. */
+  notes: z.string().nullable().optional(),
+  /** Progreso de la descarga, 0–100 (`downloading`). */
+  percent: z.number().min(0).max(100).optional(),
+  /** Esta instalación se puede actualizar en sitio (NSIS). */
+  canInstall: z.boolean(),
+  /** Detalle técnico del fallo (`error`); la UI muestra su propio texto traducido. */
+  errorMessage: z.string().optional(),
+});
+export type UpdateState = z.infer<typeof updateStateSchema>;
+
+export const updateStateResultSchema = z.object({
+  ok: z.literal(true),
+  state: updateStateSchema,
+});
+export type UpdateStateResult = z.infer<typeof updateStateResultSchema>;
 
 /* ----------------------------- Errores ---------------------------------- */
 
