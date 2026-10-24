@@ -266,6 +266,8 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
       2,
       0.6,
     );
+    // Al insertar manda la celda: el ancho declarado es el suyo, no el pedido.
+    const declaredWidth = contentOfCell(cell)!.child('Width')?.text();
 
     const applied = applyCommand(ctx, {
       cmd: 'resizeColumn',
@@ -280,7 +282,7 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
 
     const undone = undoAll(ctx, applied.value);
     expect(undone.isRight()).toBe(true);
-    expect(content.child('Width')?.text()).toBe('2cm');
+    expect(content.child('Width')?.text()).toBe(declaredWidth);
 
     // Undo del resto de la cadena: byte exacto contra el corpus.
     expect(undoAll(ctx, inserted).isRight()).toBe(true);
@@ -304,6 +306,7 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
       2,
       0.6,
     );
+    const declaredHeight = contentOfCell(cell)!.child('Height')?.text();
 
     const applied = applyCommand(ctx, {
       cmd: 'resizeRow',
@@ -318,7 +321,7 @@ describe('F2 · resize · el contenido de las celdas acompaña a la rejilla', ()
 
     const undone = undoAll(ctx, applied.value);
     expect(undone.isRight()).toBe(true);
-    expect(content.child('Height')?.text()).toBe('0.6cm');
+    expect(content.child('Height')?.text()).toBe(declaredHeight);
 
     expect(undoAll(ctx, inserted).isRight()).toBe(true);
     expect(undoAll(ctx, del.value).isRight()).toBe(true);

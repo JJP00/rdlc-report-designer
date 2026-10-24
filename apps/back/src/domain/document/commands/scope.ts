@@ -1,8 +1,16 @@
 import type { ScopeRef } from '@rdlc-designer/contracts';
-import { childOrCreate } from '../geometry/geometry.js';
+import { childOrCreate, readLength } from '../geometry/geometry.js';
+import { fromCm, toCm, type Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext } from './CommandContext.js';
-import { memberAt, positionedCells, tablixColumns, tablixHierarchy } from './tablixParts.js';
+import {
+  cellSpan,
+  memberAt,
+  positionedCells,
+  tablixColumns,
+  tablixHierarchy,
+  tablixRows,
+} from './tablixParts.js';
 
 /**
  * Resuelve el contenedor real de un scope: siempre devuelve el nodo donde se
@@ -81,6 +89,41 @@ function tablixCellAt(
   return positionedCells(row, tablixColumns(tablix).length).find(
     (entry) => entry.col === scope.col && !entry.placeholder,
   )?.cell;
+}
+
+/**
+ * Caja de una celda del body (ancho de las columnas y alto de las filas que
+ * cubre, con `ColSpan`/`RowSpan`). `undefined` si la celda no existe o la
+ * rejilla no declara alguna de esas medidas.
+ */
+export function tablixCellBox(
+  ctx: CommandContext,
+  scope: Extract<ScopeRef, { kind: 'tablixCell' }>,
+): { width: Length; height: Length } | undefined {
+  const cell = tablixCellAt(ctx, scope);
+  const tablix = ctx.index.get(scope.id);
+  if (!cell || !tablix) return undefined;
+
+  const span = (
+    nodes: RdlcNode[],
+    start: number,
+    count: number,
+    tag: 'Width' | 'Height',
+  ): Length | undefined => {
+    const covered = nodes.slice(start, start + count);
+    if (covered.length === 0) return undefined;
+    let total = 0;
+    for (const node of covered) {
+      const length = readLength(node, tag);
+      if (!length) return undefined;
+      total += toCm(length);
+    }
+    return fromCm(total);
+  };
+
+  const width = span(tablixColumns(tablix), scope.col, cellSpan(cell, 'ColSpan'), 'Width');
+  const height = span(tablixRows(tablix), scope.row, cellSpan(cell, 'RowSpan'), 'Height');
+  return width && height ? { width, height } : undefined;
 }
 
 function section(ctx: CommandContext): RdlcNode | undefined {
