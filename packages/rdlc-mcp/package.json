@@ -1,6 +1,6 @@
 {
   "name": "@jjp00/rdlc-designer-mcp",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Servidor MCP (stdio) para crear y editar informes RDLC/RDL de Business Central desde un agente",
   "license": "MIT",
   "type": "module",
