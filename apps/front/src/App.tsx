@@ -207,13 +207,14 @@ export function App(): ReactNode {
     <UpdaterContext.Provider value={updater}>
       <TooltipProvider>
         <div className="relative flex h-full flex-col bg-background" {...dropHandlers}>
-          {/* Primera parada de Tab; solo visible con foco. Lleva el foco al lienzo. */}
+          {/* Primera parada de Tab; solo visible con foco. Lleva el foco al lienzo
+              (`id="lienzo"` en `CanvasPreview`). */}
           <a
             href="#lienzo"
             className="skip-link"
             onClick={(event) => {
               event.preventDefault();
-              document.querySelector<HTMLElement>('.canvas-dots')?.focus();
+              document.getElementById('lienzo')?.focus();
             }}
           >
             {t('lib.app.skipToCanvas')}
