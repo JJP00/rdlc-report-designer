@@ -28,7 +28,15 @@ import {
   patchItem,
   toCm,
 } from '@/lib/projection';
-import { hitSelectionCell, isCellInRange, isCellSelected, type SelectedCell } from '@/lib/tablix';
+import {
+  hitSelectionCell,
+  isCellInRange,
+  isCellSelected,
+  cellSelectionOfContents,
+  pasteAnchorCell,
+  selectionCopyCells,
+  type SelectedCell,
+} from '@/lib/tablix';
 import type { TabUiPatch } from '@/lib/workspace';
 import type { WorkspaceCore } from './useWorkspace';
 
@@ -175,6 +183,8 @@ export interface ItemEditing {
   copySelected: () => void;
   cutSelected: () => void;
   pasteAt: (scope: ScopeRef, index: number) => void;
+  /** Ctrl+V con celdas seleccionadas: pega el portapapeles desde su esquina superior izquierda. */
+  pasteCells: () => boolean;
   hasClipboard: boolean;
 
   setPageSize: (width: Length, height: Length) => void;
@@ -484,6 +494,15 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     if ((selectedCellState.extra ?? []).some((entry) => !inGrid(entry.row, entry.col))) return null;
     return selectedCellState;
   }, [doc, selectedCellState]);
+
+  // En el lienzo, pinchar una celda con texto selecciona su Textbox, no la
+  // celda: si lo seleccionado es contenido directo de celdas de un Tablix, esas
+  // celdas son el destino/origen del copiar y pegar de celdas.
+  const contentCells = useMemo(
+    () => (doc && !selectedCell ? cellSelectionOfContents(doc.projection, selectedIds) : null),
+    [doc, selectedCell, selectedIds],
+  );
+  const cellSelection = selectedCell ?? contentCells;
 
   /* -------------------------- click derecho ------------------------------- */
 
@@ -1143,7 +1162,72 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
 
   /* ------------------------------ portapapeles ---------------------------- */
 
+  /**
+   * Copiar con celdas seleccionadas: el contenido de cada celda (rango +
+   * Ctrl+click) con su posición relativa. Cortar celdas no existe: copia.
+   */
+  const copyCells = useCallback(
+    (cut: boolean, selection: SelectedCell): void => {
+      if (!doc) return;
+      const tablix = findItem(doc.projection, selection.id);
+      if (tablix?.kind !== 'tablix') return;
+      const cells = selectionCopyCells(tablix, selection);
+      if (cells.length === 0) return;
+      void window.api.copyCells(doc.sessionId, selection.id, cells).then((result) => {
+        if (!result.ok) {
+          setError(apiErrorMessage(result, translator, t('app.error.copy')));
+          return;
+        }
+        markClipboard(doc.sessionId);
+        const count = result.cells?.done ?? cells.length;
+        setStatus(t(cut ? 'app.status.cutCellsCopied' : 'app.status.copiedCells', { count }));
+      });
+    },
+    [doc, markClipboard, setError, setStatus, t, translator],
+  );
+
+  /**
+   * Celdas que copiar/cortar: las seleccionadas, o —con varios contenidos de
+   * celda seleccionados— sus celdas (un solo item se copia como item, así
+   * también se puede pegar fuera de la tabla).
+   */
+  const cellsToCopy = selectedCell ?? (selectedIds.length > 1 ? contentCells : null);
+
+  /**
+   * Pegar sobre celdas: el bloque del portapapeles desde la celda ancla (Excel).
+   * Lo que no cabe en la tabla se descarta y se avisa en la barra de estado.
+   */
+  const pasteCellsAt = useCallback(
+    (id: string, row: number, col: number): void => {
+      if (!doc) return;
+      void window.api.pasteCells(doc.sessionId, id, row, col).then((result) => {
+        if (!result.ok) {
+          setError(apiErrorMessage(result, translator, t('app.error.paste')));
+          return;
+        }
+        const { done = 0, total = 0, source } = result.cells ?? {};
+        if (source === 'items' && total > done)
+          setStatus(t('app.status.pastedFirstItem', { total }));
+        else if (total > done) setStatus(t('app.status.pastedCellsPartial', { done, total }));
+        else setStatus(t('app.status.pastedCells', { count: done }));
+      });
+    },
+    [doc, setError, setStatus, t, translator],
+  );
+
+  /** Pega sobre las celdas seleccionadas (o las de los contenidos seleccionados); `false` si no hay. */
+  const pasteCells = useCallback((): boolean => {
+    if (!cellSelection) return false;
+    const anchor = pasteAnchorCell(cellSelection);
+    pasteCellsAt(cellSelection.id, anchor.row, anchor.col);
+    return true;
+  }, [cellSelection, pasteCellsAt]);
+
   const copySelected = useCallback((): void => {
+    if (cellsToCopy) {
+      copyCells(false, cellsToCopy);
+      return;
+    }
     const ids = selectedIds.length > 0 ? selectedIds : selectedItem ? [selectedItem.id] : [];
     if (!doc || ids.length === 0) return;
     void window.api.copy(doc.sessionId, ids).then((result) => {
@@ -1158,9 +1242,24 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
           : t('app.status.copiedMany', { count: ids.length }),
       );
     });
-  }, [doc, markClipboard, selectedIds, selectedItem, setError, setStatus, t, translator]);
+  }, [
+    cellsToCopy,
+    copyCells,
+    doc,
+    markClipboard,
+    selectedIds,
+    selectedItem,
+    setError,
+    setStatus,
+    t,
+    translator,
+  ]);
 
   const cutSelected = useCallback((): void => {
+    if (cellsToCopy) {
+      copyCells(true, cellsToCopy);
+      return;
+    }
     const ids = selectedIds.length > 0 ? selectedIds : selectedItem ? [selectedItem.id] : [];
     if (!doc || ids.length === 0) return;
     flushNudge();
@@ -1178,6 +1277,8 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
       );
     });
   }, [
+    cellsToCopy,
+    copyCells,
     doc,
     flushNudge,
     markClipboard,
@@ -1193,6 +1294,16 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
   const pasteAt = useCallback(
     (scope: ScopeRef, index: number): void => {
       if (!doc) return;
+      // Una celda de la tabla lleva un solo item: se pega como celdas (sustituye),
+      // desde la esquina de la selección si la celda pulsada está dentro de ella.
+      if (scope.kind === 'tablixCell') {
+        const anchor =
+          cellSelection?.id === scope.id && isCellSelected(scope, cellSelection)
+            ? pasteAnchorCell(cellSelection)
+            : scope;
+        pasteCellsAt(scope.id, anchor.row, anchor.col);
+        return;
+      }
       void window.api.paste(doc.sessionId, scope, index).then((result) => {
         if (!result.ok) {
           setError(apiErrorMessage(result, translator, t('app.error.paste')));
@@ -1207,7 +1318,17 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
         );
       });
     },
-    [doc, setError, setSelectedId, setSelectedIds, setStatus, t, translator],
+    [
+      cellSelection,
+      doc,
+      pasteCellsAt,
+      setError,
+      setSelectedId,
+      setSelectedIds,
+      setStatus,
+      t,
+      translator,
+    ],
   );
 
   /* --------------------------- página y código ---------------------------- */
@@ -1451,6 +1572,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     copySelected,
     cutSelected,
     pasteAt,
+    pasteCells,
     hasClipboard: tabHasClipboard,
     setPageSize,
     setPageMargins,

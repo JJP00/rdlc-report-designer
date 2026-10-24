@@ -61,6 +61,8 @@ export const IPC_CHANNELS = {
   copy: 'rdlc:copy',
   cut: 'rdlc:cut',
   paste: 'rdlc:paste',
+  copyCells: 'rdlc:copyCells',
+  pasteCells: 'rdlc:pasteCells',
 } as const;
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
@@ -225,6 +227,35 @@ export const pasteRequestSchema = z
   .strict();
 export type PasteRequest = z.infer<typeof pasteRequestSchema>;
 
+/** Celda de un Tablix (fila y columna de rejilla, 0-based). */
+export const tablixCellPositionSchema = z
+  .object({ row: z.number().int().nonnegative(), col: z.number().int().nonnegative() })
+  .strict();
+
+/**
+ * Copiar celdas: el contenido de las celdas del Tablix `id`, en orden de
+ * lectura (el diseño relativo se calcula respecto a la caja de la selección).
+ */
+export const copyCellsRequestSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    id: z.string().min(1),
+    cells: z.array(tablixCellPositionSchema).min(1),
+  })
+  .strict();
+export type CopyCellsRequest = z.infer<typeof copyCellsRequestSchema>;
+
+/** Pegar celdas: celda ancla desde la que se pega el bloque del portapapeles. */
+export const pasteCellsRequestSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    id: z.string().min(1),
+    row: z.number().int().nonnegative(),
+    col: z.number().int().nonnegative(),
+  })
+  .strict();
+export type PasteCellsRequest = z.infer<typeof pasteCellsRequestSchema>;
+
 /* ---------------------- Respuestas (backend → front) --------------------- */
 
 /** Respuesta de error uniforme: nunca cruzan excepciones crudas por IPC. */
@@ -254,6 +285,18 @@ export const commandOkSchema = z.object({
     .array(z.object({ id: z.string(), values: z.record(z.string(), z.unknown()) }))
     .optional(),
   version: z.number().int().nonnegative().optional(),
+  /**
+   * Copiar/pegar celdas: celdas procesadas (`done`) de las que traía el
+   * portapapeles (`total`); `done < total` si parte del bloque no cabía.
+   */
+  cells: z
+    .object({
+      done: z.number().int().nonnegative(),
+      total: z.number().int(),
+      /** Origen del portapapeles al pegar: celdas copiadas o items sueltos. */
+      source: z.enum(['cells', 'items']).optional(),
+    })
+    .optional(),
 });
 
 export const commandResultSchema = z.discriminatedUnion('ok', [commandOkSchema, ipcErrorSchema]);

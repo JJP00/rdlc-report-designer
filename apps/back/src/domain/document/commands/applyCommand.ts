@@ -9,6 +9,7 @@ import { applyDeleteItem } from './deleteItem.js';
 import { applyDuplicateItem } from './duplicateItem.js';
 import { applyInsertItem } from './insertItem.js';
 import { applyInsertClone, fitInsertedClones } from './insertClone.js';
+import { applyInsertCellClones } from './pasteCells.js';
 import { applyMoveItem } from './moveItem.js';
 import { applySetLocation } from './setLocation.js';
 import { applySetBounds } from './setBounds.js';
@@ -203,6 +204,8 @@ export function applyCommand(
     }
     case 'insertClone':
       return applyInsertClone(ctx, command);
+    case 'insertCellClones':
+      return applyInsertCellClones(ctx, command);
     case 'insertClones': {
       // Varios clones consecutivos (multiselección): un solo paso de undo.
       const inverse: DomainCommand[] = [];

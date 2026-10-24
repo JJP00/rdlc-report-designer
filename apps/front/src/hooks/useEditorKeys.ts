@@ -83,14 +83,21 @@ export function useEditorKeys({
     onCopy: items.copySelected,
     onCut: items.cutSelected,
     onPaste: () => {
+      // Con celdas seleccionadas se pega el bloque desde su esquina (Excel).
+      if (items.selectedCell) {
+        items.pasteCells();
+        return;
+      }
       // Con un rectángulo seleccionado, se pega dentro de él (al final: el
-      // clon se pinta encima); si no, al final del cuerpo.
+      // clon se pinta encima).
       const target = items.selectedItem;
       if (target?.kind === 'rectangle') {
         items.pasteAt({ kind: 'rectangle', id: target.id }, target.children.length);
-      } else {
-        items.pasteAt({ kind: 'body' }, core.doc?.projection.page.body.items.length ?? 0);
+        return;
       }
+      // Pinchar una celda con texto selecciona su Textbox: cuenta como la celda.
+      if (items.pasteCells()) return;
+      items.pasteAt({ kind: 'body' }, core.doc?.projection.page.body.items.length ?? 0);
     },
     onBringToFront: () => items.zOrder('front'),
     onSendToBack: () => items.zOrder('back'),

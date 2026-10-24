@@ -63,6 +63,8 @@ const STRUCTURAL_COMMANDS = new Set<string>([
   // Pegado múltiple (multiselección): mismo efecto y, además, el índice debe
   // ver los clones para que el siguiente pegado elija nombres libres.
   'insertClones',
+  // Pegado de celdas: sustituye el contenido de las celdas destino.
+  'insertCellClones',
   // Fusionar descarta celdas con contenido; separar crea celdas con textbox.
   'mergeCells',
   'unmergeCells',
@@ -143,7 +145,12 @@ export class CommandService implements ICommandService {
   paste(sessionId: string, scope: ScopeRef, index: number): Either<DomainError, CommandResult> {
     const sources = this.sessions.clipboardOf(sessionId);
     if (!sources || sources.length === 0) {
-      return left(CommandRejectedError.of('clipboardEmpty'));
+      // Celdas copiadas: solo se pegan sobre una celda (`pasteCells`).
+      const reason =
+        this.sessions.clipboardContentOf(sessionId)?.kind === 'cells'
+          ? 'clipboardHoldsCells'
+          : 'clipboardEmpty';
+      return left(CommandRejectedError.of(reason));
     }
 
     const applied = this.applyAndJournal(sessionId, { cmd: 'insertClones', scope, index, sources });
@@ -156,6 +163,72 @@ export class CommandService implements ICommandService {
       ...(outcome.createdIds?.[0] ? { id: outcome.createdIds[0] } : {}),
       ...(outcome.createdIds ? { ids: outcome.createdIds } : {}),
       ...(outcome.applied ? { applied: outcome.applied } : {}),
+    });
+  }
+
+  /**
+   * Copiar celdas: guarda el contenido de las celdas del Tablix `id` con su
+   * diseño relativo. Cortar celdas no existe (vaciar una celda no tiene un
+   * equivalente claro): el front copia.
+   */
+  copyCells(
+    sessionId: string,
+    id: string,
+    cells: { row: number; col: number }[],
+  ): Either<DomainError, CommandResult> {
+    const copied = this.sessions.copyCellsToClipboard(sessionId, id, cells);
+    if (copied.isLeft()) return left(copied.value);
+    return right({
+      ok: true,
+      version: this.sessions.versionOf(sessionId),
+      cells: { done: copied.value, total: copied.value },
+    });
+  }
+
+  /**
+   * Pegar celdas: el bloque copiado desde la celda ancla (Excel), en un solo
+   * paso de undo. Con items sueltos en el portapapeles se pega el primero en la
+   * celda ancla (una celda del cuerpo lleva un solo item).
+   */
+  pasteCells(
+    sessionId: string,
+    id: string,
+    row: number,
+    col: number,
+  ): Either<DomainError, CommandResult> {
+    const content = this.sessions.clipboardContentOf(sessionId);
+    const entries =
+      content?.kind === 'cells'
+        ? content.entries
+        : content?.nodes[0]
+          ? [{ dRow: 0, dCol: 0, source: content.nodes[0] }]
+          : [];
+    if (entries.length === 0) return left(CommandRejectedError.of('clipboardEmpty'));
+
+    const applied = this.applyAndJournal(sessionId, {
+      cmd: 'insertCellClones',
+      id,
+      row,
+      col,
+      entries,
+    });
+    if (applied.isLeft()) return left(applied.value);
+
+    const { outcome, version } = applied.value;
+    // Items sueltos: `total` es cuántos había, aunque solo se pegue el primero.
+    const total = content?.kind === 'items' ? content.nodes.length : outcome.cells?.total;
+    return right({
+      ok: true,
+      version,
+      ...(outcome.cells
+        ? {
+            cells: {
+              done: outcome.cells.done,
+              total: total ?? entries.length,
+              source: content?.kind ?? 'cells',
+            },
+          }
+        : {}),
     });
   }
 

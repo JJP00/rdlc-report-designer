@@ -35,6 +35,8 @@ export interface CommandOutcome {
   readonly createdId?: string;
   /** Ids creados por un `batch` (varios duplicados/pegados en un paso). */
   readonly createdIds?: string[];
+  /** Pegado de celdas: cuántas entradas se pegaron de las copiadas (`done`/`total`). */
+  readonly cells?: { done: number; total: number };
   /**
    * true si el comando tocó partes del documento que `applied` no puede
    * expresar (p. ej. los `<Style>` de párrafos/runs al limpiar overrides) y el

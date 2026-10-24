@@ -81,6 +81,20 @@ export interface InsertClonesCommand {
   readonly sources: RdlcNode[];
 }
 
+/**
+ * Pega un bloque de **celdas** del portapapeles en un Tablix: `(row, col)` es la
+ * celda ancla y cada entrada cae en `(row + dRow, col + dCol)`. Un solo paso de
+ * undo; lo que no cabe en la tabla se descarta (nunca la hace crecer).
+ */
+export interface InsertCellClonesCommand {
+  readonly cmd: 'insertCellClones';
+  /** Nombre del Tablix. */
+  readonly id: string;
+  readonly row: number;
+  readonly col: number;
+  readonly entries: { dRow: number; dCol: number; source: RdlcNode }[];
+}
+
 export type InternalCommand =
   | RemoveNodeCommand
   | RestoreNodeCommand
@@ -88,7 +102,8 @@ export type InternalCommand =
   | SetAttributeCommand
   | MoveNodeCommand
   | InsertCloneCommand
-  | InsertClonesCommand;
+  | InsertClonesCommand
+  | InsertCellClonesCommand;
 
 export function isInternalCommand(command: { cmd: string }): command is InternalCommand {
   return (
@@ -98,7 +113,8 @@ export function isInternalCommand(command: { cmd: string }): command is Internal
     command.cmd === 'setAttribute' ||
     command.cmd === 'moveNode' ||
     command.cmd === 'insertClone' ||
-    command.cmd === 'insertClones'
+    command.cmd === 'insertClones' ||
+    command.cmd === 'insertCellClones'
   );
 }
 

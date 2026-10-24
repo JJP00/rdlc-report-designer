@@ -1,4 +1,5 @@
 import type { ListedSession, ProjectionDto } from '@rdlc-designer/contracts';
+import type { CellClipboardEntry } from '../../domain/document/commands/pasteCells.js';
 import type { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
 import type { RdlcDocument, RdlcNode } from '../../domain/document/tree/RdlcNode.js';
 import type { Either } from '../../shared/either.js';
@@ -29,6 +30,13 @@ export type SaveWarningReason = 'watchUnsupported';
 
 /** Resultado de cerrar: puede pedir confirmación si hay cambios sin guardar. */
 export type CloseSessionResult = { closed: true } | { closed: false; reason: 'dirty' };
+
+/**
+ * Contenido del portapapeles de la sesión: items sueltos o **celdas** de un
+ * Tablix (contenido de cada celda con su posición relativa en la selección).
+ */
+export type ClipboardContent =
+  { kind: 'items'; nodes: RdlcNode[] } | { kind: 'cells'; entries: CellClipboardEntry[] };
 
 /** Lo que necesita el CommandService de una sesión. */
 export interface EditTarget {
@@ -78,8 +86,20 @@ export interface ISessionService {
 
   /** Guarda un clon desprendido del item en el portapapeles de la sesión. */
   copyToClipboard(sessionId: string, ids: string[]): Either<DomainError, void>;
+  /**
+   * Guarda el contenido de celdas del Tablix `id` (con su diseño relativo) en el
+   * portapapeles; devuelve cuántas celdas con contenido se copiaron. Las celdas
+   * vacías no cuentan: si todas lo están se rechaza y el portapapeles se queda.
+   */
+  copyCellsToClipboard(
+    sessionId: string,
+    id: string,
+    cells: readonly { row: number; col: number }[],
+  ): Either<DomainError, number>;
   /** Subárboles del portapapeles (desprendidos), si los hay. */
   clipboardOf(sessionId: string): RdlcNode[] | undefined;
+  /** Portapapeles tal cual (items o celdas), si lo hay. */
+  clipboardContentOf(sessionId: string): ClipboardContent | undefined;
   /** Reconstruye el índice tras comandos que cambian estructura o límites. */
   rebuildIndex(sessionId: string): void;
   /** Mutación aplicada: sube la versión, marca dirty y emite eventos. */

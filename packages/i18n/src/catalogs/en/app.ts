@@ -69,6 +69,12 @@ export const app = {
     cutMany: 'Cut {count} items',
     pasted: 'Pasted: {name}',
     pastedMany: 'Pasted {count} items',
+    copiedCells: '{count, plural, one {Copied # cell} other {Copied # cells}}',
+    cutCellsCopied:
+      '{count, plural, one {Cut is not available for cells: # cell copied instead} other {Cut is not available for cells: # cells copied instead}}',
+    pastedCells: '{count, plural, one {Pasted # cell} other {Pasted # cells}}',
+    pastedCellsPartial: '{done} of {total} cells pasted: the rest falls outside the table',
+    pastedFirstItem: 'Pasted 1 of {total} items: a cell holds a single item',
     stats: '{count, plural, one {# item} other {# items}} · {kinds}',
   },
   file: {
