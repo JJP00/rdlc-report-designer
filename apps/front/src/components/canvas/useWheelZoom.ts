@@ -23,8 +23,12 @@ export function useWheelZoom({
   const paperRef = useRef<HTMLDivElement | null>(null);
   const wheelTargetRef = useRef<number | null>(null);
   const wheelTimerRef = useRef(0);
+  // El temporizador de la rueda llama al `onZoomChange` más reciente: el ref se
+  // actualiza tras el render (no durante él), antes de que pueda dispararse.
   const onZoomChangeRef = useRef(onZoomChange);
-  onZoomChangeRef.current = onZoomChange;
+  useLayoutEffect(() => {
+    onZoomChangeRef.current = onZoomChange;
+  });
   useLayoutEffect(() => {
     // El zoom confirmado ya redibujó el papel: se retira la escala provisional.
     wheelTargetRef.current = null;

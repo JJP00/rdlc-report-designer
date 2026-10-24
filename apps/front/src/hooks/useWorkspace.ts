@@ -186,13 +186,16 @@ export function useWorkspace(): WorkspaceCore {
   const [state, setState] = useState<WorkspaceState>(createWorkspace);
   const stateRef = useRef(state);
 
-  /** Todas las mutaciones pasan por aquí: el ref queda al día al instante. */
+  /**
+   * Todas las mutaciones pasan por aquí, así que el ref es la fuente de verdad y
+   * queda al día al instante (dos llamadas seguidas se encadenan). El actualizador
+   * se aplica sobre el ref y a `setState` solo llega el valor ya calculado: un
+   * actualizador de React puede repetirse y no debe escribir en refs.
+   */
   const setWorkspace = useCallback((updater: (current: WorkspaceState) => WorkspaceState): void => {
-    setState((current) => {
-      const next = updater(current);
-      stateRef.current = next;
-      return next;
-    });
+    const next = updater(stateRef.current);
+    stateRef.current = next;
+    setState(next);
   }, []);
 
   const [workspaceStatus, setWorkspaceStatus] = useState(() => t('app.status.idle'));
@@ -326,9 +329,9 @@ export function useWorkspace(): WorkspaceCore {
   const operationTimers = useRef(new Map<number, number>());
   const operationSeq = useRef(0);
   /** Guarda POR SESIÓN de guardar/guardar como: una pestaña no bloquea a otra. */
-  const sessionOps = useRef(createSessionOps());
+  const [sessionOps] = useState(createSessionOps);
   /** Cola secuencial de abrir/crear: lo que llega con una apertura en curso se encola. */
-  const openQueue = useRef(createSerialQueue());
+  const [openQueue] = useState(createSerialQueue);
 
   /**
    * Registra una operación visible en el pie (con aviso diferido, BUG-54).
@@ -442,7 +445,7 @@ export function useWorkspace(): WorkspaceCore {
   const openPaths = useCallback(
     (paths: string[]): void => {
       if (paths.length === 0) return;
-      const started = openQueue.current.enqueue(async () => {
+      const started = openQueue.enqueue(async () => {
         const endOperation = beginOperation(null, t('app.status.opening'));
         try {
           setWorkspaceError(null);
@@ -466,7 +469,7 @@ export function useWorkspace(): WorkspaceCore {
       // encola (se hará a continuación) y el pie lo dice.
       if (!started) setStatus(t('app.status.queued'));
     },
-    [beginOperation, openOne, setStatus, setTabError, setWorkspaceError, t],
+    [beginOperation, openOne, openQueue, setStatus, setTabError, setWorkspaceError, t],
   );
 
   const openPath = useCallback(
@@ -523,8 +526,8 @@ export function useWorkspace(): WorkspaceCore {
         endOperation();
       }
     };
-    if (!openQueue.current.enqueue(job)) setStatus(t('app.status.queued'));
-  }, [beginOperation, setStatus, setWorkspace, setWorkspaceError, t, translator]);
+    if (!openQueue.enqueue(job)) setStatus(t('app.status.queued'));
+  }, [beginOperation, openQueue, setStatus, setWorkspace, setWorkspaceError, t, translator]);
 
   /** Cuerpo del guardado (sin guarda): lo ejecuta `saveTab` bajo la guarda por sesión. */
   const runSave = useCallback(
@@ -582,9 +585,9 @@ export function useWorkspace(): WorkspaceCore {
       if (!stateRef.current.tabs.has(sessionId)) return false;
       // Guarda por sesión: si ya hay una operación en esta pestaña se encadena
       // detrás (no se descarta); otras pestañas no se ven afectadas.
-      return sessionOps.current.run(sessionId, 'save', () => runSave(sessionId));
+      return sessionOps.run(sessionId, 'save', () => runSave(sessionId));
     },
-    [runSave],
+    [runSave, sessionOps],
   );
 
   const save = useCallback((): Promise<boolean> => {
@@ -647,9 +650,9 @@ export function useWorkspace(): WorkspaceCore {
   const saveAsTab = useCallback(
     async (sessionId: string): Promise<boolean> => {
       if (!stateRef.current.tabs.has(sessionId)) return false;
-      return sessionOps.current.run(sessionId, 'saveAs', () => runSaveAs(sessionId));
+      return sessionOps.run(sessionId, 'saveAs', () => runSaveAs(sessionId));
     },
-    [runSaveAs],
+    [runSaveAs, sessionOps],
   );
 
   const saveAs = useCallback((): Promise<boolean> => {
@@ -811,11 +814,11 @@ export function useWorkspace(): WorkspaceCore {
   const saveTabForClose = useCallback(
     (sessionId: string): Promise<boolean> =>
       saveAfterInFlight(
-        sessionOps.current.pending(sessionId),
+        sessionOps.pending(sessionId),
         () => stateRef.current.tabs.get(sessionId)?.dirty ?? false,
         () => saveTab(sessionId),
       ),
-    [saveTab],
+    [saveTab, sessionOps],
   );
 
   /* ------------------------ guardas de trabajo sin guardar ------------------ */

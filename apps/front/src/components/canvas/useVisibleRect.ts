@@ -62,10 +62,6 @@ export function useVisibleRect({
   const [viewport, setViewport] = useState<CanvasViewport | null>(null);
   // Última medida publicada (no la última leída): comparar ventanas, no píxeles.
   const publishedRef = useRef<CanvasViewport | null>(null);
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
-  const sheetRef = useRef({ sheetWidth, sheetHeight });
-  sheetRef.current = { sheetWidth, sheetHeight };
 
   // La ventana se deriva en render: un cambio de zoom (o de papel) no deja un
   // frame con la ventana antigua, aunque la medida cruda sea de hace un paso.
@@ -85,14 +81,12 @@ export function useVisibleRect({
       width: container.clientWidth,
       height: container.clientHeight,
     });
+    // El efecto se vuelve a montar al cambiar zoom o papel: los valores del cierre
+    // son siempre los vigentes (no hace falta copiarlos a un ref durante el render).
+    const sheet = { sheetWidth, sheetHeight };
     const publish = (next: CanvasViewport): void => {
-      const zoomNow = zoomRef.current;
-      const sheet = sheetRef.current;
       const previous = publishedRef.current;
-      if (
-        previous &&
-        sameWindow(windowOf(previous, zoomNow, sheet), windowOf(next, zoomNow, sheet))
-      ) {
+      if (previous && sameWindow(windowOf(previous, zoom, sheet), windowOf(next, zoom, sheet))) {
         return;
       }
       publishedRef.current = next;

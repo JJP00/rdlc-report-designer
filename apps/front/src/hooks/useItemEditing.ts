@@ -583,9 +583,10 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     (dxCm: number, dyCm: number): void => {
       if (!doc) return;
       // Multiselección: se mueven todos los miembros movibles juntos.
+      const movable = new Set(movableIds);
       const group =
         selectedIds.length > 1
-          ? selectedItems.filter((item) => movableIds.includes(item.id))
+          ? selectedItems.filter((item) => movable.has(item.id))
           : selectedItem
             ? [selectedItem]
             : [];
