@@ -156,6 +156,10 @@ export function CanvasPreview({
     zoom,
   });
 
+  // Antes que el viewport: al confirmar el zoom, su efecto corrige el scroll y el
+  // del viewport (`useVisibleRect`) mide ya la posición final, sin parpadeo.
+  const { paperRef, handleWheel } = useWheelZoom({ zoom, onZoomChange, scrollRef });
+
   const { layout, visibleBands, cull, stageWindow } = useCanvasViewport({
     projection,
     zoom,
@@ -238,7 +242,6 @@ export function CanvasPreview({
   });
 
   const revealItem = useRevealItem({ scrollRef, bands: visibleBands, reveal, zoom });
-  const { paperRef, handleWheel } = useWheelZoom({ zoom, onZoomChange, scrollRef });
   const { itemCount, descriptionId, liveMessage, handleKeyDown, handleFocus } = useCanvasA11y({
     projection,
     selectedId,
