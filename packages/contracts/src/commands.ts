@@ -346,6 +346,12 @@ const addRow = z.object({
   id: z.string().min(1),
   /** Índice donde nace la fila (0..n); la fila actual de esa posición baja. */
   row: z.number().int().nonnegative(),
+  /**
+   * Lado desde el que el usuario inserta: la fila nueva hereda el formato de la
+   * vecina del lado **opuesto** (`above` → la de abajo, `below` → la de arriba).
+   * Por defecto `above` (la fila que baja).
+   */
+  where: z.enum(['above', 'below']).optional(),
   /** Alto de la fila nueva; por defecto, el de la fila vecina. */
   height: lengthSchema.optional(),
 });
@@ -406,6 +412,12 @@ const addColumn = z.object({
   id: z.string().min(1),
   /** Índice donde nace la columna (0..n); la columna actual de esa posición se corre. */
   column: z.number().int().nonnegative(),
+  /**
+   * Lado desde el que el usuario inserta: la columna nueva hereda el formato de
+   * la vecina del lado **opuesto** (`left` → la de la derecha, `right` → la de la
+   * izquierda). Por defecto `left` (la columna que se corre).
+   */
+  where: z.enum(['left', 'right']).optional(),
   width: lengthSchema.optional(),
 });
 

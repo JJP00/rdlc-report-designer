@@ -110,9 +110,9 @@ export interface ItemEditing {
   resizeColumn: (id: string, column: number, width: Length) => void;
   resizeRow: (id: string, row: number, height: Length) => void;
   /** Estructura del Tablix (F2 parte 3): filas y columnas. */
-  addRow: (id: string, row: number) => void;
+  addRow: (id: string, row: number, where?: 'above' | 'below') => void;
   deleteRow: (id: string, row: number) => void;
-  addColumn: (id: string, column: number) => void;
+  addColumn: (id: string, column: number, where?: 'left' | 'right') => void;
   deleteColumn: (id: string, column: number) => void;
   /** Varias filas/columnas en un solo paso de undo. */
   deleteRows: (id: string, rows: number[]) => void;
@@ -1304,8 +1304,8 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
   /* ------------------------ estructura del Tablix ------------------------- */
 
   const addRow = useCallback(
-    (id: string, row: number): void => {
-      void sendCommand({ cmd: 'addRow', id, row });
+    (id: string, row: number, where?: 'above' | 'below'): void => {
+      void sendCommand({ cmd: 'addRow', id, row, where });
     },
     [sendCommand],
   );
@@ -1318,8 +1318,8 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
   );
 
   const addColumn = useCallback(
-    (id: string, column: number): void => {
-      void sendCommand({ cmd: 'addColumn', id, column });
+    (id: string, column: number, where?: 'left' | 'right'): void => {
+      void sendCommand({ cmd: 'addColumn', id, column, where });
     },
     [sendCommand],
   );

@@ -104,7 +104,7 @@ export interface CanvasAreaProps {
   onSetPageMargins: (margins: PageMarginsDto) => void;
   onInsertAt: (kind: NewItemSpec['kind'], hit: CanvasHit) => void;
   /** Estructura del Tablix desde el menú contextual de una celda. */
-  onAddRow: (id: string, row: number) => void;
+  onAddRow: (id: string, row: number, where?: 'above' | 'below') => void;
   /** Fila de relleno fuera del grupo que contiene la fila (`above`/`below`). */
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
   /** Fila de relleno dentro del grupo, pegada a la fila (`above`/`below`). */
@@ -116,7 +116,7 @@ export interface CanvasAreaProps {
   /** Envuelve una fila estática en un grupo nuevo (menú contextual). */
   onAddRowGroup: (id: string, row: number, expression: string) => void;
   onDeleteRow: (id: string, row: number) => void;
-  onAddColumn: (id: string, column: number) => void;
+  onAddColumn: (id: string, column: number, where?: 'left' | 'right') => void;
   onDeleteColumn: (id: string, column: number) => void;
   onDeleteRows: (id: string, rows: number[]) => void;
   onDeleteColumns: (id: string, columns: number[]) => void;
@@ -476,10 +476,10 @@ function InsertRowColumnMenu({
 }: {
   cellScope: { id: string; row: number; col: number };
   inGroup: boolean;
-  onAddRow: (id: string, row: number) => void;
+  onAddRow: (id: string, row: number, where?: 'above' | 'below') => void;
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
   onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
-  onAddColumn: (id: string, column: number) => void;
+  onAddColumn: (id: string, column: number, where?: 'left' | 'right') => void;
 }): ReactNode {
   const t = useT();
 
@@ -506,19 +506,19 @@ function InsertRowColumnMenu({
           </>
         ) : (
           <>
-            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row)}>
+            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row, 'above')}>
               {t('toolbar.canvas.rowAbove')}
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row + 1)}>
+            <ContextMenuItem onSelect={() => onAddRow(cellScope.id, cellScope.row + 1, 'below')}>
               {t('toolbar.canvas.rowBelow')}
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
         )}
-        <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col)}>
+        <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col, 'left')}>
           {t('toolbar.canvas.columnLeft')}
         </ContextMenuItem>
-        <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col + 1)}>
+        <ContextMenuItem onSelect={() => onAddColumn(cellScope.id, cellScope.col + 1, 'right')}>
           {t('toolbar.canvas.columnRight')}
         </ContextMenuItem>
       </ContextMenuSubContent>
@@ -627,7 +627,7 @@ function TablixMenuItems({
   cellScope: { kind: 'tablixCell'; id: string; row: number; col: number };
   selection: SelectedCell | null;
   tablix: Extract<ItemDto, { kind: 'tablix' }> | undefined;
-  onAddRow: (id: string, row: number) => void;
+  onAddRow: (id: string, row: number, where?: 'above' | 'below') => void;
   onAddRowOutside: (id: string, row: number, where: 'above' | 'below') => void;
   onAddRowInside: (id: string, row: number, where: 'above' | 'below') => void;
   /** F2.c: fila de totales pegada al grupo, con los agregados por columna. */
@@ -636,7 +636,7 @@ function TablixMenuItems({
   /** Fila estática: abrir «Agrupar la fila…» (grupo nuevo). */
   onGroupRow: (id: string, row: number) => void;
   onDeleteRow: (id: string, row: number) => void;
-  onAddColumn: (id: string, column: number) => void;
+  onAddColumn: (id: string, column: number, where?: 'left' | 'right') => void;
   onDeleteColumn: (id: string, column: number) => void;
   onDeleteRows: (id: string, rows: number[]) => void;
   onDeleteColumns: (id: string, columns: number[]) => void;
