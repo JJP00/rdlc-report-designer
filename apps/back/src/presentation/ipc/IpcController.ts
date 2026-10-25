@@ -1,5 +1,6 @@
 import {
   IPC_CHANNELS,
+  IPC_EVENTS,
   clipboardSourceRequestSchema,
   closeRequestSchema,
   createNewRequestSchema,
@@ -54,6 +55,7 @@ import { RECENT_FILES_PORT } from '../../application/ports/out/RecentFilesPort.j
 import { left, right, type Either } from '../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../shared/domainError.js';
 import { LocaleRuntime } from '../../infrastructure/locale/LocaleRuntime.js';
+import { PendingOpenQueue } from './PendingOpenQueue.js';
 import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
 
 /**
@@ -63,7 +65,7 @@ import { toIpcError, unexpectedToIpcError } from './ipcErrorMapper.js';
 @Injectable()
 export class IpcController {
   private getWindow: () => BrowserWindow | null = () => null;
-  private pendingOpen: string | null = null;
+  private readonly pendingOpens = new PendingOpenQueue();
   /**
    * Rutas que el usuario eligió explícitamente: diálogos nativos, fichero de
    * arranque (CLI) o un fichero soltado sobre la ventana. `openFile`,
@@ -84,8 +86,20 @@ export class IpcController {
 
   /** Fichero inicial (argumento de CLI) que el front consume al montar. */
   setPendingOpen(path: string | null): void {
-    this.pendingOpen = path;
+    this.pendingOpens.setStartup(path);
     if (path) this.trustPath(path);
+  }
+
+  /**
+   * Abre una ruta pedida **desde fuera** con la app ya abierta (2.ª instancia
+   * de la asociación de ficheros): se autoriza como el fichero inicial y se
+   * entrega al renderer en vivo (o se encola si aún no ha montado).
+   */
+  requestOpen(path: string): void {
+    this.trustPath(path);
+    if (this.pendingOpens.requestExternal(path)) {
+      this.getWindow()?.webContents.send(IPC_EVENTS.openRequested, { path });
+    }
   }
 
   register(getWindow: () => BrowserWindow | null): void {
@@ -103,11 +117,10 @@ export class IpcController {
     );
 
     // Consumo único (BUG-29): una recarga del renderer (HMR, reload) no debe
-    // volver a recibir el fichero de arranque y reabrirlo.
+    // volver a recibir el fichero de arranque y reabrirlo. Las aperturas
+    // externas llegadas antes del montaje viajan con la entrega inicial.
     ipcMain.handle(IPC_CHANNELS.pendingOpen, (): PendingOpenResult => {
-      const path = this.pendingOpen;
-      this.pendingOpen = null;
-      return { ok: true, path };
+      return { ok: true, ...this.pendingOpens.consume() };
     });
 
     // Sesiones vivas del backend: el front las re-adopta tras recargar la

@@ -8,9 +8,12 @@ import { pathToFileURL } from 'node:url';
 import type { CatalogKey, MessageParams } from '@rdlc-designer/i18n';
 import { IPC_CHANNELS, IPC_EVENTS, windowCloseConfirmationSchema } from '@rdlc-designer/contracts';
 import { AppModule } from './app.module.js';
+import { UpdateService } from './application/services/UpdateService.js';
 import { ElectronEventBusAdapter } from './infrastructure/events/ElectronEventBusAdapter.js';
 import { LocaleRuntime } from './infrastructure/locale/LocaleRuntime.js';
 import { IpcController } from './presentation/ipc/IpcController.js';
+import { UpdateController } from './presentation/ipc/UpdateController.js';
+import { findRdlcArg } from './lifecycle/reportArgs.js';
 import { createWindowLifecycle, type WindowLifecycle } from './lifecycle/windowLifecycle.js';
 import { isNavigationAllowed, isPermissionAllowed } from './security/navigation.js';
 
@@ -42,6 +45,18 @@ let lifecycle: WindowLifecycle | null = null;
 
 /** Idioma vigente del main (se crea en `bootstrap`, antes de la primera ventana). */
 let localeRuntime: LocaleRuntime | null = null;
+
+/** Controlador IPC (se crea en `bootstrap`): entrega aperturas externas al front. */
+let ipcController: IpcController | null = null;
+
+/** Actualizaciones (se crea en `bootstrap`): decide si la salida instala y relanza. */
+let updateService: UpdateService | null = null;
+
+/** Espera tras el arranque antes de la comprobación automática de actualizaciones. */
+const STARTUP_UPDATE_CHECK_DELAY_MS = 5000;
+
+/** Fichero de una 2.ª instancia llegado antes de crear el controlador IPC. */
+let queuedSecondInstanceFile: string | null = null;
 
 /**
  * Traducción del main para los diálogos nativos: cada llamada usa el idioma
@@ -76,8 +91,7 @@ function hardenWebContents(contents: WebContents): void {
 function findInitialFile(): string | null {
   const fromEnv = process.env['RDLC_OPEN'];
   if (fromEnv) return fromEnv;
-  const fromArgs = process.argv.slice(1).find((arg) => /\.(rdlc|rdl)$/i.test(arg));
-  return fromArgs ?? null;
+  return findRdlcArg(process.argv.slice(1));
 }
 
 async function createWindow(): Promise<BrowserWindow> {
@@ -220,8 +234,19 @@ async function bootstrap(): Promise<void> {
   localeRuntime = runtime;
 
   const ipc = nest.get(IpcController);
+  ipcController = ipc;
   ipc.setPendingOpen(findInitialFile());
   ipc.register(() => mainWindow);
+  if (queuedSecondInstanceFile) {
+    // 2.ª instancia llegada durante el arranque: se abre con la ventana ya en
+    // marcha (el renderer aún no ha montado, así que queda encolada).
+    ipc.requestOpen(queuedSecondInstanceFile);
+    queuedSecondInstanceFile = null;
+  }
+
+  const updates = nest.get(UpdateService);
+  updateService = updates;
+  nest.get(UpdateController).register(() => mainWindow);
 
   // El renderer acusa la petición de cierre: está vivo y atendiendo. Cancela
   // el vigilante para que no salte el diálogo de «no responde» (BUG-51).
@@ -235,6 +260,7 @@ async function bootstrap(): Promise<void> {
     // vigilante ya no procede.
     lifecycle?.cancelCloseWatchdog();
     const parsed = windowCloseConfirmationSchema.safeParse(payload);
+    if (parsed.success && !parsed.data.proceed) updates.cancelRestart();
     if (!parsed.success || !parsed.data.proceed) return;
     if (lifecycle) lifecycle.allowClose = true;
     mainWindow?.close();
@@ -242,6 +268,14 @@ async function bootstrap(): Promise<void> {
 
   mainWindow = await createWindow();
   log.info('RDLC Report Designer iniciado');
+
+  // Comprobación automática de actualizaciones: solo en la app empaquetada (no
+  // en desarrollo, ni en e2e ni en benchmark) y con la ventana ya en marcha.
+  if (app.isPackaged && !E2E_MODE && process.env['RDLC_BENCH'] === undefined) {
+    setTimeout(() => {
+      void updates.checkAutomatically().catch((error: unknown) => log.warn(error));
+    }, STARTUP_UPDATE_CHECK_DELAY_MS);
+  }
 
   await maybeCaptureScreenshot(mainWindow);
 }
@@ -251,13 +285,24 @@ app.on('web-contents-created', (_event, contents) => hardenWebContents(contents)
 
 // Una sola instancia (BUG-29): dos procesos sobre el mismo fichero se pisan
 // (watchers y copias en memoria separadas). La segunda instancia se cierra y
-// trae al frente la ventana de la primera. El lock es por `user-data-dir`, así
-// que los e2e (con su propio directorio temporal) no se ven afectados.
+// trae al frente la ventana de la primera. Si además trae un informe en su
+// argv (asociación de ficheros: doble clic con la app abierta), se abre en la
+// ventana viva. El lock es por `user-data-dir`, así que los e2e (con su propio
+// directorio temporal) no se ven afectados.
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
-app.on('second-instance', () => {
-  if (!mainWindow) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  mainWindow.focus();
+app.on('second-instance', (_event, argv) => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+  const file = findRdlcArg(argv.slice(1));
+  if (!file) return;
+  if (!ipcController) {
+    // Todavía en `bootstrap` (sin controlador IPC): se entrega al crearlo.
+    queuedSecondInstanceFile = file;
+    return;
+  }
+  ipcController.requestOpen(file);
 });
 
 if (hasSingleInstanceLock) {
@@ -275,6 +320,12 @@ app.on('activate', () => {
 });
 
 app.on('window-all-closed', () => {
+  // «Reiniciar e instalar»: la ventana ya se cerró por la guarda de cambios sin
+  // guardar, así que la salida instala la actualización en silencio y relanza.
+  if (updateService?.takeRestartRequest()) {
+    updateService.quitAndInstall();
+    return;
+  }
   if (process.platform !== 'darwin') app.quit();
 });
 

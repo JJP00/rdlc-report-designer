@@ -15,6 +15,8 @@ vi.mock('electron', () => ({
   app: {
     getPath: () => join(tmpdir(), 'rdlc-e2e-userData'),
     getLocale: () => 'es-ES',
+    getVersion: () => '0.0.0-test',
+    isPackaged: false,
   },
 }));
 

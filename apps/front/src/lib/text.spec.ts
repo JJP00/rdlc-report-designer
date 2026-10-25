@@ -4,8 +4,8 @@ import { runDisplayText } from './text';
 /**
  * Texto de diseño que el lienzo pinta para cada run: texto plano tal cual, la
  * etiqueta de BC entre corchetes si la expresión la tiene, el nombre del campo
- * si es una referencia simple y `[exp]` para el resto (las expresiones no se
- * evalúan en el diseñador).
+ * si es una referencia simple, `Función(Campo)` si es un agregado simple y
+ * `[exp]` para el resto (las expresiones no se evalúan en el diseñador).
  */
 
 describe('runDisplayText', () => {
@@ -37,8 +37,27 @@ describe('runDisplayText', () => {
     expect(runDisplayText({ value: '=Fields!ItemNo' })).toBe('ItemNo');
   });
 
+  it('un agregado simple sobre un campo muestra `Función(Campo)`', () => {
+    expect(runDisplayText({ value: '=First(Fields!BTCDtoLbl1.Value, "DataSet_Result")' })).toBe(
+      'First(BTCDtoLbl1)',
+    );
+    expect(runDisplayText({ value: '=Sum(Fields!BTCQuantity.Value)' })).toBe('Sum(BTCQuantity)');
+    expect(runDisplayText({ value: '=Last(Fields!BTCTotalInvoice.Value)' })).toBe(
+      'Last(BTCTotalInvoice)',
+    );
+    expect(runDisplayText({ value: '=Max(Fields!BTCPaymenDiscountAmount.Value, "Details")' })).toBe(
+      'Max(BTCPaymenDiscountAmount)',
+    );
+    // El ámbito no se pinta; la etiqueta de BC sigue mandando.
+    expect(runDisplayText({ value: '=Sum(Fields!A.Value)', label: 'Total' })).toBe('[Total]');
+  });
+
   it('el resto de expresiones se resumen como [exp]', () => {
-    expect(runDisplayText({ value: '=Sum(Fields!Amount.Value)' })).toBe('[exp]');
+    // Anidamiento: el campo no es argumento directo del agregado.
+    expect(runDisplayText({ value: '=Sum(CDec(Fields!Amount.Value))' })).toBe('[exp]');
+    // Combinación de expresiones.
+    expect(runDisplayText({ value: '=Sum(Fields!A.Value) + Sum(Fields!B.Value)' })).toBe('[exp]');
+    expect(runDisplayText({ value: '=First(Fields!A.Value, "ds") & ":"' })).toBe('[exp]');
     expect(runDisplayText({ value: '=IIf(Fields!Qty.Value < 1, "", "x")' })).toBe('[exp]');
     expect(runDisplayText({ value: '=Code.BlankZero(Fields!Tot.Value)' })).toBe('[exp]');
     expect(runDisplayText({ value: '=Globals!PageNumber' })).toBe('[exp]');

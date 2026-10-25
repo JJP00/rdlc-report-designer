@@ -10,7 +10,7 @@ import { describeError } from '../shared/describeError.js';
 import { createTranslator } from '@rdlc-designer/i18n';
 import type { Either } from '../shared/either.js';
 import type { HeadlessContext } from './headlessContext.js';
-import { describeReport, findItem, outlineOf } from './outline.js';
+import { buildMatcher, describeReport, findInReport, findItem, outlineOf } from './outline.js';
 
 /**
  * Herramientas MCP sobre los casos de uso de la app. Capa fina, como el
@@ -21,7 +21,10 @@ import { describeReport, findItem, outlineOf } from './outline.js';
 
 export const SERVER_INSTRUCTIONS = [
   'Edits Business Central RDLC / RDL (2016) report layouts through the same engine as the RDLC Report Designer app.',
-  'Workflow: rdlc_open (or rdlc_create) → rdlc_get_outline / rdlc_get_item to inspect → rdlc_apply_commands to edit → rdlc_save.',
+  'Workflow: rdlc_open (or rdlc_create) → rdlc_get_outline / rdlc_get_item / rdlc_find to inspect → rdlc_apply_commands to edit → rdlc_save.',
+  'Prefer these tools over reading, grepping or hand-editing the .rdlc XML: they validate, keep undo and never write an invalid report. To locate a text, expression, group or id use rdlc_find (not grep); to change anything a command covers use rdlc_apply_commands (not Edit on the XML).',
+  'Before deciding something cannot be done here, check rdlc_list_commands. Only if NO command or tool covers the action may you edit the file directly; then say so, and afterwards call rdlc_open on the same path again (or rdlc_reload) so the session sees the change.',
+  'Which command for what: text/expression of a textbox → setText (id, p, r, value); the designer label of a run → setRunLabel; paragraphs as a whole → setParagraphs; Hidden/visibility of an item (literal or expression) → setVisibility; of a tablix group → setMemberVisibility / setMemberToggleItem; position/size → setLocation / setSize / setBounds; style (font, colour, alignment, borders) → setStyle; the report <Code> VB block → setReportCode (read it with rdlc_get_report includeCode); page, margins, header/footer → setPageSize / setPageMargins / setRegionHeight / setRegionPresent; add/remove items → insertItem / deleteItem / duplicateItem; tablix rows, columns, groups, filters and sorting → the addRow/addColumn/…/setGroupExpression/setTablixFilters/setGroupSorting family.',
   'Edits live in memory until rdlc_save; unsaved sessions are lost when the server stops.',
   'Items are addressed by their RDL `Name` (the `id`). Lengths are {"value": number, "unit": "cm"|"mm"|"in"|"pt"}.',
   'Positions (top/left) are relative to the containing region, rectangle or tablix cell.',
@@ -34,6 +37,7 @@ export const SERVER_INSTRUCTIONS = [
 
 const MAX_COMMANDS_PER_CALL = 200;
 const DEFAULT_OUTLINE_LINES = 400;
+const DEFAULT_FIND_RESULTS = 50;
 const REPORT_EXTENSION = /\.(rdlc|rdl)$/i;
 
 /* ----------------------------- Respuestas -------------------------------- */
@@ -421,7 +425,7 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
       description:
         'Compact text map of the layout: one line per item with kind, id, position/size, and a text preview; tablixes list their columns/rows, row/column groups (with member paths) and cell contents. ' +
         'Long texts and expressions are shortened to ~60 chars and marked "…[+N chars]": use rdlc_get_item for the full text. ' +
-        'Narrow it with `region` or `id` on large reports.',
+        'Narrow it with `region` or `id` on large reports. To locate a text, expression or name, use rdlc_find instead of scanning the outline.',
       inputSchema: {
         sessionId,
         region: z.enum(['pageHeader', 'body', 'pageFooter']).optional(),
@@ -470,6 +474,60 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
       const item = findItem(projection.value, itemId);
       if (!item) return toolError('E_NOT_FOUND', `No item named "${itemId}"`);
       return reply({ ok: true, item }, id);
+    }),
+  );
+
+  server.registerTool(
+    'rdlc_find',
+    {
+      title: 'Find text in the report',
+      description:
+        'The replacement for grep on the .rdlc: finds `query` in item ids, textbox texts and run labels, Hidden/visibility expressions, image values, tablix group expressions/names/sorting/filters and the report <Code> block. ' +
+        'Each hit gives the item `id`, its `region`, `where` inside it (e.g. "text p0.r1" = paragraph 0, run 1, ready for setText; "rowGroup[0].expression"; "line 12" for <Code>) and the text (whole if short, else a window around the match; rdlc_get_item gives it in full). ' +
+        'Case-insensitive substring by default; `regex` treats `query` as a regular expression.',
+      inputSchema: {
+        sessionId,
+        query: z.string().min(1).describe('Text to look for (or a regex with `regex: true`)'),
+        regex: z.boolean().optional(),
+        caseSensitive: z.boolean().optional(),
+        region: z
+          .enum(['pageHeader', 'body', 'pageFooter'])
+          .optional()
+          .describe('Limit to one region (also skips the <Code> block)'),
+        maxResults: z.number().int().min(1).max(500).optional().describe('Default 50'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    guard(({ sessionId: id, query, regex, caseSensitive, region, maxResults }) => {
+      const projection = unwrap(sessions.projectionOf(id));
+      if ('reply' in projection) return projection.reply;
+      let matcher: RegExp;
+      try {
+        matcher = buildMatcher(query, {
+          ...(regex === undefined ? {} : { regex }),
+          ...(caseSensitive === undefined ? {} : { caseSensitive }),
+        });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        return toolError('E_INVALID_QUERY', `Invalid regular expression: ${reason}`);
+      }
+      const found = findInReport(projection.value, matcher, {
+        ...(region ? { region } : {}),
+        maxResults: maxResults ?? DEFAULT_FIND_RESULTS,
+      });
+      return reply(
+        {
+          ok: true,
+          total: found.total,
+          ...(found.total > found.hits.length
+            ? {
+                truncated: `Showing ${found.hits.length} of ${found.total}: narrow the query or pass region/maxResults.`,
+              }
+            : {}),
+          hits: found.hits,
+        },
+        id,
+      );
     }),
   );
 

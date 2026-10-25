@@ -2,6 +2,7 @@ import {
   Check,
   ChevronDown,
   Copy,
+  Download,
   FilePlus,
   FileText,
   FolderOpen,
@@ -12,6 +13,7 @@ import {
   Moon,
   Plus,
   Redo2,
+  RefreshCw,
   Search,
   Save,
   SaveAll,
@@ -42,6 +44,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useUpdaterContext } from '@/hooks/updaterContext';
 import { clampZoom, ZOOM_PRESETS } from '@/lib/zoom';
 
 export interface EditorToolbarProps {
@@ -198,6 +201,8 @@ function FileGroup({
 >): ReactNode {
   const t = useT();
   const { locale, locales, setLocale } = useLocale();
+  const updater = useUpdaterContext();
+  const pendingVersion = updater?.state?.version ?? '';
 
   return (
     <DropdownMenu>
@@ -255,6 +260,20 @@ function FileGroup({
           <DropdownMenuShortcut>Ctrl+W</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        {updater?.hasPending ? (
+          // Oferta pendiente («Más tarde»): reabre el diálogo para instalarla cuando quiera.
+          <DropdownMenuItem onSelect={updater.openDialog}>
+            <Download />
+            {updater.state?.status === 'downloaded'
+              ? t('toolbar.file.updateReady', { version: pendingVersion })
+              : t('toolbar.file.updateAvailable', { version: pendingVersion })}
+          </DropdownMenuItem>
+        ) : updater ? (
+          <DropdownMenuItem onSelect={() => void updater.check()}>
+            <RefreshCw />
+            {t('toolbar.file.checkForUpdates')}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <Languages />

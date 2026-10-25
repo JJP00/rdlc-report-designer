@@ -66,6 +66,7 @@ args = ["-y", "@jjp00/rdlc-designer-mcp"]
 | `rdlc_open` / `rdlc_create`          | Open an existing file or create a blank one                       |
 | `rdlc_get_report`                    | Page, regions, item counts, dataset fields, parameters, VB code   |
 | `rdlc_get_outline` / `rdlc_get_item` | Compact layout map / full JSON of one item                        |
+| `rdlc_find`                          | Find text/expressions/ids: item `id` + exact spot (not grep)      |
 | `rdlc_list_commands`                 | Command signatures, or the exact JSON Schema of the ones you name |
 | `rdlc_apply_commands`                | Apply commands in order (validated first, atomic by default)      |
 | `rdlc_undo` / `rdlc_redo`            | Per-session history                                               |

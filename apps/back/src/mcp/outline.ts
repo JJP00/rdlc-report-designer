@@ -63,6 +63,140 @@ export function findItem(projection: ProjectionDto, id: string): ItemDto | undef
   return undefined;
 }
 
+/* -------------------------------- Búsqueda -------------------------------- */
+
+export interface FindOptions {
+  region?: RegionName;
+  maxResults: number;
+}
+
+export interface FindHit {
+  /** Región donde está el item, o `code` para el bloque `<Code>` del informe. */
+  region: RegionName | 'code';
+  /** Item (o Tablix, para sus grupos y filtros); ausente en `code`. */
+  id?: string;
+  kind?: ItemDto['kind'];
+  /** Dónde está el texto: `id`, `text p0.r1`, `label p0.r1`, `hidden`, `rowGroup[0].expression`… */
+  where: string;
+  /** El texto entero si es corto; si no, una ventana alrededor de la coincidencia. */
+  text: string;
+}
+
+export interface FindResult {
+  hits: FindHit[];
+  /** Coincidencias totales (puede superar `hits.length` si se recortó). */
+  total: number;
+}
+
+/** Construye el buscador; `regex` inválida lanza `SyntaxError`. */
+export function buildMatcher(
+  query: string,
+  options: { regex?: boolean; caseSensitive?: boolean },
+): RegExp {
+  const source = options.regex === true ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(source, options.caseSensitive === true ? '' : 'i');
+}
+
+const SNIPPET_WHOLE = 200;
+const SNIPPET_AROUND = 80;
+
+/** Texto aplanado: entero si es corto; si no, la ventana alrededor de la coincidencia. */
+function snippet(value: string, matcher: RegExp): string {
+  const flat = value.replace(/\s+/g, ' ').trim();
+  if (flat.length <= SNIPPET_WHOLE) return flat;
+  const at = flat.search(matcher);
+  const start = Math.max(0, at - SNIPPET_AROUND);
+  const end = Math.min(flat.length, at + SNIPPET_AROUND);
+  return `${start > 0 ? '…' : ''}${flat.slice(start, end)}${end < flat.length ? '…' : ''}`;
+}
+
+function* membersOf(
+  axis: string,
+  members: readonly TablixMemberDto[],
+): Generator<{ where: string; value: string }> {
+  for (const member of members) {
+    const at = `${axis}[${member.path.join(',')}]`;
+    if (member.name) yield { where: `${at}.name`, value: member.name };
+    if (member.expression) yield { where: `${at}.expression`, value: member.expression };
+    if (typeof member.hidden === 'string') yield { where: `${at}.hidden`, value: member.hidden };
+    if (member.toggleItem) yield { where: `${at}.toggleItem`, value: member.toggleItem };
+    for (const [i, sort] of (member.sortExpressions ?? []).entries()) {
+      yield { where: `${at}.sort[${i}]`, value: sort.value };
+    }
+    yield* membersOf(axis, member.children);
+  }
+}
+
+/** Todo el texto buscable de un item: pares (dónde, valor). */
+function* searchableOf(item: ItemDto): Generator<{ where: string; value: string }> {
+  yield { where: 'id', value: item.id };
+  if (typeof item.hidden === 'string') yield { where: 'hidden', value: item.hidden };
+  switch (item.kind) {
+    case 'textbox':
+      for (const [p, paragraph] of item.paragraphs.entries()) {
+        for (const [r, run] of paragraph.runs.entries()) {
+          yield { where: `text p${p}.r${r}`, value: run.value };
+          if (run.label) yield { where: `label p${p}.r${r}`, value: run.label };
+        }
+      }
+      break;
+    case 'image':
+      if (item.value) yield { where: 'value', value: item.value };
+      break;
+    case 'tablix':
+      yield* membersOf('rowGroup', item.rowHierarchy);
+      yield* membersOf('colGroup', item.columnHierarchy);
+      for (const [i, filter] of (item.filters ?? []).entries()) {
+        yield { where: `filter[${i}].expression`, value: filter.expression };
+        for (const value of filter.values) yield { where: `filter[${i}].value`, value };
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+/**
+ * Busca `matcher` en ids, textos y etiquetas de los runs, expresiones de
+ * visibilidad, imágenes, grupos/filtros/ordenaciones de los Tablix y en el
+ * bloque `<Code>`. Es el sustituto de `grep` sobre el XML: devuelve el `id` y el
+ * sitio exacto para usarlos directamente en los comandos.
+ */
+export function findInReport(
+  projection: ProjectionDto,
+  matcher: RegExp,
+  options: FindOptions,
+): FindResult {
+  const hits: FindHit[] = [];
+  let total = 0;
+  const add = (hit: FindHit): void => {
+    total += 1;
+    if (hits.length < options.maxResults) hits.push(hit);
+  };
+
+  const regions: RegionName[] = options.region
+    ? [options.region]
+    : ['pageHeader', 'body', 'pageFooter'];
+  for (const region of regions) {
+    for (const item of walkItems(regionOf(projection, region).items)) {
+      for (const { where, value } of searchableOf(item)) {
+        if (matcher.test(value)) {
+          add({ region, id: item.id, kind: item.kind, where, text: snippet(value, matcher) });
+        }
+      }
+    }
+  }
+
+  if (!options.region) {
+    projection.meta.code.text.split(/\r?\n/).forEach((line, index) => {
+      if (matcher.test(line)) {
+        add({ region: 'code', where: `line ${index + 1}`, text: snippet(line, matcher) });
+      }
+    });
+  }
+  return { hits, total };
+}
+
 /** Datos de cabecera del informe: página, regiones, conteo de items y metadatos. */
 export function describeReport(projection: ProjectionDto): Record<string, unknown> {
   const counts = (region: RegionDto): Record<string, number> => {

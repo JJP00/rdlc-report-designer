@@ -5,7 +5,9 @@ import { ReportTab } from '@/components/ReportTab';
 import { TabStrip } from '@/components/TabStrip';
 import { WorkspaceDialogs } from '@/components/WorkspaceDialogs';
 import { CommandPalette } from '@/components/panels/CommandPalette';
+import { UpdateDialog } from '@/components/UpdateDialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { UpdaterContext } from '@/hooks/updaterContext';
 import { useEditorKeys } from '@/hooks/useEditorKeys';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { useItemEditing } from '@/hooks/useItemEditing';
@@ -13,6 +15,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { usePaletteActions } from '@/hooks/usePaletteActions';
 import { useQaHooks } from '@/hooks/useQaHooks';
 import { useTheme } from '@/hooks/useTheme';
+import { useUpdater } from '@/hooks/useUpdater';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { insertIntoExpressionEditor } from '@/lib/expressionEditor';
 import { findItem } from '@/lib/projection';
@@ -30,6 +33,8 @@ export function App(): ReactNode {
   const core = useWorkspace();
   const items = useItemEditing(core);
   const t = useT();
+  /** Actualizaciones desde GitHub Releases (diálogo + entradas del menú Fichero). */
+  const updater = useUpdater();
 
   // Estado de UI del shell; el de la pestaña (selección, zoom, paneles) vive en
   // `tab.ui` (bloque D) y sobrevive al cambio de pestaña.
@@ -199,92 +204,96 @@ export function App(): ReactNode {
   });
 
   return (
-    <TooltipProvider>
-      <div className="relative flex h-full flex-col bg-background" {...dropHandlers}>
-        {/* Primera parada de Tab; solo visible con foco. Lleva el foco al lienzo. */}
-        <a
-          href="#lienzo"
-          className="skip-link"
-          onClick={(event) => {
-            event.preventDefault();
-            document.querySelector<HTMLElement>('.canvas-dots')?.focus();
-          }}
-        >
-          {t('lib.app.skipToCanvas')}
-        </a>
-        {dropActive ? (
-          <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-sm font-medium text-primary">
-            {t('lib.app.dropOverlay')}
-          </div>
-        ) : null}
+    <UpdaterContext.Provider value={updater}>
+      <TooltipProvider>
+        <div className="relative flex h-full flex-col bg-background" {...dropHandlers}>
+          {/* Primera parada de Tab; solo visible con foco. Lleva el foco al lienzo. */}
+          <a
+            href="#lienzo"
+            className="skip-link"
+            onClick={(event) => {
+              event.preventDefault();
+              document.querySelector<HTMLElement>('.canvas-dots')?.focus();
+            }}
+          >
+            {t('lib.app.skipToCanvas')}
+          </a>
+          {dropActive ? (
+            <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/10 text-sm font-medium text-primary">
+              {t('lib.app.dropOverlay')}
+            </div>
+          ) : null}
 
-        {/* Marco estable (toolbars + tira de pestañas); el cuerpo se remonta por pestaña. */}
-        <ReportTab
+          {/* Marco estable (toolbars + tira de pestañas); el cuerpo se remonta por pestaña. */}
+          <ReportTab
+            core={core}
+            tabStrip={
+              <TabStrip
+                tabs={tabs}
+                activeSessionId={activeSessionId}
+                onActivate={activateTab}
+                onMove={moveTab}
+                onClose={closeTab}
+                onCloseMany={closeTabs}
+              />
+            }
+            items={items}
+            structureTablix={structureTablix}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            zoom={ui.zoom}
+            onZoomChange={setZoom}
+            onZoomFitWidth={zoomFitWidth}
+            onFitZoomChange={setFitZoom}
+            showVariables={showVariables}
+            onToggleVariables={toggleVariables}
+            showHierarchy={showHierarchy}
+            onToggleHierarchy={toggleHierarchy}
+            onOpenProperties={() => setPropertiesOpen(true)}
+            onOpenPalette={() => setPaletteOpen(true)}
+            onEditText={setEditingTextId}
+            onOpenGroupProperties={(tablixId, axis, member) =>
+              setGroupProperties({ tablixId, axis, member })
+            }
+            onOpenTablixFilters={setFiltersTablixId}
+            onResolveConflict={() => setConflictOpen(true)}
+            onPickExpression={pickExpression}
+          />
+        </div>
+
+        <WorkspaceDialogs
           core={core}
-          tabStrip={
-            <TabStrip
-              tabs={tabs}
-              activeSessionId={activeSessionId}
-              onActivate={activateTab}
-              onMove={moveTab}
-              onClose={closeTab}
-              onCloseMany={closeTabs}
-            />
-          }
           items={items}
-          structureTablix={structureTablix}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          zoom={ui.zoom}
-          onZoomChange={setZoom}
-          onZoomFitWidth={zoomFitWidth}
-          onFitZoomChange={setFitZoom}
-          showVariables={showVariables}
-          onToggleVariables={toggleVariables}
-          showHierarchy={showHierarchy}
-          onToggleHierarchy={toggleHierarchy}
-          onOpenProperties={() => setPropertiesOpen(true)}
-          onOpenPalette={() => setPaletteOpen(true)}
-          onEditText={setEditingTextId}
-          onOpenGroupProperties={(tablixId, axis, member) =>
-            setGroupProperties({ tablixId, axis, member })
-          }
-          onOpenTablixFilters={setFiltersTablixId}
-          onResolveConflict={() => setConflictOpen(true)}
-          onPickExpression={pickExpression}
+          propertiesOpen={propertiesOpen}
+          onPropertiesOpenChange={setPropertiesOpen}
+          editingText={editingText}
+          onEditingTextOpenChange={(open) => {
+            if (!open) setEditingTextId(null);
+          }}
+          groupProperties={groupProperties}
+          onCloseGroupProperties={() => setGroupProperties(null)}
+          filtersTablix={filtersTablix}
+          onCloseTablixFilters={() => setFiltersTablixId(null)}
+          conflictOpen={conflictOpen}
+          onConflictOpenChange={setConflictOpen}
         />
-      </div>
 
-      <WorkspaceDialogs
-        core={core}
-        items={items}
-        propertiesOpen={propertiesOpen}
-        onPropertiesOpenChange={setPropertiesOpen}
-        editingText={editingText}
-        onEditingTextOpenChange={(open) => {
-          if (!open) setEditingTextId(null);
-        }}
-        groupProperties={groupProperties}
-        onCloseGroupProperties={() => setGroupProperties(null)}
-        filtersTablix={filtersTablix}
-        onCloseTablixFilters={() => setFiltersTablixId(null)}
-        conflictOpen={conflictOpen}
-        onConflictOpenChange={setConflictOpen}
-      />
+        <CommandPalette
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          projection={doc?.projection ?? null}
+          capabilities={{
+            hasDocument: doc !== null,
+            hasTextbox: selectedItem?.kind === 'textbox',
+            hasTablix: structureTablix !== undefined,
+          }}
+          onSelectItem={items.selectAndReveal}
+          onPickExpression={pickExpression}
+          onAction={runPaletteAction}
+        />
 
-      <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        projection={doc?.projection ?? null}
-        capabilities={{
-          hasDocument: doc !== null,
-          hasTextbox: selectedItem?.kind === 'textbox',
-          hasTablix: structureTablix !== undefined,
-        }}
-        onSelectItem={items.selectAndReveal}
-        onPickExpression={pickExpression}
-        onAction={runPaletteAction}
-      />
-    </TooltipProvider>
+        <UpdateDialog />
+      </TooltipProvider>
+    </UpdaterContext.Provider>
   );
 }

@@ -90,22 +90,23 @@ describe('layoutTextbox', () => {
     expect(layout.runs[1]!.fontStyle).toBe('italic');
   });
 
-  it('pinta el texto de diseño: etiqueta de BC, `[exp]` o el texto', () => {
+  it('pinta el texto de diseño: etiqueta de BC, agregado, `[exp]` o el texto', () => {
     const item = textbox({
       paragraphs: [
         {
           runs: [
             { value: '=Fields!X.Value', label: 'X' },
             { value: '=Sum(Fields!Y.Value)' },
+            { value: '=Code.Foo(Fields!Z.Value)' },
             { value: 'Total' },
           ],
         },
       ],
     });
     const layout = layoutTextbox(item, { width: 40, height: 20 }, undefined, ctx);
-    expect(layout.runs.map((run) => run.text)).toEqual(['[X]', '[exp]', 'Total']);
+    expect(layout.runs.map((run) => run.text)).toEqual(['[X]', 'Sum(Y)', '[exp]', 'Total']);
     // Las posiciones acumulan el ancho del texto de diseño, no de la expresión.
-    expect(layout.runs.map((run) => run.x)).toEqual([0, 3, 8]);
+    expect(layout.runs.map((run) => run.x)).toEqual([0, 3, 9, 14]);
   });
 
   it('respeta el `VerticalAlign` del item (centro)', () => {

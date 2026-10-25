@@ -12,8 +12,10 @@
   (para despliegue corporativo), `portable` (un solo `.exe` sin instalación, se
   autoextrae en `%TEMP%`) y `zip` (el contenido de `win-unpacked` comprimido, sin
   instalador). Salida en `apps/back/release/`.
-- **Sin auto-update**: fuera del MVP (el ejecutable se distribuye a mano / por política
-  interna). `publish: null` evita publicaciones accidentales.
+- **Auto-update**: `electron-updater` sobre las releases de GitHub (ver la sección
+  «Actualizaciones automáticas»). `publish` apunta al repositorio, pero los scripts `dist*`
+  usan `--publish never`: electron-builder solo genera `latest.yml` y el blockmap; la
+  release la publica `release.yml`.
 - **asar**: activo. El **XSD oficial** se lee con `readFileSync` en runtime, así que viaja
   fuera del asar con `extraResources` → `resources/rdl2016/` del paquete. En el proceso
   main la ruta se resuelve con `app.isPackaged` (ver `infrastructure.module.ts`).
@@ -68,7 +70,48 @@ pnpm dist:portable                          # solo el portable en apps/back/rele
 4. `dist` completo: `RDLC-Report-Designer-0.1.0-setup.exe` (NSIS, 111 MB) y
    `RDLC-Report-Designer-0.1.0.msi` (125 MB) en `apps/back/release/`.
 
+## Asociación de ficheros (`.rdlc`/`.rdl`)
+
+El instalador registra la app para abrir informes con doble clic
+(`fileAssociations` en `apps/back/electron-builder.yml`): el **NSIS** la registra
+porque pasó a `perMachine: true` (requisito de NSIS; instala con elevación y a
+nivel de máquina) y el **MSI** también. **Portable y zip no registran** nada (se
+puede asociar a mano con «Abrir con → Elegir otra aplicación»). En Windows
+10/11 el SO conserva el programa predeterminado que el usuario ya tuviera: se
+cambia desde el diálogo de apertura o Configuración → Aplicaciones
+predeterminadas.
+
+Con la app **abierta**, una segunda instancia (doble clic) no abre otra ventana:
+el lock de instancia única la cierra y su informe se abre como pestaña en la
+ventana viva (cubierto por el e2e `single-instance.spec.ts`).
+
+## Actualizaciones automáticas
+
+La app comprueba si hay una release más nueva ~5 s después de arrancar (solo la app
+empaquetada; no en desarrollo, e2e ni benchmark) y desde **Fichero → Buscar
+actualizaciones…**. Todo ocurre en el main (`UpdateService` + `ElectronUpdaterAdapter`,
+`apps/back/src/…`); el renderer solo recibe el estado (`updateStateChanged`).
+
+- **Diálogo**: versión nueva + notas de la release (el cuerpo de la release de GitHub, como
+  texto plano) con **Actualizar ahora / Más tarde / Omitir esta versión**. «Omitir» se guarda
+  en `userData/updates.json` y solo afecta a la comprobación automática; la manual siempre
+  la muestra. «Más tarde» deja la oferta en el menú Fichero («Actualización disponible
+  (x.y.z)…», o «Reiniciar para actualizar» si ya está descargada).
+- **Instalación**: se descarga el instalador NSIS (diferencial gracias al `.blockmap`; se
+  verifica el `sha512` de `latest.yml`) y se aplica **en silencio**, sin la interfaz del
+  instalador. Como la instalación es por máquina, Windows pide **un permiso (UAC)** al
+  aplicarla. «Reiniciar e instalar» pasa por la guarda de cambios sin guardar; una versión
+  descargada y pospuesta se instala sola la próxima vez que se cierre la app.
+- **Solo instalaciones NSIS** (junto al ejecutable está `Uninstall RDLC Report Designer.exe`).
+  Portable, MSI y zip solo muestran el aviso con las notas y un botón a la página de
+  releases: aplicar un instalador NSIS sobre ellas crearía una segunda instalación.
+- **Release**: `release.yml` debe adjuntar `latest.yml` y `*.blockmap` (ya lo hace). Sin
+  `latest.yml` en la última release, la comprobación falla (404) y la automática lo ignora.
+- **Arranque inicial**: las versiones anteriores a la primera con updater no lo incluyen;
+  hay que instalar esa versión una vez a mano.
+- **Sin firma**, la integridad solo se apoya en GitHub/TLS y el `sha512` publicado en la
+  propia release; firmar (más abajo) lo reforzaría.
+
 ## Pendiente (futuro)
 
 - Firma real cuando haya certificado (`CSC_LINK` + `CSC_KEY_PASSWORD`).
-- Evaluar `fileAssociations` (`.rdlc`) y `Squirrel`/auto-update si el despliegue interno lo pide.

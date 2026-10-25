@@ -32,6 +32,7 @@ validación contra el XSD RDL 2016 al guardar.
 | `rdlc_get_report`            | Página, regiones, conteo de items, campos, parámetros, código VB (`includeCode`)   |
 | `rdlc_get_outline`           | Mapa del layout (`region`, `id`, `maxLines` para acotar)                           |
 | `rdlc_get_item`              | JSON completo de un item                                                           |
+| `rdlc_find`                  | Busca texto/expresiones/ids (y el `<Code>`) y da `id` + sitio: sustituye al `grep` |
 | `rdlc_list_commands`         | Firmas de todos los comandos o JSON Schema exacto de los pedidos (`names`)         |
 | `rdlc_apply_commands`        | Aplica una lista de comandos en orden (`atomic`)                                   |
 | `rdlc_undo` / `rdlc_redo`    | Journal de la sesión                                                               |

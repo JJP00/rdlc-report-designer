@@ -28,7 +28,28 @@ extraResources:
 
 # Sin dependencias nativas: no hace falta recompilar.
 npmRebuild: false
-publish: null
+
+# Auto-update (electron-updater): inserta `app-update.yml` en la app y genera
+# `latest.yml` + `*.exe.blockmap` junto al instalador NSIS. Los scripts `dist*` usan
+# `--publish never`: electron-builder no sube nada, de la release se encarga
+# `.github/workflows/release.yml` (que sí debe adjuntar `latest.yml` y el blockmap).
+publish:
+  provider: github
+  owner: JJP00
+  repo: rdlc-report-designer
+
+# Asociación de ficheros: el instalador registra la app como programa para los
+# informes `.rdlc`/`.rdl` (doble clic en el Explorador). Solo la registran NSIS
+# (exige `perMachine: true`) y MSI; portable y zip no. En Windows 10/11 el SO
+# puede pedir confirmación la primera vez si el usuario ya tenía un programa
+# predeterminado para la extensión.
+fileAssociations:
+  - ext: rdlc
+    name: RDLCReport
+    description: RDLC Report
+  - ext: rdl
+    name: RDLReport
+    description: RDL Report
 
 win:
   target:
@@ -46,7 +67,9 @@ win:
 
 nsis:
   oneClick: false
-  perMachine: false
+  # Por máquina: NSIS solo registra las asociaciones de fichero (fileAssociations)
+  # en este modo; además deja el registro y las rutas a nivel de sistema.
+  perMachine: true
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
   shortcutName: RDLC Report Designer
