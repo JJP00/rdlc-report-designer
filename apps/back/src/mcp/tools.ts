@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { commandSchema, type CommandResult, type RdlcCommand } from '@rdlc-designer/contracts';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { DomainError } from '../shared/domainError.js';
 import { UnexpectedError } from '../shared/domainError.js';
 import { describeError } from '../shared/describeError.js';
@@ -91,7 +90,10 @@ function loadCommandCatalog(): CommandEntry[] {
   if (commandCatalog) return commandCatalog;
   commandCatalog = commandSchema.options.map((option) => {
     const name = option.shape.cmd.value;
-    const schema = zodToJsonSchema(option, { $refStrategy: 'none' }) as Record<string, unknown>;
+    const schema = z.toJSONSchema(option, { target: 'draft-7', io: 'input' }) as Record<
+      string,
+      unknown
+    >;
     delete schema['$schema'];
     const properties = Object.keys((schema['properties'] as Record<string, unknown>) ?? {}).filter(
       (key) => key !== 'cmd',

@@ -16,13 +16,13 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@formatjs/icu-messageformat-parser": "^3.5.1",
+    "@formatjs/icu-messageformat-parser": "^3.5.22",
     "intl-messageformat": "^12.1.4"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
-    "react": "^19.3.0",
-    "vitest": "^3.0.5"
+    "react": "^19.3.1",
+    "vitest": "^4.1.12"
   },
   "peerDependencies": {
     "react": ">=19"
