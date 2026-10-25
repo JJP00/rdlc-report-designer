@@ -26,6 +26,9 @@ jobs:
     
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Historial y tags completos: el changelog lista los commits desde el tag anterior.
+          fetch-depth: 0
 
       - name: pnpm
         uses: pnpm/action-setup@v4
@@ -53,6 +56,52 @@ jobs:
           fi
           echo "Tag $GITHUB_REF_NAME == apps/back/package.json ($version)"
 
+      # Cuerpo de la release: cabecera + changelog con los commits (sin merges) desde el
+      # tag anterior. Es texto plano a propósito: la app enseña este cuerpo tal cual en
+      # su diálogo de actualización (sin interpretar Markdown).
+      - name: Build release notes
+        shell: bash
+        env:
+          VERSION: ${{ steps.release-meta.outputs.version }}
+        run: |
+          cat > release-body.md <<'EOF'
+          ## RDLC Report Designer v__VERSION__
+
+          Instaladores para Windows:
+
+          | Fichero | Uso |
+          | --- | --- |
+          | `RDLC-Report-Designer-__VERSION__-setup.exe` | Instalador clásico (NSIS) |
+          | `RDLC-Report-Designer-__VERSION__.msi` | Despliegue corporativo |
+          | `RDLC-Report-Designer-__VERSION__-portable.exe` | Sin instalación |
+          | `RDLC-Report-Designer-__VERSION__-win-unpacked.zip` | Carpeta lista para ejecutar |
+
+          > Sin certificado de firma, Windows puede mostrar el aviso de SmartScreen.
+          EOF
+          sed -i "s/__VERSION__/$VERSION/g" release-body.md
+
+          previous="$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_SHA}^" 2>/dev/null || true)"
+          if [ -n "$previous" ]; then
+            range="${previous}..${GITHUB_SHA}"
+          else
+            range="${GITHUB_SHA}"
+            echo "::notice::No hay tag anterior: el changelog lista como mucho los últimos 100 commits."
+          fi
+          git log --no-merges --max-count=100 --pretty=format:'- %s (%h)' "$range" > changelog.txt
+          [ -s changelog.txt ] || echo '- Sin cambios registrados.' > changelog.txt
+          {
+            echo
+            echo '## Cambios'
+            echo
+            cat changelog.txt
+            echo
+            echo
+            if [ -n "$previous" ]; then
+              echo "Comparar: https://github.com/${GITHUB_REPOSITORY}/compare/${previous}...${GITHUB_REF_NAME}"
+            fi
+          } >> release-body.md
+          cat release-body.md
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -78,20 +127,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release-meta.outputs.tag }}
-          body: |
-            ## RDLC Report Designer v${{ steps.release-meta.outputs.version }}
-
-            Instaladores para Windows:
-
-            | Fichero | Uso |
-            | --- | --- |
-            | `RDLC-Report-Designer-${{ steps.release-meta.outputs.version }}-setup.exe` | Instalador clásico (NSIS) |
-            | `RDLC-Report-Designer-${{ steps.release-meta.outputs.version }}.msi` | Despliegue corporativo |
-            | `RDLC-Report-Designer-${{ steps.release-meta.outputs.version }}-portable.exe` | Sin instalación |
-            | `RDLC-Report-Designer-${{ steps.release-meta.outputs.version }}-win-unpacked.zip` | Carpeta lista para ejecutar |
-
-            > Sin certificado de firma, Windows puede mostrar el aviso de SmartScreen.
-          generate_release_notes: true
+          body_path: release-body.md
           files: |
             apps/back/release/*.exe
             apps/back/release/*.msi
