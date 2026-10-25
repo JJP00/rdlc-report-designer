@@ -7,67 +7,31 @@ import type {
   ScopeRef,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
 import type { Translator } from '@rdlc-designer/i18n';
 import { useT } from '@rdlc-designer/i18n/react';
-import { edgeReadingId, nextReadingId, selectionAnnouncement } from '@/hooks/canvasA11y';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
-import { topLevelIds } from '@/lib/align';
-import { groupBoxCm, groupResizeCommands, type GroupResizeMember } from '@/lib/groupResize';
-import type { CanvasHit, HitOptions } from '@/lib/hit';
-import { hitTestItems } from '@/lib/hit';
+import type { CanvasHit } from '@/lib/hit';
 import { pageRulerSegments } from '@/lib/pageResize';
-import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
-import {
-  cm,
-  findItem,
-  findItemInList,
-  findItemScope,
-  findParentItemId,
-  findSiblings,
-  flattenItems,
-  isCellContent,
-  scopeInsideItem,
-  toCm,
-} from '@/lib/projection';
-import type { BoxCm } from '@/lib/resize';
-import { tablixLayout, type SelectedCell } from '@/lib/tablix';
-import { clampZoom, fitWidthZoom, roundZoom } from '@/lib/zoom';
+import { type SelectedCell } from '@/lib/tablix';
 import { PageResizePreview, PageResizeZones, type PageRegion } from './PageResizeLayer';
 import { Paper } from './Paper';
 import { Ruler, type RulerMark } from './Ruler';
-import { SelectionFrame, tablixChromeAt, type SelectionFrameProps } from './SelectionFrame';
+import { SelectionFrame } from './SelectionFrame';
+import { computeSelectedFrame, selectionFrameProps, tablixChromeHitAt } from './canvasFrame';
+import { hitAtEvent } from './canvasHit';
 import { TextEditContext } from './textEditContext';
+import { useCanvasA11y } from './useCanvasA11y';
+import { useCanvasViewport } from './useCanvasViewport';
+import { useGroupSelection } from './useGroupSelection';
 import { useMarqueeSelection } from './useMarqueeSelection';
+import { useMoveEnd } from './useMoveEnd';
 import { usePageResize } from './usePageResize';
-import {
-  measureSelection,
-  useGroupSelectionMeasure,
-  useSelectionMeasure,
-} from './useSelectionMeasure';
-import { useVisibleRect } from './useVisibleRect';
-import { bandAt, paperLayout, type PaperLayout } from './bands';
-import { CULL_MIN_ITEMS, countProjectionItems, type VisibleRect } from './culling';
-import { CANVAS_PADDING_PX, clamp, PX_PER_CM, RULER_PX, toPx } from './geometry';
-import { fallbackWindow } from './window';
-
-/** Scope del contrato para cada banda del papel. */
-function scopeOfBand(key: string): ScopeRef {
-  if (key === 'header') return { kind: 'pageHeader' };
-  if (key === 'footer') return { kind: 'pageFooter' };
-  return { kind: 'body' };
-}
+import { useRevealItem } from './useRevealItem';
+import { measureSelection, useSelectionMeasure } from './useSelectionMeasure';
+import { useWheelZoom } from './useWheelZoom';
+import { RULER_PX } from './geometry';
 
 export interface CanvasPreviewProps {
   projection: ProjectionDto;
@@ -192,61 +156,17 @@ export function CanvasPreview({
     zoom,
   });
 
-  const layout = paperLayout(projection);
-  const visibleBands = layout.bands.filter((band) => band.visible);
+  // Antes que el viewport: al confirmar el zoom, su efecto corrige el scroll y el
+  // del viewport (`useVisibleRect`) mide ya la posición final, sin parpadeo.
+  const { paperRef, handleWheel } = useWheelZoom({ zoom, onZoomChange, scrollRef });
 
-  /**
-   * Cámara + culling (T3/T4): ventana visible en px de papel. El stage cubre
-   * **solo esta ventana**, no el papel entero a `papel × zoom`: así el coste de
-   * memoria del canvas depende del hueco del lienzo, no del zoom ni del tamaño
-   * del papel (un A4 a 400 % serían ~57 MB por canvas). `null` hasta la primera
-   * medida; el stage arranca con la ventana provisional de `window.ts`.
-   */
-  const visibleRect = useVisibleRect({
-    containerRef: scrollRef,
+  const { layout, visibleBands, cull, stageWindow } = useCanvasViewport({
+    projection,
     zoom,
-    sheetWidth: layout.sheetWidth,
-    sheetHeight: layout.sheetHeight,
+    scrollRef,
+    stageRef,
+    onFitZoomChange,
   });
-  const itemCount = useMemo(() => countProjectionItems(projection), [projection]);
-  // El culling (T3) se reserva a informes grandes: los normales se pintan enteros.
-  const cull = itemCount >= CULL_MIN_ITEMS ? visibleRect : null;
-  // Sin medida todavía (primera pasada): ventana provisional pequeña, para que
-  // el stage monte ya con un canvas acotado. No llega a pintarse: la medida
-  // real se publica antes del primer pintado (`useVisibleRect`).
-  const stageWindow = useMemo<VisibleRect>(
-    () =>
-      visibleRect ??
-      fallbackWindow({ sheetWidth: layout.sheetWidth, sheetHeight: layout.sheetHeight, zoom }),
-    [visibleRect, layout.sheetWidth, layout.sheetHeight, zoom],
-  );
-
-  // QA: el stage real (los guiones consultan `getIntersection` y el zoom). Depende
-  // de la ventana porque el stage se monta en cuanto hay una medida.
-  useEffect(() => {
-    if (TEST_HOOKS_ENABLED) {
-      (window as Window & { __rdlcStage?: Konva.Stage | null }).__rdlcStage = stageRef.current;
-    }
-  }, [visibleRect, stageRef]);
-
-  /**
-   * «Ajustar al ancho»: mide el hueco real del lienzo (menos paddings y reglas)
-   * y publica el zoom que deja el papel entero a la vista. El padre lo guarda y
-   * lo aplica cuando el usuario lo pide (menú o Ctrl+1), no en cada resize.
-   */
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container || !onFitZoomChange) return;
-    const update = (): void => {
-      const available = container.clientWidth - CANVAS_PADDING_PX * 2 - RULER_PX;
-      const fit = fitWidthZoom(available, layout.sheetWidth);
-      if (fit !== null) onFitZoomChange(fit);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [layout.sheetWidth, onFitZoomChange]);
 
   /** Qué elemento mide el marco: el item seleccionado o el Tablix de la celda. */
   const frameId = selectedId ?? selectedCell?.id ?? null;
@@ -259,82 +179,14 @@ export function CanvasPreview({
   // Selección de celdas del Tablix medido (para cabeceras y resaltado).
   const selectionForFrame = selectedCell && selectedCell.id === frameId ? selectedCell : null;
 
-  /* ---------------- multiselección: redimensionar el bloque ---------------- */
-
-  /**
-   * Con ≥2 elementos seleccionados los tiradores envuelven el bloque y escalan
-   * todos los miembros a la vez. Los hijos de un contenedor seleccionado viajan
-   * con él (`topLevelIds`); el contenido de una celda (lo fija la celda) y los
-   * fantasmas no entran.
-   */
-  const selectionKey = [selectedId, ...extraSelectedIds]
-    .filter((value): value is string => !!value)
-    .join('|');
-  const groupIds = useMemo(() => {
-    const ids = selectionKey.length > 0 ? selectionKey.split('|') : [];
-    if (ids.length < 2) return [];
-    const items = ids.flatMap((id) => {
-      const item = findItem(projection, id);
-      return item ? [item] : [];
-    });
-    return topLevelIds(items, ids).filter((id) => {
-      const item = findItem(projection, id);
-      return item !== undefined && item.kind !== 'unknown' && !isCellContent(projection, id);
-    });
-  }, [projection, selectionKey]);
-
-  const groupMeasure = useGroupSelectionMeasure({
+  // Multiselección: redimensionar el bloque entero.
+  const group = useGroupSelection({
     stageRef,
-    idsKey: groupIds.join('|'),
     projection,
     zoom,
+    selectedId,
+    extraSelectedIds,
   });
-
-  const group = useMemo(() => {
-    if (groupIds.length < 2 || !groupMeasure) return null;
-    const members: GroupResizeMember[] = [];
-    for (const measured of groupMeasure.members) {
-      const item = findItem(projection, measured.id);
-      if (!item) continue;
-      // Caja medida (cm de papel): en un Tablix incluye las cabeceras de grupo.
-      const frame: BoxCm = {
-        top: measured.rect.y / PX_PER_CM,
-        left: measured.rect.x / PX_PER_CM,
-        width: measured.rect.width / PX_PER_CM,
-        height: measured.rect.height / PX_PER_CM,
-      };
-      if (item.kind === 'tablix') {
-        const columns = item.body.columns.reduce((total, column) => total + toCm(column), 0);
-        const rows = item.body.rows.reduce((total, row) => total + toCm(row.height), 0);
-        members.push({
-          id: item.id,
-          frame,
-          box: {
-            top: toCm(item.top),
-            left: toCm(item.left),
-            width: round4(columns),
-            height: round4(rows),
-          },
-          headerOffset: tablixLayout(item).offset,
-          tablix: true,
-        });
-      } else {
-        members.push({
-          id: item.id,
-          frame,
-          box: {
-            top: toCm(item.top),
-            left: toCm(item.left),
-            width: toCm(item.width),
-            height: toCm(item.height),
-          },
-        });
-      }
-    }
-    if (members.length !== groupIds.length) return null;
-    const box = groupBoxCm(members);
-    return box ? { members, box } : null;
-  }, [groupIds, groupMeasure, projection]);
 
   const frameProps = selectionFrameProps({
     rect: selectionRect,
@@ -377,262 +229,50 @@ export function CanvasPreview({
     );
   }, [selectedId, extraKey]);
 
-  /**
-   * Fin de un drag: si el puntero soltó sobre **otro contenedor**, el item se
-   * reparenta (`moveItem`) conservando el punto que se agarró; si no, se mueve
-   * dentro de su contenedor como siempre.
-   *
-   * Soltar **dentro del propio item** (un rectángulo sobre sí mismo al moverlo
-   * un poco) no reparenta jamás: sería un ciclo y solo debe moverse.
-   */
-  const handleMoveEnd = (id: string, top: Length, left: Length, drop?: DropInfo): void => {
-    const stage = stageRef.current;
-    // Multiselección: todos los miembros se desplazan lo mismo que el arrastrado
-    // (sin reparentar: cada uno conserva su contenedor).
-    const group = [selectedId, ...extraSelectedIds].filter((value): value is string => !!value);
-    if (group.length > 1 && group.includes(id) && onMoveMany) {
-      const origin = findItem(projection, id);
-      if (origin) {
-        const dTop = toCm(top) - toCm(origin.top);
-        const dLeft = toCm(left) - toCm(origin.left);
-        if (round4(dTop) === 0 && round4(dLeft) === 0) return;
-        const moves = group.flatMap((memberId) => {
-          const member = findItem(projection, memberId);
-          if (!member) return [];
-          return [
-            {
-              id: memberId,
-              top: cm(round4(Math.max(0, toCm(member.top) + dTop))),
-              left: cm(round4(Math.max(0, toCm(member.left) + dLeft))),
-            },
-          ];
-        });
-        onMoveMany(moves);
-        return;
-      }
-    }
-    if (drop && stage && onMoveItemToScope) {
-      const hit = hitAtEvent(stage, zoom, layout, drop);
-      const current = findItemScope(projection, id);
-      // Un hijo de un rectángulo no se «escapa» al fondo de la banda (el
-      // contenedor es un límite duro, como la página); a otro contenedor sí
-      // se puede reparentar (soltándolo encima de él).
-      const dropsOnBand =
-        hit !== undefined &&
-        (hit.scope.kind === 'body' ||
-          hit.scope.kind === 'pageHeader' ||
-          hit.scope.kind === 'pageFooter');
-      const rectangleKeepsChild = current?.kind !== 'rectangle' || !dropsOnBand;
-      if (
-        hit &&
-        current &&
-        !sameScope(current, hit.scope) &&
-        !scopeInsideItem(projection, hit.scope, id) &&
-        rectangleKeepsChild
-      ) {
-        onMoveItemToScope(
-          id,
-          hit.scope,
-          hit.index,
-          cm(round4(Math.max(0, hit.point.y - drop.grabCm.y))),
-          cm(round4(Math.max(0, hit.point.x - drop.grabCm.x))),
-        );
-        return;
-      }
-    }
-    onMoveTo?.(id, top, left);
-  };
-
-  // Bandas actuales en un ref: el efecto de "traer a la vista" no debe
-  // re-ejecutarse en cada render (las bandas son un array nuevo cada vez).
-  const bandsRef = useRef(visibleBands);
-  useEffect(() => {
-    bandsRef.current = visibleBands;
+  const handleMoveEnd = useMoveEnd({
+    stageRef,
+    projection,
+    zoom,
+    layout,
+    selectedId,
+    extraSelectedIds,
+    onMoveTo,
+    onMoveMany,
+    onMoveItemToScope,
   });
 
-  // Trae a la vista el elemento pedido (paleta Ctrl+K) con un margen cómodo.
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container || !reveal) return;
-    scrollToItem(container, bandsRef.current, reveal.id, zoom);
-  }, [reveal, zoom]);
+  const revealItem = useRevealItem({ scrollRef, bands: visibleBands, reveal, zoom });
+  const { itemCount, descriptionId, liveMessage, handleKeyDown, handleFocus } = useCanvasA11y({
+    projection,
+    selectedId,
+    onSelect,
+    onEditText,
+    revealItem,
+  });
 
-  // Ctrl+rueda: cada cambio de zoom redibuja el lienzo entero (con 136 elementos
-  // a 400 % ~350 ms). Durante el gesto el papel solo se escala con CSS
-  // (transform, barato) y el zoom real se confirma una vez, al parar la rueda.
-  const paperRef = useRef<HTMLDivElement | null>(null);
-  const wheelTargetRef = useRef<number | null>(null);
-  const wheelTimerRef = useRef(0);
-  const onZoomChangeRef = useRef(onZoomChange);
-  onZoomChangeRef.current = onZoomChange;
-  useLayoutEffect(() => {
-    // El zoom confirmado ya redibujó el papel: se retira la escala provisional.
-    wheelTargetRef.current = null;
-    if (paperRef.current) paperRef.current.style.transform = '';
-  }, [zoom]);
-  useEffect(
-    () => () => {
-      if (wheelTimerRef.current) window.clearTimeout(wheelTimerRef.current);
-    },
-    [],
-  );
-  const handleWheel = (event: Konva.KonvaEventObject<WheelEvent>): void => {
-    if (!onZoomChange) return;
-    const { ctrlKey, metaKey, deltaY } = event.evt;
-    if (!ctrlKey && !metaKey) return;
-    // En Electron, sin preventDefault Chromium haría zoom de toda la app.
-    event.evt.preventDefault();
-    const base = wheelTargetRef.current ?? zoom;
-    const target = roundZoom(clampZoom(base * (deltaY > 0 ? 1 / 1.1 : 1.1)));
-    wheelTargetRef.current = target;
-    const paper = paperRef.current;
-    const container = scrollRef.current;
-    if (paper) {
-      // El preview escala sobre el **centro del hueco** (no sobre el origen del
-      // papel): lo que el usuario está mirando se queda quieto y la ventana del
-      // stage no deja huecos con un paso de rueda.
-      const originX =
-        (container?.scrollLeft ?? 0) + (container?.clientWidth ?? 0) / 2 - CANVAS_PADDING_PX;
-      const originY =
-        (container?.scrollTop ?? 0) + (container?.clientHeight ?? 0) / 2 - CANVAS_PADDING_PX;
-      paper.style.transformOrigin = `${originX}px ${originY}px`;
-      paper.style.transform = `scale(${target / zoom})`;
-    }
-    window.clearTimeout(wheelTimerRef.current);
-    wheelTimerRef.current = window.setTimeout(() => {
-      wheelTimerRef.current = 0;
-      const confirmed = wheelTargetRef.current;
-      if (confirmed === null) return;
-      if (confirmed === zoom) {
-        wheelTargetRef.current = null;
-        if (paperRef.current) paperRef.current.style.transform = '';
-      } else onZoomChangeRef.current?.(confirmed);
-    }, 120);
-  };
-
-  // Accesibilidad: orden de lectura, anuncios y teclado del lienzo.
-  const items = useMemo(() => flattenItems(projection), [projection]);
-  const itemIds = useMemo(() => items.map((item) => item.id), [items]);
-  const descriptionId = useId();
-  const selectedItem = useMemo(
-    () => (selectedId ? items.find((item) => item.id === selectedId) : undefined),
-    [items, selectedId],
-  );
-  const [liveMessage, setLiveMessage] = useState('');
-  const announcedSelectionRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!selectedItem) {
-      announcedSelectionRef.current = null;
-      if (items.length === 0) setLiveMessage(t('canvas.a11y.emptyPage'));
-      return;
-    }
-    // Selección nueva: se anuncia al instante; mover con flechas, con retardo
-    // para no encadenar mensajes.
-    if (announcedSelectionRef.current !== selectedItem.id) {
-      announcedSelectionRef.current = selectedItem.id;
-      setLiveMessage(selectionAnnouncement(selectedItem, t));
-      return;
-    }
-    const timer = window.setTimeout(
-      () => setLiveMessage(selectionAnnouncement(selectedItem, t)),
-      300,
-    );
-    return () => window.clearTimeout(timer);
-  }, [selectedItem, items.length, t]);
-
-  const revealItem = (id: string): void => {
-    const container = scrollRef.current;
-    if (container) scrollToItem(container, bandsRef.current, id, zoom);
-  };
-
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    if (event.defaultPrevented) return;
-    if (event.key === 'Tab') {
-      const next = onSelect
-        ? nextReadingId(itemIds, selectedId ?? null, event.shiftKey ? -1 : 1)
-        : null;
-      // Sin siguiente (fuera del rango) el Tab sigue su curso y sale del lienzo.
-      if (!next) return;
-      event.preventDefault();
-      onSelect?.(next);
-      revealItem(next);
-      return;
-    }
-    if (
-      (event.key === 'Home' || event.key === 'End') &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.shiftKey &&
-      !event.altKey &&
-      onSelect
-    ) {
-      const edge = edgeReadingId(itemIds, event.key === 'Home' ? 'first' : 'last');
-      if (!edge) return;
-      event.preventDefault();
-      onSelect(edge);
-      revealItem(edge);
-      return;
-    }
-    if (
-      event.key === 'Enter' &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.shiftKey &&
-      !event.altKey &&
-      selectedItem?.kind === 'textbox'
-    ) {
-      event.preventDefault();
-      onEditText?.(selectedItem.id);
-    }
-  };
-
-  /**
-   * Click derecho sobre el «chrome» del marco de un Tablix (cabeceras de
-   * fila/columna o esquina, lo que dibuja `TablixHeaders`): manda la **tabla**
-   * —el mismo destino que su borde— en vez del item que queda debajo (o de su
-   * celda). Solo existe mientras el marco está visible (tabla o celda de ella
-   * seleccionada), como el propio chrome.
-   */
-  const tablixChromeHit = (event: { clientX: number; clientY: number }): CanvasHit | undefined => {
-    const stage = stageRef.current;
-    const framed = frameId ? findItem(projection, frameId) : undefined;
-    if (!stage || framed?.kind !== 'tablix' || !selectionRect || !selectedFrame?.grid) {
-      return undefined;
-    }
-    const container = stage.container().getBoundingClientRect();
-    const x = (event.clientX - container.left - stage.x()) / zoom;
-    const y = (event.clientY - container.top - stage.y()) / zoom;
-    if (!tablixChromeAt(selectionRect, selectedFrame.grid.offset, x, y)) return undefined;
-    return {
-      item: framed,
-      scope: findItemScope(projection, framed.id) ?? { kind: 'body' },
-      index: findSiblings(projection, framed.id)?.length ?? 0,
-      point: { x: toCm(framed.left), y: toCm(framed.top) },
-    };
-  };
+  // Click derecho sobre el «chrome» del marco de un Tablix: manda la tabla.
+  const tablixChromeHit = (event: { clientX: number; clientY: number }): CanvasHit | undefined =>
+    tablixChromeHitAt({
+      stage: stageRef.current,
+      projection,
+      zoom,
+      frameId,
+      rect: selectionRect,
+      selectedFrame,
+      event,
+    });
 
   return (
     <TextEditContext.Provider value={onEditText ?? null}>
       <div
         ref={scrollRef}
+        id="lienzo"
         className="canvas-dots flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
         tabIndex={0}
         role="group"
-        aria-label={pageLabel(items.length, t)}
+        aria-label={pageLabel(itemCount, t)}
         aria-describedby={descriptionId}
-        onFocus={(event) => {
-          // Solo al llegar con teclado (no con clic): selecciona el primero.
-          if (event.target !== event.currentTarget) return;
-          if (!event.currentTarget.matches(':focus-visible')) return;
-          if (itemIds.length === 0) {
-            setLiveMessage(t('canvas.a11y.emptyPage'));
-            return;
-          }
-          if (!selectedId || !itemIds.includes(selectedId)) {
-            const first = edgeReadingId(itemIds, 'first');
-            if (first) onSelect?.(first);
-          }
-        }}
+        onFocus={handleFocus}
         onKeyDown={handleKeyDown}
         onContextMenu={(event) => {
           const stage = stageRef.current;
@@ -863,264 +503,10 @@ function ExtraSelectionFrames({
   );
 }
 
-/** Traduce un evento del DOM (drop, click derecho) a `CanvasHit`. */
-function hitAtEvent(
-  stage: Konva.Stage,
-  zoom: number,
-  layout: PaperLayout,
-  event: { clientX: number; clientY: number },
-  options?: HitOptions,
-): CanvasHit | undefined {
-  const rect = stage.container().getBoundingClientRect();
-  // El stage está desplazado a la ventana renderizada (`x`/`y` en px de
-  // pantalla): el punto se mide desde el origen del **papel**.
-  const contentX = (event.clientX - rect.left - stage.x()) / zoom;
-  const contentY = (event.clientY - rect.top - stage.y()) / zoom;
-  if (
-    contentX < 0 ||
-    contentY < 0 ||
-    contentX > layout.sheetWidth ||
-    contentY > layout.sheetHeight
-  ) {
-    return undefined;
-  }
-
-  const band = bandAt(layout, contentX, contentY);
-  if (!band) return undefined;
-
-  const point = {
-    x: clamp((contentX - band.x) / PX_PER_CM, 0, toCm(band.region.width)),
-    y: clamp((contentY - band.y) / PX_PER_CM, 0, toCm(band.region.height)),
-  };
-  return hitTestItems(band.region.items, point, scopeOfBand(band.key), options);
-}
-
 /**
  * Etiqueta accesible del grupo: «Página del informe, 3 elementos» (plural ICU).
  * Helper puro: el traductor entra por parámetro, como en `canvasA11y`.
  */
 function pageLabel(count: number, t: Translator['t']): string {
   return t('canvas.a11y.pageLabel', { count });
-}
-
-/**
- * Desplaza el hueco del lienzo hasta el item pedido con un margen cómodo (lo
- * usan el «traer a la vista» de la paleta y la navegación por teclado). Si el
- * item no está en una banda visible (encabezado/pie apagados), no hace nada.
- */
-function scrollToItem(
-  container: HTMLDivElement,
-  bands: PaperLayout['bands'],
-  id: string,
-  zoom: number,
-): void {
-  for (const band of bands) {
-    const item = findItemInList(band.region.items, id);
-    if (!item) continue;
-
-    const x = RULER_PX + (band.x + toPx(item.left)) * zoom;
-    const y = RULER_PX + (band.y + toPx(item.top)) * zoom;
-    container.scrollTo({
-      left: Math.max(0, x - 120),
-      top: Math.max(0, y - 120),
-      behavior: 'smooth',
-    });
-    return;
-  }
-}
-
-/** Marco de selección: caja del item y rejilla si es un Tablix. */
-interface SelectedFrame {
-  box?: BoxCm;
-  bounds?: { width: number; height: number };
-  grid?: {
-    columns: Length[];
-    rows: Length[];
-    rowCount: number;
-    columnCount: number;
-    /** Desplazamiento de la rejilla por las cabeceras de grupo (px de papel). */
-    offset?: { x: number; y: number };
-  };
-}
-
-function computeSelectedFrame(
-  projection: ProjectionDto,
-  layout: PaperLayout,
-  frameId: string | null,
-): SelectedFrame | undefined {
-  if (!frameId) return undefined;
-  // El contenido directo de una celda no se redimensiona: manda la celda.
-  if (isCellContent(projection, frameId)) return {};
-
-  for (const band of layout.bands) {
-    const item = findItemInList(band.region.items, frameId);
-    if (!item) continue;
-    const isDirectChild = band.region.items.some((candidate) => candidate.id === frameId);
-    // Límite del contenedor: la banda si es hijo directo; si no, el rectángulo
-    // padre (para que los tiradores tampoco lo saquen de la caja).
-    let bounds = isDirectChild
-      ? { width: toCm(band.region.width), height: toCm(band.region.height) }
-      : undefined;
-    if (!bounds) {
-      const parentId = findParentItemId(projection, frameId);
-      const parent = parentId ? findItem(projection, parentId) : undefined;
-      if (parent?.kind === 'rectangle') {
-        bounds = { width: toCm(parent.width), height: toCm(parent.height) };
-      }
-    }
-
-    if (item.kind === 'unknown') return { ...(bounds ? { bounds } : {}) };
-    if (item.kind === 'tablix') {
-      const columns = item.body.columns.reduce((acc, column) => acc + toCm(column), 0);
-      const rows = item.body.rows.reduce((acc, row) => acc + toCm(row.height), 0);
-      // La `box` es la rejilla del cuerpo (lo que espera `resizeTable`), pero
-      // las cabeceras de grupo desplazan las columnas/filas: el marco medido
-      // (el borde del Tablix) las incluye y las tiras deben sumar el offset
-      // (el layout lo da en cm; las tiras trabajan en px de papel).
-      const { offset } = tablixLayout(item);
-      return {
-        box: {
-          top: toCm(item.top),
-          left: toCm(item.left),
-          width: round4(columns),
-          height: round4(rows),
-        },
-        ...(bounds ? { bounds } : {}),
-        grid: {
-          columns: item.body.columns,
-          rows: item.body.rows.map((row) => row.height),
-          rowCount: item.body.rows.length,
-          columnCount: item.body.columns.length,
-          offset: { x: offset.x * PX_PER_CM, y: offset.y * PX_PER_CM },
-        },
-      };
-    }
-
-    return {
-      box: {
-        top: toCm(item.top),
-        left: toCm(item.left),
-        width: toCm(item.width),
-        height: toCm(item.height),
-      },
-      ...(bounds ? { bounds } : {}),
-    };
-  }
-  return undefined;
-}
-
-interface FramePropsOptions {
-  rect: { x: number; y: number; width: number; height: number } | null;
-  zoom: number;
-  frameId: string | null;
-  selectedId?: string | null;
-  selectedFrame: SelectedFrame | undefined;
-  selection: SelectedCell | null;
-  /** Multiselección redimensionable: caja envolvente (cm) y miembros. */
-  group?: { members: GroupResizeMember[]; box: BoxCm } | null;
-  onResizeColumn?: (id: string, column: number, width: Length) => void;
-  onResizeRow?: (id: string, row: number, height: Length) => void;
-  onResizeItem?: (
-    id: string,
-    box: { top: Length; left: Length; width: Length; height: Length },
-  ) => void;
-  onResizeMany?: (commands: BatchableCommand[]) => void;
-  onSelectCell?: (cell: SelectedCell, extend?: boolean, toggle?: boolean) => void;
-}
-
-/** Arma las props de `SelectionFrame` (tiradores, cabeceras y separadores). */
-function selectionFrameProps(options: FramePropsOptions): SelectionFrameProps {
-  const { rect, zoom, frameId, selectedFrame, selection, group } = options;
-
-  // Multiselección (U3): el marco y los tiradores envuelven el bloque y el
-  // arrastre escala todos los miembros (un `batch` = un paso de undo). Sin
-  // rejilla de Tablix ni límites de región: los miembros pueden vivir en
-  // contenedores distintos.
-  if (group && options.onResizeMany) {
-    const resizeMany = options.onResizeMany;
-    return {
-      rect: {
-        x: group.box.left * PX_PER_CM,
-        y: group.box.top * PX_PER_CM,
-        width: group.box.width * PX_PER_CM,
-        height: group.box.height * PX_PER_CM,
-      },
-      zoom,
-      box: group.box,
-      showHandles: true,
-      onResize: (next) => {
-        const commands = groupResizeCommands(group.members, group.box, next);
-        if (commands.length > 0) resizeMany(commands);
-      },
-    };
-  }
-
-  const props: SelectionFrameProps = {
-    rect,
-    zoom,
-    showHandles: Boolean(options.selectedId),
-  };
-  if (selectedFrame?.box) props.box = selectedFrame.box;
-  if (selectedFrame?.bounds) props.bounds = selectedFrame.bounds;
-
-  if (frameId && selectedFrame?.grid) {
-    const grid = selectedFrame.grid;
-    props.grid = {
-      columns: grid.columns,
-      rows: grid.rows,
-      ...(grid.offset ? { offset: grid.offset } : {}),
-    };
-    if (selection) props.selection = selection;
-    if (options.onResizeColumn) {
-      const resizeColumn = options.onResizeColumn;
-      props.onResizeColumn = (column, width) => resizeColumn(frameId, column, width);
-    }
-    if (options.onResizeRow) {
-      const resizeRow = options.onResizeRow;
-      props.onResizeRow = (row, height) => resizeRow(frameId, row, height);
-    }
-    if (options.onSelectCell) {
-      const selectCell = options.onSelectCell;
-      props.onSelectColumn = (index, extend, toggle) =>
-        selectCell(
-          { id: frameId, row: 0, col: index, endRow: grid.rowCount - 1, endCol: index },
-          extend,
-          toggle,
-        );
-      props.onSelectRow = (index, extend, toggle) =>
-        selectCell(
-          { id: frameId, row: index, col: 0, endRow: index, endCol: grid.columnCount - 1 },
-          extend,
-          toggle,
-        );
-    }
-  }
-
-  if (options.onResizeItem && options.selectedId) {
-    const resizeItem = options.onResizeItem;
-    const id = options.selectedId;
-    props.onResize = (box) =>
-      resizeItem(id, {
-        top: cm(box.top),
-        left: cm(box.left),
-        width: cm(box.width),
-        height: cm(box.height),
-      });
-  }
-
-  return props;
-}
-
-function round4(value: number): number {
-  return Math.round(value * 10000) / 10000;
-}
-
-/** ¿Los dos scopes son el mismo contenedor? (mover vs reparentar). */
-function sameScope(a: ScopeRef, b: ScopeRef): boolean {
-  if (a.kind !== b.kind) return false;
-  if (a.kind === 'rectangle' && b.kind === 'rectangle') return a.id === b.id;
-  if (a.kind === 'tablixCell' && b.kind === 'tablixCell') {
-    return a.id === b.id && a.row === b.row && a.col === b.col;
-  }
-  return true;
 }

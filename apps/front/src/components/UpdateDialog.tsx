@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useUpdaterContext } from '@/hooks/updaterContext';
+import { useUpdaterContext, type UpdaterController } from '@/hooks/updaterContext';
 
 /**
  * Diálogo de actualización (Fichero → Buscar actualizaciones… o aviso del
@@ -42,66 +42,84 @@ export function UpdateDialog(): ReactNode {
         {state.version && state.status !== 'error' ? <ReleaseNotes notes={state.notes} /> : null}
 
         <DialogFooter>
-          {state.status === 'available' && state.canInstall ? (
-            <>
-              <Button autoFocus onClick={() => void updater.download()}>
-                {t('dialogs.update.download')}
-              </Button>
-              <Button variant="outline" onClick={close}>
-                {t('dialogs.update.later')}
-              </Button>
-              <Button variant="ghost" onClick={() => void updater.skip()}>
-                {t('dialogs.update.skip')}
-              </Button>
-            </>
-          ) : null}
-          {state.status === 'available' && !state.canInstall ? (
-            <>
-              <Button autoFocus onClick={() => void updater.openReleasePage()}>
-                {t('dialogs.update.openReleasePage')}
-              </Button>
-              <Button variant="outline" onClick={close}>
-                {t('dialogs.update.later')}
-              </Button>
-              <Button variant="ghost" onClick={() => void updater.skip()}>
-                {t('dialogs.update.skip')}
-              </Button>
-            </>
-          ) : null}
-          {state.status === 'downloading' ? (
-            <Button variant="outline" onClick={close}>
-              {t('dialogs.update.later')}
-            </Button>
-          ) : null}
-          {state.status === 'downloaded' ? (
-            <>
-              <Button autoFocus onClick={() => void updater.install()}>
-                {t('dialogs.update.restart')}
-              </Button>
-              <Button variant="outline" onClick={close}>
-                {t('dialogs.update.later')}
-              </Button>
-            </>
-          ) : null}
-          {state.status === 'error' ? (
-            <>
-              <Button autoFocus onClick={() => void updater.check()}>
-                {t('dialogs.update.retry')}
-              </Button>
-              <Button variant="outline" onClick={close}>
-                {t('common.close')}
-              </Button>
-            </>
-          ) : null}
-          {state.status === 'upToDate' || state.status === 'checking' ? (
-            <Button variant="outline" onClick={close}>
-              {t('common.close')}
-            </Button>
-          ) : null}
+          <UpdateActions state={state} updater={updater} close={close} />
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Botones del pie según el estado de la actualización (el primero toma el foco). */
+function UpdateActions({
+  state,
+  updater,
+  close,
+}: {
+  state: UpdateState;
+  updater: UpdaterController;
+  close: () => void;
+}): ReactNode {
+  const t = useT();
+  const later = (
+    <Button variant="outline" onClick={close}>
+      {t('dialogs.update.later')}
+    </Button>
+  );
+  const skip = (
+    <Button variant="ghost" onClick={() => void updater.skip()}>
+      {t('dialogs.update.skip')}
+    </Button>
+  );
+
+  switch (state.status) {
+    case 'available':
+      return (
+        <>
+          {state.canInstall ? (
+            <Button autoFocus onClick={() => void updater.download()}>
+              {t('dialogs.update.download')}
+            </Button>
+          ) : (
+            <Button autoFocus onClick={() => void updater.openReleasePage()}>
+              {t('dialogs.update.openReleasePage')}
+            </Button>
+          )}
+          {later}
+          {skip}
+        </>
+      );
+    case 'downloading':
+      return later;
+    case 'downloaded':
+      return (
+        <>
+          <Button autoFocus onClick={() => void updater.install()}>
+            {t('dialogs.update.restart')}
+          </Button>
+          {later}
+        </>
+      );
+    case 'error':
+      return (
+        <>
+          <Button autoFocus onClick={() => void updater.check()}>
+            {t('dialogs.update.retry')}
+          </Button>
+          <Button variant="outline" onClick={close}>
+            {t('common.close')}
+          </Button>
+        </>
+      );
+    case 'upToDate':
+    case 'checking':
+      return (
+        <Button variant="outline" onClick={close}>
+          {t('common.close')}
+        </Button>
+      );
+    default:
+      return null;
+  }
 }
 
 type Translate = ReturnType<typeof useT>;

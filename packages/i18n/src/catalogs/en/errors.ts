@@ -43,6 +43,9 @@ export const errors = {
   missingNewReportPath: 'Missing path for the new report',
   itemMissing: "Item not found: ''{id}''",
   clipboardEmpty: 'The clipboard is empty',
+  clipboardHoldsCells: 'The clipboard holds table cells: select a cell to paste them',
+  cellsNothingToCopy: 'The selected cells are empty: nothing to copy',
+  pasteCellsNothingFits: 'The copied cells do not fit in the table from that cell',
   /* Document commands: containers, names and item options */
   scopeContainerMissing: 'The scope container was not found',
   nameTaken: "An item or group named ''{name}'' already exists",

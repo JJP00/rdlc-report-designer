@@ -29,6 +29,9 @@ export const ERROR_REASONS = [
   /* Comandos (E_COMMAND_REJECTED / E_INVALID_COMMAND) */
   'itemMissing',
   'clipboardEmpty',
+  'clipboardHoldsCells',
+  'cellsNothingToCopy',
+  'pasteCellsNothingFits',
   'scopeContainerMissing',
   'nameTaken',
   'itemHasNoContainer',

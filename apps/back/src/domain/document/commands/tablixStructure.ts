@@ -55,6 +55,11 @@ import {
  * - Las celdas nuevas nacen con un **Textbox vacío** dentro (como Report
  *   Builder y como al separar celdas): listas para escribir y seleccionables,
  *   sin celdas muertas. Sin `Width/Height`: el tamaño lo pone la celda.
+ * - Las celdas nuevas **heredan el formato** (solo el estilo visual: `Style` del
+ *   Textbox, del primer párrafo y del primer run; nunca nombre, acciones ni
+ *   visibilidad) de la vecina del lado **opuesto** al de la inserción: insertar
+ *   encima/izquierda copia la fila/columna que se corre; debajo/derecha, la
+ *   anterior. En el borde de la tabla se usa la otra. El texto sigue vacío.
  * - El inverso usa `setNodeText` (texto exacto anterior de cada span) y
  *   `restoreNode`/`removeNode`: el undo vuelve al XML byte a byte.
  * - La **fusión** solo combina celdas contiguas de una misma fila (un tramo
@@ -111,6 +116,7 @@ export function applyAddRow(
       member: leafInsertionPoint(members, command.row),
     },
     command.height,
+    command.where === 'below' ? 'previous' : 'next',
   );
 }
 
@@ -163,6 +169,7 @@ export function applyAddRowOutsideGroup(
       member: { container: group.container, index: above ? group.index : group.index + 1 },
     },
     command.height,
+    above ? 'next' : 'previous',
   );
 }
 
@@ -222,6 +229,7 @@ export function applyAddRowInsideGroup(
     parts.value,
     { row: above ? command.row : command.row + 1, member },
     command.height,
+    above ? 'next' : 'previous',
   );
   if (outcome.isLeft()) return outcome;
 
@@ -289,6 +297,7 @@ export function applyAddTotalRow(
       member: { container: group.container, index: above ? group.index : group.index + 1 },
     },
     command.height,
+    above ? 'next' : 'previous',
     textFor,
   );
 }
@@ -388,10 +397,18 @@ function performAddRow(
   parts: TablixParts,
   plan: RowInsertPlan,
   height: Length | undefined,
+  /** Vecina que presta el formato: la fila que baja (`next`) o la anterior (`previous`). */
+  copyFrom: 'next' | 'previous',
   /** Expresión de la celda de cada columna (filas de totales): vacío si `undefined`. */
   textFor?: (column: number) => string | undefined,
 ): Either<DomainError, CommandOutcome> {
   const { body, rowsContainer, columns, rows } = parts;
+
+  // Formato de la fila vecina, leído **antes** de tocar los spans de la rejilla.
+  const reference = neighborIndex(rows.length, plan.row, copyFrom);
+  const formats = columns.map((_, column) =>
+    reference === undefined ? undefined : formatSourceAt(rows, reference, column, columns.length),
+  );
 
   const changes: TextChange[] = [];
   const covered = coverByRowSpan(rows, plan.row, columns.length, changes);
@@ -405,7 +422,7 @@ function performAddRow(
   row.appendChild(
     row.createElement(
       'Height',
-      height ? formatLength(height) : neighborText(rows, plan.row, 'Height', DEFAULT_ROW_HEIGHT),
+      height ? formatLength(height) : referenceText(rows, reference, 'Height', DEFAULT_ROW_HEIGHT),
     ),
   );
   const cells = row.createElement('TablixCells');
@@ -414,7 +431,11 @@ function performAddRow(
     // La columna cubierta por un `RowSpan` de arriba nace como celda de relleno:
     // la fila mantiene una celda por columna (convención SSRS/BC).
     if (covered[column]) cells.appendChild(row.createElement('TablixCell'));
-    else cells.appendChild(createCellWithTextbox(ctx, row, takenNames, textFor?.(column)));
+    else {
+      cells.appendChild(
+        createCellWithTextbox(ctx, row, takenNames, textFor?.(column), formats[column]),
+      );
+    }
   }
   row.appendChild(cells);
   rowsContainer.insertChildAt(row, plan.row);
@@ -516,6 +537,16 @@ export function applyAddColumn(
   // celda con textbox. Leer la fila otra vez tras mutarla la interpretaría con
   // el recuento de columnas viejo (doble inserción: `TextboxN` + relleno).
   const takenNames = new Set<string>();
+  // Formato de la columna vecina por fila, leído **antes** de mutar ninguna fila
+  // (insertar celdas desplazaría las posiciones de rejilla).
+  const reference = neighborIndex(
+    columnCount,
+    command.column,
+    command.where === 'right' ? 'previous' : 'next',
+  );
+  const formats = rows.map((_, rowIndex) =>
+    reference === undefined ? undefined : formatSourceAt(rows, rowIndex, reference, columnCount),
+  );
   rows.forEach((row, rowIndex) => {
     // Las columnas que un `RowSpan` de arriba cubre en esta fila son las que
     // delatan la convención SSRS/BC aunque no haya `ColSpan` que desborde.
@@ -558,7 +589,7 @@ export function applyAddColumn(
     const cells = row.child('TablixCells');
     if (!cells) return;
     const position = insertCellPosition(row, command.column, columnCount, slot);
-    const cell = createCellWithTextbox(ctx, cells, takenNames);
+    const cell = createCellWithTextbox(ctx, cells, takenNames, undefined, formats[rowIndex]);
     cells.insertChildAt(cell, position);
     created.push(cell);
   });
@@ -570,7 +601,7 @@ export function applyAddColumn(
       'Width',
       command.width
         ? formatLength(command.width)
-        : neighborText(columns, command.column, 'Width', DEFAULT_COLUMN_WIDTH),
+        : referenceText(columns, reference, 'Width', DEFAULT_COLUMN_WIDTH),
     ),
   );
   columnsContainer.insertChildAt(column, command.column);
@@ -870,6 +901,8 @@ export function applyUnmergeCells(
 
   const created: RdlcNode[] = [];
   const takenNames = new Set<string>();
+  // Las celdas que quedan libres heredan el formato de la celda fusionada.
+  const format = cellTextbox(entry.cell);
   for (let index = command.row; index < command.row + entry.rowSpan; index += 1) {
     const target = rows[index];
     if (!target) continue;
@@ -884,12 +917,12 @@ export function applyUnmergeCells(
       if (slot) {
         const placeholder = tablixCells(target)[column];
         if (placeholder && !placeholder.child('CellContents')) {
-          fillCellWithTextbox(ctx, placeholder, takenNames, created);
+          fillCellWithTextbox(ctx, placeholder, takenNames, created, format);
         }
         continue;
       }
       const position = insertCellPosition(target, column, columnCount, slot);
-      const cell = createCellWithTextbox(ctx, cells, takenNames);
+      const cell = createCellWithTextbox(ctx, cells, takenNames, undefined, format);
       cells.insertChildAt(cell, position);
       created.push(cell);
     }
@@ -1093,9 +1126,11 @@ function createCellWithTextbox(
   taken: Set<string>,
   /** Texto/expresión inicial del textbox (filas de totales). */
   value?: string,
+  /** Textbox de la celda vecina de la que copiar el formato. */
+  format?: RdlcNode,
 ): RdlcNode {
   const cell = parent.createElement('TablixCell');
-  cell.appendChild(contentsWithTextbox(ctx, cell, taken, value));
+  cell.appendChild(contentsWithTextbox(ctx, cell, taken, value, format));
   return cell;
 }
 
@@ -1108,8 +1143,9 @@ function fillCellWithTextbox(
   cell: RdlcNode,
   taken: Set<string>,
   created: RdlcNode[],
+  format?: RdlcNode,
 ): void {
-  const contents = contentsWithTextbox(ctx, cell, taken);
+  const contents = contentsWithTextbox(ctx, cell, taken, undefined, format);
   cell.appendChild(contents);
   created.push(contents);
 }
@@ -1120,16 +1156,23 @@ function contentsWithTextbox(
   parent: RdlcNode,
   taken: Set<string>,
   value?: string,
+  format?: RdlcNode,
 ): RdlcNode {
   const contents = parent.createElement('CellContents');
   const name = nextItemName(ctx, 'textbox', taken);
   taken.add(name);
-  contents.appendChild(emptyTextbox(contents, name, value));
+  contents.appendChild(emptyTextbox(contents, name, value, format));
   return contents;
 }
 
 /** Textbox vacío con el orden canónico del XSD y sin longitudes. */
-function emptyTextbox(parent: RdlcNode, name: string, value?: string): RdlcNode {
+function emptyTextbox(
+  parent: RdlcNode,
+  name: string,
+  value?: string,
+  /** Textbox del que copiar el formato (solo estilos visuales, sin texto). */
+  format?: RdlcNode,
+): RdlcNode {
   const textbox = parent.createElement('Textbox');
   textbox.setAttribute('Name', name);
   textbox.appendChild(textbox.createElement('CanGrow', 'true'));
@@ -1143,12 +1186,94 @@ function emptyTextbox(parent: RdlcNode, name: string, value?: string): RdlcNode 
   paragraph.appendChild(runs);
   paragraphs.appendChild(paragraph);
   textbox.appendChild(paragraphs);
+  if (format) copyTextboxFormat(format, textbox, paragraph, run);
   return textbox;
 }
 
-/** Texto del tag en la fila/columna vecina (mantiene la unidad original). */
-function neighborText(nodes: RdlcNode[], index: number, tag: string, fallback: Length): string {
-  const neighbor = nodes[index] ?? nodes[index - 1] ?? nodes[0];
+/**
+ * Copia el formato visual de `source` al textbox nuevo: el `Style` del Textbox
+ * (bordes, fondo, relleno, alineación vertical…), el del **primer** párrafo
+ * (`TextAlign`…) y el del **primer** run (fuente, tamaño, color, `Format`…). Solo
+ * nodos `Style`: nombre, acciones, visibilidad y longitudes no se tocan. Cada
+ * `Style` va tras el contenido del elemento (orden canónico de Report Builder).
+ */
+function copyTextboxFormat(
+  source: RdlcNode,
+  textbox: RdlcNode,
+  paragraph: RdlcNode,
+  run: RdlcNode,
+): void {
+  const sourceParagraph = source.child('Paragraphs')?.child('Paragraph');
+  const sourceRun = sourceParagraph?.child('TextRuns')?.child('TextRun');
+
+  const runStyle = sourceRun?.child('Style');
+  if (runStyle) run.appendChild(runStyle.clone());
+  const paragraphStyle = sourceParagraph?.child('Style');
+  if (paragraphStyle) paragraph.appendChild(paragraphStyle.clone());
+  const textboxStyle = source.child('Style');
+  if (textboxStyle) textbox.appendChild(textboxStyle.clone());
+}
+
+/** Textbox de una celda (`undefined` si el contenido es otra cosa o no hay). */
+function cellTextbox(cell: RdlcNode): RdlcNode | undefined {
+  return cell.child('CellContents')?.child('Textbox');
+}
+
+/**
+ * Índice de la fila/columna vecina que presta el formato a la que nace en
+ * `index`: `next` es la que baja/se corre (`index`), `previous` la anterior; en el
+ * borde se usa la otra. `undefined` si no hay ninguna.
+ */
+function neighborIndex(
+  count: number,
+  index: number,
+  side: 'next' | 'previous',
+): number | undefined {
+  const next = index < count ? index : undefined;
+  const previous = index - 1 >= 0 && index - 1 < count ? index - 1 : undefined;
+  return side === 'next' ? (next ?? previous) : (previous ?? next);
+}
+
+/**
+ * Textbox cuyo formato rige en la posición de rejilla (`row`, `column`): el de la
+ * celda que la cubre (ancla de un `ColSpan`/`RowSpan`, subiendo por las filas si
+ * un `RowSpan` de arriba la cubre). `undefined` si el contenido no es un Textbox.
+ */
+function formatSourceAt(
+  rows: RdlcNode[],
+  row: number,
+  column: number,
+  columnCount: number,
+): RdlcNode | undefined {
+  for (let index = row; index >= 0; index -= 1) {
+    const current = rows[index];
+    if (!current) continue;
+    const covered = rowSpanCoverage(rows, index, columnCount);
+    const entry = positionedCells(current, columnCount, covered).find(
+      (candidate) =>
+        !candidate.placeholder &&
+        candidate.col <= column &&
+        column < candidate.col + candidate.colSpan &&
+        index + candidate.rowSpan > row,
+    );
+    // Relleno de un `RowSpan` (sin contenido) o fila sin celda ahí: mirar arriba.
+    if (!entry?.cell.child('CellContents')) continue;
+    return cellTextbox(entry.cell);
+  }
+  return undefined;
+}
+
+/**
+ * Texto del tag en la fila/columna de referencia (la misma que presta el
+ * formato; mantiene la unidad original). Sin referencia, el valor por defecto.
+ */
+function referenceText(
+  nodes: RdlcNode[],
+  reference: number | undefined,
+  tag: string,
+  fallback: Length,
+): string {
+  const neighbor = reference === undefined ? undefined : nodes[reference];
   return neighbor?.child(tag)?.text() ?? formatLength(fallback);
 }
 

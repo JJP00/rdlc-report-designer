@@ -5,7 +5,7 @@ import {
   moveAnnouncement,
   moveTargetIndex,
   tabAriaLabel,
-} from './TabStrip';
+} from './tabNavigation';
 
 /** Lógica pura de la tira de pestañas (hallazgos 3, 9 y 21). */
 describe('tabAriaLabel', () => {

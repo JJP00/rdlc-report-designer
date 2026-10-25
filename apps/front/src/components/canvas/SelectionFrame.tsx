@@ -12,6 +12,7 @@ import {
 import { selectionCols, selectionRows, type SelectedCell } from '@/lib/tablix';
 import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
 import { PX_PER_CM, toPx } from './geometry';
+import { HEADER_PX } from './tablixChrome';
 
 export interface SelectionFrameProps {
   /** Rectángulo en px de papel (medido del nodo Konva real). */
@@ -264,31 +265,6 @@ function cumulative(lengths: Length[]): number[] {
     result.push(total);
   }
   return result;
-}
-
-/** Cabeceras del Tablix (arriba y a la izquierda), como en Report Builder. */
-const HEADER_PX = 16;
-
-/**
- * ¿El punto (px de papel) cae en las cabeceras de fila/columna o en la esquina
- * del marco (el «chrome» del Tablix, lo que dibuja `TablixHeaders`)? Lo usa el
- * lienzo: el click derecho ahí manda la **tabla**, como el izquierdo selecciona
- * la fila/columna. `offset` es el hueco de las cabeceras internas del cuerpo.
- */
-export function tablixChromeAt(
-  rect: { x: number; y: number; width: number; height: number },
-  offset: { x: number; y: number } | undefined,
-  x: number,
-  y: number,
-): boolean {
-  const offsetX = offset?.x ?? 0;
-  const offsetY = offset?.y ?? 0;
-  const inColumnStrip =
-    y >= rect.y - HEADER_PX && y <= rect.y && x >= rect.x + offsetX && x <= rect.x + rect.width;
-  const inRowStrip =
-    x >= rect.x - HEADER_PX && x <= rect.x && y >= rect.y + offsetY && y <= rect.y + rect.height;
-  const inCorner = x >= rect.x - HEADER_PX && x <= rect.x && y >= rect.y - HEADER_PX && y <= rect.y;
-  return inColumnStrip || inRowStrip || inCorner;
 }
 
 function TablixHeaders({

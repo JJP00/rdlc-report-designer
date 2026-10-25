@@ -121,6 +121,15 @@ const api: RdlcApi = {
   paste: (sessionId: string, scope: ScopeRef, index: number): Promise<CommandResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.paste, { sessionId, scope, index }),
 
+  copyCells: (
+    sessionId: string,
+    id: string,
+    cells: { row: number; col: number }[],
+  ): Promise<CommandResult> => ipcRenderer.invoke(IPC_CHANNELS.copyCells, { sessionId, id, cells }),
+
+  pasteCells: (sessionId: string, id: string, row: number, col: number): Promise<CommandResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.pasteCells, { sessionId, id, row, col }),
+
   pathForFile: (file: File): string => {
     const path = webUtils.getPathForFile(file);
     // Un fichero soltado es una elección del usuario como la del diálogo: main

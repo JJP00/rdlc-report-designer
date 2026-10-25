@@ -1,24 +1,22 @@
-import { createTranslator, type Translator } from '@rdlc-designer/i18n';
 import { useT } from '@rdlc-designer/i18n/react';
-import { AlertTriangle, Check, ChevronDown, X } from 'lucide-react';
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+  dropTargetIndex,
+  focusTargetIndex,
+  moveAnnouncement,
+  moveTargetIndex,
+} from '@/lib/tabNavigation';
 import type { CloseScope } from '@/lib/workspace';
 import { fileBasename } from '@/lib/windowTitle';
+import { TabEntry } from './TabEntry';
+import { TabOverflowMenu } from './TabOverflowMenu';
 
 /** Pestaña tal y como la pinta la tira (subconjunto de `TabState`). */
 export interface TabStripItem {
@@ -37,78 +35,6 @@ export interface TabStripProps {
   onClose: (sessionId: string) => void;
   /** Menú contextual: cierra varias pestañas desde la pulsada, con guarda. */
   onCloseMany: (scope: CloseScope, sessionId: string) => void;
-}
-
-/**
- * Traductor por defecto de los helpers puros de la tira: los tests los ejercen
- * sin React y afirman los textos ES del catálogo; la app pasa siempre el
- * traductor del idioma vigente.
- */
-const defaultT: Translator['t'] = createTranslator('es').t;
-
-/**
- * Nombre accesible de la pestaña: nombre del fichero y, si procede, el estado
- * que un lector de pantalla no puede deducir del `*` ámbar (hallazgo 9). El
- * conflicto puede darse sin cambios locales.
- */
-export function tabAriaLabel(
-  name: string,
-  dirty: boolean,
-  conflict: boolean,
-  t: Translator['t'] = defaultT,
-): string {
-  const states = [
-    dirty ? t('app.tabs.stateDirty') : null,
-    conflict ? t('app.tabs.stateConflict') : null,
-  ].filter((state): state is string => state !== null);
-  return [name, ...states].join(', ');
-}
-
-/**
- * Índice de la pestaña destino de ←/→ (con vuelta circular) e Inicio/Fin
- * (extremos) en el `tablist`. `null` si la tecla no navega.
- */
-export function focusTargetIndex(index: number, count: number, key: string): number | null {
-  if (count <= 0) return null;
-  switch (key) {
-    case 'ArrowLeft':
-      return (index - 1 + count) % count;
-    case 'ArrowRight':
-      return (index + 1) % count;
-    case 'Home':
-      return 0;
-    case 'End':
-      return count - 1;
-    default:
-      return null;
-  }
-}
-
-/**
- * Índice final de un arrastre: la ranura de destino cuenta con la pestaña aún
- * en su sitio, así que al quitarla las de la derecha se desplazan una posición
- * (el mismo cálculo que recibe `onMove`).
- */
-export function dropTargetIndex(from: number, drop: number): number {
-  return drop > from ? drop - 1 : drop;
-}
-
-/**
- * Índice final de reordenar `delta` puestos, acotado al rango como `moveTab`
- * (`lib/workspace`); así el anuncio coincide con la posición real.
- */
-export function moveTargetIndex(index: number, delta: number, count: number): number {
-  return Math.max(0, Math.min(count - 1, index + delta));
-}
-
-/** Texto del anuncio del reordenado (hallazgo 21): «nombre», posición i de N. */
-export function moveAnnouncement(
-  name: string,
-  index: number,
-  count: number,
-  t: Translator['t'] = defaultT,
-): string {
-  return t('app.tabs.moveAnnouncement', { name, position: index + 1, count });
 }
 
 /**
@@ -169,6 +95,11 @@ export function TabStrip({
     element.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   };
 
+  const registerTab = (sessionId: string, element: HTMLDivElement | null): void => {
+    if (element) tabRefs.current.set(sessionId, element);
+    else tabRefs.current.delete(sessionId);
+  };
+
   // La pestaña activa siempre a la vista (apertura, cambio, cierre de vecinas y
   // cuando el botón «Todas las pestañas» aparece o desaparece y el contenedor
   // cambia de ancho).
@@ -215,6 +146,58 @@ export function TabStrip({
     endDrag();
   };
 
+  const handleDragStart = (event: DragEvent<HTMLDivElement>, sessionId: string): void => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', sessionId);
+    setDragId(sessionId);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>, index: number): void => {
+    if (dragId === null) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const slot = slotFor(event, index);
+    if (slot !== drop) setDrop(slot);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>): void => {
+    if (dragId === null) return;
+    event.preventDefault();
+    commitDrop();
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>, index: number): void => {
+    const tab = tabs[index];
+    if (!tab) return;
+    // Las teclas del botón de cerrar (o de cualquier descendiente) no son de la
+    // pestaña.
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onActivate(tab.sessionId);
+      return;
+    }
+    // Reordenar con teclado: Alt+←/→ mueve esta pestaña.
+    if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      event.preventDefault();
+      const target = moveTargetIndex(index, event.key === 'ArrowLeft' ? -1 : 1, tabs.length);
+      onMove(tab.sessionId, target);
+      announce(moveAnnouncement(fileBasename(tab.path), target, tabs.length, t));
+      return;
+    }
+    // Roving: ←/→ (circular) e Inicio/Fin mueven el foco y activan.
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const target = focusTargetIndex(index, tabs.length, event.key);
+    const targetTab = target === null ? undefined : tabs[target];
+    if (!targetTab) return;
+    event.preventDefault();
+    onActivate(targetTab.sessionId);
+    focusTab(targetTab.sessionId);
+  };
+
+  const from = dragId === null ? -1 : tabs.findIndex((entry) => entry.sessionId === dragId);
+  const hasSaved = tabs.some((entry) => !entry.dirty);
+
   return (
     <div data-testid="tab-strip" className="flex items-stretch border-b bg-tabstrip">
       <div
@@ -224,215 +207,35 @@ export function TabStrip({
         className="flex min-w-0 flex-1 items-stretch gap-0.5 overflow-x-auto px-1 pt-1"
       >
         {tabs.map((tab, index) => {
-          const name = fileBasename(tab.path);
-          const active = tab.sessionId === activeSessionId;
-          const from = dragId === null ? -1 : tabs.findIndex((t) => t.sessionId === dragId);
           // Indicador de la ranura: línea en el borde izquierdo o derecho.
           const markBefore = drop === index && drop !== from && drop !== from + 1;
           const markAfter =
             drop === tabs.length && index === tabs.length - 1 && drop !== from && drop !== from + 1;
-          const hasSaved = tabs.some((t) => !t.dirty);
           return (
-            <ContextMenu key={tab.sessionId}>
-              <ContextMenuTrigger asChild>
-                <div
-                  ref={(element) => {
-                    if (element) tabRefs.current.set(tab.sessionId, element);
-                    else tabRefs.current.delete(tab.sessionId);
-                  }}
-                  role="tab"
-                  id={`tab-${tab.sessionId}`}
-                  aria-controls={active ? `panel-${tab.sessionId}` : undefined}
-                  aria-selected={active}
-                  aria-label={tabAriaLabel(name, tab.dirty, tab.conflict !== null, t)}
-                  tabIndex={active ? 0 : -1}
-                  data-testid="tab-item"
-                  draggable
-                  data-dragging={dragId === tab.sessionId ? 'true' : 'false'}
-                  data-drop={markBefore ? 'before' : markAfter ? 'after' : undefined}
-                  data-session-id={tab.sessionId}
-                  data-path={tab.path}
-                  data-dirty={tab.dirty ? 'true' : 'false'}
-                  data-conflict={tab.conflict ? 'true' : 'false'}
-                  title={tab.path}
-                  className={cn(
-                    'group flex h-7 max-w-56 shrink-0 cursor-default items-center gap-1.5 rounded-t-md border border-b-0 px-2 text-xs select-none',
-                    dragId === tab.sessionId && 'opacity-50',
-                    markBefore && 'shadow-[inset_2px_0_0_0_var(--color-primary,#2563eb)]',
-                    markAfter && 'shadow-[inset_-2px_0_0_0_var(--color-primary,#2563eb)]',
-                    active
-                      ? 'border-border border-t-2 border-t-primary bg-background font-medium text-foreground'
-                      : 'border-transparent text-muted-foreground hover:bg-background/60 hover:text-foreground',
-                  )}
-                  onClick={() => onActivate(tab.sessionId)}
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = 'move';
-                    event.dataTransfer.setData('text/plain', tab.sessionId);
-                    setDragId(tab.sessionId);
-                  }}
-                  onDragOver={(event) => {
-                    if (dragId === null) return;
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = 'move';
-                    const slot = slotFor(event, index);
-                    if (slot !== drop) setDrop(slot);
-                  }}
-                  onDrop={(event) => {
-                    if (dragId === null) return;
-                    event.preventDefault();
-                    commitDrop();
-                  }}
-                  onDragEnd={endDrag}
-                  onKeyDown={(event) => {
-                    // Las teclas del botón de cerrar (o de cualquier descendiente) no
-                    // son de la pestaña.
-                    if (event.target !== event.currentTarget) return;
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      onActivate(tab.sessionId);
-                      return;
-                    }
-                    // Reordenar con teclado: Alt+←/→ mueve esta pestaña.
-                    if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-                      event.preventDefault();
-                      const target = moveTargetIndex(
-                        index,
-                        event.key === 'ArrowLeft' ? -1 : 1,
-                        tabs.length,
-                      );
-                      onMove(tab.sessionId, target);
-                      announce(moveAnnouncement(name, target, tabs.length, t));
-                      return;
-                    }
-                    // Roving: ←/→ (circular) e Inicio/Fin mueven el foco y activan.
-                    if (event.altKey || event.ctrlKey || event.metaKey) return;
-                    const target = focusTargetIndex(index, tabs.length, event.key);
-                    const targetTab = target === null ? undefined : tabs[target];
-                    if (!targetTab) return;
-                    event.preventDefault();
-                    onActivate(targetTab.sessionId);
-                    focusTab(targetTab.sessionId);
-                  }}
-                >
-                  {tab.conflict ? (
-                    <span role="img" aria-label={t('app.tabs.stateConflict')} className="shrink-0">
-                      <AlertTriangle
-                        className="size-3 text-amber-700 dark:text-amber-400"
-                        aria-hidden
-                      />
-                    </span>
-                  ) : null}
-                  {/*
-                   * Nombre truncado por la izquierda (`direction: rtl`): si no cabe,
-                   * se recorta el principio y se conservan la extensión y el `*`
-                   * (hallazgo 24). El texto interior va en LTR para que la puntuación
-                   * del nombre no se reordene.
-                   */}
-                  <span className="min-w-0 truncate text-left [direction:rtl]">
-                    <span dir="ltr">
-                      {name}
-                      {tab.dirty ? (
-                        <span className="text-amber-700 dark:text-amber-400" aria-hidden>
-                          {' *'}
-                        </span>
-                      ) : null}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    data-testid="tab-close"
-                    tabIndex={-1}
-                    aria-label={t('app.tabs.closeTab', { name })}
-                    title={t('app.tabs.closeTab', { name })}
-                    className="-my-1 ml-0.5 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-70 transition-colors hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onClose(tab.sessionId);
-                    }}
-                  >
-                    <X className="size-3" aria-hidden />
-                  </button>
-                </div>
-              </ContextMenuTrigger>
-              <ContextMenuContent className="w-56" data-testid="tab-context-menu">
-                <ContextMenuItem onSelect={() => onCloseMany('self', tab.sessionId)}>
-                  {t('common.close')}
-                  <ContextMenuShortcut>Ctrl+W</ContextMenuShortcut>
-                </ContextMenuItem>
-                <ContextMenuItem
-                  disabled={!hasSaved}
-                  onSelect={() => onCloseMany('saved', tab.sessionId)}
-                >
-                  {t('app.tabs.closeSaved')}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  disabled={tabs.length < 2}
-                  onSelect={() => onCloseMany('others', tab.sessionId)}
-                >
-                  {t('app.tabs.closeOthers')}
-                </ContextMenuItem>
-                <ContextMenuItem
-                  disabled={index >= tabs.length - 1}
-                  onSelect={() => onCloseMany('right', tab.sessionId)}
-                >
-                  {t('app.tabs.closeRight')}
-                </ContextMenuItem>
-                <ContextMenuItem onSelect={() => onCloseMany('all', tab.sessionId)}>
-                  {t('app.tabs.closeAll')}
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
+            <TabEntry
+              key={tab.sessionId}
+              tab={tab}
+              index={index}
+              tabCount={tabs.length}
+              active={tab.sessionId === activeSessionId}
+              dragging={dragId === tab.sessionId}
+              dropMark={markBefore ? 'before' : markAfter ? 'after' : undefined}
+              hasSaved={hasSaved}
+              registerElement={registerTab}
+              onActivate={onActivate}
+              onClose={onClose}
+              onCloseMany={onCloseMany}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onDragEnd={endDrag}
+              onKeyDown={handleKeyDown}
+            />
           );
         })}
       </div>
       {overflowing ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              data-testid="tab-overflow"
-              aria-label={t('app.tabs.overflowLabel', { count: tabs.length })}
-              title={t('app.tabs.overflowLabel', { count: tabs.length })}
-              className="m-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background/60 hover:text-foreground"
-            >
-              <ChevronDown className="size-4" aria-hidden />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-w-72">
-            {tabs.map((tab) => {
-              const name = fileBasename(tab.path);
-              const active = tab.sessionId === activeSessionId;
-              const label = tabAriaLabel(name, tab.dirty, tab.conflict !== null, t);
-              return (
-                <DropdownMenuItem
-                  key={tab.sessionId}
-                  aria-label={active ? t('app.tabs.menuItemLabelActive', { label }) : label}
-                  title={tab.path}
-                  onSelect={() => onActivate(tab.sessionId)}
-                >
-                  {active ? (
-                    <Check className="size-3.5 shrink-0" aria-hidden />
-                  ) : (
-                    <span className="size-3.5 shrink-0" aria-hidden />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{name}</span>
-                  {tab.dirty ? (
-                    <span className="shrink-0 text-amber-700 dark:text-amber-400" aria-hidden>
-                      {' *'}
-                    </span>
-                  ) : null}
-                  {tab.conflict ? (
-                    <AlertTriangle
-                      className="size-3.5 shrink-0 text-amber-700 dark:text-amber-400"
-                      aria-hidden
-                    />
-                  ) : null}
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <TabOverflowMenu tabs={tabs} activeSessionId={activeSessionId} onActivate={onActivate} />
       ) : null}
       <span aria-live="polite" className="sr-only">
         {liveMessage}

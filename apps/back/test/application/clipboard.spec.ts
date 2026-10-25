@@ -3,6 +3,7 @@ import { IPC_EVENTS } from '@rdlc-designer/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandService } from '../../src/application/services/CommandService.js';
 import { DocumentIndex } from '../../src/domain/document/index/DocumentIndex.js';
+import { positionedCells, tablixColumns } from '../../src/domain/document/commands/tablixParts.js';
 import type { RdlcNode } from '../../src/domain/document/tree/RdlcNode.js';
 import { cleanupTempDirs, makeService, writeFixture } from './test-utils.js';
 
@@ -241,5 +242,120 @@ describe('F1 · portapapeles (copy / cut / paste)', () => {
     const pasted = commands.paste(sessionId, { kind: 'body' }, 0);
     expect(pasted.isLeft()).toBe(true);
     if (pasted.isLeft()) expect(pasted.value.reason).toBe('clipboardEmpty');
+  });
+});
+
+/** Primer report item de la celda de rejilla `(row, col)` del Tablix. */
+function cellItem(tablix: RdlcNode, row: number, col: number): RdlcNode | undefined {
+  const rows = tablix.child('TablixBody')?.child('TablixRows')?.children('TablixRow') ?? [];
+  const entry = positionedCells(rows[row]!, tablixColumns(tablix).length).find(
+    (candidate) => candidate.col === col && !candidate.placeholder,
+  );
+  return entry?.cell
+    .child('CellContents')
+    ?.children()
+    .find((child) => !['ColSpan', 'RowSpan'].includes(child.tagName));
+}
+
+describe('portapapeles de celdas (copyCells / pasteCells)', () => {
+  const fixture = 'SalesInvoiceESP.rdlc';
+
+  it('copia dos celdas, las pega desde otra ancla y un solo undo lo deshace todo', async () => {
+    const { commands, sessionId, index } = await openFixture(fixture);
+    const tablix = (): RdlcNode => index().get('LinesTable')!;
+    const sourceNames = [cellItem(tablix(), 0, 0), cellItem(tablix(), 0, 1)].map((item) =>
+      item?.attribute('Name'),
+    );
+    const targetBefore = [cellItem(tablix(), 3, 2), cellItem(tablix(), 3, 3)].map((item) =>
+      item?.attribute('Name'),
+    );
+    expect(sourceNames.every(Boolean)).toBe(true);
+
+    const copied = commands.copyCells(sessionId, 'LinesTable', [
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+    ]);
+    expect(copied.isRight()).toBe(true);
+    if (copied.isRight() && copied.value.ok) {
+      expect(copied.value.cells).toEqual({ done: 2, total: 2 });
+    }
+
+    const pasted = commands.pasteCells(sessionId, 'LinesTable', 3, 2);
+    expect(pasted.isRight()).toBe(true);
+    if (pasted.isRight() && pasted.value.ok) {
+      expect(pasted.value.cells).toMatchObject({ done: 2, total: 2 });
+    }
+    const after = [cellItem(tablix(), 3, 2), cellItem(tablix(), 3, 3)].map((item) =>
+      item?.attribute('Name'),
+    );
+    expect(after).not.toEqual(targetBefore);
+    // Clones con nombre nuevo: ni los originales ni los sustituidos.
+    expect(after.some((name) => sourceNames.includes(name))).toBe(false);
+    // El original sigue en su sitio.
+    expect(cellItem(tablix(), 0, 0)?.attribute('Name')).toBe(sourceNames[0]);
+
+    expect(commands.undo(sessionId).isRight()).toBe(true);
+    expect(
+      [cellItem(tablix(), 3, 2), cellItem(tablix(), 3, 3)].map((i) => i?.attribute('Name')),
+    ).toEqual(targetBefore);
+  });
+
+  it('dos celdas que caen en una misma celda fusionada real cuentan una sola vez', async () => {
+    const { commands, sessionId } = await openFixture(fixture);
+    expect(
+      commands
+        .copyCells(sessionId, 'LinesTable', [
+          { row: 0, col: 0 },
+          { row: 0, col: 1 },
+        ])
+        .isRight(),
+    ).toBe(true);
+
+    // La fila 2 de LinesTable tiene una celda fusionada que cubre las columnas 1-5.
+    const pasted = commands.pasteCells(sessionId, 'LinesTable', 2, 2);
+    expect(pasted.isRight()).toBe(true);
+    if (pasted.isRight() && pasted.value.ok) {
+      expect(pasted.value.cells).toMatchObject({ done: 1, total: 2 });
+    }
+  });
+
+  it('pegar celdas con items sueltos en el portapapeles pega el primero en la celda', async () => {
+    const { commands, sessionId, index } = await openFixture(fixture);
+    expect(commands.copy(sessionId, ['Textbox23', 'Textbox120']).isRight()).toBe(true);
+
+    const pasted = commands.pasteCells(sessionId, 'LinesTable', 1, 0);
+    expect(pasted.isRight()).toBe(true);
+    if (pasted.isRight() && pasted.value.ok) {
+      expect(pasted.value.cells).toMatchObject({ done: 1, total: 2 });
+    }
+    const item = cellItem(index().get('LinesTable')!, 1, 0)!;
+    // Sin Top/Left/Width/Height: la celda lo dimensiona.
+    expect(item.child('Width')).toBeUndefined();
+  });
+
+  it('pegar fuera de una tabla con celdas en el portapapeles se rechaza con motivo propio', async () => {
+    const { commands, sessionId } = await openFixture(fixture);
+    expect(commands.copyCells(sessionId, 'LinesTable', [{ row: 0, col: 0 }]).isRight()).toBe(true);
+
+    const pasted = commands.paste(sessionId, { kind: 'body' }, 0);
+    expect(pasted.isLeft()).toBe(true);
+    if (pasted.isLeft()) expect(pasted.value.reason).toBe('clipboardHoldsCells');
+  });
+
+  it('pegar celdas sin portapapeles se rechaza como vacío', async () => {
+    const { commands, sessionId } = await openFixture(fixture);
+    const pasted = commands.pasteCells(sessionId, 'LinesTable', 0, 0);
+    expect(pasted.isLeft()).toBe(true);
+    if (pasted.isLeft()) expect(pasted.value.reason).toBe('clipboardEmpty');
+  });
+
+  it('copiar celdas inexistentes se rechaza y conserva el portapapeles anterior', async () => {
+    const { commands, sessionId } = await openFixture(fixture);
+    expect(commands.copy(sessionId, ['Textbox23']).isRight()).toBe(true);
+
+    const copied = commands.copyCells(sessionId, 'LinesTable', [{ row: 99, col: 0 }]);
+    expect(copied.isLeft()).toBe(true);
+    if (copied.isLeft()) expect(copied.value.reason).toBe('cellMissing');
+    expect(commands.paste(sessionId, { kind: 'body' }, 0).isRight()).toBe(true);
   });
 });

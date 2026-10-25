@@ -3,6 +3,7 @@ import type { ProjectionDto, TablixDto, TablixMemberDto } from '@rdlc-designer/c
 import {
   canMergeSelection,
   cellBoxAt,
+  cellSelectionOfContents,
   cellRange,
   containerGroupPath,
   findCellAt,
@@ -13,9 +14,11 @@ import {
   isCellSelected,
   isRectangleSelection,
   memberForLeafGroup,
+  pasteAnchorCell,
   rangeCols,
   rangeRows,
   selectionBounds,
+  selectionCopyCells,
   selectionCells,
   selectionCols,
   selectionRows,
@@ -340,5 +343,112 @@ describe('tablix · tablix propietario', () => {
     // El propio Tablix se devuelve a sí mismo (celdas seleccionadas).
     expect(findOwnerTablix(projection, 'T')?.id).toBe('T');
     expect(findOwnerTablix(projection, 'NoExiste')).toBeUndefined();
+  });
+});
+
+describe('tablix · copiar y pegar celdas', () => {
+  // Fila 0: A@0, B(c2)@1-2; fila 1: C@0, D@1, E@2.
+  it('una celda suelta se copia tal cual', () => {
+    expect(selectionCopyCells(TABLIX, { id: 'T', row: 1, col: 1 })).toEqual([{ row: 1, col: 1 }]);
+  });
+
+  it('un rango sale en orden de lectura aunque el ancla esté abajo a la derecha', () => {
+    expect(selectionCopyCells(TABLIX, { id: 'T', row: 1, col: 2, endRow: 1, endCol: 0 })).toEqual([
+      { row: 1, col: 0 },
+      { row: 1, col: 1 },
+      { row: 1, col: 2 },
+    ]);
+  });
+
+  it('una celda fusionada cuenta una vez, en la primera posición seleccionada que la cubre', () => {
+    expect(selectionCopyCells(TABLIX, { id: 'T', row: 0, col: 0, endRow: 0, endCol: 2 })).toEqual([
+      { row: 0, col: 0 },
+      { row: 0, col: 1 },
+    ]);
+    // Seleccionando solo la columna cubierta, la posición pedida es esa.
+    expect(selectionCopyCells(TABLIX, { id: 'T', row: 0, col: 2 })).toEqual([{ row: 0, col: 2 }]);
+  });
+
+  it('una selección no contigua (Ctrl+click) conserva las posiciones con sus huecos', () => {
+    const cells = selectionCopyCells(TABLIX, {
+      id: 'T',
+      row: 1,
+      col: 2,
+      extra: [
+        { row: 0, col: 0 },
+        { row: 1, col: 0 },
+      ],
+    });
+    expect(cells).toEqual([
+      { row: 0, col: 0 },
+      { row: 1, col: 0 },
+      { row: 1, col: 2 },
+    ]);
+  });
+
+  it('ignora las posiciones sin celda en el layout', () => {
+    expect(selectionCopyCells(TABLIX, { id: 'T', row: 5, col: 5 })).toEqual([]);
+  });
+
+  it('el ancla de pegado es la esquina superior izquierda de toda la selección', () => {
+    expect(pasteAnchorCell({ id: 'T', row: 1, col: 2 })).toEqual({ row: 1, col: 2 });
+    expect(pasteAnchorCell({ id: 'T', row: 1, col: 2, endRow: 0, endCol: 1 })).toEqual({
+      row: 0,
+      col: 1,
+    });
+    expect(pasteAnchorCell({ id: 'T', row: 1, col: 2, extra: [{ row: 0, col: 1 }] })).toEqual({
+      row: 0,
+      col: 1,
+    });
+  });
+});
+
+describe('tablix · celdas a partir de su contenido seleccionado', () => {
+  const projection: ProjectionDto = {
+    sessionId: 's',
+    version: 1,
+    reportName: 'r',
+    meta: { code: { text: '', functions: [] }, fields: [], parameters: [] },
+    page: {
+      width: { value: 21, unit: 'cm' },
+      height: { value: 29.7, unit: 'cm' },
+      margins: {
+        top: { value: 0, unit: 'cm' },
+        left: { value: 0, unit: 'cm' },
+        bottom: { value: 0, unit: 'cm' },
+        right: { value: 0, unit: 'cm' },
+      },
+      header: { width: { value: 21, unit: 'cm' }, height: { value: 0, unit: 'cm' }, items: [] },
+      body: {
+        width: { value: 21, unit: 'cm' },
+        height: { value: 29.7, unit: 'cm' },
+        items: [TABLIX, textbox('Free')],
+      },
+      footer: { width: { value: 21, unit: 'cm' }, height: { value: 0, unit: 'cm' }, items: [] },
+    },
+  };
+
+  it('un Textbox de una celda equivale a esa celda', () => {
+    expect(cellSelectionOfContents(projection, ['D'])).toEqual({ id: 'T', row: 1, col: 1 });
+  });
+
+  it('una celda fusionada se identifica por su ancla', () => {
+    expect(cellSelectionOfContents(projection, ['B'])).toEqual({ id: 'T', row: 0, col: 1 });
+  });
+
+  it('varios contenidos: la primera es el ancla y el resto, extras', () => {
+    expect(cellSelectionOfContents(projection, ['C', 'E'])).toEqual({
+      id: 'T',
+      row: 1,
+      col: 0,
+      extra: [{ row: 1, col: 2 }],
+    });
+  });
+
+  it('un item fuera de las celdas, o de Tablix distintos, no es una selección de celdas', () => {
+    expect(cellSelectionOfContents(projection, ['Free'])).toBeNull();
+    expect(cellSelectionOfContents(projection, ['A', 'Free'])).toBeNull();
+    expect(cellSelectionOfContents(projection, [])).toBeNull();
+    expect(cellSelectionOfContents(projection, ['NoExiste'])).toBeNull();
   });
 });

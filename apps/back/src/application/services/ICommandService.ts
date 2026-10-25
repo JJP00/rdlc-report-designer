@@ -16,6 +16,18 @@ export interface ICommandService {
   copy(sessionId: string, ids: string[]): Either<DomainError, CommandResult>;
   cut(sessionId: string, ids: string[]): Either<DomainError, CommandResult>;
   paste(sessionId: string, scope: ScopeRef, index: number): Either<DomainError, CommandResult>;
+  /** Celdas de Tablix: copiar su contenido y pegarlo desde una celda ancla. */
+  copyCells(
+    sessionId: string,
+    id: string,
+    cells: { row: number; col: number }[],
+  ): Either<DomainError, CommandResult>;
+  pasteCells(
+    sessionId: string,
+    id: string,
+    row: number,
+    col: number,
+  ): Either<DomainError, CommandResult>;
   /** Descarta el journal de una sesión (al cerrarla). */
   drop(sessionId: string): void;
 }

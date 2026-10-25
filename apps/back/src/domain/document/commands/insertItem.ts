@@ -7,10 +7,12 @@ import type { Length } from '../style/Length.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
 import type { CommandContext, CommandOutcome } from './CommandContext.js';
 import { createReportItem } from './itemFactory.js';
-import { resolveScope } from './scope.js';
+import { resolveScope, tablixCellBox } from './scope.js';
 import { hasGroupNamed } from './scopeNames.js';
 
 export type InsertItemCommand = Extract<RdlcCommand, { cmd: 'insertItem' }>;
+
+const ZERO: Length = { value: 0, unit: 'cm' };
 
 const KIND_PREFIX: Record<string, string> = {
   textbox: 'Textbox',
@@ -66,6 +68,15 @@ export function applyInsertItem(
   const occupied = occupiedCell(container, command.scope);
   if (occupied) return left(CommandRejectedError.of(occupied));
 
+  // Dentro de una celda del body, manda la celda (como en RB): el item nace en
+  // su origen y con su caja, aunque el llamante (front, MCP) pida otra cosa; si
+  // no, se sale de la celda.
+  const cellBox =
+    command.scope.kind === 'tablixCell' ? tablixCellBox(ctx, command.scope) : undefined;
+  const spec = cellBox
+    ? { ...command.item, top: ZERO, left: ZERO, width: cellBox.width, height: cellBox.height }
+    : command.item;
+
   // Un item soltado cerca del borde no debe salirse de su banda: se normaliza la
   // posición igual que hace el drag (`clampPosition`). En contenedores que no
   // son bandas (rectángulo/celda/cabecera/esquina) el item nace donde se pide.
@@ -76,20 +87,14 @@ export function applyInsertItem(
     command.scope.kind === 'tablixCorner'
       ? undefined
       : boundsForRegion(ctx, command.scope.kind);
-  const position = clampPosition(
-    command.item.top,
-    command.item.left,
-    command.item.width,
-    command.item.height,
-    regionBounds,
-  );
+  const position = clampPosition(spec.top, spec.left, spec.width, spec.height, regionBounds);
 
   // Los items anidados que la factory cree (los Textbox de las celdas de un
   // Tablix) reservan su nombre en este mismo comando para no repetirlo.
   const taken = new Set<string>();
   const node = createReportItem(
     container,
-    { ...command.item, name, ...position },
+    { ...spec, name, ...position },
     {
       nameFor: (kind) => {
         const nested = nextItemName(ctx, kind, taken);
@@ -109,8 +114,8 @@ export function applyInsertItem(
           kind: command.item.kind,
           top: position.top,
           left: position.left,
-          width: command.item.width,
-          height: command.item.height,
+          width: spec.width,
+          height: spec.height,
         },
       },
     ],

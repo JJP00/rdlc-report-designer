@@ -15,8 +15,6 @@ export interface GlobalKeysOptions {
   hasDocument: boolean;
   /** Hay item seleccionado (flechas, Supr, Ctrl+D/C/X). */
   hasSelection: boolean;
-  /** Posición de pegado al final del cuerpo (Ctrl+V). */
-  bodyIndex: number;
   onTogglePalette: () => void;
   onSave: () => void;
   /** Ctrl+Shift+S: guardar como. */
@@ -43,7 +41,8 @@ export interface GlobalKeysOptions {
   onDuplicate: () => void;
   onCopy: () => void;
   onCut: () => void;
-  onPasteAtBody: (index: number) => void;
+  /** Ctrl+V: quien cablea el callback decide el destino (rectángulo seleccionado o cuerpo). */
+  onPaste: () => void;
   /** Z-order con Ctrl+Shift+] / Ctrl+Shift+[. */
   onBringToFront: () => void;
   onSendToBack: () => void;
@@ -240,7 +239,7 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
     }
     if (accel && key === 'v') {
       event.preventDefault();
-      options.onPasteAtBody(options.bodyIndex);
+      options.onPaste();
     }
   });
 

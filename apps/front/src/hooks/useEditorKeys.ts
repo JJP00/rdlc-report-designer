@@ -57,7 +57,6 @@ export function useEditorKeys({
     hasDocument: core.doc !== null,
     // Una celda de Tablix también es selección (Esc sube a su tabla).
     hasSelection,
-    bodyIndex: core.doc?.projection.page.body.items.length ?? 0,
     onTogglePalette,
     onSave: () => void core.save(),
     onSaveAs: () => void core.saveAs(),
@@ -83,7 +82,23 @@ export function useEditorKeys({
     onDuplicate: items.duplicateSelected,
     onCopy: items.copySelected,
     onCut: items.cutSelected,
-    onPasteAtBody: (index) => items.pasteAt({ kind: 'body' }, index),
+    onPaste: () => {
+      // Con celdas seleccionadas se pega el bloque desde su esquina (Excel).
+      if (items.selectedCell) {
+        items.pasteCells();
+        return;
+      }
+      // Con un rectángulo seleccionado, se pega dentro de él (al final: el
+      // clon se pinta encima).
+      const target = items.selectedItem;
+      if (target?.kind === 'rectangle') {
+        items.pasteAt({ kind: 'rectangle', id: target.id }, target.children.length);
+        return;
+      }
+      // Pinchar una celda con texto selecciona su Textbox: cuenta como la celda.
+      if (items.pasteCells()) return;
+      items.pasteAt({ kind: 'body' }, core.doc?.projection.page.body.items.length ?? 0);
+    },
     onBringToFront: () => items.zOrder('front'),
     onSendToBack: () => items.zOrder('back'),
     onSelectParent: items.selectParent,

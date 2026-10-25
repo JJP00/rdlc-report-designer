@@ -8,7 +8,8 @@ import type { AppliedEntry } from './CommandContext.js';
 import { applyDeleteItem } from './deleteItem.js';
 import { applyDuplicateItem } from './duplicateItem.js';
 import { applyInsertItem } from './insertItem.js';
-import { applyInsertClone } from './insertClone.js';
+import { applyInsertClone, fitInsertedClones } from './insertClone.js';
+import { applyInsertCellClones } from './pasteCells.js';
 import { applyMoveItem } from './moveItem.js';
 import { applySetLocation } from './setLocation.js';
 import { applySetBounds } from './setBounds.js';
@@ -203,6 +204,8 @@ export function applyCommand(
     }
     case 'insertClone':
       return applyInsertClone(ctx, command);
+    case 'insertCellClones':
+      return applyInsertCellClones(ctx, command);
     case 'insertClones': {
       // Varios clones consecutivos (multiselección): un solo paso de undo.
       const inverse: DomainCommand[] = [];
@@ -221,6 +224,7 @@ export function applyCommand(
             source: command.sources[offset]!,
           },
           taken,
+          false,
         );
         if (result.isLeft()) {
           // Atómico: si un clon no entra, se revierten los anteriores.
@@ -231,9 +235,13 @@ export function applyCommand(
         if (result.value.applied) applied.push(...result.value.applied);
         if (result.value.createdId) createdIds.push(result.value.createdId);
       }
+      // En un rectángulo el lote se ajusta junto, y la geometría final sustituye
+      // a la que devolvió cada clon por separado.
+      const fitted = fitInsertedClones(ctx, command.scope, inverse);
+      const finalApplied = fitted ?? applied;
       return right({
         inverse,
-        ...(applied.length > 0 ? { applied } : {}),
+        ...(finalApplied.length > 0 ? { applied: finalApplied } : {}),
         ...(createdIds.length > 0 ? { createdIds } : {}),
         snapshotOut: true,
       });

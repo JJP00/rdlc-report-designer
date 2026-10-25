@@ -1,11 +1,8 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useT } from '@rdlc-designer/i18n/react';
-import {
-  ReportPropertiesForm,
-  reportPropertiesSignature,
-  type ReportPropertiesFormProps,
-} from './ReportPropertiesForm';
+import { ReportPropertiesForm, type ReportPropertiesFormProps } from './ReportPropertiesForm';
+import { reportPropertiesSignature } from './reportPropertiesSignature';
 
 export type ReportPropertiesPanelProps = Omit<ReportPropertiesFormProps, 'variant'>;
 

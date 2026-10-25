@@ -374,6 +374,81 @@ export function selectedCellContents(tablix: TablixDto, selection: SelectedCell)
   return contents;
 }
 
+/**
+ * Celdas a copiar de una selección, en **orden de lectura** (fila y luego
+ * columna) y sin repetir las fusionadas: una celda combinada solo cuenta en la
+ * primera posición seleccionada que la cubre. Las posiciones sin celda en el
+ * layout se ignoran. El back calcula con ellas la caja de la selección, así que
+ * los huecos de una selección no contigua se conservan al pegar.
+ */
+export function selectionCopyCells(
+  tablix: TablixDto,
+  selection: SelectedCell,
+): { row: number; col: number }[] {
+  const layout = tablixLayout(tablix);
+  const ordered = [...selectionCells(selection)].sort((a, b) => a.row - b.row || a.col - b.col);
+  const cells: { row: number; col: number }[] = [];
+  const seen = new Set<TablixCellBox>();
+  for (const { row, col } of ordered) {
+    const box = layout.cells.find(
+      (candidate) =>
+        candidate.row <= row &&
+        row < candidate.row + candidate.rowSpan &&
+        candidate.col <= col &&
+        col < candidate.col + candidate.colSpan,
+    );
+    if (!box || seen.has(box)) continue;
+    seen.add(box);
+    cells.push({ row, col });
+  }
+  return cells;
+}
+
+/**
+ * Selección de celdas equivalente a unos items seleccionados que son el
+ * **contenido directo** de celdas del mismo Tablix: en el lienzo, pinchar una
+ * celda con texto selecciona su Textbox, no la celda. `null` si alguno no es
+ * contenido de celda o si son de Tablix distintos.
+ */
+export function cellSelectionOfContents(
+  projection: ProjectionDto,
+  ids: readonly string[],
+): SelectedCell | null {
+  if (ids.length === 0) return null;
+  const tablixes = flattenItems(projection).filter(
+    (item): item is TablixDto => item.kind === 'tablix',
+  );
+
+  const refs: CellRef[] = [];
+  for (const id of ids) {
+    let found: CellRef | undefined;
+    for (const tablix of tablixes) {
+      const box = tablixLayout(tablix).cells.find((cell) => cell.content?.id === id);
+      if (box) {
+        found = { id: tablix.id, row: box.row, col: box.col };
+        break;
+      }
+    }
+    if (!found) return null;
+    refs.push(found);
+  }
+
+  const [first, ...rest] = refs as [CellRef, ...CellRef[]];
+  if (rest.some((ref) => ref.id !== first.id)) return null;
+  return {
+    id: first.id,
+    row: first.row,
+    col: first.col,
+    ...(rest.length > 0 ? { extra: rest.map(({ row, col }) => ({ row, col })) } : {}),
+  };
+}
+
+/** Celda desde la que se pega: la esquina superior izquierda de la selección. */
+export function pasteAnchorCell(selection: SelectedCell): { row: number; col: number } {
+  const bounds = selectionBounds(selection);
+  return { row: bounds.row0, col: bounds.col0 };
+}
+
 export interface TablixTreeEntry {
   /**
    * `group` = miembro dinámico (con `expression`) o contenedor con hijos;

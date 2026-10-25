@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 /** Modo de color del editor: claro u oscuro (blanco y negro invertido). */
 export type Theme = 'light' | 'dark';
@@ -45,17 +45,20 @@ export function useTheme(): { theme: Theme; toggleTheme: () => void } {
     return initial;
   });
 
+  // Tema vigente en un ref: el efecto de cambiar (clase en `<html>` y
+  // `localStorage`) va fuera del actualizador de estado, que React puede repetir.
+  const themeRef = useRef(theme);
+
   const toggleTheme = useCallback((): void => {
-    setTheme((current) => {
-      const next: Theme = current === 'dark' ? 'light' : 'dark';
-      applyTheme(next);
-      try {
-        localStorage.setItem(STORAGE_KEY, next);
-      } catch {
-        // Sin persistencia (almacenamiento bloqueado): el tema dura la sesión.
-      }
-      return next;
-    });
+    const next: Theme = themeRef.current === 'dark' ? 'light' : 'dark';
+    themeRef.current = next;
+    applyTheme(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      // Sin persistencia (almacenamiento bloqueado): el tema dura la sesión.
+    }
+    setTheme(next);
   }, []);
 
   return { theme, toggleTheme };

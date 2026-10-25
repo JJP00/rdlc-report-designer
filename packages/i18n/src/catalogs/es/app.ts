@@ -64,6 +64,12 @@ export const app = {
     cutMany: 'Cortados {count} elementos',
     pasted: 'Pegado: {name}',
     pastedMany: 'Pegados {count} elementos',
+    copiedCells: '{count, plural, one {Copiada # celda} other {Copiadas # celdas}}',
+    cutCellsCopied:
+      '{count, plural, one {Cortar no está disponible para celdas: se ha copiado # celda} other {Cortar no está disponible para celdas: se han copiado # celdas}}',
+    pastedCells: '{count, plural, one {Pegada # celda} other {Pegadas # celdas}}',
+    pastedCellsPartial: '{done} de {total} celdas pegadas: el resto queda fuera de la tabla',
+    pastedFirstItem: 'Pegado 1 de {total} elementos: una celda admite un solo elemento',
     stats: '{count, plural, one {# elemento} other {# elementos}} · {kinds}',
   },
   file: {

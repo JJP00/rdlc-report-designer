@@ -98,6 +98,22 @@ export interface RdlcApi {
   /** Pega clones con nombres nuevos en `scope[index]`; devuelve `ids` nuevos. */
   paste(sessionId: string, scope: ScopeRef, index: number): Promise<CommandResult>;
 
+  /**
+   * Copia el **contenido** de celdas del Tablix `id` (fila/columna de rejilla,
+   * en orden de lectura) con su posición relativa; `cells.done` = celdas con
+   * contenido copiadas. Cortar celdas no existe: copiar y pegar nada más.
+   */
+  copyCells(
+    sessionId: string,
+    id: string,
+    cells: { row: number; col: number }[],
+  ): Promise<CommandResult>;
+  /**
+   * Pega el portapapeles desde la celda ancla (Excel): lo que no cabe se
+   * descarta sin crecer la tabla (`cells.done` de `cells.total`). Un solo undo.
+   */
+  pasteCells(sessionId: string, id: string, row: number, col: number): Promise<CommandResult>;
+
   /** Ruta real de un fichero soltado sobre la ventana (drag&drop de `.rdlc`). */
   pathForFile(file: File): string;
 

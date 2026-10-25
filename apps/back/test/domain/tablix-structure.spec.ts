@@ -914,3 +914,454 @@ describe('F2 · celdas fusionadas verticales', () => {
     expect(adapter.serialize(doc)).toBe(before);
   });
 });
+
+/* ------------------------ formato heredado de la vecina ------------------------ */
+
+interface CellStyles {
+  /** Contenido del `Style` del run / párrafo / textbox. */
+  run?: string;
+  para?: string;
+  box?: string;
+  /** `ColSpan`/`RowSpan` de la celda (XML ya escrito). */
+  span?: string;
+  /** Nodos extra del textbox que NO deben heredarse (visibilidad, acciones…). */
+  extra?: string;
+}
+
+function styledCell(name: string, styles: CellStyles = {}): string {
+  const { run, para, box, span = '', extra = '' } = styles;
+  return `<TablixCell><CellContents>${span}<Textbox Name="${name}"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>${name} texto</Value>${run ? `<Style>${run}</Style>` : ''}</TextRun></TextRuns>${para ? `<Style>${para}</Style>` : ''}</Paragraph></Paragraphs>${extra}${box ? `<Style>${box}</Style>` : ''}</Textbox></CellContents></TablixCell>`;
+}
+
+/** Tablix `T` de 2 columnas con las filas dadas (XML de `TablixRow`). */
+function tablixXml(tablixRows: string[]): string {
+  const members = tablixRows.map(() => '<TablixMember />').join('');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="T">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn><Width>2cm</Width></TablixColumn>
+                <TablixColumn><Width>2cm</Width></TablixColumn>
+              </TablixColumns>
+              <TablixRows>${tablixRows.join('')}</TablixRows>
+            </TablixBody>
+            <TablixRowHierarchy><TablixMembers>${members}</TablixMembers></TablixRowHierarchy>
+            <TablixColumnHierarchy><TablixMembers><TablixMember /><TablixMember /></TablixMembers></TablixColumnHierarchy>
+          </Tablix>
+        </ReportItems>
+        <Height>5cm</Height>
+      </Body>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
+}
+
+function row(...cells: string[]): string {
+  return `<TablixRow><Height>0.6cm</Height><TablixCells>${cells.join('')}</TablixCells></TablixRow>`;
+}
+
+/** Cabecera / cuerpo / pie con un formato distinto por fila y por columna. */
+const FORMAT_XML = tablixXml([
+  row(
+    styledCell('H0', {
+      run: '<FontWeight>Bold</FontWeight>',
+      para: '<TextAlign>Center</TextAlign>',
+      box: '<BackgroundColor>LightGrey</BackgroundColor>',
+      extra: '<Visibility><Hidden>true</Hidden></Visibility>',
+    }),
+    styledCell('H1', { run: '<FontStyle>Italic</FontStyle>' }),
+  ),
+  row(
+    styledCell('B0', { run: '<Color>Red</Color>' }),
+    styledCell('B1', { run: '<Color>Blue</Color>' }),
+  ),
+  row(
+    styledCell('F0', { run: '<FontSize>14pt</FontSize>' }),
+    styledCell('F1', { run: '<FontSize>16pt</FontSize>' }),
+  ),
+]);
+
+function textOfCell(cell: RdlcNode | undefined): string | undefined {
+  return cellTextbox(cell)
+    ?.child('Paragraphs')
+    ?.child('Paragraph')
+    ?.child('TextRuns')
+    ?.child('TextRun')
+    ?.child('Value')
+    ?.text();
+}
+
+function runStyle(cell: RdlcNode | undefined, tag: string): string | undefined {
+  return cellTextbox(cell)
+    ?.child('Paragraphs')
+    ?.child('Paragraph')
+    ?.child('TextRuns')
+    ?.child('TextRun')
+    ?.child('Style')
+    ?.child(tag)
+    ?.text();
+}
+
+function paragraphStyle(cell: RdlcNode | undefined, tag: string): string | undefined {
+  return cellTextbox(cell)
+    ?.child('Paragraphs')
+    ?.child('Paragraph')
+    ?.child('Style')
+    ?.child(tag)
+    ?.text();
+}
+
+function boxStyle(cell: RdlcNode | undefined, tag: string): string | undefined {
+  return cellTextbox(cell)?.child('Style')?.child(tag)?.text();
+}
+
+function cellAt(tablix: RdlcNode | undefined, r: number, c: number): RdlcNode | undefined {
+  return rowCells(rows(tablix)[r])[c];
+}
+
+describe('F2 · las filas/columnas nuevas heredan el formato de la vecina', () => {
+  it('fila encima: copia la fila que baja (celda a celda), con texto vacío', () => {
+    const { doc, index } = openXml(FORMAT_XML);
+    const applied = applyCommand({ root: doc.root, index }, { cmd: 'addRow', id: 'T', row: 1 });
+    expect(applied.isRight()).toBe(true);
+
+    const tablix = index.get('T');
+    expect(rows(tablix)).toHaveLength(4);
+    // La fila 1 nueva copia la antigua fila 1 (ahora en la 2): rojo / azul.
+    expect(runStyle(cellAt(tablix, 1, 0), 'Color')).toBe('Red');
+    expect(runStyle(cellAt(tablix, 1, 1), 'Color')).toBe('Blue');
+    expect(textOfCell(cellAt(tablix, 1, 0))).toBe('');
+    expect(textOfCell(cellAt(tablix, 1, 1))).toBe('');
+    // Es una celda nueva: nombre propio, no el de la original.
+    expect(cellTextbox(cellAt(tablix, 1, 0))?.attribute('Name')).toMatch(/^Textbox\d+$/);
+  });
+
+  it('fila debajo: copia la fila de arriba; sin `where` rige el índice (la que baja)', () => {
+    const below = openXml(FORMAT_XML);
+    // "Debajo de la fila 1" = índice 2: copia la fila 1 (arriba), no la 2.
+    const applied = applyCommand(
+      { root: below.doc.root, index: below.index },
+      { cmd: 'addRow', id: 'T', row: 2, where: 'below' },
+    );
+    expect(applied.isRight()).toBe(true);
+    expect(runStyle(cellAt(below.index.get('T'), 2, 0), 'Color')).toBe('Red');
+    expect(runStyle(cellAt(below.index.get('T'), 2, 1), 'Color')).toBe('Blue');
+    expect(runStyle(cellAt(below.index.get('T'), 2, 0), 'FontSize')).toBeUndefined();
+
+    const above = openXml(FORMAT_XML);
+    applyCommand({ root: above.doc.root, index: above.index }, { cmd: 'addRow', id: 'T', row: 2 });
+    expect(runStyle(cellAt(above.index.get('T'), 2, 0), 'FontSize')).toBe('14pt');
+    expect(runStyle(cellAt(above.index.get('T'), 2, 1), 'FontSize')).toBe('16pt');
+  });
+
+  it('copia los estilos de textbox, párrafo y run, y solo eso (sin visibilidad ni nombre)', () => {
+    const { doc, index } = openXml(FORMAT_XML);
+    applyCommand({ root: doc.root, index }, { cmd: 'addRow', id: 'T', row: 0 });
+
+    const cell = cellAt(index.get('T'), 0, 0);
+    expect(runStyle(cell, 'FontWeight')).toBe('Bold');
+    expect(paragraphStyle(cell, 'TextAlign')).toBe('Center');
+    expect(boxStyle(cell, 'BackgroundColor')).toBe('LightGrey');
+    // Nada comportamental: ni la visibilidad ni el nombre de la original.
+    expect(cellTextbox(cell)?.child('Visibility')).toBeUndefined();
+    expect(cellTextbox(cell)?.attribute('Name')).not.toBe('H0');
+    // Orden canónico: el `Style` del textbox cierra tras los párrafos.
+    expect(
+      cellTextbox(cell)
+        ?.children()
+        .map((child) => child.tagName),
+    ).toEqual(['CanGrow', 'Paragraphs', 'Style']);
+    // La original no se toca.
+    expect(boxStyle(cellAt(index.get('T'), 1, 0), 'BackgroundColor')).toBe('LightGrey');
+  });
+
+  it('en el borde de la tabla usa la otra vecina', () => {
+    // Al final (índice = nº de filas): no hay "la que baja", copia la última.
+    const end = openXml(FORMAT_XML);
+    applyCommand({ root: end.doc.root, index: end.index }, { cmd: 'addRow', id: 'T', row: 3 });
+    expect(runStyle(cellAt(end.index.get('T'), 3, 0), 'FontSize')).toBe('14pt');
+
+    // Debajo de nada (índice 0 con `below`): no hay fila previa, copia la primera.
+    const start = openXml(FORMAT_XML);
+    applyCommand(
+      { root: start.doc.root, index: start.index },
+      { cmd: 'addRow', id: 'T', row: 0, where: 'below' },
+    );
+    expect(runStyle(cellAt(start.index.get('T'), 0, 0), 'FontWeight')).toBe('Bold');
+  });
+
+  it('columna a la izquierda: copia la columna que se corre; a la derecha, la anterior', () => {
+    const left = openXml(FORMAT_XML);
+    const applied = applyCommand(
+      { root: left.doc.root, index: left.index },
+      { cmd: 'addColumn', id: 'T', column: 1 },
+    );
+    expect(applied.isRight()).toBe(true);
+    // Copia la columna 1 original (azul / cursiva / 16pt), celda a celda.
+    expect(runStyle(cellAt(left.index.get('T'), 0, 1), 'FontStyle')).toBe('Italic');
+    expect(runStyle(cellAt(left.index.get('T'), 1, 1), 'Color')).toBe('Blue');
+    expect(runStyle(cellAt(left.index.get('T'), 2, 1), 'FontSize')).toBe('16pt');
+    expect(textOfCell(cellAt(left.index.get('T'), 1, 1))).toBe('');
+
+    const right = openXml(FORMAT_XML);
+    applyCommand(
+      { root: right.doc.root, index: right.index },
+      { cmd: 'addColumn', id: 'T', column: 1, where: 'right' },
+    );
+    // "A la derecha de la columna 0": copia la 0 (negrita / rojo / 14pt).
+    expect(runStyle(cellAt(right.index.get('T'), 0, 1), 'FontWeight')).toBe('Bold');
+    expect(paragraphStyle(cellAt(right.index.get('T'), 0, 1), 'TextAlign')).toBe('Center');
+    expect(runStyle(cellAt(right.index.get('T'), 1, 1), 'Color')).toBe('Red');
+    expect(runStyle(cellAt(right.index.get('T'), 2, 1), 'FontSize')).toBe('14pt');
+  });
+
+  it('columna en el borde usa la otra vecina', () => {
+    const end = openXml(FORMAT_XML);
+    applyCommand(
+      { root: end.doc.root, index: end.index },
+      { cmd: 'addColumn', id: 'T', column: 2 },
+    );
+    expect(runStyle(cellAt(end.index.get('T'), 1, 2), 'Color')).toBe('Blue');
+
+    const start = openXml(FORMAT_XML);
+    applyCommand(
+      { root: start.doc.root, index: start.index },
+      { cmd: 'addColumn', id: 'T', column: 0, where: 'right' },
+    );
+    expect(runStyle(cellAt(start.index.get('T'), 1, 0), 'Color')).toBe('Red');
+  });
+
+  it('una referencia fusionada (ColSpan) presta el formato de su ancla en cada columna que cubre', () => {
+    const MERGED_XML = tablixXml([
+      row(
+        styledCell('M', {
+          span: '<ColSpan>2</ColSpan>',
+          run: '<FontWeight>Bold</FontWeight>',
+          box: '<BackgroundColor>Gold</BackgroundColor>',
+        }),
+        '<TablixCell />',
+      ),
+      row(styledCell('C', { run: '<Color>Red</Color>' }), styledCell('D')),
+    ]);
+
+    // Fila debajo de la fusionada: las dos columnas heredan el estilo del ancla.
+    const addedRow = openXml(MERGED_XML);
+    const rowApplied = applyCommand(
+      { root: addedRow.doc.root, index: addedRow.index },
+      { cmd: 'addRow', id: 'T', row: 1, where: 'below' },
+    );
+    expect(rowApplied.isRight()).toBe(true);
+    expect(runStyle(cellAt(addedRow.index.get('T'), 1, 0), 'FontWeight')).toBe('Bold');
+    expect(runStyle(cellAt(addedRow.index.get('T'), 1, 1), 'FontWeight')).toBe('Bold');
+    expect(boxStyle(cellAt(addedRow.index.get('T'), 1, 1), 'BackgroundColor')).toBe('Gold');
+
+    // Columna nueva al borde derecho: la fila fusionada recibe el estilo del ancla.
+    const addedColumn = openXml(MERGED_XML);
+    const columnApplied = applyCommand(
+      { root: addedColumn.doc.root, index: addedColumn.index },
+      { cmd: 'addColumn', id: 'T', column: 2 },
+    );
+    expect(columnApplied.isRight()).toBe(true);
+    expect(runStyle(cellAt(addedColumn.index.get('T'), 0, 2), 'FontWeight')).toBe('Bold');
+    expect(runStyle(cellAt(addedColumn.index.get('T'), 1, 2), 'Color')).toBeUndefined();
+  });
+
+  it('una referencia cubierta por un RowSpan de arriba toma el estilo de su ancla', () => {
+    const ROWSPAN_FORMAT_XML = tablixXml([
+      row(
+        styledCell('P', { span: '<RowSpan>2</RowSpan>', run: '<FontWeight>Bold</FontWeight>' }),
+        styledCell('Q', { run: '<Color>Red</Color>' }),
+      ),
+      row('<TablixCell />', styledCell('R', { run: '<Color>Green</Color>' })),
+    ]);
+    const { doc, index } = openXml(ROWSPAN_FORMAT_XML);
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRow', id: 'T', row: 2, where: 'below' },
+    );
+    expect(applied.isRight()).toBe(true);
+    expect(runStyle(cellAt(index.get('T'), 2, 0), 'FontWeight')).toBe('Bold');
+    expect(runStyle(cellAt(index.get('T'), 2, 1), 'Color')).toBe('Green');
+  });
+
+  it('sin estilo en la referencia, o sin Textbox, la celda nueva queda con el textbox vacío por defecto', () => {
+    const plain = openXml(ROWSPAN_XML);
+    const applied = applyCommand(
+      { root: plain.doc.root, index: plain.index },
+      {
+        cmd: 'addRow',
+        id: 'T',
+        row: 0,
+      },
+    );
+    expect(applied.isRight()).toBe(true);
+    const created = cellTextbox(cellAt(plain.index.get('T'), 0, 1));
+    expect(created?.child('Style')).toBeUndefined();
+    expect(created?.child('Paragraphs')?.child('Paragraph')?.child('Style')).toBeUndefined();
+
+    // Referencia con contenido que no es un Textbox (una Line): nada que copiar.
+    const NOT_TEXTBOX_XML = tablixXml([
+      row(
+        '<TablixCell><CellContents><Line Name="L"><Height>0cm</Height></Line></CellContents></TablixCell>',
+        '<TablixCell />',
+      ),
+    ]);
+    const other = openXml(NOT_TEXTBOX_XML);
+    const added = applyCommand(
+      { root: other.doc.root, index: other.index },
+      { cmd: 'addRow', id: 'T', row: 1, where: 'below' },
+    );
+    expect(added.isRight()).toBe(true);
+    expect(cellTextbox(cellAt(other.index.get('T'), 1, 0))?.child('Style')).toBeUndefined();
+    expect(textOfCell(cellAt(other.index.get('T'), 1, 0))).toBe('');
+  });
+
+  it('separar una fusión: las celdas liberadas heredan el formato de la fusionada', () => {
+    const MERGED_XML = tablixXml([
+      row(
+        styledCell('M', { span: '<ColSpan>2</ColSpan>', run: '<FontWeight>Bold</FontWeight>' }),
+        '<TablixCell />',
+      ),
+    ]);
+    const { doc, index } = openXml(MERGED_XML);
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'unmergeCells', id: 'T', row: 0, col: 0 },
+    );
+    expect(applied.isRight()).toBe(true);
+    expect(runStyle(cellAt(index.get('T'), 0, 1), 'FontWeight')).toBe('Bold');
+    expect(textOfCell(cellAt(index.get('T'), 0, 1))).toBe('');
+  });
+
+  it('el undo de insertar fila/columna con formato es un solo paso y byte-exacto', () => {
+    for (const command of [
+      { cmd: 'addRow', id: 'T', row: 1, where: 'below' },
+      { cmd: 'addColumn', id: 'T', column: 1, where: 'right' },
+    ] as const) {
+      const { doc, index } = openXml(FORMAT_XML);
+      const before = adapter.serialize(doc);
+      const applied = applyCommand({ root: doc.root, index }, command);
+      expect(applied.isRight()).toBe(true);
+      if (!applied.isRight()) return;
+      expect(adapter.serialize(doc)).not.toBe(before);
+
+      const undone = undoAll({ root: doc.root, index }, applied.value);
+      expect(undone.isRight()).toBe(true);
+      expect(adapter.serialize(doc)).toBe(before);
+    }
+  });
+
+  it('en un informe real el resultado hereda estilos y valida contra el XSD', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const tablix = index.get('LinesTable');
+    const source = cellTextbox(rowCells(rows(tablix)[1])[0]);
+
+    const applied = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addRow', id: 'LinesTable', row: 1 },
+    );
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const created = cellTextbox(rowCells(rows(index.get('LinesTable'))[1])[0]);
+    expect(Boolean(created?.child('Style'))).toBe(Boolean(source?.child('Style')));
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    const undone = undoAll({ root: doc.root, index }, applied.value);
+    expect(undone.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+});
+
+/* ----------------- alto/ancho heredado de la misma vecina ----------------- */
+
+/** Tablix `T` con las alturas de fila y anchuras de columna dadas (una celda por hueco). */
+function sizedXml(heights: string[], widths: string[]): string {
+  const cells = widths.map((_, c) => styledCell(`C${c}`)).join('');
+  const sizedRows = heights
+    .map((h) => `<TablixRow><Height>${h}</Height><TablixCells>${cells}</TablixCells></TablixRow>`)
+    .join('');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition">
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Tablix Name="T">
+            <TablixBody>
+              <TablixColumns>${widths.map((w) => `<TablixColumn><Width>${w}</Width></TablixColumn>`).join('')}</TablixColumns>
+              <TablixRows>${sizedRows}</TablixRows>
+            </TablixBody>
+            <TablixRowHierarchy><TablixMembers>${heights.map(() => '<TablixMember />').join('')}</TablixMembers></TablixRowHierarchy>
+            <TablixColumnHierarchy><TablixMembers>${widths.map(() => '<TablixMember />').join('')}</TablixMembers></TablixColumnHierarchy>
+          </Tablix>
+        </ReportItems>
+        <Height>5cm</Height>
+      </Body>
+    </ReportSection>
+  </ReportSections>
+</Report>`;
+}
+
+function heightsOf(tablix: RdlcNode | undefined): (string | undefined)[] {
+  return rows(tablix).map((r) => r.child('Height')?.text());
+}
+
+function widthsOf(tablix: RdlcNode | undefined): (string | undefined)[] {
+  return columns(tablix).map((c) => c.child('Width')?.text());
+}
+
+describe('F2 · la fila/columna nueva hereda también el alto/ancho de la vecina', () => {
+  const XML_SIZES = sizedXml(['0.6cm', '1.2cm', '2.4cm'], ['2cm', '3cm', '4cm']);
+
+  it('fila encima de la 1: toma el alto de la fila que baja', () => {
+    const { doc, index } = openXml(XML_SIZES);
+    applyCommand({ root: doc.root, index }, { cmd: 'addRow', id: 'T', row: 1, where: 'above' });
+    expect(heightsOf(index.get('T'))).toEqual(['0.6cm', '1.2cm', '1.2cm', '2.4cm']);
+  });
+
+  it('fila debajo de la 1: toma el alto de la fila de arriba (no el de la que baja)', () => {
+    const { doc, index } = openXml(XML_SIZES);
+    applyCommand({ root: doc.root, index }, { cmd: 'addRow', id: 'T', row: 2, where: 'below' });
+    expect(heightsOf(index.get('T'))).toEqual(['0.6cm', '1.2cm', '1.2cm', '2.4cm']);
+  });
+
+  it('fila al final de la tabla: toma el alto de la última', () => {
+    const { doc, index } = openXml(XML_SIZES);
+    applyCommand({ root: doc.root, index }, { cmd: 'addRow', id: 'T', row: 3, where: 'below' });
+    expect(heightsOf(index.get('T'))).toEqual(['0.6cm', '1.2cm', '2.4cm', '2.4cm']);
+  });
+
+  it('columna a la izquierda de la 1: toma el ancho de la columna que se corre', () => {
+    const { doc, index } = openXml(XML_SIZES);
+    applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addColumn', id: 'T', column: 1, where: 'left' },
+    );
+    expect(widthsOf(index.get('T'))).toEqual(['2cm', '3cm', '3cm', '4cm']);
+  });
+
+  it('columna a la derecha de la 0: toma el ancho de la columna de la izquierda', () => {
+    const { doc, index } = openXml(XML_SIZES);
+    applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addColumn', id: 'T', column: 1, where: 'right' },
+    );
+    expect(widthsOf(index.get('T'))).toEqual(['2cm', '2cm', '3cm', '4cm']);
+  });
+
+  it('columna al final de la tabla: toma el ancho de la última', () => {
+    const { doc, index } = openXml(XML_SIZES);
+    applyCommand(
+      { root: doc.root, index },
+      { cmd: 'addColumn', id: 'T', column: 3, where: 'right' },
+    );
+    expect(widthsOf(index.get('T'))).toEqual(['2cm', '3cm', '4cm', '4cm']);
+  });
+});

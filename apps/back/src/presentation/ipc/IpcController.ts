@@ -3,10 +3,12 @@ import {
   IPC_EVENTS,
   clipboardSourceRequestSchema,
   closeRequestSchema,
+  copyCellsRequestSchema,
   createNewRequestSchema,
   droppedFileRequestSchema,
   executeCommandRequestSchema,
   openFileRequestSchema,
+  pasteCellsRequestSchema,
   pasteRequestSchema,
   pickSavePathRequestSchema,
   saveAsRequestSchema,
@@ -337,6 +339,24 @@ export class IpcController {
         pasteRequestSchema,
         payload,
         (req) => Promise.resolve(this.commands.paste(req.sessionId, req.scope, req.index)),
+        (value: CommandResult): CommandResult => value,
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.copyCells, (_event, payload) =>
+      this.handle(
+        copyCellsRequestSchema,
+        payload,
+        (req) => Promise.resolve(this.commands.copyCells(req.sessionId, req.id, req.cells)),
+        (value: CommandResult): CommandResult => value,
+      ),
+    );
+
+    ipcMain.handle(IPC_CHANNELS.pasteCells, (_event, payload) =>
+      this.handle(
+        pasteCellsRequestSchema,
+        payload,
+        (req) => Promise.resolve(this.commands.pasteCells(req.sessionId, req.id, req.row, req.col)),
         (value: CommandResult): CommandResult => value,
       ),
     );

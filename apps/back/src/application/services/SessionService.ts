@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { IPC_EVENTS } from '@rdlc-designer/contracts';
 import type { ListedSession, ProjectionDto } from '@rdlc-designer/contracts';
 import { Injectable, Inject } from '@nestjs/common';
+import { copyCellContents } from '../../domain/document/commands/pasteCells.js';
 import { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
 import { BLANK_REPORT_XML } from '../../domain/document/templates/blankReport.js';
 import type { EventBusPort } from '../ports/out/EventBusPort.js';
@@ -36,6 +37,7 @@ import {
   ValidationFailedError,
 } from '../../shared/domainError.js';
 import type {
+  ClipboardContent,
   CloseSessionResult,
   EditTarget,
   ISessionService,
@@ -64,7 +66,7 @@ interface Session {
   /** true si el fichero desapareció del disco (borrado/movido externo, BUG-55). */
   missing: boolean;
   /** Subárboles desprendidos copiados/cortados (portapapeles de la sesión). */
-  clipboard?: RdlcNode[];
+  clipboard?: ClipboardContent;
   unwatch?: Unwatch;
 }
 
@@ -379,11 +381,37 @@ export class SessionService implements ISessionService {
       if (!node) return left(CommandRejectedError.of('itemMissing', { id }));
       nodes.push(node.clone());
     }
-    session.clipboard = nodes;
+    session.clipboard = { kind: 'items', nodes };
     return right(undefined);
   }
 
+  copyCellsToClipboard(
+    sessionId: string,
+    id: string,
+    cells: readonly { row: number; col: number }[],
+  ): Either<DomainError, number> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return left(UnknownSessionError.create(sessionId));
+
+    const copied = copyCellContents(
+      { root: session.document.root, index: session.index },
+      id,
+      cells,
+    );
+    if (copied.isLeft()) return left(copied.value);
+    // Todo vacío: no hay nada que copiar y el portapapeles anterior se conserva.
+    if (copied.value.length === 0) return left(CommandRejectedError.of('cellsNothingToCopy'));
+
+    session.clipboard = { kind: 'cells', entries: copied.value };
+    return right(copied.value.length);
+  }
+
   clipboardOf(sessionId: string): RdlcNode[] | undefined {
+    const clipboard = this.sessions.get(sessionId)?.clipboard;
+    return clipboard?.kind === 'items' ? clipboard.nodes : undefined;
+  }
+
+  clipboardContentOf(sessionId: string): ClipboardContent | undefined {
     return this.sessions.get(sessionId)?.clipboard;
   }
 
