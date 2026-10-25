@@ -422,9 +422,7 @@ function performAddRow(
   row.appendChild(
     row.createElement(
       'Height',
-      height
-        ? formatLength(height)
-        : referenceText(rows, reference, 'Height', DEFAULT_ROW_HEIGHT),
+      height ? formatLength(height) : referenceText(rows, reference, 'Height', DEFAULT_ROW_HEIGHT),
     ),
   );
   const cells = row.createElement('TablixCells');

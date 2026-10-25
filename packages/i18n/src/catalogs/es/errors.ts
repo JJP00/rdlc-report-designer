@@ -41,7 +41,8 @@ export const errors = {
   missingNewReportPath: 'Falta la ruta del informe nuevo',
   itemMissing: "No existe el elemento ''{id}''",
   clipboardEmpty: 'El portapapeles está vacío',
-  clipboardHoldsCells: 'El portapapeles contiene celdas de tabla: selecciona una celda para pegarlas',
+  clipboardHoldsCells:
+    'El portapapeles contiene celdas de tabla: selecciona una celda para pegarlas',
   cellsNothingToCopy: 'Las celdas seleccionadas están vacías: no hay nada que copiar',
   pasteCellsNothingFits: 'Las celdas copiadas no caben en la tabla desde esa celda',
   /* Comandos de documento: contenedores, nombres y opciones del item */
