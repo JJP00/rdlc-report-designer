@@ -67,7 +67,7 @@ try {
   const saved = await call('rdlc_save', { sessionId: created.sessionId }); // valida contra el XSD empaquetado
   await client.close();
 
-  const ok = tools === 14 && created.ok && applied.ok && saved.ok;
+  const ok = tools === 15 && created.ok && applied.ok && saved.ok;
   console.log(JSON.stringify({ tools, create: created.ok, apply: applied.ok, save: saved.ok }));
   if (!ok) throw new Error('smoke FAILED');
   console.log('smoke OK');
