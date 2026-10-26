@@ -8,7 +8,7 @@ import type {
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
 import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
-import { Stage, Layer, Rect } from 'react-konva';
+import { Stage, Layer, Group, Rect } from 'react-konva';
 import type { Translator } from '@rdlc-designer/i18n';
 import { useT } from '@rdlc-designer/i18n/react';
 import { ITEM_DRAG_TYPE, type DropInfo } from '@/lib/dragTypes';
@@ -353,43 +353,49 @@ export function CanvasPreview({
               }}
               onWheel={handleWheel}
             >
-              {/* Zonas de página **bajo** el papel: el contenido gana el clic. */}
-              <PageResizeZones
-                layout={layout}
-                zoom={zoom}
-                onResizeRegion={onResizeRegion}
-                onResizeSectionWidth={onResizeSectionWidth}
-                sectionMinCm={sectionMinCm}
-                bandMinCm={bandMinCm}
-                onPreview={(orientation, position, label) =>
-                  pageResizeRef.current?.showPreview(orientation, position, label)
-                }
-                onPreviewEnd={() => pageResizeRef.current?.hidePreview()}
-              />
+              {/* Dos capas (cada `Layer` es un canvas del tamaño de la ventana):
+                  contenido (zonas de página **bajo** el papel, para que el
+                  contenido gane el clic, y el papel) y superposiciones. Las
+                  superposiciones se redibujan sin tocar el contenido. */}
+              <Layer>
+                <PageResizeZones
+                  layout={layout}
+                  zoom={zoom}
+                  onResizeRegion={onResizeRegion}
+                  onResizeSectionWidth={onResizeSectionWidth}
+                  sectionMinCm={sectionMinCm}
+                  bandMinCm={bandMinCm}
+                  onPreview={(orientation, position, label) =>
+                    pageResizeRef.current?.showPreview(orientation, position, label)
+                  }
+                  onPreviewEnd={() => pageResizeRef.current?.hidePreview()}
+                />
 
-              <Paper
-                layout={layout}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                onMoveTo={handleMoveEnd}
-                onResizeColumn={onResizeColumn}
-                onResizeRow={onResizeRow}
-                selectedCell={selectedCell}
-                onSelectCell={onSelectCell}
-                draggable={onMoveTo !== undefined}
-                cull={cull}
-              />
+                <Paper
+                  layout={layout}
+                  selectedId={selectedId}
+                  onSelect={onSelect}
+                  onMoveTo={handleMoveEnd}
+                  onResizeColumn={onResizeColumn}
+                  onResizeRow={onResizeRow}
+                  selectedCell={selectedCell}
+                  onSelectCell={onSelectCell}
+                  draggable={onMoveTo !== undefined}
+                  cull={cull}
+                />
+              </Layer>
 
-              <SelectionFrame {...frameProps} />
-              <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
-              {/* Previsualización de página por encima del contenido. */}
-              <PageResizePreview ref={pageResizeRef} layout={layout} zoom={zoom} />
-              {/* Marco de selección (arrastrar en vacío). */}
-              <Layer listening={false}>
+              <Layer>
+                <SelectionFrame {...frameProps} />
+                <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
+                {/* Previsualización de página por encima del contenido. */}
+                <PageResizePreview ref={pageResizeRef} layout={layout} zoom={zoom} />
+                {/* Marco de selección (arrastrar en vacío). */}
                 <Rect
                   ref={marqueeRef}
                   name="marquee-rect"
                   visible={false}
+                  listening={false}
                   stroke="#2563eb"
                   fill="rgba(37,99,235,0.08)"
                   strokeWidth={1}
@@ -465,26 +471,26 @@ function ExtraSelectionFrames({
   revision: unknown;
 }): ReactNode {
   const rectsRef = useRef(new Map<string, Konva.Rect>());
-  const layerRef = useRef<Konva.Layer | null>(null);
+  const groupRef = useRef<Konva.Group | null>(null);
   const list = ids.length > 0 ? ids.split('|') : [];
 
   useEffect(() => {
     const stage = stageRef.current;
-    const layer = layerRef.current;
-    if (!stage || !layer) return;
+    const group = groupRef.current;
+    if (!stage || !group) return;
     const wanted = new Set(ids.length > 0 ? ids.split('|') : []);
     for (const [id, rect] of rectsRef.current) {
       const measured = wanted.has(id) ? measureSelection(stage, id) : null;
       if (measured) rect.setAttrs({ ...measured, visible: true });
       else rect.visible(false);
     }
-    layer.batchDraw();
+    group.getLayer()?.batchDraw();
     // `ids`/`revision` son las señales de cambios en la selección o el dibujo.
   }, [ids, revision, stageRef]);
 
   if (list.length === 0) return null;
   return (
-    <Layer ref={layerRef} listening={false}>
+    <Group ref={groupRef} listening={false}>
       {list.map((id) => (
         <Rect
           key={id}
@@ -499,7 +505,7 @@ function ExtraSelectionFrames({
           visible={false}
         />
       ))}
-    </Layer>
+    </Group>
   );
 }
 

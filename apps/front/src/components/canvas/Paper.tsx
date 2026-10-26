@@ -1,6 +1,6 @@
 import type { Length } from '@rdlc-designer/contracts';
 import type { ReactNode } from 'react';
-import { Group, Layer, Rect } from 'react-konva';
+import { Group, Rect } from 'react-konva';
 import type { DropInfo } from '@/lib/dragTypes';
 import { sortByZIndex } from '@/lib/projection';
 import type { SelectedCell } from '@/lib/tablix';
@@ -25,7 +25,10 @@ export interface PaperProps {
   cull?: VisibleRect | null;
 }
 
-/** Papel + área imprimible + bandas con sus items (los items se apilan por `ZIndex`). */
+/**
+ * Papel + área imprimible + bandas con sus items (los items se apilan por `ZIndex`).
+ * Es un grupo, no una capa: la capa de contenido la pone `CanvasPreview`.
+ */
 export function Paper({
   layout,
   selectedId,
@@ -39,7 +42,7 @@ export function Paper({
   cull,
 }: PaperProps): ReactNode {
   return (
-    <Layer>
+    <Group>
       {/* Papel (A4). */}
       <Rect
         x={0}
@@ -99,6 +102,6 @@ export function Paper({
             ))}
           </Group>
         ))}
-    </Layer>
+    </Group>
   );
 }
