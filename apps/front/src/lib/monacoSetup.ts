@@ -1,7 +1,31 @@
-import * as monaco from 'monaco-editor';
-import { type Translator } from '@rdlc-designer/i18n';
+// Monaco **a medida**. `import 'monaco-editor'` arrastra ~80 lenguajes, los
+// servicios de TS/CSS/HTML/JSON y todas las contribuciones del editor (≈ 80 MB de
+// RAM al abrir el primer editor). Aquí solo hace falta el núcleo (`editor.api`) +
+// las contribuciones de abajo; el lenguaje `rdlc-expr` es un Monarch propio.
 // monaco 0.56 mapea `monaco-editor/*` → `esm/vs/*.js` (no hay que poner `esm/vs`).
+import * as monaco from 'monaco-editor/editor/editor.api';
+import { type Translator } from '@rdlc-designer/i18n';
 import editorWorker from 'monaco-editor/editor/editor.worker.js?worker';
+// Iconos del desplegable de sugerencias. Por ruta relativa: el `exports` de monaco
+// solo mapea `*.js` y estos son CSS.
+import '../../node_modules/monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
+import '../../node_modules/monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon-modifiers.css';
+// Contribuciones (las que usa el editor de expresiones/código; ver editor.main.js).
+import 'monaco-editor/editor/browser/coreCommands.js';
+import 'monaco-editor/editor/common/standaloneStrings.js';
+import 'monaco-editor/editor/contrib/bracketMatching/browser/bracketMatching.js';
+import 'monaco-editor/editor/contrib/clipboard/browser/clipboard.js';
+import 'monaco-editor/editor/contrib/contextmenu/browser/contextmenu.js';
+import 'monaco-editor/editor/contrib/dnd/browser/dnd.js';
+import 'monaco-editor/features/find/register.js';
+import 'monaco-editor/editor/contrib/folding/browser/folding.js';
+import 'monaco-editor/editor/contrib/indentation/browser/indentation.js';
+import 'monaco-editor/editor/contrib/linesOperations/browser/linesOperations.js';
+import 'monaco-editor/editor/contrib/multicursor/browser/multicursor.js';
+import 'monaco-editor/editor/contrib/snippet/browser/snippetController2.js';
+import 'monaco-editor/editor/contrib/suggest/browser/suggestController.js';
+import 'monaco-editor/editor/contrib/wordHighlighter/browser/wordHighlighter.js';
+import 'monaco-editor/editor/contrib/wordOperations/browser/wordOperations.js';
 import { getCompletionMeta } from './completionMeta';
 import { completionSuggestions, expressionCompletions, VB_KEYWORDS } from './expressionCatalog';
 
