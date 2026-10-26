@@ -2082,9 +2082,10 @@ test('la alineación del párrafo se refleja en el lienzo', async () => {
   await page.getByRole('button', { name: 'Alinear izquierda (párrafo 1)' }).click();
   await page.getByRole('button', { name: 'Aplicar' }).click();
 
+  // Con poll: el lienzo se actualiza tras el comando (sin GPU tarda algo más).
+  await expect.poll(async () => (await firstRunX()) ?? Number.POSITIVE_INFINITY).toBeLessThan(30);
   const left = await firstRunX();
   expect(left).not.toBeNull();
-  expect(left!).toBeLessThan(30);
 
   // Centra el párrafo 1 desde el editor de texto: el lienzo lo refleja.
   await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
