@@ -93,22 +93,21 @@ Añadir `ResetPageNumber` es el momento de arreglarlo, porque tiene que ir dentr
 que depende el lint), después los saltos y la numeración de página (con la comprobación
 del `PageBreak`) y al final el lint de BC.
 
-## 🧪 Lint de BC (planificado, sin empezar)
+## 🧪 Lint de BC (hecho; solo expresiones)
 
-Reglas de solo lectura en el dominio del backend, expuestas por IPC (panel «Problemas»)
-y por MCP (`rdlc_lint`); avisan, nunca bloquean el guardado. Reglas acordadas:
+Reglas de solo lectura en el dominio del backend (`apps/back/src/domain/lint`), expuestas
+por IPC (panel «Problemas») y por MCP (`rdlc_lint`); avisan, nunca bloquean el guardado.
+**Solo miran las expresiones** (qué dicen), no cómo está diseñado el informe: sin reglas
+de fuentes, imágenes ni repetición de cabeceras.
 
-- **Paréntesis, corchetes, llaves y comillas sin cerrar** en una expresión (`(`, `[`,
-  `{`, `"`) o en el bloque `<Code>`. Error: BC falla al renderizar. Hay que saltar el
-  contenido de los textos (`""` es escape) y de los comentarios: en VB `'` **abre un
-  comentario**, no un texto, así que no se cuenta como par.
-- `Fields!` en el encabezado/pie (error si va suelto; aviso con `First(…)`: con varios
-  documentos sale siempre el primero).
-- `Fields!X` que no está en el dataset; `ReportItems!`/`Code.GetData` que no apuntan a nada.
-- Tablix con grupo de detalle y fila de cabecera sin `RepeatOnNewPage` + `KeepWithGroup`
-  (pista; depende de los comandos de repetición de cabecera).
-- Fuente fuera de la lista de BC; imagen fuera del patrón BC (`Source=Database` +
-  `MIMEType` + `FitProportional`).
+- `unbalancedBracket`: paréntesis, corchetes, llaves y comillas sin cerrar en una expresión
+  o en `<Code>` (los textos y los comentarios VB se saltan).
+- `unknownField`: `Fields!X` que no está en ningún dataset.
+- `reportItemMissing`: `ReportItems!X` que no apunta a ningún item.
+- `fieldInHeaderFooter` / `fieldInHeaderFooterFirst`: `Fields!` en cabecera/pie.
+  **Por revisar**: el corpus de BC (`SalesShipment`, `BTCWhseShipment`…) trae decenas de
+  `=Fields!…` sueltos en la cabecera, así que como error da falsos positivos.
+- Pendiente: `Code.GetData` que no apunte a nada (sin patrón comprobable todavía).
 
 ## 🗂️ Evolutivo de pestañas
 
