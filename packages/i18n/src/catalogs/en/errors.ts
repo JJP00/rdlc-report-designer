@@ -54,7 +54,7 @@ export const errors = {
   cornerCellOccupied: 'The corner cell already has content',
   commandNotImplemented: "Command not implemented: ''{cmd}''",
   noOptionToChange: 'No option to change',
-  itemOptionsUnsupported: "''{id}'' does not support CanGrow or KeepTogether",
+  itemOptionsUnsupported: "''{id}'' does not support this item option",
   moveIntoSelf: 'An item cannot be moved inside itself',
   notATablix: "''{id}'' is not a Tablix",
   notAnImage: "''{id}'' is not an image",
@@ -78,6 +78,7 @@ export const errors = {
   /* Tablix groups */
   groupExpressionsMultiple: 'The group has multiple expressions: edit them in Group Properties',
   groupExpressionEmpty: 'The group expression cannot be empty',
+  groupResetPageNumberNeedsBreak: 'Reset page number needs a page break on the group',
   groupNeedsExpression: 'The group needs at least one expression',
   groupNameEmpty: 'The group name cannot be empty',
   sortExpressionEmpty: 'The sort expression cannot be empty',

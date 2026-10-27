@@ -50,7 +50,11 @@ const TABLIX_ORDER = [
   'FixedRowHeaders',
   'TablixCorner',
   'KeepTogether',
+  'NoRowsMessage',
 ];
+
+/** Rectangle: `KeepTogether` tras los campos comunes (XSD RectangleType). */
+const RECTANGLE_ORDER = [...REPORT_ITEM_ORDER, 'KeepTogether'];
 
 const IMAGE_ORDER = [...REPORT_ITEM_ORDER, 'Source', 'Value', 'MIMEType', 'Sizing'];
 
@@ -122,6 +126,7 @@ const STYLE_ORDER = [
 
 const CONTAINER_ORDERS: Record<string, string[]> = {
   Textbox: TEXTBOX_ORDER,
+  Rectangle: RECTANGLE_ORDER,
   Tablix: TABLIX_ORDER,
   Image: IMAGE_ORDER,
   Page: PAGE_ORDER,

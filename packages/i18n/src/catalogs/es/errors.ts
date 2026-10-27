@@ -53,7 +53,7 @@ export const errors = {
   cornerCellOccupied: 'La celda de la esquina ya tiene contenido',
   commandNotImplemented: "Comando no implementado: ''{cmd}''",
   noOptionToChange: 'No hay ninguna opción que cambiar',
-  itemOptionsUnsupported: "''{id}'' no admite CanGrow ni KeepTogether",
+  itemOptionsUnsupported: "''{id}'' no admite esta opción del item",
   moveIntoSelf: 'No se puede mover un elemento dentro de sí mismo',
   notATablix: "El elemento ''{id}'' no es un Tablix",
   notAnImage: "''{id}'' no es una imagen",
@@ -78,6 +78,8 @@ export const errors = {
   groupExpressionsMultiple:
     'El grupo tiene varias expresiones: edítalas desde «Propiedades del grupo»',
   groupExpressionEmpty: 'La expresión del grupo no puede estar vacía',
+  groupResetPageNumberNeedsBreak:
+    'Reiniciar el número de página requiere un salto de página en el grupo',
   groupNeedsExpression: 'El grupo necesita al menos una expresión',
   groupNameEmpty: 'El nombre del grupo no puede estar vacío',
   sortExpressionEmpty: 'La expresión de ordenación no puede estar vacía',

@@ -156,11 +156,20 @@ const setMemberVisibility = z.object({
   hidden: z.union([z.boolean(), z.string()]).nullable(),
 });
 
+/**
+ * Opciones de item fuera de `Style`. `canGrow` solo Textbox; `keepTogether`
+ * Textbox/Tablix/Rectangle; `repeat*Headers` y `noRowsMessage` solo Tablix.
+ * `false` / `""` quitan la etiqueta (valor por defecto de RDL).
+ */
 const setItemOptions = z.object({
   cmd: z.literal('setItemOptions'),
   id: z.string().min(1),
   canGrow: z.boolean().optional(),
   keepTogether: z.boolean().optional(),
+  repeatColumnHeaders: z.boolean().optional(),
+  repeatRowHeaders: z.boolean().optional(),
+  /** Texto de `<NoRowsMessage>`; cadena vacía quita la etiqueta. */
+  noRowsMessage: z.string().optional(),
 });
 
 /**
@@ -574,9 +583,12 @@ const setGroupExpressions = z.object({
 });
 
 /**
- * Saltos de página del grupo: escribe un `PageBreak > BreakLocation` por cada
- * opción marcada (`Between`, `Start`, `End`). Los `PageBreak` con otros valores
- * (`None`, `StartAndEnd`) no se tocan.
+ * Saltos de página del grupo: deja **un único** `PageBreak` con un
+ * `BreakLocation` (RDL: `None`/`Start`/`End`/`StartAndEnd`/`Between`), a partir
+ * de las opciones marcadas: Start+End → `StartAndEnd`. `Between` combinado con
+ * `Start` o `End` no es representable y se rechaza. Sin ninguna opción quita
+ * los `PageBreak`. `resetPageNumber` añade `<ResetPageNumber>true</…>` al
+ * `PageBreak` (sin salto no tiene efecto y se rechaza); omitido = no se toca.
  */
 const setGroupPageBreaks = z.object({
   cmd: z.literal('setGroupPageBreaks'),
@@ -586,6 +598,19 @@ const setGroupPageBreaks = z.object({
   between: z.boolean(),
   start: z.boolean(),
   end: z.boolean(),
+  resetPageNumber: z.boolean().optional(),
+});
+
+/**
+ * Nombre de página del grupo (`PageName`); cadena vacía lo quita. Va tras
+ * `PageBreak` en el orden canónico de `Group`.
+ */
+const setGroupPageName = z.object({
+  cmd: z.literal('setGroupPageName'),
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  path: z.array(z.number().int().nonnegative()).min(1),
+  pageName: z.string(),
 });
 
 /**
@@ -622,6 +647,21 @@ const setMemberToggleItem = z.object({
   axis: z.enum(['row', 'column']),
   path: z.array(z.number().int().nonnegative()).min(1),
   item: z.string().nullable(),
+});
+
+/**
+ * Opciones de la fila/columna (`TablixMember`): `RepeatOnNewPage`,
+ * `KeepWithGroup` y `KeepTogether`. Solo se tocan los campos presentes; el
+ * valor por defecto (`false` / `None`) **quita** la etiqueta.
+ */
+const setMemberOptions = z.object({
+  cmd: z.literal('setMemberOptions'),
+  id: z.string().min(1),
+  axis: z.enum(['row', 'column']),
+  path: z.array(z.number().int().nonnegative()).min(1),
+  repeatOnNewPage: z.boolean().optional(),
+  keepWithGroup: z.enum(['None', 'Before', 'After']).optional(),
+  keepTogether: z.boolean().optional(),
 });
 
 /* --------------------------- lote (U3) ---------------------------------- */
@@ -682,9 +722,11 @@ export const commandSchema = z.discriminatedUnion('cmd', [
   addColumnToGroup,
   setGroupExpressions,
   setGroupPageBreaks,
+  setGroupPageName,
   setGroupSorting,
   setTablixFilters,
   setMemberToggleItem,
+  setMemberOptions,
   setZIndex,
   setName,
   setVisibility,

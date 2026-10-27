@@ -1,5 +1,4 @@
 import type { RdlcCommand } from '@rdlc-designer/contracts';
-import type { TablixBreakLocation } from '@rdlc-designer/contracts';
 import { left, right, type Either } from '../../../shared/either.js';
 import { CommandRejectedError, type DomainError } from '../../../shared/domainError.js';
 import type { RdlcNode } from '../tree/RdlcNode.js';
@@ -31,6 +30,10 @@ export type AddRowToGroupCommand = Extract<RdlcCommand, { cmd: 'addRowToGroup' }
 export type AddColumnToGroupCommand = Extract<RdlcCommand, { cmd: 'addColumnToGroup' }>;
 export type DeleteRowGroupCommand = Extract<RdlcCommand, { cmd: 'deleteRowGroup' }>;
 export type SetGroupPageBreaksCommand = Extract<RdlcCommand, { cmd: 'setGroupPageBreaks' }>;
+export type SetGroupPageNameCommand = Extract<RdlcCommand, { cmd: 'setGroupPageName' }>;
+
+/** Valores de `BreakLocation` que el comando puede escribir. */
+type BreakLocationValue = 'Start' | 'End' | 'Between' | 'StartAndEnd';
 export type SetGroupSortingCommand = Extract<RdlcCommand, { cmd: 'setGroupSorting' }>;
 
 interface GroupSort {
@@ -60,8 +63,9 @@ interface GroupSort {
  * - La ordenación (`SortExpressions`) del grupo espeja la expresión: al crear el
  *   grupo nace ordenado por ella y al editarla se sincroniza si espejaba la
  *   anterior (igual que RB). Ascendente se **omite** en el XML (canónico de BC).
- * - Los saltos de página se gestionan solo en `Start`/`End`/`Between`: otros
- *   valores (`None`, `StartAndEnd`) no se tocan.
+ * - Los saltos de página son **un** `PageBreak` por grupo con un `BreakLocation`
+ *   (`Start+End` → `StartAndEnd`; `Between` con `Start`/`End` se rechaza). El
+ *   `PageName` va tras el `PageBreak`. Ver `applySetGroupPageBreaks`.
  */
 
 /* ------------------------- expresiones del grupo ------------------------- */
@@ -447,9 +451,31 @@ function hoistGroup(member: RdlcNode, children: RdlcNode[]): CommandOutcome {
 /* --------------------------- opciones del grupo --------------------------- */
 
 /**
- * Saltos de página del grupo: un `PageBreak > BreakLocation` por opción marcada
- * (`Between`, `Start`, `End`), en ese orden. Los saltos con otros valores no se
- * tocan.
+ * Saltos de página del grupo. El XSD (`PageBreakType`) admite varios hijos,
+ * pero el modelo de RDL y Report Builder esperan **un único** `PageBreak` con
+ * **un** `BreakLocation` (`None`/`Start`/`End`/`StartAndEnd`/`Between`), así que
+ * el comando reescribe todo el estado de una vez:
+ *
+ * El diálogo de RB tiene «Entre cada instancia» y, solo con ella marcada,
+ * «También al inicio» y «También al final»; guarda así:
+ * - Las tres marcadas → `StartAndEnd` (verificado en RB).
+ * - `Between` solo → `Between` (verificado en RB).
+ * - `Between` + `Start` → `Start`, `Between` + `End` → `End` (deducido: sin
+ *   comprobar en RB; la proyección los vuelve a leer como esa combinación).
+ * - `Start` + `End` sin `Between` (ficheros viejos) → `StartAndEnd`.
+ * - Ninguna opción → se quitan los `PageBreak` (y con ellos su `ResetPageNumber`).
+ * - `resetPageNumber: true` añade `<ResetPageNumber>true</ResetPageNumber>` al
+ *   `PageBreak`; `false` lo quita; omitido no lo toca (la UI actual no lo envía,
+ *   así que no borra lo que ya tuviera el fichero).
+ * - `resetPageNumber: true` sin ningún salto se rechaza
+ *   (`groupResetPageNumberNeedsBreak`): un `PageBreak` solo con `None` no hace
+ *   nada y RB no lo produce.
+ *
+ * Ficheros legacy con varios `PageBreak` (salida anterior de este diseñador)
+ * se entienden al leerlos (la proyección expande `StartAndEnd` y descarta
+ * `None`) y se reescriben a la forma única en la siguiente edición: se conserva
+ * el primer `PageBreak` con un valor gestionado y los demás se quitan, y el
+ * undo los restaura en su posición.
  */
 export function applySetGroupPageBreaks(
   ctx: CommandContext,
@@ -459,37 +485,111 @@ export function applySetGroupPageBreaks(
   if (found.isLeft()) return left(found.value);
   const { group } = found.value;
 
-  const wanted: TablixBreakLocation[] = [];
-  if (command.between) wanted.push('Between');
-  if (command.start) wanted.push('Start');
-  if (command.end) wanted.push('End');
-
-  const inverse: DomainCommand[] = [];
-  for (const pageBreak of group.children('PageBreak')) {
-    const location = pageBreak.child('BreakLocation')?.text();
-    if (location === undefined || !isManagedBreak(location)) continue;
-    if (wanted.includes(location)) continue;
-    const position = detach(pageBreak);
-    inverse.push(restore(position, pageBreak));
+  const location = breakLocationOf(command);
+  if (location === undefined && command.resetPageNumber === true) {
+    return left(CommandRejectedError.of('groupResetPageNumberNeedsBreak'));
   }
 
-  for (const location of wanted) {
-    const exists = group
-      .children('PageBreak')
-      .some((pageBreak) => pageBreak.child('BreakLocation')?.text() === location);
-    if (exists) continue;
-    const pageBreak = group.createElement('PageBreak');
-    pageBreak.appendChild(pageBreak.createElement('BreakLocation', location));
-    insertAfterTags(group, pageBreak, [
+  const inverse: DomainCommand[] = [];
+  const pageBreaks = group.children('PageBreak');
+
+  if (location === undefined) {
+    for (const pageBreak of pageBreaks) {
+      inverse.push(restore(detach(pageBreak), pageBreak));
+    }
+    return right(inverse.length > 0 ? { inverse, snapshotOut: true } : { inverse });
+  }
+
+  // Omitido, el reset que ya tuviera el fichero (en cualquiera de los saltos
+  // que se van a fusionar) se conserva.
+  const resetPageNumber =
+    command.resetPageNumber ??
+    (pageBreaks.some((pageBreak) => pageBreak.child('ResetPageNumber')?.text() === 'true')
+      ? true
+      : undefined);
+
+  const keeper = pageBreaks.find(hasManagedLocation) ?? pageBreaks[0];
+  for (const pageBreak of pageBreaks) {
+    if (pageBreak.equals(keeper!)) continue;
+    inverse.push(restore(detach(pageBreak), pageBreak));
+  }
+
+  if (!keeper) {
+    const created = group.createElement('PageBreak');
+    created.appendChild(created.createElement('BreakLocation', location));
+    if (resetPageNumber === true) {
+      created.appendChild(created.createElement('ResetPageNumber', 'true'));
+    }
+    insertAfterTags(group, created, ['DocumentMapLabel', 'GroupExpressions', 'ReGroupExpressions']);
+    inverse.push({ cmd: 'removeNode', node: created });
+    return right({ inverse, snapshotOut: true });
+  }
+
+  const locations = keeper.children('BreakLocation');
+  const locationNode = locations[0];
+  if (!locationNode) {
+    const created = keeper.createElement('BreakLocation', location);
+    keeper.insertChildAt(created, 0);
+    inverse.push({ cmd: 'removeNode', node: created });
+  } else if (locationNode.text() !== location) {
+    inverse.push(setNodeTextChange({ node: locationNode, value: locationNode.text() ?? '' }));
+    locationNode.setText(location);
+  }
+  // Un `BreakLocation` repetido dentro del mismo `PageBreak` no es válido en RB.
+  for (const extra of locations.slice(1)) {
+    inverse.push(restore(detach(extra), extra));
+  }
+
+  const reset = keeper.child('ResetPageNumber');
+  if (resetPageNumber === true) {
+    if (!reset) {
+      const created = keeper.createElement('ResetPageNumber', 'true');
+      insertAfterTags(keeper, created, ['BreakLocation']);
+      inverse.push({ cmd: 'removeNode', node: created });
+    } else if (reset.text() !== 'true') {
+      inverse.push(setNodeTextChange({ node: reset, value: reset.text() ?? '' }));
+      reset.setText('true');
+    }
+  } else if (resetPageNumber === false && reset) {
+    inverse.push(restore(detach(reset), reset));
+  }
+
+  return right(inverse.length > 0 ? { inverse, snapshotOut: true } : { inverse });
+}
+
+/**
+ * Nombre de página del grupo (`PageName`, texto libre). Cadena vacía o solo
+ * blancos lo quita. Va tras `PageBreak` en el orden canónico de `Group`.
+ */
+export function applySetGroupPageName(
+  ctx: CommandContext,
+  command: SetGroupPageNameCommand,
+): Either<DomainError, CommandOutcome> {
+  const found = findGroup(ctx, command.id, command.axis, command.path);
+  if (found.isLeft()) return left(found.value);
+  const { group } = found.value;
+
+  const existing = group.child('PageName');
+  const inverse: DomainCommand[] = [];
+  if (command.pageName.trim() === '') {
+    if (existing) inverse.push(restore(detach(existing), existing));
+  } else if (existing) {
+    if (existing.text() !== command.pageName) {
+      inverse.push(setNodeTextChange({ node: existing, value: existing.text() ?? '' }));
+      existing.setText(command.pageName);
+    }
+  } else {
+    const created = group.createElement('PageName', command.pageName);
+    insertAfterTags(group, created, [
       'DocumentMapLabel',
       'GroupExpressions',
       'ReGroupExpressions',
       'PageBreak',
     ]);
-    inverse.push({ cmd: 'removeNode', node: pageBreak });
+    inverse.push({ cmd: 'removeNode', node: created });
   }
 
-  return right({ inverse, snapshotOut: true });
+  return right(inverse.length > 0 ? { inverse, snapshotOut: true } : { inverse });
 }
 
 /** Ordenación del miembro (`SortExpressions`) con dirección por entrada. */
@@ -718,8 +818,27 @@ function normalizedExpressions(values: string[]): string[] | null {
   return result;
 }
 
-function isManagedBreak(location: string): location is TablixBreakLocation {
-  return location === 'Start' || location === 'End' || location === 'Between';
+/**
+ * Valor de `BreakLocation` que escribe el comando (ver `applySetGroupPageBreaks`),
+ * o `undefined` si no hay ningún salto marcado.
+ */
+function breakLocationOf(command: SetGroupPageBreaksCommand): BreakLocationValue | undefined {
+  if (command.start && command.end) return 'StartAndEnd';
+  if (command.start) return 'Start';
+  if (command.end) return 'End';
+  if (command.between) return 'Between';
+  return undefined;
+}
+
+/** `PageBreak` que ya lleva un `BreakLocation` con valor de salto real. */
+function hasManagedLocation(pageBreak: RdlcNode): boolean {
+  const location = pageBreak.child('BreakLocation')?.text();
+  return (
+    location === 'Start' ||
+    location === 'End' ||
+    location === 'Between' ||
+    location === 'StartAndEnd'
+  );
 }
 
 /**
