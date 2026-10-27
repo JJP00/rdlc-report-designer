@@ -19,10 +19,13 @@ const BORDER_KINDS = new Set(['textbox', 'rectangle', 'image']);
 /** Kinds que admiten `PageBreak` en el XSD (y que el editor soporta). */
 const PAGE_BREAK_KINDS = new Set(['rectangle', 'tablix']);
 
-/** Opciones del item que no son estilo (`CanGrow`/`KeepTogether`). */
+/** Opciones del item que no son estilo (`CanGrow`/`KeepTogether`, cabeceras y `NoRowsMessage` del Tablix). */
 export interface ItemOptionsPatch {
   canGrow?: boolean;
   keepTogether?: boolean;
+  repeatColumnHeaders?: boolean;
+  repeatRowHeaders?: boolean;
+  noRowsMessage?: string;
 }
 
 interface PropertiesPanelProps {
@@ -142,24 +145,49 @@ export function PropertiesPanel({
         </>
       ) : null}
 
-      {item.kind === 'textbox' ? (
+      {item.kind === 'textbox' || item.kind === 'rectangle' || item.kind === 'tablix' ? (
         <>
           <Separator />
           <div className="text-xs font-medium text-muted-foreground">
             {t('panels.properties.options')}
           </div>
-          <OptionField
-            id="can-grow"
-            label={t('panels.properties.canGrow')}
-            checked={item.canGrow ?? false}
-            onChange={(canGrow) => onSetItemOptions({ canGrow })}
-          />
+          {item.kind === 'textbox' ? (
+            <OptionField
+              id="can-grow"
+              label={t('panels.properties.canGrow')}
+              checked={item.canGrow ?? false}
+              onChange={(canGrow) => onSetItemOptions({ canGrow })}
+            />
+          ) : null}
           <OptionField
             id="keep-together"
             label={t('panels.properties.keepTogether')}
             checked={item.keepTogether ?? false}
             onChange={(keepTogether) => onSetItemOptions({ keepTogether })}
           />
+          {item.kind === 'tablix' ? (
+            <>
+              <OptionField
+                id="repeat-column-headers"
+                label={t('panels.properties.repeatColumnHeaders')}
+                checked={item.repeatColumnHeaders ?? false}
+                onChange={(repeatColumnHeaders) => onSetItemOptions({ repeatColumnHeaders })}
+              />
+              <OptionField
+                id="repeat-row-headers"
+                label={t('panels.properties.repeatRowHeaders')}
+                checked={item.repeatRowHeaders ?? false}
+                onChange={(repeatRowHeaders) => onSetItemOptions({ repeatRowHeaders })}
+              />
+              <TextOptionField
+                key={`${item.id}-no-rows-message`}
+                id="no-rows-message"
+                label={t('panels.properties.noRowsMessage')}
+                value={item.noRowsMessage ?? ''}
+                onCommit={(noRowsMessage) => onSetItemOptions({ noRowsMessage })}
+              />
+            </>
+          ) : null}
         </>
       ) : null}
 
@@ -205,6 +233,47 @@ function OptionField({
       <Checkbox id={id} checked={checked} onCheckedChange={(state) => onChange(state === true)} />
       {label}
     </label>
+  );
+}
+
+/** Campo de texto de una opción del item: commit al confirmar (Enter o blur). */
+function TextOptionField({
+  id,
+  label,
+  value,
+  onCommit,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onCommit: (value: string) => void;
+}): ReactNode {
+  // Borrador mientras se teclea; el resto del tiempo manda la proyección.
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? value;
+
+  const commit = (): void => {
+    if (draft !== null && draft !== value) onCommit(draft);
+    setDraft(null);
+  };
+
+  return (
+    <div className="grid gap-1">
+      <Label htmlFor={id} className="text-[11px] text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        className="h-7 text-xs"
+        value={text}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit();
+          if (event.key === 'Escape') setDraft(null);
+        }}
+      />
+    </div>
   );
 }
 

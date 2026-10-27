@@ -245,10 +245,15 @@ function GeneralTab({
 
 function PageBreaksTab({ draft, setDraft }: TabProps): ReactNode {
   const t = useT();
+  // Como Report Builder: «inicio» y «final» cuelgan de «entre instancias» y se
+  // desmarcan con ella.
   const toggle = (key: keyof GroupPageBreakDraft) => (checked: boolean) =>
     setDraft((current) => ({
       ...current,
-      pageBreaks: { ...current.pageBreaks, [key]: checked },
+      pageBreaks:
+        key === 'between' && !checked
+          ? { between: false, start: false, end: false }
+          : { ...current.pageBreaks, [key]: checked },
     }));
 
   return (
@@ -267,12 +272,14 @@ function PageBreaksTab({ draft, setDraft }: TabProps): ReactNode {
           id="break-start"
           label={t('tablix.groupProps.breakStart')}
           checked={draft.pageBreaks.start}
+          disabled={!draft.pageBreaks.between}
           onChange={toggle('start')}
         />
         <CheckField
           id="break-end"
           label={t('tablix.groupProps.breakEnd')}
           checked={draft.pageBreaks.end}
+          disabled={!draft.pageBreaks.between}
           onChange={toggle('end')}
         />
       </div>
@@ -595,11 +602,13 @@ function CheckField({
   label,
   checked,
   onChange,
+  disabled = false,
 }: {
   id: string;
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }): ReactNode {
   return (
     <div className="flex items-center gap-2">
@@ -607,10 +616,14 @@ function CheckField({
         id={id}
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         className="size-4 accent-primary"
       />
-      <Label htmlFor={id} className="text-xs font-normal">
+      <Label
+        htmlFor={id}
+        className={`text-xs font-normal${disabled ? ' text-muted-foreground' : ''}`}
+      >
         {label}
       </Label>
     </div>

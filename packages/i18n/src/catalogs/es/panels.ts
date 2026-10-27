@@ -29,6 +29,9 @@ export const panels = {
     options: 'Opciones',
     canGrow: 'Crecer con el texto',
     keepTogether: 'Mantener junto',
+    repeatColumnHeaders: 'Repetir cabeceras de columna',
+    repeatRowHeaders: 'Repetir cabeceras de fila',
+    noRowsMessage: 'Mensaje sin filas',
     appearance: 'Apariencia',
   },
   background: {
