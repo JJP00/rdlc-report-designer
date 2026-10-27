@@ -4,6 +4,7 @@ import {
   expect,
   test,
   type ElectronApplication,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -265,14 +266,22 @@ function formatSelect(page: Page) {
   return page.getByLabel('Formato del textbox', { exact: true });
 }
 
-/** Editor del formato cuando es una **cadena .NET** (campo simple). */
-function formatInput(page: Page) {
-  return page.locator('[data-rdlc-format-literal]');
+/** Editor (Monaco) del formato cuando contiene una **cadena .NET**. */
+function formatLiteral(page: Page) {
+  return page.locator('[data-rdlc-format-literal] .monaco-editor');
 }
 
-/** Editor del formato cuando es una **expresión de BC** (Monaco). */
+/** El mismo editor cuando contiene una **expresión de BC**. */
 function formatExpression(page: Page) {
   return page.locator('[data-rdlc-format-expression] .monaco-editor');
+}
+
+/**
+ * Texto pintado por un Monaco, sin espacios: el ajuste de línea parte una
+ * cadena larga en varias líneas visuales.
+ */
+async function monacoText(editor: Locator): Promise<string> {
+  return (await editor.locator('.view-lines').innerText()).replace(/\s+/g, '');
 }
 
 /* --------------------------------- tests --------------------------------- */
@@ -308,8 +317,9 @@ test.describe('Formato (`<Format>`, 0003)', () => {
     await page.keyboard.press('Control+a');
     await page.keyboard.type(CUSTOM_FORMAT);
     await page.keyboard.press('Enter');
-    // Un valor literal deja paso al campo simple.
-    await expect(formatInput(page)).toHaveValue(CUSTOM_FORMAT);
+    // Mismo editor (sin cambiar de campo ni perder el foco), ahora con una cadena.
+    await expect(formatSelect(page)).toHaveValue('custom');
+    await expect.poll(() => monacoText(formatLiteral(page))).toBe(CUSTOM_FORMAT);
     await expect
       .poll(() => commonFormat(page, candidate!.id), {
         message: 'la proyección debe reflejar el formato nuevo',
@@ -365,7 +375,7 @@ test.describe('Formato (`<Format>`, 0003)', () => {
     await page.keyboard.press('Delete');
     await page.keyboard.press('Enter');
     await expect(formatSelect(page)).toHaveValue('general');
-    await expect(formatInput(page)).toHaveValue('');
+    await expect.poll(() => monacoText(formatLiteral(page))).toBe('');
     await expect
       .poll(() => commonFormat(page, candidate!.id), {
         message: 'General debe dejar el textbox sin formato',

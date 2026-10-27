@@ -1958,9 +1958,9 @@ test('el editor de texto monta Monaco en el párrafo activo y sugiere', async ()
   await expect(page.getByRole('dialog')).toBeVisible();
   const elapsed = Date.now() - started;
 
-  // Monaco inline por run de expresión **del párrafo activo** (aquí 1), no por
-  // todo el textbox: el diálogo abre rápido.
-  await expect(page.locator('[role="dialog"] .monaco-editor')).toHaveCount(1);
+  // Monaco inline por run **del párrafo activo** (aquí 1 run: su valor y su
+  // formato), no por todo el textbox: el diálogo abre rápido.
+  await expect(page.locator('[role="dialog"] .monaco-editor')).toHaveCount(2);
   expect(elapsed).toBeLessThan(2500);
 
   // El autocompletado se ve (el widget vive fuera del contenedor del editor:
@@ -2280,9 +2280,12 @@ test('el autocompletado del editor de texto se ve por encima del diálogo', asyn
   await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 
-  // Una expresión nueva en el párrafo activo monta el Monaco inline del run.
+  // Una expresión nueva en el párrafo activo: el Monaco de su valor (el último
+  // run; detrás de cada valor va el Monaco de su formato).
   await page.getByRole('button', { name: 'Añadir expresión' }).click();
-  const editor = page.locator('[role="dialog"] .monaco-editor').last();
+  const editor = page
+    .locator('[role="dialog"] [aria-label^="Expresión del run"] .monaco-editor')
+    .last();
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await editor.click();
   await page.keyboard.press('Control+Space');

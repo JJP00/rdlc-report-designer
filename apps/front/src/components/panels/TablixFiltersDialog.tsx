@@ -13,9 +13,9 @@ import {
   DialogTitle,
   ResizableDialogContent,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ExpressionEditor } from './ExpressionEditor';
 
 /**
  * Filtros del Tablix (`Filters > Filter`, G10). Cada filtro es una expresión,
@@ -139,12 +139,14 @@ export function TablixFiltersDialog({
                   <Trash2 />
                 </Button>
               </div>
-              <Input
-                className="h-7 font-mono text-xs"
-                placeholder="=Fields!X.Value"
-                aria-label={t('tablix.filters.expression', { index: index + 1 })}
+              {/* Cada tecla llega al borrador: «Aplicar» se habilita al escribir. */}
+              <ExpressionEditor
                 value={draft.expression}
-                onChange={(event) => update(index, { expression: event.target.value })}
+                mode="expression"
+                placeholder="=Fields!X.Value"
+                ariaLabel={t('tablix.filters.expression', { index: index + 1 })}
+                onChange={(expression) => update(index, { expression })}
+                onCommit={(expression) => update(index, { expression })}
               />
               <select
                 className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"

@@ -22,6 +22,7 @@ import 'monaco-editor/editor/contrib/folding/browser/folding.js';
 import 'monaco-editor/editor/contrib/indentation/browser/indentation.js';
 import 'monaco-editor/editor/contrib/linesOperations/browser/linesOperations.js';
 import 'monaco-editor/editor/contrib/multicursor/browser/multicursor.js';
+import 'monaco-editor/editor/contrib/placeholderText/browser/placeholderText.contribution.js';
 import 'monaco-editor/editor/contrib/snippet/browser/snippetController2.js';
 import 'monaco-editor/editor/contrib/suggest/browser/suggestController.js';
 import 'monaco-editor/editor/contrib/wordHighlighter/browser/wordHighlighter.js';
@@ -47,7 +48,15 @@ window.MonacoEnvironment = {
   getWorker: () => new editorWorker(),
 };
 
+/** Un **valor**: texto, salvo que empiece por `=` (como lo lee RDL). */
 export const RDLC_LANGUAGE_ID = 'rdlc-expr';
+/** Código VB desde la primera línea: bloque `<Code>` y diálogo de expresión. */
+export const RDLC_CODE_LANGUAGE_ID = 'rdlc-code';
+
+/** true si el valor es una expresión (`=…`, con espacios delante). */
+function isExpressionValue(value: string): boolean {
+  return value.trimStart().startsWith('=');
+}
 
 /* ------------------------------ tema ------------------------------------- */
 
@@ -117,40 +126,96 @@ function registerRdlcLanguage(t: Translator['t']): void {
     // Nombre visible del lenguaje (picker de Monaco); se registra una sola vez.
     aliases: [t('lib.monaco.languageAlias'), 'rdlc'],
   });
+  monaco.languages.register({
+    id: RDLC_CODE_LANGUAGE_ID,
+    aliases: [t('lib.monaco.languageAlias'), 'rdlc-code'],
+  });
 
-  monaco.languages.setMonarchTokensProvider(RDLC_LANGUAGE_ID, {
+  /** Reglas VB de una expresión (y del bloque `<Code>`). */
+  const vbRules: monaco.languages.IMonarchLanguageRule[] = [
+    // Comentario VB
+    [/'[^\n]*/, 'comment'],
+    // Texto entre comillas (con "" como escape)
+    [/"([^"]|"")*"/, 'string'],
+    // Referencias del informe: Fields!X.Value, Code.Fn, Parameters!…
+    [/\b(Fields|Parameters|Globals|User|ReportItems)!/, 'namespace'],
+    [/\bCode(?=\s*[.!])/, 'namespace'],
+    // Palabras y funciones
+    [
+      /[A-Za-z_][A-Za-z0-9_]*/,
+      {
+        cases: {
+          '@builtins': 'predefined',
+          '@keywords': 'keyword',
+          '@default': 'identifier',
+        },
+      },
+    ],
+    // Números (con separador decimal)
+    [/\d+(\.\d+)?([eE][-+]?\d+)?/, 'number'],
+    // Operadores
+    [/[<>]=?|[=+\-*/\\&^]/, 'operator'],
+    [/[(),.]/, 'delimiter'],
+  ];
+  const vbLanguage = {
     defaultToken: '',
     ignoreCase: true,
-    tokenizer: {
-      root: [
-        // Comentario VB
-        [/'[^\n]*/, 'comment'],
-        // Texto entre comillas (con "" como escape)
-        [/"([^"]|"")*"/, 'string'],
-        // Referencias del informe: Fields!X.Value, Code.Fn, Parameters!…
-        [/\b(Fields|Parameters|Globals|User|ReportItems)!/, 'namespace'],
-        [/\bCode(?=\s*[.!])/, 'namespace'],
-        // Palabras y funciones
-        [
-          /[A-Za-z_][A-Za-z0-9_]*/,
-          {
-            cases: {
-              '@builtins': 'predefined',
-              '@keywords': 'keyword',
-              '@default': 'identifier',
-            },
-          },
-        ],
-        // Números (con separador decimal)
-        [/\d+(\.\d+)?([eE][-+]?\d+)?/, 'number'],
-        // Operadores
-        [/[<>]=?|[=+\-*/\\&^]/, 'operator'],
-        [/[(),.]/, 'delimiter'],
-      ],
-    },
     builtins: [...builtins],
     keywords: [...KEYWORD_SET],
+  };
+
+  // Un valor es **texto** hasta que empieza por `=`: el texto no se colorea
+  // como VB (`Total and VAT` no tiene palabras clave) y desde el `=` manda la
+  // expresión, en el mismo editor, sin cambiar de campo.
+  monaco.languages.setMonarchTokensProvider(RDLC_LANGUAGE_ID, {
+    ...vbLanguage,
+    tokenizer: {
+      root: [
+        [/\s+/, ''],
+        [/=/, { token: 'operator', switchTo: '@expression' }],
+        [/./, { token: '', switchTo: '@text' }],
+      ],
+      text: [[/.+/, '']],
+      expression: vbRules,
+    },
   } as monaco.languages.IMonarchLanguage);
+
+  monaco.languages.setMonarchTokensProvider(RDLC_CODE_LANGUAGE_ID, {
+    ...vbLanguage,
+    tokenizer: { root: vbRules },
+  } as monaco.languages.IMonarchLanguage);
+
+  // Cierre automático de pares (como en VS Code): al abrir `(`, `[`, `{`, `"` o
+  // `'` se escribe el de cierre; teclear el cierre lo «salta» y Retroceso borra
+  // el par. Solo cierra delante de espacio o fin de línea (`autoCloseBefore`),
+  // así `(` delante de `Fields!…` no mete un `)` de más. Las comillas no se
+  // cierran dentro de un texto ni de un comentario (`notIn`), ni detrás de una
+  // letra (Monaco): `Customer's` no se convierte en `Customer's'`.
+  const languageConfiguration: monaco.languages.LanguageConfiguration = {
+    comments: { lineComment: "'" },
+    brackets: [
+      ['(', ')'],
+      ['[', ']'],
+      ['{', '}'],
+    ],
+    autoClosingPairs: [
+      { open: '(', close: ')' },
+      { open: '[', close: ']' },
+      { open: '{', close: '}' },
+      { open: '"', close: '"', notIn: ['string', 'comment'] },
+      { open: "'", close: "'", notIn: ['string', 'comment'] },
+    ],
+    // Con texto seleccionado, teclear la apertura lo rodea: `Fields!X` → `(Fields!X)`.
+    surroundingPairs: [
+      { open: '(', close: ')' },
+      { open: '[', close: ']' },
+      { open: '{', close: '}' },
+      { open: '"', close: '"' },
+      { open: "'", close: "'" },
+    ],
+  };
+  monaco.languages.setLanguageConfiguration(RDLC_LANGUAGE_ID, languageConfiguration);
+  monaco.languages.setLanguageConfiguration(RDLC_CODE_LANGUAGE_ID, languageConfiguration);
 
   monaco.editor.defineTheme('rdlc-light', {
     base: 'vs',
@@ -187,9 +252,13 @@ function registerRdlcLanguage(t: Translator['t']): void {
 
   watchDocumentTheme();
 
-  monaco.languages.registerCompletionItemProvider(RDLC_LANGUAGE_ID, {
+  const completionProvider: monaco.languages.CompletionItemProvider = {
     triggerCharacters: ['!', '.'],
     provideCompletionItems: (model, position) => {
+      // Un valor sin `=` es texto: no hay nada que sugerir al escribir palabras.
+      if (model.getLanguageId() === RDLC_LANGUAGE_ID && !isExpressionValue(model.getValue())) {
+        return { suggestions: [] };
+      }
       const meta = getCompletionMeta();
       if (!meta) return { suggestions: [] };
 
@@ -217,7 +286,9 @@ function registerRdlcLanguage(t: Translator['t']): void {
         })),
       };
     },
-  });
+  };
+  monaco.languages.registerCompletionItemProvider(RDLC_LANGUAGE_ID, completionProvider);
+  monaco.languages.registerCompletionItemProvider(RDLC_CODE_LANGUAGE_ID, completionProvider);
 }
 
 function completionKind(kind: string): monaco.languages.CompletionItemKind {
@@ -241,9 +312,14 @@ function completionKind(kind: string): monaco.languages.CompletionItemKind {
 
 export interface ExpressionEditorOptions {
   value: string;
-  /** `expression`: una línea, sin números ni plegado. `code`: bloque VB. */
+  /**
+   * `expression`: un **valor** de una línea (texto o `=expresión`), sin números
+   * ni plegado. `code`: bloque VB (`<Code>` y diálogo de expresión).
+   */
   mode: 'expression' | 'code';
   ariaLabel: string;
+  /** Texto de hueco con el editor vacío. Se lee al crear (como `ariaLabel`). */
+  placeholder?: string;
   /**
    * Etiquetas del editor (acciones de Monaco). Se lee **al crear** el editor:
    * el cambio de idioma necesita volver a montarlo (como `ariaLabel`).
@@ -251,14 +327,19 @@ export interface ExpressionEditorOptions {
   t: Translator['t'];
 }
 
+/** Dónde queda el cursor al dar el foco: `all` selecciona todo, `end` al final. */
+export type FocusCaret = 'all' | 'end';
+
 export interface ExpressionEditorHandles {
   getValue(): string;
-  /** Solo escribe si el valor cambió (evita pisar lo que se está tecleando). */
+  /** Solo escribe si el valor cambió (no pisa lo que se está tecleando). */
   updateValue(value: string): void;
   hasTextFocus(): boolean;
   insertAtCursor(text: string): void;
-  /** Pone el foco en el editor (transición desde un campo literal). */
-  focus(): void;
+  /** Pone el foco en el editor (y coloca el cursor si se pide). */
+  focus(caret?: FocusCaret): void;
+  /** Etiqueta accesible (sigue al valor: texto ↔ expresión). */
+  setAriaLabel(label: string): void;
   dispose(): void;
 }
 
@@ -267,11 +348,19 @@ export interface ExpressionEditorHandles {
  * Ctrl+Enter en código) se avisan por `onCommit`; el foco por `onFocus`.
  * `onSubmit` (opcional) sustituye a `onCommit` en esos atajos: es el «confirmar
  * el diálogo» de los diálogos de expresión (Enter/Ctrl+Intro = Aplicar).
+ * `onChange` (opcional) avisa de cada tecla, para los borradores que se leen
+ * antes del commit; `onCancel` (opcional) hace que Escape descarte lo tecleado.
  */
 export function createExpressionEditor(
   container: HTMLElement,
   options: ExpressionEditorOptions,
-  callbacks: { onCommit(): void; onFocus(): void; onSubmit?(): void },
+  callbacks: {
+    onCommit(): void;
+    onFocus(): void;
+    onSubmit?(): void;
+    onChange?(): void;
+    onCancel?(): void;
+  },
 ): ExpressionEditorHandles {
   const t = options.t;
   registerRdlcLanguage(t);
@@ -280,7 +369,8 @@ export function createExpressionEditor(
   const mode = options.mode;
   const editor = monaco.editor.create(container, {
     value: options.value,
-    language: RDLC_LANGUAGE_ID,
+    language: mode === 'code' ? RDLC_CODE_LANGUAGE_ID : RDLC_LANGUAGE_ID,
+    placeholder: options.placeholder,
     theme: currentThemeName(),
     automaticLayout: true,
     fontSize: 12,
@@ -303,6 +393,9 @@ export function createExpressionEditor(
     },
     quickSuggestions: { other: true, comments: false, strings: false },
     suggestOnTriggerCharacters: true,
+    // Sin el proveedor de palabras de Monaco: en un valor de texto sugeriría las
+    // palabras de los demás editores abiertos.
+    wordBasedSuggestions: 'off',
     fixedOverflowWidgets: true,
     // Las sugerencias/hover viven fuera del editor (los diálogos tienen
     // `transform` y `overflow-hidden`): en el host de body, con la clase
@@ -332,20 +425,60 @@ export function createExpressionEditor(
     });
   }
 
+  // Último valor externo que muestra el editor: lo tecleado es lo que difiere.
+  let synced = options.value;
+  const dirty = editor.createContextKey<boolean>('rdlcDirty', false);
+  const changeSubscription = editor.onDidChangeModelContent((event) => {
+    dirty.set(editor.getValue() !== synced);
+    // `isFlush` = `setValue` (un valor externo), no una tecla.
+    if (!event.isFlush) callbacks.onChange?.();
+  });
+
+  if (callbacks.onCancel) {
+    const cancel = callbacks.onCancel;
+    editor.addAction({
+      id: 'rdlc-discard',
+      label: t('lib.monaco.discard'),
+      keybindings: [monaco.KeyCode.Escape],
+      // Solo con algo tecleado: sin cambios, Escape sigue su camino (cerrar el
+      // diálogo) y no queda atrapado en el editor.
+      precondition: '!suggestWidgetVisible && rdlcDirty',
+      run: () => {
+        editor.setValue(synced);
+        cancel();
+      },
+    });
+  }
+
   const blurSubscription = editor.onDidBlurEditorText(() => callbacks.onCommit());
   editor.onDidFocusEditorText(() => callbacks.onFocus());
 
   return {
     getValue: () => editor.getValue(),
     updateValue: (value: string) => {
-      if (editor.hasTextFocus()) return;
-      if (editor.getValue() !== value) editor.setValue(value);
+      const current = editor.getValue();
+      if (current !== value) {
+        // Con foco y algo tecleado no se pisa: manda lo que se está escribiendo.
+        if (editor.hasTextFocus() && current !== synced) return;
+        editor.setValue(value);
+      }
+      synced = value;
+      dirty.set(false);
     },
     hasTextFocus: () => editor.hasTextFocus(),
     insertAtCursor: (expression: string) => insertAtCursor(editor, expression),
-    focus: () => editor.focus(),
+    focus: (caret?: FocusCaret) => {
+      editor.focus();
+      const model = editor.getModel();
+      if (!model || !caret) return;
+      const range = model.getFullModelRange();
+      if (caret === 'all') editor.setSelection(range);
+      else editor.setPosition(range.getEndPosition());
+    },
+    setAriaLabel: (label: string) => editor.updateOptions({ ariaLabel: label }),
     dispose: () => {
       blurSubscription.dispose();
+      changeSubscription.dispose();
       editor.dispose();
     },
   };

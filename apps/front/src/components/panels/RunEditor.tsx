@@ -4,7 +4,6 @@ import { ArrowDown, ArrowUp, Bold, Copy, Italic, Trash2, Underline, WholeWord } 
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { NumberInput } from '@/components/ui/number-input';
 import { isExpressionRun } from '@/lib/textEditor';
 import { toPt } from '@/lib/style';
@@ -35,9 +34,9 @@ export interface RunEditorProps {
  * Un TextRun del editor de texto: valor (texto o expresión) y su formato
  * (fuente, tamaño, negrita/cursiva/subrayado, color, resaltado).
  *
- * El valor se edita siempre en un `Input`: **Monaco no se monta por run** (con
- * 20+ runs montar un editor por cada expresión bloqueaba el diálogo); el botón
- * `Σ` abre el editor de expresión con una única instancia.
+ * El valor se edita siempre en Monaco, sea texto o `=expresión`: escribir el
+ * `=` no cambia de editor ni pierde el foco. El diálogo solo monta los runs del
+ * **párrafo activo** (con 20+ runs montar un editor por cada uno lo bloqueaba).
  */
 export function RunEditor({
   position,
@@ -132,23 +131,21 @@ export function RunEditor({
       </div>
 
       <div className="mt-2">
-        {isExpression ? (
-          /* Expresión: Monaco inline con resaltado y autocompletado (el bloque
-             muestra solo el párrafo activo, no hay problema de instancias). */
-          <ExpressionEditor
-            value={run.value}
-            mode="expression"
-            ariaLabel={t('text.run.expressionAria', { index: position })}
-            onCommit={onValue}
-          />
-        ) : (
-          <Input
-            className="h-7 font-mono text-xs"
-            value={run.value}
-            aria-label={t('text.run.valueAria', { index: position })}
-            onChange={(event) => onValue(event.target.value)}
-          />
-        )}
+        {/* Cada tecla llega al borrador: el textarea del documento lo refleja
+            al momento, como con el texto. */}
+        <ExpressionEditor
+          value={run.value}
+          mode="expression"
+          ariaLabel={
+            isExpression
+              ? t('text.run.expressionAria', { index: position })
+              : t('text.run.valueAria', { index: position })
+          }
+          onChange={onValue}
+          onCommit={(next) => {
+            if (next !== run.value) onValue(next);
+          }}
+        />
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
