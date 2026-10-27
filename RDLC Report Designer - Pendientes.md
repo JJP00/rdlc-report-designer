@@ -53,6 +53,63 @@
   se trunca por el inicio y pierde lo que identifica; textos menores («bytes idénticos»,
   «Insertar tabla (Tablix)», «Custom»).
 
+## 🧩 Opciones de item, fila y grupo (planificado, sin empezar)
+
+En RDL estas opciones viven en tres sitios distintos, así que son tres cambios y no uno:
+
+- **`KeepTogether` en Tablix y Rectangle** (vive en el propio item): `setItemOptions`
+  rechaza hoy todo lo que no sea `Textbox` (`setItemOptions.ts:33`); `applyFlag` ya
+  funciona sobre cualquier nodo, así que basta con quitar esa comprobación para
+  `KeepTogether` y dejar `CanGrow` restringido al Textbox, que es el único que lo
+  proyecta.
+- **`RepeatOnNewPage`, `KeepWithGroup` y `KeepTogether` de una fila** (viven en el
+  `TablixMember` de la fila de cabecera): comando nuevo `setMemberOptions`, direccionado
+  con el mismo `id` + `axis` + `path` que `setGroupPageBreaks` (`findGroup` ya devuelve el
+  miembro, se reutiliza el resolutor). En la UI, el menú contextual de una fila de
+  cabecera lleva una sola acción, «Repetir en cada página», que escribe
+  `RepeatOnNewPage=true` + `KeepWithGroup=After` en un único paso de undo (el par que
+  escribe Report Builder). Es el ajuste que más piden los usuarios de BC.
+- **`RepeatColumnHeaders` / `RepeatRowHeaders`** (viven en el `Tablix`): añadirlos a
+  `setItemOptions`; `geometry.ts:47-48` ya los tiene en el orden canónico.
+
+### `ResetPageNumber`, `PageName` y `NoRowsMessage`
+
+- **`ResetPageNumber`** va dentro del `PageBreak` del grupo: bandera nueva en
+  `setGroupPageBreaks`. La combinación típica de BC es salto de página entre documentos
+  más reinicio de la numeración, para tener «Página 1 de N» en cada factura.
+- **`PageName`** del grupo: comando nuevo `setGroupPageName` (o un campo en el comando de
+  propiedades del grupo).
+- **`NoRowsMessage`** del Tablix: campo de expresión en `setItemOptions`.
+
+**Comprobar antes**: `applySetGroupPageBreaks` escribe **un `PageBreak` por cada opción
+marcada** (`Between`/`Start`/`End`, `tablixGroups.ts:449-493`). En RDL 2010 y posteriores
+el grupo debería tener un único `PageBreak`, y «inicio y fin» se escribe como
+`BreakLocation=StartAndEnd`. El XSD admite varios, pero puede que Report Builder o BC no:
+si hoy se marcan Start y End y se abre el informe en Report Builder, se despeja la duda.
+Añadir `ResetPageNumber` es el momento de arreglarlo, porque tiene que ir dentro de ese
+`PageBreak` único.
+
+**Orden sugerido**: primero las opciones de item y fila (el cambio más frecuente, y del
+que depende el lint), después los saltos y la numeración de página (con la comprobación
+del `PageBreak`) y al final el lint de BC.
+
+## 🧪 Lint de BC (planificado, sin empezar)
+
+Reglas de solo lectura en el dominio del backend, expuestas por IPC (panel «Problemas»)
+y por MCP (`rdlc_lint`); avisan, nunca bloquean el guardado. Reglas acordadas:
+
+- **Paréntesis, corchetes, llaves y comillas sin cerrar** en una expresión (`(`, `[`,
+  `{`, `"`) o en el bloque `<Code>`. Error: BC falla al renderizar. Hay que saltar el
+  contenido de los textos (`""` es escape) y de los comentarios: en VB `'` **abre un
+  comentario**, no un texto, así que no se cuenta como par.
+- `Fields!` en el encabezado/pie (error si va suelto; aviso con `First(…)`: con varios
+  documentos sale siempre el primero).
+- `Fields!X` que no está en el dataset; `ReportItems!`/`Code.GetData` que no apuntan a nada.
+- Tablix con grupo de detalle y fila de cabecera sin `RepeatOnNewPage` + `KeepWithGroup`
+  (pista; depende de los comandos de repetición de cabecera).
+- Fuente fuera de la lista de BC; imagen fuera del patrón BC (`Source=Database` +
+  `MIMEType` + `FitProportional`).
+
 ## 🗂️ Evolutivo de pestañas
 
 - **Restaurar las pestañas al arrancar** y **persistir el orden** (hoy el backend las
