@@ -5,7 +5,8 @@ import { IPC_CHANNELS, IPC_EVENTS } from '@rdlc-designer/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { IpcController } from '../../src/presentation/ipc/IpcController.js';
 import { LocaleRuntime } from '../../src/infrastructure/locale/LocaleRuntime.js';
-import { right } from '../../src/shared/either.js';
+import { left, right } from '../../src/shared/either.js';
+import { UnknownSessionError } from '../../src/shared/domainError.js';
 
 /**
  * Apertura pedida **desde fuera** (2.ª instancia de la asociación de ficheros:
@@ -31,12 +32,16 @@ interface Sent {
 }
 
 /** Registra un `IpcController` con dobles mínimos y una ventana que captura envíos. */
-function registerController(): { controller: IpcController; sent: Sent[] } {
+function registerController(extraSessions: Record<string, unknown> = {}): {
+  controller: IpcController;
+  sent: Sent[];
+} {
   ipcHandlers.clear();
   const sessions = {
     open: async () => right({ sessionId: 's', projection: {} }),
     saveAs: async () => right({ path: 'x', bytesIdentical: false }),
     createNew: async () => right({ sessionId: 's', projection: {} }),
+    ...extraSessions,
   } as unknown as ConstructorParameters<typeof IpcController>[0];
   const recents = {
     list: async () => [],
@@ -68,6 +73,35 @@ async function invoke(channel: string, payload: unknown): Promise<Record<string,
 }
 
 const externalPath = join(tmpdir(), 'externo-reporte.rdlc');
+
+describe('rdlc:lint', () => {
+  it('devuelve los hallazgos del servicio como { ok: true, findings }', async () => {
+    const findings = [
+      {
+        rule: 'unbalancedBracket',
+        severity: 'error',
+        itemId: 'Title',
+        location: 'Value',
+        params: { char: '(', index: 12 },
+      },
+    ];
+    const { controller } = registerController({ lintOf: () => right(findings) });
+    expect(controller).toBeDefined();
+
+    const result = await invoke(IPC_CHANNELS.lint, { sessionId: 's' });
+
+    expect(result).toEqual({ ok: true, findings });
+  });
+
+  it('una sesión desconocida responde con error, no con findings', async () => {
+    registerController({ lintOf: () => left(UnknownSessionError.create('nope')) });
+
+    const result = await invoke(IPC_CHANNELS.lint, { sessionId: 'nope' });
+
+    expect(result.ok).toBe(false);
+    expect(result['code']).toBe('E_NOT_FOUND');
+  });
+});
 
 describe('apertura desde fuera (asociación de ficheros)', () => {
   it('antes del montaje se encola y llega con la entrega inicial', async () => {

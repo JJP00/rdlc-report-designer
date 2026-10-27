@@ -4,6 +4,8 @@ import type { ListedSession, ProjectionDto } from '@rdlc-designer/contracts';
 import { Injectable, Inject } from '@nestjs/common';
 import { copyCellContents } from '../../domain/document/commands/pasteCells.js';
 import { DocumentIndex } from '../../domain/document/index/DocumentIndex.js';
+import { lintDocument } from '../../domain/lint/lintDocument.js';
+import type { LintFinding } from '../../domain/lint/types.js';
 import { BLANK_REPORT_XML } from '../../domain/document/templates/blankReport.js';
 import type { EventBusPort } from '../ports/out/EventBusPort.js';
 import { EVENT_BUS_PORT } from '../ports/out/EventBusPort.js';
@@ -451,6 +453,16 @@ export class SessionService implements ISessionService {
     const session = this.sessions.get(sessionId);
     if (!session) return left(UnknownSessionError.create(sessionId));
     return right(this.project(session));
+  }
+
+  /**
+   * Hallazgos del lint de BC sobre el documento **vigente** en memoria (solo
+   * lectura: no recarga del disco ni muta nada).
+   */
+  lintOf(sessionId: string): Either<DomainError, LintFinding[]> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return left(UnknownSessionError.create(sessionId));
+    return right(lintDocument(session.document.root));
   }
 
   /**

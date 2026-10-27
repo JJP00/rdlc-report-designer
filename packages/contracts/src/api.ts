@@ -16,6 +16,7 @@ import type {
   PendingOpenResult,
   PickFileResult,
   PickSavePathResult,
+  LintResult,
   ReadProjectionResult,
   RecentFilesResult,
   SaveResult,
@@ -51,6 +52,8 @@ export interface RdlcApi {
    * para deshacer el optimismo de un comando rechazado.
    */
   readProjection(sessionId: string): Promise<ReadProjectionResult>;
+  /** Lint de BC del documento vigente: avisa, nunca bloquea el guardado. */
+  lint(sessionId: string): Promise<LintResult>;
   /** Ficheros abiertos recientemente, más nuevos primero. */
   recentFiles(): Promise<RecentFilesResult>;
   /** `force` cierra aunque haya cambios sin guardar (tras confirmar). */

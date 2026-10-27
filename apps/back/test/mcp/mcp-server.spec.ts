@@ -390,6 +390,30 @@ describe('servidor MCP rdlc', () => {
     expect(content.length).toBeLessThanOrEqual(30);
   });
 
+  it('rdlc_lint devuelve hallazgos con mensaje y resumen por gravedad; severity filtra', async () => {
+    const path = await writeFixture(tmp, 'SalesInvoiceESP.rdlc');
+    const opened = await call('rdlc_open', { path });
+    const sessionId = opened['sessionId'] as string;
+
+    const all = await call('rdlc_lint', { sessionId });
+    expect(all.isError).toBe(false);
+    expect(all['ok']).toBe(true);
+    expect(Array.isArray(all['findings'])).toBe(true);
+    const findings = all['findings'] as { rule: string; severity: string; message: string }[];
+    for (const finding of findings) expect(typeof finding.message).toBe('string');
+    const summary = all['summary'] as Record<string, number>;
+    expect((summary['error'] ?? 0) + (summary['warning'] ?? 0) + (summary['hint'] ?? 0)).toBe(findings.length);
+
+    const errorsOnly = await call('rdlc_lint', { sessionId, severity: 'error' });
+    expect(errorsOnly.isError).toBe(false);
+    for (const finding of errorsOnly['findings'] as { severity: string }[]) {
+      expect(finding.severity).toBe('error');
+    }
+
+    const unknown = await call('rdlc_lint', { sessionId: 'no-such-session' });
+    expect(unknown.isError).toBe(true);
+  });
+
   it('rdlc_list_commands da firmas y esquemas exactos', async () => {
     const index = await call('rdlc_list_commands');
     expect(index['commands']).toEqual(

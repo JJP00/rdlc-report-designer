@@ -19,6 +19,7 @@ import {
   type FontListResult,
   type IpcErrorDto,
   type ListedSessionsResult,
+  type LintResult,
   type LocaleResult,
   type OpenFileResult,
   type PendingOpenResult,
@@ -267,6 +268,16 @@ export class IpcController {
         payload,
         async (req) => this.sessions.projectionOf(req.sessionId),
         (value): ReadProjectionResult => ({ ok: true, projection: value }),
+      ),
+    );
+
+    // Lint de BC del documento vigente: solo lectura, avisa y nunca bloquea.
+    ipcMain.handle(IPC_CHANNELS.lint, (_event, payload) =>
+      this.handle(
+        sessionRequestSchema,
+        payload,
+        async (req) => this.sessions.lintOf(req.sessionId),
+        (value): LintResult => ({ ok: true, findings: value }),
       ),
     );
 

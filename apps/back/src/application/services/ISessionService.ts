@@ -4,6 +4,7 @@ import type { DocumentIndex } from '../../domain/document/index/DocumentIndex.js
 import type { RdlcDocument, RdlcNode } from '../../domain/document/tree/RdlcNode.js';
 import type { Either } from '../../shared/either.js';
 import type { DomainError } from '../../shared/domainError.js';
+import type { LintFinding } from '../../domain/lint/types.js';
 
 export const SESSION_SERVICE = Symbol('ISessionService');
 
@@ -72,6 +73,11 @@ export interface ISessionService {
    * el front la pide para deshacer el optimismo de un comando rechazado.
    */
   projectionOf(sessionId: string): Either<DomainError, ProjectionDto>;
+  /**
+   * Hallazgos del lint de BC sobre el documento **vigente** en memoria (solo
+   * lectura; no bloquea nada).
+   */
+  lintOf(sessionId: string): Either<DomainError, LintFinding[]>;
   /**
    * Cierra la sesión. Si hay cambios sin guardar y no se fuerza, **no cierra**:
    * devuelve `{ closed: false, reason: 'dirty' }` para que el front pregunte.
