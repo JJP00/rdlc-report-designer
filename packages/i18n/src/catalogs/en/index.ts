@@ -10,6 +10,7 @@ import { dialogs } from './dialogs.js';
 import { errors } from './errors.js';
 import { image } from './image.js';
 import { lib } from './lib.js';
+import { lint } from './lint.js';
 import { native } from './native.js';
 import { palette } from './palette.js';
 import { panels } from './panels.js';
@@ -33,6 +34,7 @@ export const en = {
   palette,
   status,
   lib,
+  lint,
   native,
   errors,
 } as const;

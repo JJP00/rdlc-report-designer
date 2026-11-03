@@ -33,6 +33,7 @@ export default tseslint.config(
     files: [
       'apps/back/scripts/bench.mjs',
       'apps/back/scripts/zoom-memory.mjs',
+      'apps/back/scripts/measure-memory.mjs',
       'apps/back/tmp-*.mjs',
     ],
     languageOptions: {

@@ -26,6 +26,19 @@ declare global {
 
 log.initialize();
 
+// Sin aceleración por hardware: el proceso GPU de Chromium cuesta ≈ 150–280 MB
+// (superficies de composición, crecen con la ventana y el escalado) y el lienzo
+// no lo necesita (docs/perf/0003-memoria-por-proceso.md). Debe llamarse antes de
+// `ready`. `RDLC_ENABLE_GPU=1` la deja activa, para comparar.
+if (process.env['RDLC_ENABLE_GPU'] !== '1') app.disableHardwareAcceleration();
+
+// Tope del heap de V8 (MB) en los procesos que lanza la app (renderer incluido).
+// Un informe normal usa 20–40 MB de heap: es un techo contra fugas, no un
+// objetivo. Antes de `ready`, o no llega a los procesos hijo.
+if (process.env['RDLC_NO_HEAP_CAP'] !== '1') {
+  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256');
+}
+
 /** Tamaño mínimo de la ventana en px CSS (hallazgo UX 5). */
 const MIN_WIDTH_CSS_PX = 960;
 const MIN_HEIGHT_CSS_PX = 600;

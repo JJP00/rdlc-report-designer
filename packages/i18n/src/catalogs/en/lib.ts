@@ -57,6 +57,7 @@ export const lib = {
     languageAlias: 'RDL expression',
     apply: 'Apply',
     applyEnter: 'Apply (Enter)',
+    discard: 'Discard changes (Escape)',
   },
   /** Reglas de página: tramos resaltados (área imprimible y bandas). */
   ruler: {

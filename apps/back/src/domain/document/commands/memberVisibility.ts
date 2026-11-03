@@ -97,7 +97,7 @@ export function applySetMemberToggleItem(
 }
 
 /** Miembro apuntado por `path`, con el motivo del rechazo si no existe. */
-function findMember(
+export function findMember(
   ctx: CommandContext,
   id: string,
   axis: 'row' | 'column',

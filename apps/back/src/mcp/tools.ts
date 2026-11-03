@@ -10,6 +10,7 @@ import { createTranslator } from '@rdlc-designer/i18n';
 import type { Either } from '../shared/either.js';
 import type { HeadlessContext } from './headlessContext.js';
 import { buildMatcher, describeReport, findInReport, findItem, outlineOf } from './outline.js';
+import type { LintFinding, LintSeverity } from '../domain/lint/types.js';
 
 /**
  * Herramientas MCP sobre los casos de uso de la app. Capa fina, como el
@@ -23,7 +24,8 @@ export const SERVER_INSTRUCTIONS = [
   'Workflow: rdlc_open (or rdlc_create) → rdlc_get_outline / rdlc_get_item / rdlc_find to inspect → rdlc_apply_commands to edit → rdlc_save.',
   'Prefer these tools over reading, grepping or hand-editing the .rdlc XML: they validate, keep undo and never write an invalid report. To locate a text, expression, group or id use rdlc_find (not grep); to change anything a command covers use rdlc_apply_commands (not Edit on the XML).',
   'Before deciding something cannot be done here, check rdlc_list_commands. Only if NO command or tool covers the action may you edit the file directly; then say so, and afterwards call rdlc_open on the same path again (or rdlc_reload) so the session sees the change.',
-  'Which command for what: text/expression of a textbox → setText (id, p, r, value); the designer label of a run → setRunLabel; paragraphs as a whole → setParagraphs; Hidden/visibility of an item (literal or expression) → setVisibility; of a tablix group → setMemberVisibility / setMemberToggleItem; position/size → setLocation / setSize / setBounds; style (font, colour, alignment, borders) → setStyle; the report <Code> VB block → setReportCode (read it with rdlc_get_report includeCode); page, margins, header/footer → setPageSize / setPageMargins / setRegionHeight / setRegionPresent; add/remove items → insertItem / deleteItem / duplicateItem; tablix rows, columns, groups, filters and sorting → the addRow/addColumn/…/setGroupExpression/setTablixFilters/setGroupSorting family.',
+  'Which command for what: text/expression of a textbox → setText (id, p, r, value); the designer label of a run → setRunLabel; paragraphs as a whole → setParagraphs; Hidden/visibility of an item (literal or expression) → setVisibility; of a tablix group → setMemberVisibility / setMemberToggleItem; position/size → setLocation / setSize / setBounds; style (font, colour, alignment, borders) → setStyle; the report <Code> VB block → setReportCode (read it with rdlc_get_report includeCode); page, margins, header/footer → setPageSize / setPageMargins / setRegionHeight / setRegionPresent; add/remove items → insertItem / deleteItem / duplicateItem; tablix rows, columns, groups, filters and sorting → the addRow/addColumn/…/setGroupExpression/setTablixFilters/setGroupSorting family; group page breaks / reset page number → setGroupPageBreaks; group page name → setGroupPageName.',
+  'rdlc_lint runs the read-only Business Central lint on the report in memory (errors, warnings, hints). It only reports: it never blocks rdlc_save.',
   'Edits live in memory until rdlc_save; unsaved sessions are lost when the server stops.',
   'Items are addressed by their RDL `Name` (the `id`). Lengths are {"value": number, "unit": "cm"|"mm"|"in"|"pt"}.',
   'Positions (top/left) are relative to the containing region, rectangle or tablix cell.',
@@ -73,6 +75,31 @@ function domainError(error: DomainError): ToolReply {
     describeError(error),
     error.data === undefined ? {} : { data: error.data },
   );
+}
+
+/* ------------------------------ Lint de BC -------------------------------- */
+
+/** Menor número = más grave: `severity` filtra ese nivel y los más graves. */
+const SEVERITY_RANK: Record<LintSeverity, number> = { error: 0, warning: 1, hint: 2 };
+
+/**
+ * Frase en inglés de un hallazgo. Las reglas se traducen por código; los
+ * parámetros se leen con tolerancia (si falta alguno, la frase sale más corta).
+ * Una regla desconocida devuelve su código.
+ */
+function lintMessage(finding: LintFinding): string {
+  const p = finding.params ?? {};
+  const where = finding.location ? ` of ${finding.location}` : '';
+  switch (finding.rule) {
+    case 'unbalancedBracket':
+      return `Unbalanced '${p['char'] ?? '?'}' at position ${p['index'] ?? '?'}${where}`;
+    case 'unknownField':
+      return `Field '${p['field'] ?? '?'}' is not in the dataset`;
+    case 'reportItemMissing':
+      return `Report item '${p['name'] ?? finding.itemId ?? '?'}' is missing`;
+    default:
+      return finding.rule;
+  }
 }
 
 /* --------------------- Catálogo de comandos (JSON Schema) ---------------- */
@@ -530,6 +557,36 @@ export function registerRdlcTools(server: McpServer, ctx: HeadlessContext): void
         },
         id,
       );
+    }),
+  );
+
+  server.registerTool(
+    'rdlc_lint',
+    {
+      title: 'Business Central lint',
+      description:
+        'Read-only Business Central lint of the report in memory: unbalanced brackets in expressions, dataset fields BC cannot resolve, unknown fields, missing report items, tablix headers that do not repeat, fonts and images BC does not support. ' +
+        'Each finding gives its severity, the item `itemId` and `location` (e.g. "Value"), the raw `params` and an English `message`. ' +
+        '`severity` keeps that level and the more serious ones ("warning" → errors and warnings). Findings never block rdlc_save.',
+      inputSchema: {
+        sessionId,
+        severity: z
+          .enum(['error', 'warning', 'hint'])
+          .optional()
+          .describe('Lowest level to return (default "hint": all findings)'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    guard(({ sessionId: id, severity }) => {
+      const linted = unwrap(sessions.lintOf(id));
+      if ('reply' in linted) return linted.reply;
+      const limit = SEVERITY_RANK[severity ?? 'hint'];
+      const findings = linted.value
+        .filter((finding) => SEVERITY_RANK[finding.severity] <= limit)
+        .map((finding) => ({ ...finding, message: lintMessage(finding) }));
+      const summary: Record<LintSeverity, number> = { error: 0, warning: 0, hint: 0 };
+      for (const finding of findings) summary[finding.severity] += 1;
+      return reply({ ok: true, total: findings.length, summary, findings }, id);
     }),
   );
 

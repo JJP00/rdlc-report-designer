@@ -43,6 +43,7 @@ export const lib = {
     languageAlias: 'Expresión RDL',
     apply: 'Aplicar',
     applyEnter: 'Aplicar (Enter)',
+    discard: 'Descartar cambios (Escape)',
   },
   ruler: {
     printable: 'Área imprimible',

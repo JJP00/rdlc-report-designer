@@ -5,7 +5,6 @@ import { PencilLine } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { commonEffectiveFormat } from '@/lib/textFormat';
 import { isSimpleText } from '@/lib/textEditor';
@@ -125,20 +124,9 @@ function RunField({
   onLabel: (label: string | null) => void;
 }): ReactNode {
   const t = useT();
-  // Borrador mientras se teclea: un cambio de la proyección no pisa el texto.
-  const [draft, setDraft] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState<string | null>(null);
-  const text = draft ?? value;
   const labelText = labelDraft ?? label ?? '';
 
-  const commit = (): void => {
-    if (draft !== null && draft !== value) onCommit(draft);
-    setDraft(null);
-  };
-  const commitDraftValue = (next: string): void => {
-    if (next !== value) onCommit(next);
-    setDraft(null);
-  };
   const commitLabel = (): void => {
     if (labelDraft !== null) {
       const next = labelDraft.trim();
@@ -174,25 +162,20 @@ function RunField({
           <span className="text-[10px] text-muted-foreground">{t('text.run.kindText')}</span>
         )}
       </div>
-      {isExpression ? (
-        <ExpressionEditor
-          value={value}
-          mode="expression"
-          ariaLabel={t('text.run.expressionAria', { index })}
-          onCommit={commitDraftValue}
-        />
-      ) : (
-        <Input
-          className="h-7 font-mono text-xs"
-          value={text}
-          aria-label={t('text.run.valueAria', { index })}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') commit();
-          }}
-        />
-      )}
+      {/* Texto y expresión en el mismo Monaco: escribir el `=` no cambia de
+          editor ni pierde el foco. */}
+      <ExpressionEditor
+        value={value}
+        mode="expression"
+        ariaLabel={
+          isExpression
+            ? t('text.run.expressionAria', { index })
+            : t('text.run.valueAria', { index })
+        }
+        onCommit={(next) => {
+          if (next !== value) onCommit(next);
+        }}
+      />
     </div>
   );
 }

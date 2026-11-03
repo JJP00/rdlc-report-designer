@@ -123,6 +123,20 @@ describe('proyección · jerarquías del Tablix', () => {
     expect(vat!.rowHierarchy[0]!.children).toEqual([]);
   });
 
+  it('proyecta StartAndEnd como Between+Start+End (como el diálogo de RB), unifica legacy, y ResetPageNumber y PageName', () => {
+    const doc = xmlAdapter.parse(pageBreakProjectionXml());
+    const projection = projectionAdapter.project({
+      sessionId: 'test',
+      filePath: 'custom.rdlc',
+      document: doc,
+      version: 1,
+    });
+    const member = tablixByName(projection, 'T')?.rowHierarchy[0];
+    expect(member?.pageBreaks).toEqual(['Between', 'Start', 'End']);
+    expect(member?.resetPageNumber).toBe(true);
+    expect(member?.pageName).toBe('Factura');
+  });
+
   it('proyecta saltos de página y ToggleItem del miembro (caso XML)', () => {
     const doc = xmlAdapter.parse(MEMBER_OPTIONS_XML);
     const projection = projectionAdapter.project({
@@ -204,3 +218,23 @@ const MEMBER_OPTIONS_XML = `<?xml version="1.0" encoding="utf-8"?>
     </ReportSection>
   </ReportSections>
 </Report>`;
+
+/** Grupo con `StartAndEnd` (RB), otro `PageBreak` legacy con reset y `PageName`. */
+function pageBreakProjectionXml(): string {
+  return MEMBER_OPTIONS_XML.replace(
+    `<PageBreak>
+                      <BreakLocation>Between</BreakLocation>
+                    </PageBreak>
+                    <PageBreak>
+                      <BreakLocation>None</BreakLocation>
+                    </PageBreak>`,
+    `<PageBreak>
+                      <BreakLocation>StartAndEnd</BreakLocation>
+                    </PageBreak>
+                    <PageBreak>
+                      <ResetPageNumber>true</ResetPageNumber>
+                      <BreakLocation>None</BreakLocation>
+                    </PageBreak>
+                    <PageName>Factura</PageName>`,
+  );
+}

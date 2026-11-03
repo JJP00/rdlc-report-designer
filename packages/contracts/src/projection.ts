@@ -70,6 +70,8 @@ export interface TextboxDto extends ItemBaseDto {
 export interface RectangleDto extends ItemBaseDto {
   kind: 'rectangle';
   children: ItemDto[];
+  /** `KeepTogether` del item; ausente si la etiqueta no está. */
+  keepTogether?: boolean;
 }
 
 export interface LineDto extends ItemBaseDto {
@@ -107,6 +109,7 @@ export const rectangleSchema: z.ZodType<RectangleDto> = z.object({
   kind: z.literal('rectangle'),
   ...itemBaseShape,
   children: z.array(z.lazy(() => itemSchema)),
+  keepTogether: z.boolean().optional(),
 });
 
 export const lineSchema: z.ZodType<LineDto> = z.object({
@@ -169,8 +172,16 @@ export interface TablixMemberDto {
   sortExpressions?: TablixSortDto[];
   /** Saltos de página del grupo (`PageBreak > BreakLocation`), sin `None`. */
   pageBreaks?: TablixBreakLocation[];
+  /** `PageBreak > ResetPageNumber` = true (solo presente si está activo). */
+  resetPageNumber?: boolean;
+  /** Nombre de página del grupo (`PageName`). */
+  pageName?: string;
   /** Item que alterna la visibilidad (`Visibility > ToggleItem`). */
   toggleItem?: string;
+  /** Opciones de fila/columna; ausente = valor por defecto (`false` / `None`). */
+  repeatOnNewPage?: boolean;
+  keepWithGroup?: 'None' | 'Before' | 'After';
+  keepTogether?: boolean;
   children: TablixMemberDto[];
 }
 
@@ -183,7 +194,12 @@ export const tablixMemberSchema: z.ZodType<TablixMemberDto> = z.lazy(() =>
     hidden: z.union([z.boolean(), z.string()]).optional(),
     sortExpressions: z.array(tablixSortSchema).optional(),
     pageBreaks: z.array(tablixBreakLocationSchema).optional(),
+    resetPageNumber: z.boolean().optional(),
+    pageName: z.string().optional(),
     toggleItem: z.string().optional(),
+    repeatOnNewPage: z.boolean().optional(),
+    keepWithGroup: z.enum(['None', 'Before', 'After']).optional(),
+    keepTogether: z.boolean().optional(),
     children: z.array(tablixMemberSchema),
   }),
 );
@@ -275,6 +291,11 @@ export interface TablixDto extends ItemBaseDto {
   headers?: TablixHeadersDto;
   /** Filtros del Tablix (`Filters > Filter`), en orden de documento. */
   filters?: TablixFilterDto[];
+  /** Opciones del item; ausentes si la etiqueta no está en el fichero. */
+  keepTogether?: boolean;
+  repeatColumnHeaders?: boolean;
+  repeatRowHeaders?: boolean;
+  noRowsMessage?: string;
 }
 
 export const tablixSchema: z.ZodType<TablixDto> = z.object({
@@ -293,6 +314,10 @@ export const tablixSchema: z.ZodType<TablixDto> = z.object({
   columnHierarchy: z.array(tablixMemberSchema),
   headers: tablixHeadersSchema.optional(),
   filters: z.array(tablixFilterSchema).optional(),
+  keepTogether: z.boolean().optional(),
+  repeatColumnHeaders: z.boolean().optional(),
+  repeatRowHeaders: z.boolean().optional(),
+  noRowsMessage: z.string().optional(),
 });
 
 export const itemSchema: z.ZodType<ItemDto> = z.lazy(() =>

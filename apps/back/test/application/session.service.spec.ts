@@ -97,6 +97,21 @@ describe('F0 · SessionService (abrir / guardar / vigilar)', () => {
     expect(projection.meta.code.functions.length).toBeGreaterThan(0);
   });
 
+  it('lintOf devuelve hallazgos (lista) del corpus y E_NOT_FOUND con sesión desconocida', async () => {
+    const { service, tmp } = await makeService();
+    const path = await writeFixture(tmp, 'SalesInvoiceESP.rdlc');
+    const opened = await service.open(path);
+    if (!opened.isRight()) throw new Error('el corpus debe abrir');
+
+    const linted = service.lintOf(opened.value.sessionId);
+    expect(linted.isRight()).toBe(true);
+    if (linted.isRight()) expect(Array.isArray(linted.value)).toBe(true);
+
+    const unknown = service.lintOf('no-such-session');
+    expect(unknown.isLeft()).toBe(true);
+    if (unknown.isLeft()) expect(unknown.value.code).toBe('E_NOT_FOUND');
+  });
+
   it('detecta cambios externos y empuja una snapshot nueva', async () => {
     const { service, watcher, events, tmp } = await makeService();
     const path = await writeFixture(tmp, 'PalletOutput.rdlc');

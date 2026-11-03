@@ -133,8 +133,14 @@ export interface ItemEditing {
   batchEdit: (commands: BatchableCommand[]) => void;
   /** Orden de apilado entre los hermanos del mismo contenedor. */
   zOrder: (direction: 'front' | 'back') => void;
-  /** `CanGrow`/`KeepTogether` de un Textbox (apagarlas quita la etiqueta). */
-  setItemOptions: (options: { canGrow?: boolean; keepTogether?: boolean }) => void;
+  /** Opciones del item: `CanGrow` (Textbox), `KeepTogether` (Textbox/Tablix/Rectangle), cabeceras y `NoRowsMessage` (Tablix). Apagarlas quita la etiqueta. */
+  setItemOptions: (options: {
+    canGrow?: boolean;
+    keepTogether?: boolean;
+    repeatColumnHeaders?: boolean;
+    repeatRowHeaders?: boolean;
+    noRowsMessage?: string;
+  }) => void;
   /** Salto de página del item (`None`/`null` quitan el bloque). */
   setItemPageBreak: (breakLocation: 'None' | 'Start' | 'End' | 'Between') => void;
   /** Renombra el elemento (el nombre debe ser único; lo valida el dominio). */
@@ -844,8 +850,21 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
   );
 
   const setItemOptions = useCallback(
-    (options: { canGrow?: boolean; keepTogether?: boolean }): void => {
-      if (!selectedItem || selectedItem.kind !== 'textbox') return;
+    (options: {
+      canGrow?: boolean;
+      keepTogether?: boolean;
+      repeatColumnHeaders?: boolean;
+      repeatRowHeaders?: boolean;
+      noRowsMessage?: string;
+    }): void => {
+      if (
+        !selectedItem ||
+        (selectedItem.kind !== 'textbox' &&
+          selectedItem.kind !== 'rectangle' &&
+          selectedItem.kind !== 'tablix')
+      ) {
+        return;
+      }
       // Sin optimismo: el comando pide snapshot (apagar = quitar la etiqueta y
       // la proyección devuelve el flag como `undefined`).
       void sendCommand({ cmd: 'setItemOptions', id: selectedItem.id, ...options });

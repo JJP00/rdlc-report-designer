@@ -59,6 +59,7 @@ export const ERROR_REASONS = [
   'filterExpressionEmpty',
   'groupExpressionsMultiple',
   'groupExpressionEmpty',
+  'groupResetPageNumberNeedsBreak',
   'groupNeedsExpression',
   'groupNameEmpty',
   'sortExpressionEmpty',

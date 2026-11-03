@@ -1,9 +1,8 @@
 import type { EmbeddedImageDto, ImageDto, StylePatch } from '@rdlc-designer/contracts';
 import { useT } from '@rdlc-designer/i18n/react';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ExpressionEditor } from './ExpressionEditor';
@@ -153,15 +152,8 @@ function ValueSection({
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
 }): ReactNode {
   const t = useT();
-  // Borrador mientras se escribe: un cambio externo no pisa el texto.
-  const [draft, setDraft] = useState<string | null>(null);
-  const value = draft ?? item.value ?? '';
+  const value = item.value ?? '';
   const isExpression = value.trimStart().startsWith('=');
-
-  const commit = (): void => {
-    if (draft !== null && draft !== (item.value ?? '')) onSetImageOptions({ value: draft });
-    setDraft(null);
-  };
 
   // Incrustada: el `<Value>` debe ser el nombre de una entrada del catálogo.
   if (item.source === 'Embedded' && embeddedImages.length > 0) {
@@ -205,35 +197,21 @@ function ValueSection({
         </Label>
         <FxToggle
           active={isExpression}
-          onToggle={(next) => {
-            const updated = next ? ensureExpression(value) : stripExpression(value);
-            setDraft(null);
-            onSetImageOptions({ value: updated });
-          }}
+          onToggle={(next) =>
+            onSetImageOptions({ value: next ? ensureExpression(value) : stripExpression(value) })
+          }
         />
       </div>
-      {isExpression ? (
-        <ExpressionEditor
-          value={value}
-          mode="expression"
-          ariaLabel={t('image.value.expressionAria')}
-          onCommit={(next) => {
-            if (next !== (item.value ?? '')) onSetImageOptions({ value: next });
-          }}
-        />
-      ) : (
-        <Input
-          className="h-7 font-mono text-xs"
-          placeholder={item.source === 'External' ? 'https://…' : '=Fields!Picture.Value'}
-          value={value}
-          aria-label={t('image.value.aria')}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') commit();
-          }}
-        />
-      )}
+      {/* URL, campo o expresión en el mismo Monaco: el `=` no cambia de editor. */}
+      <ExpressionEditor
+        value={value}
+        mode="expression"
+        ariaLabel={isExpression ? t('image.value.expressionAria') : t('image.value.aria')}
+        placeholder={item.source === 'External' ? 'https://…' : '=Fields!Picture.Value'}
+        onCommit={(next) => {
+          if (next !== value) onSetImageOptions({ value: next });
+        }}
+      />
     </div>
   );
 }
@@ -246,15 +224,9 @@ function MimeSection({
   onSetImageOptions: (patch: ImageOptionsPatch) => void;
 }): ReactNode {
   const t = useT();
-  const [draft, setDraft] = useState<string | null>(null);
-  const mimeType = draft ?? item.mimeType ?? 'image/png';
+  const mimeType = item.mimeType ?? 'image/png';
   const isExpression = mimeType.trimStart().startsWith('=');
   const options = MIME_TYPES.includes(mimeType) ? MIME_TYPES : [...MIME_TYPES, mimeType];
-
-  const commit = (): void => {
-    if (draft !== null && draft !== (item.mimeType ?? '')) onSetImageOptions({ mimeType: draft });
-    setDraft(null);
-  };
 
   return (
     <div className="grid gap-1">
@@ -262,22 +234,20 @@ function MimeSection({
         <Label className="text-[11px] text-muted-foreground">{t('image.mime.label')}</Label>
         <FxToggle
           active={isExpression}
-          onToggle={(next) => {
-            const updated = next ? ensureExpression(mimeType) : stripExpression(mimeType);
-            setDraft(null);
-            onSetImageOptions({ mimeType: updated });
-          }}
+          onToggle={(next) =>
+            onSetImageOptions({
+              mimeType: next ? ensureExpression(mimeType) : stripExpression(mimeType),
+            })
+          }
         />
       </div>
       {isExpression ? (
-        <Input
-          className="h-7 font-mono text-xs"
+        <ExpressionEditor
           value={mimeType}
-          aria-label={t('image.mime.expressionAria')}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') commit();
+          mode="expression"
+          ariaLabel={t('image.mime.expressionAria')}
+          onCommit={(next) => {
+            if (next !== mimeType) onSetImageOptions({ mimeType: next });
           }}
         />
       ) : (

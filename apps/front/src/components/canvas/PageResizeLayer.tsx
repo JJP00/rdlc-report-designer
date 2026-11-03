@@ -1,6 +1,6 @@
 import type Konva from 'konva';
 import { forwardRef, useEffect, useImperativeHandle, useRef, type ReactNode } from 'react';
-import { Group, Layer, Line, Rect, Text as KonvaText } from 'react-konva';
+import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
 import { toCm } from '@/lib/projection';
 import { bandHeightFrom, formatCm, sectionWidthFrom } from '@/lib/pageResize';
 import { TEST_HOOKS_ENABLED } from '@/lib/testHooks';
@@ -61,7 +61,7 @@ const BADGE_PX = 74;
 /** Aire a cada lado del texto dentro de la etiqueta (px de pantalla). */
 const BADGE_PADDING_PX = 16;
 
-/** Zonas de arrastre de los bordes de página (capa **bajo** el papel). */
+/** Zonas de arrastre de los bordes de página (van **bajo** el papel en la misma capa). */
 export function PageResizeZones({
   layout,
   zoom,
@@ -72,7 +72,7 @@ export function PageResizeZones({
   onPreview,
   onPreviewEnd,
 }: PageResizeZonesProps): ReactNode {
-  const layerRef = useRef<Konva.Layer | null>(null);
+  const groupRef = useRef<Konva.Group | null>(null);
 
   const header = layout.bands.find((band) => band.key === 'header');
   const body = layout.bands.find((band) => band.key === 'body');
@@ -81,7 +81,7 @@ export function PageResizeZones({
   // QA (Playwright): centro de cada zona en coordenadas de pantalla.
   useEffect(() => {
     if (!TEST_HOOKS_ENABLED) return;
-    const stage = layerRef.current?.getStage();
+    const stage = groupRef.current?.getStage();
     const container = stage?.container().getBoundingClientRect();
     // El stage es la **ventana** renderizada: sus `x`/`y` (px de pantalla)
     // llevan el origen del papel al hueco visible.
@@ -115,7 +115,7 @@ export function PageResizeZones({
     };
   });
 
-  if (!header || !body || !footer) return <Layer listening={false} />;
+  if (!header || !body || !footer) return null;
 
   // Fronteras (px de papel).
   const headerBottom = header.y + toPx(header.region.height);
@@ -139,7 +139,7 @@ export function PageResizeZones({
     onPreview('vertical', layout.marginLeft + widthCm * PX_PER_CM, formatCm(widthCm));
 
   return (
-    <Layer ref={layerRef}>
+    <Group ref={groupRef}>
       {/* Borde inferior del encabezado (alto del encabezado). */}
       {onResizeRegion ? (
         <PageResizeZone
@@ -245,11 +245,11 @@ export function PageResizeZones({
           onPreviewEnd={onPreviewEnd}
         />
       ) : null}
-    </Layer>
+    </Group>
   );
 }
 
-/** Previsualización (línea + etiqueta) en una capa superior sin `listening`. */
+/** Previsualización (línea + etiqueta) en la capa superior, sin `listening`. */
 export const PageResizePreview = forwardRef<
   PageResizeHandle,
   { layout: PaperLayout; zoom: number }
@@ -310,7 +310,7 @@ export const PageResizePreview = forwardRef<
   }));
 
   return (
-    <Layer listening={false}>
+    <Group listening={false}>
       <Group ref={previewGroup} name="page-resize-preview" visible={false} listening={false}>
         <Line
           ref={previewLine}
@@ -341,7 +341,7 @@ export const PageResizePreview = forwardRef<
           fill="#ffffff"
         />
       </Group>
-    </Layer>
+    </Group>
   );
 });
 

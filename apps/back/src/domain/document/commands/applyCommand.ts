@@ -39,6 +39,7 @@ import { applySetParagraphs } from './setParagraphs.js';
 import { applySetRunLabel } from './setRunLabel.js';
 import { applySetImageOptions } from './setImageOptions.js';
 import { applySetItemOptions } from './setItemOptions.js';
+import { applySetMemberOptions } from './setMemberOptions.js';
 import { applySetItemPageBreak } from './setItemPageBreak.js';
 import { applySetTablixFilters } from './setTablixFilters.js';
 import { applySetName } from './setName.js';
@@ -60,6 +61,7 @@ import {
   applySetGroupExpressions,
   applySetGroupName,
   applySetGroupPageBreaks,
+  applySetGroupPageName,
   applySetGroupSorting,
 } from './tablixGroups.js';
 
@@ -147,8 +149,12 @@ export function applyCommand(
       return applyDeleteRowGroup(ctx, command);
     case 'setGroupPageBreaks':
       return applySetGroupPageBreaks(ctx, command);
+    case 'setGroupPageName':
+      return applySetGroupPageName(ctx, command);
     case 'setGroupSorting':
       return applySetGroupSorting(ctx, command);
+    case 'setMemberOptions':
+      return applySetMemberOptions(ctx, command);
     case 'setTablixFilters':
       return applySetTablixFilters(ctx, command);
     case 'setPageSize':

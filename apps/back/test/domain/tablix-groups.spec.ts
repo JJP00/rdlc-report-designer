@@ -681,7 +681,7 @@ describe('F2.b.2 · setGroupSorting', () => {
 });
 
 describe('F2.b.2 · setGroupPageBreaks', () => {
-  it('escribe un PageBreak por opción (Between, Start) y el undo es exacto', () => {
+  it('Start + End se escriben como un único PageBreak StartAndEnd y el undo es exacto', () => {
     const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
 
     const applied = applyCommand(
@@ -691,9 +691,9 @@ describe('F2.b.2 · setGroupPageBreaks', () => {
         id: 'Tablix2',
         axis: 'row',
         path: [0],
-        between: true,
+        between: false,
         start: true,
-        end: false,
+        end: true,
       },
     );
     expect(applied.isRight()).toBe(true);
@@ -702,7 +702,7 @@ describe('F2.b.2 · setGroupPageBreaks', () => {
     const group = memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0])?.child('Group');
     expect(
       group?.children('PageBreak').map((pageBreak) => pageBreak.child('BreakLocation')?.text()),
-    ).toEqual(['Between', 'Start']);
+    ).toEqual(['StartAndEnd']);
 
     const problems = validator.validate(adapter.serialize(doc)).problems;
     expect(problems, problems.join(' | ')).toEqual([]);
@@ -712,7 +712,7 @@ describe('F2.b.2 · setGroupPageBreaks', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
-  it('quita los gestionados que se desmarcan y respeta los no gestionados', () => {
+  it('reescribe un PageBreak None (legacy) como el único salto Start y el undo es exacto', () => {
     const { doc, index } = openXml(PAGE_BREAK_NONE_XML);
     const before = adapter.serialize(doc);
     const ctx = { root: doc.root, index };
@@ -732,10 +732,183 @@ describe('F2.b.2 · setGroupPageBreaks', () => {
     const group = memberByPath(hierarchyOf(index.get('T'), 'row'), [0])?.child('Group');
     expect(
       group?.children('PageBreak').map((pageBreak) => pageBreak.child('BreakLocation')?.text()),
-    ).toEqual(['None', 'Start']);
+    ).toEqual(['Start']);
 
     const undo = undoAll(ctx, applied.value);
     expect(undo.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(before);
+  });
+
+  it('Between solo escribe un único PageBreak Between', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+
+    const applied = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'Tablix7',
+      axis: 'row',
+      path: [0],
+      between: true,
+      start: false,
+      end: false,
+    });
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const group = memberByPath(hierarchyOf(index.get('Tablix7'), 'row'), [0])?.child('Group');
+    expect(
+      group?.children('PageBreak').map((pageBreak) => pageBreak.child('BreakLocation')?.text()),
+    ).toEqual(['Between']);
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    expect(undoAll(ctx, applied.value).isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('Between con Start y/o End se escribe como en RB (las tres → StartAndEnd) y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+    const locations = () =>
+      memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0])
+        ?.child('Group')
+        ?.children('PageBreak')
+        .map((pageBreak) => pageBreak.child('BreakLocation')?.text());
+
+    for (const [flags, expected] of [
+      [{ start: true, end: true }, 'StartAndEnd'],
+      [{ start: false, end: false }, 'Between'],
+      [{ start: true, end: false }, 'Start'],
+      [{ start: false, end: true }, 'End'],
+    ] as const) {
+      const applied = applyCommand(ctx, {
+        cmd: 'setGroupPageBreaks',
+        id: 'Tablix2',
+        axis: 'row',
+        path: [0],
+        between: true,
+        ...flags,
+      });
+      expect(applied.isRight()).toBe(true);
+      if (!applied.isRight()) return;
+      expect(locations()).toEqual([expected]);
+      expect(undoAll(ctx, applied.value).isRight()).toBe(true);
+      expect(adapter.serialize(doc)).toBe(xml);
+    }
+  });
+
+  it('resetPageNumber añade ResetPageNumber al PageBreak único y su undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+    const group = () => memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0])?.child('Group');
+
+    const withBreak = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      between: false,
+      start: true,
+      end: false,
+      resetPageNumber: true,
+    });
+    expect(withBreak.isRight()).toBe(true);
+    if (!withBreak.isRight()) return;
+    const pageBreaks = group()?.children('PageBreak') ?? [];
+    expect(pageBreaks).toHaveLength(1);
+    expect(pageBreaks[0]?.child('BreakLocation')?.text()).toBe('Start');
+    expect(pageBreaks[0]?.child('ResetPageNumber')?.text()).toBe('true');
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+    const afterAdd = adapter.serialize(doc);
+
+    // Omitido: no se toca el reset existente.
+    const keepReset = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      between: false,
+      start: false,
+      end: true,
+    });
+    expect(keepReset.isRight()).toBe(true);
+    if (!keepReset.isRight()) return;
+    expect(group()?.children('PageBreak')[0]?.child('ResetPageNumber')?.text()).toBe('true');
+    expect(group()?.children('PageBreak')[0]?.child('BreakLocation')?.text()).toBe('End');
+    expect(undoAll(ctx, keepReset.value).isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(afterAdd);
+
+    // false: quita solo el ResetPageNumber y conserva el salto.
+    const offReset = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      between: false,
+      start: true,
+      end: false,
+      resetPageNumber: false,
+    });
+    expect(offReset.isRight()).toBe(true);
+    if (!offReset.isRight()) return;
+    expect(group()?.children('PageBreak')[0]?.child('ResetPageNumber')).toBeUndefined();
+    expect(group()?.children('PageBreak')[0]?.child('BreakLocation')?.text()).toBe('Start');
+    expect(undoAll(ctx, offReset.value).isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(afterAdd);
+
+    expect(undoAll(ctx, withBreak.value).isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('resetPageNumber sin ningún salto se rechaza', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const result = applyCommand(
+      { root: doc.root, index },
+      {
+        cmd: 'setGroupPageBreaks',
+        id: 'Tablix2',
+        axis: 'row',
+        path: [0],
+        between: false,
+        start: false,
+        end: false,
+        resetPageNumber: true,
+      },
+    );
+    expect(result.isLeft()).toBe(true);
+    if (result.isLeft()) expect(result.value.reason).toBe('groupResetPageNumberNeedsBreak');
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('un fichero legacy con Start y End en PageBreak separados se unifica en StartAndEnd y el undo es exacto', () => {
+    const { doc, index } = openXml(pageBreakLegacyXml());
+    const before = adapter.serialize(doc);
+    const ctx = { root: doc.root, index };
+    const group = () => memberByPath(hierarchyOf(index.get('T'), 'row'), [0])?.child('Group');
+    expect(group()?.children('PageBreak')).toHaveLength(2);
+
+    const applied = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'T',
+      axis: 'row',
+      path: [0],
+      between: false,
+      start: true,
+      end: true,
+    });
+    expect(applied.isRight()).toBe(true);
+    if (!applied.isRight()) return;
+
+    const pageBreaks = group()?.children('PageBreak') ?? [];
+    expect(pageBreaks).toHaveLength(1);
+    expect(pageBreaks[0]?.child('BreakLocation')?.text()).toBe('StartAndEnd');
+    // El ResetPageNumber del PageBreak fusionado no se pierde al reescribir.
+    expect(pageBreaks[0]?.child('ResetPageNumber')?.text()).toBe('true');
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+
+    expect(undoAll(ctx, applied.value).isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(before);
   });
 
@@ -775,6 +948,96 @@ describe('F2.b.2 · setGroupPageBreaks', () => {
     expect(adapter.serialize(doc)).toBe(afterAdd);
     const undoAllAdded = undoAll(ctx, added.value);
     expect(undoAllAdded.isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+});
+
+describe('F2.b.2 · setGroupPageName', () => {
+  it('añade PageName tras PageBreak, lo cambia y el undo es exacto', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+    const group = () => memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0])?.child('Group');
+
+    const breaks = applyCommand(ctx, {
+      cmd: 'setGroupPageBreaks',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      between: true,
+      start: false,
+      end: false,
+    });
+    expect(breaks.isRight()).toBe(true);
+    if (!breaks.isRight()) return;
+    const afterBreaks = adapter.serialize(doc);
+
+    const added = applyCommand(ctx, {
+      cmd: 'setGroupPageName',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      pageName: 'Factura',
+    });
+    expect(added.isRight()).toBe(true);
+    if (!added.isRight()) return;
+    const names =
+      group()
+        ?.children()
+        .map((child) => child.tagName) ?? [];
+    expect(names.indexOf('PageName')).toBeGreaterThan(names.indexOf('PageBreak'));
+    expect(group()?.child('PageName')?.text()).toBe('Factura');
+    const problems = validator.validate(adapter.serialize(doc)).problems;
+    expect(problems, problems.join(' | ')).toEqual([]);
+    const afterAdd = adapter.serialize(doc);
+
+    const renamed = applyCommand(ctx, {
+      cmd: 'setGroupPageName',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      pageName: 'Albarán',
+    });
+    expect(renamed.isRight()).toBe(true);
+    if (!renamed.isRight()) return;
+    expect(group()?.child('PageName')?.text()).toBe('Albarán');
+    expect(undoAll(ctx, renamed.value).isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(afterAdd);
+
+    expect(undoAll(ctx, added.value).isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(afterBreaks);
+    expect(undoAll(ctx, breaks.value).isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(xml);
+  });
+
+  it('cadena vacía (o solo blancos) quita PageName y el undo lo restaura', () => {
+    const { xml, doc, index } = open('SalesCreditMemoESP.rdlc');
+    const ctx = { root: doc.root, index };
+    const added = applyCommand(ctx, {
+      cmd: 'setGroupPageName',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      pageName: 'Factura',
+    });
+    expect(added.isRight()).toBe(true);
+    if (!added.isRight()) return;
+    const withName = adapter.serialize(doc);
+
+    const removed = applyCommand(ctx, {
+      cmd: 'setGroupPageName',
+      id: 'Tablix2',
+      axis: 'row',
+      path: [0],
+      pageName: '   ',
+    });
+    expect(removed.isRight()).toBe(true);
+    if (!removed.isRight()) return;
+    const group = memberByPath(hierarchyOf(index.get('Tablix2'), 'row'), [0])?.child('Group');
+    expect(group?.child('PageName')).toBeUndefined();
+
+    expect(undoAll(ctx, removed.value).isRight()).toBe(true);
+    expect(adapter.serialize(doc)).toBe(withName);
+    expect(undoAll(ctx, added.value).isRight()).toBe(true);
     expect(adapter.serialize(doc)).toBe(xml);
   });
 });
@@ -1091,6 +1354,22 @@ function groupWithHeaderXml(headerContent: string): string {
     </ReportSection>
   </ReportSections>
 </Report>`;
+}
+
+/** Salida legacy del diseñador: un `PageBreak` por opción (Start y End). */
+function pageBreakLegacyXml(): string {
+  return PAGE_BREAK_NONE_XML.replace(
+    `<PageBreak>
+                      <BreakLocation>None</BreakLocation>
+                    </PageBreak>`,
+    `<PageBreak>
+                      <BreakLocation>Start</BreakLocation>
+                    </PageBreak>
+                    <PageBreak>
+                      <BreakLocation>End</BreakLocation>
+                      <ResetPageNumber>true</ResetPageNumber>
+                    </PageBreak>`,
+  );
 }
 
 const PAGE_BREAK_NONE_XML = `<?xml version="1.0" encoding="utf-8"?>

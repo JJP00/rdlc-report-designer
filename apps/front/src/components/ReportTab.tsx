@@ -1,6 +1,6 @@
 import { useT } from '@rdlc-designer/i18n/react';
 import type { TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { CanvasColumn } from '@/components/CanvasColumn';
 import { EditorBanners } from '@/components/EditorBanners';
 import { EditorToolbar } from '@/components/EditorToolbar';
@@ -8,9 +8,12 @@ import { InspectorColumn } from '@/components/InspectorColumn';
 import { LeftPanels } from '@/components/LeftPanels';
 import { StatusBar } from '@/components/StatusBar';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
+import { ProblemsPanel } from '@/components/ProblemsPanel';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 import type { WorkspaceCore } from '@/hooks/useWorkspace';
 import { useBatchSelection } from '@/hooks/useBatchSelection';
+import { useLintFindings } from '@/hooks/useLintFindings';
+import { countLintSeverities } from '@/lib/lint';
 import { countItems, formatKinds } from '@/lib/projection';
 import { effectiveTextStyle } from '@/lib/style';
 
@@ -167,6 +170,15 @@ function ReportBody({
   const t = useT();
   const stats = useMemo(() => (doc ? countItems(doc.projection) : null), [doc]);
 
+  /** Hallazgos del lint de BC (avisan, no bloquean): panel «Problemas» bajo el lienzo. */
+  const findings = useLintFindings({
+    sessionId: doc?.sessionId ?? null,
+    projection: doc?.projection ?? null,
+    enabled: hasBackend,
+  });
+  const problems = useMemo(() => countLintSeverities(findings), [findings]);
+  const [problemsOpen, setProblemsOpen] = useState(false);
+
   /** Qué edita el panel de lote: multiselección de items o contenidos de celdas. */
   const batchSelection = useBatchSelection({
     projection: doc?.projection ?? null,
@@ -230,6 +242,15 @@ function ReportBody({
         />
       </main>
 
+      {problemsOpen && doc ? (
+        <ProblemsPanel
+          findings={findings}
+          projection={doc.projection}
+          onSelectItem={items.selectAndReveal}
+          onClose={() => setProblemsOpen(false)}
+        />
+      ) : null}
+
       <StatusBar
         status={status}
         path={doc?.path ?? null}
@@ -240,6 +261,9 @@ function ReportBody({
             : null
         }
         reloads={reloads}
+        problems={doc ? problems : null}
+        problemsOpen={problemsOpen}
+        onToggleProblems={() => setProblemsOpen((open) => !open)}
       />
     </>
   );

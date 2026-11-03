@@ -27,6 +27,8 @@ export const IPC_CHANNELS = {
    * disco: el front la pide para deshacer el optimismo de un comando rechazado.
    */
   readProjection: 'rdlc:readProjection',
+  /** Hallazgos del lint de BC sobre el documento vigente (solo lectura). */
+  lint: 'rdlc:lint',
   /** Ficheros abiertos recientemente (para el desplegable de «Abrir…»). */
   recentFiles: 'rdlc:recentFiles',
   /** El renderer confirma (o cancela) el cierre de la ventana pedido por el SO. */
@@ -360,6 +362,24 @@ export const readProjectionResultSchema = z.discriminatedUnion('ok', [
   ipcErrorSchema,
 ]);
 export type ReadProjectionResult = z.infer<typeof readProjectionResultSchema>;
+
+/** Un hallazgo del lint de BC. `rule` es un código estable que la UI traduce. */
+export const lintFindingSchema = z.object({
+  rule: z.string(),
+  severity: z.enum(['error', 'warning', 'hint']),
+  /** `Name` del item afectado; ausente en hallazgos del `<Code>` o del informe. */
+  itemId: z.string().optional(),
+  /** Dónde está dentro del item o del `<Code>` (p. ej. `Value`, `Code`). */
+  location: z.string().optional(),
+  params: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+});
+export type LintFindingDto = z.infer<typeof lintFindingSchema>;
+
+export const lintResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), findings: z.array(lintFindingSchema) }),
+  ipcErrorSchema,
+]);
+export type LintResult = z.infer<typeof lintResultSchema>;
 
 export const saveResultSchema = z.discriminatedUnion('ok', [
   z.object({

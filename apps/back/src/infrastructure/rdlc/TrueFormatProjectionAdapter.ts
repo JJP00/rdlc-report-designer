@@ -193,6 +193,7 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
             width: geometry.width,
             height: geometry.height,
           }),
+          ...this.optionalBool(el, 'KeepTogether', 'keepTogether'),
         };
       case 'Line':
         return { ...base, kind: 'line' };
@@ -313,6 +314,10 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       columnHierarchy: column.members,
       ...(headers ? { headers } : {}),
       ...(filters.length > 0 ? { filters } : {}),
+      ...this.optionalBool(el, 'KeepTogether', 'keepTogether'),
+      ...this.optionalBool(el, 'RepeatColumnHeaders', 'repeatColumnHeaders'),
+      ...this.optionalBool(el, 'RepeatRowHeaders', 'repeatRowHeaders'),
+      ...this.optionalText(el, 'NoRowsMessage', 'noRowsMessage'),
     };
   }
 
@@ -478,6 +483,11 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
           );
           const sortExpressions = this.memberSortExpressions(memberEl);
           const pageBreaks = this.memberPageBreaks(group);
+          const resetPageNumber = this.memberResetPageNumber(group);
+          const pageName = textOf(group?.getFirstElementByName('PageName'));
+          const repeatOnNewPage = textOf(memberEl.getFirstElementByName('RepeatOnNewPage'));
+          const keepWithGroup = textOf(memberEl.getFirstElementByName('KeepWithGroup'));
+          const keepTogether = textOf(memberEl.getFirstElementByName('KeepTogether'));
           const dto: TablixMemberDto = {
             path: childPath,
             total: 'none',
@@ -491,7 +501,16 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
               : {}),
             ...(sortExpressions.length > 0 ? { sortExpressions } : {}),
             ...(pageBreaks.length > 0 ? { pageBreaks } : {}),
+            ...(resetPageNumber ? { resetPageNumber } : {}),
+            ...(pageName !== undefined && pageName !== '' ? { pageName } : {}),
             ...(toggleItem !== undefined && toggleItem !== '' ? { toggleItem } : {}),
+            ...(repeatOnNewPage !== undefined
+              ? { repeatOnNewPage: repeatOnNewPage === 'true' }
+              : {}),
+            ...(keepWithGroup === 'Before' || keepWithGroup === 'After' || keepWithGroup === 'None'
+              ? { keepWithGroup }
+              : {}),
+            ...(keepTogether !== undefined ? { keepTogether: keepTogether === 'true' } : {}),
           };
           if (children.length === 0) {
             leaves.push({ dto, inGroup: inGroup || group !== undefined });
@@ -516,14 +535,38 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
       .filter((sort) => sort.value !== '');
   }
 
-  /** `PageBreak > BreakLocation` del grupo (solo los valores que editamos). */
+  /**
+   * Saltos del grupo como los edita el panel: `StartAndEnd` se expande a
+   * `Start` + `End` (igual que el comando al reescribirlo), `None` se descarta
+   * y las repeticiones de los ficheros legacy se unifican.
+   */
   private memberPageBreaks(group: XmlElement | undefined): TablixBreakLocation[] {
-    return elementChildren(group, 'PageBreak')
-      .map((pageBreak) => textOf(pageBreak.getFirstElementByName('BreakLocation')))
-      .filter(
-        (location): location is TablixBreakLocation =>
-          location === 'Start' || location === 'End' || location === 'Between',
-      );
+    const found = new Set<TablixBreakLocation>();
+    for (const pageBreak of elementChildren(group, 'PageBreak')) {
+      const location = textOf(pageBreak.getFirstElementByName('BreakLocation'));
+      // Como el diálogo de RB: «inicio» y «final» cuelgan de «entre instancias»,
+      // así que `StartAndEnd` = las tres marcadas y `Start`/`End` = entre + ese.
+      if (location === 'StartAndEnd') {
+        found.add('Between');
+        found.add('Start');
+        found.add('End');
+      } else if (location === 'Start' || location === 'End') {
+        found.add('Between');
+        found.add(location);
+      } else if (location === 'Between') {
+        found.add(location);
+      }
+    }
+    return ['Between', 'Start', 'End'].filter((value): value is TablixBreakLocation =>
+      found.has(value as TablixBreakLocation),
+    );
+  }
+
+  /** `PageBreak > ResetPageNumber` = true en algún salto del grupo. */
+  private memberResetPageNumber(group: XmlElement | undefined): boolean {
+    return elementChildren(group, 'PageBreak').some(
+      (pageBreak) => textOf(pageBreak.getFirstElementByName('ResetPageNumber')) === 'true',
+    );
   }
 
   /**
@@ -665,6 +708,26 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     if (raw === 'true') return true;
     if (raw === 'false') return false;
     return undefined;
+  }
+
+  /** Booleano opcional: la clave solo existe si la etiqueta está y es válida. */
+  private optionalBool<K extends string>(
+    el: XmlElement,
+    tag: string,
+    key: K,
+  ): Partial<Record<K, boolean>> {
+    const value = this.bool(textOf(el.getFirstElementByName(tag)));
+    return value === undefined ? {} : ({ [key]: value } as Record<K, boolean>);
+  }
+
+  /** Texto opcional: la clave solo existe si la etiqueta está. */
+  private optionalText<K extends string>(
+    el: XmlElement,
+    tag: string,
+    key: K,
+  ): Partial<Record<K, string>> {
+    const value = textOf(el.getFirstElementByName(tag));
+    return value === undefined ? {} : ({ [key]: value } as Record<K, string>);
   }
 
   private hidden(el: XmlElement): boolean | string | undefined {

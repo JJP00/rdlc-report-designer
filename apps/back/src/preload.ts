@@ -20,6 +20,7 @@ import {
   type PickSavePathResult,
   type RdlcApi,
   type RdlcCommand,
+  type LintResult,
   type ReadProjectionResult,
   type RecentFilesResult,
   type SaveResult,
@@ -70,6 +71,9 @@ const api: RdlcApi = {
 
   readProjection: (sessionId: string): Promise<ReadProjectionResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.readProjection, { sessionId }),
+
+  lint: (sessionId: string): Promise<LintResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.lint, { sessionId }),
 
   recentFiles: (): Promise<RecentFilesResult> => ipcRenderer.invoke(IPC_CHANNELS.recentFiles),
 

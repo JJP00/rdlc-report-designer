@@ -1,6 +1,6 @@
 import type Konva from 'konva';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Group, Layer, Line, Rect, Text as KonvaText } from 'react-konva';
+import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
 import type { Length } from '@rdlc-designer/contracts';
 import {
   computeResize,
@@ -81,17 +81,17 @@ export function SelectionFrame({
   const dragStart = useRef<{ pointer: { x: number; y: number }; box: BoxCm } | null>(null);
   const frameRef = useRef<Konva.Rect | null>(null);
   const previewRef = useRef<Konva.Rect | null>(null);
-  const layerRef = useRef<Konva.Layer | null>(null);
+  const groupRef = useRef<Konva.Group | null>(null);
 
   useEffect(() => {
     if (!TEST_HOOKS_ENABLED) return;
-    const layer = layerRef.current;
-    const container = layer?.getStage()?.container().getBoundingClientRect();
-    if (!layer || !container) return;
+    const group = groupRef.current;
+    const container = group?.getStage()?.container().getBoundingClientRect();
+    if (!group || !container) return;
 
     // QA (Playwright): dónde queda el tirador SE en pantalla, para arrastrarlo
     // con el ratón real.
-    const handle = layer.findOne('.handle-se') as Konva.Node | undefined;
+    const handle = group.findOne('.handle-se') as Konva.Node | undefined;
     if (handle && box) {
       const position = handle.getAbsolutePosition();
       (window as Window & { __rdlcResizeHandle?: { x: number; y: number } }).__rdlcResizeHandle = {
@@ -101,7 +101,7 @@ export function SelectionFrame({
     }
   });
 
-  if (!rect) return <Layer listening={false} />;
+  if (!rect) return null;
 
   const size = 8 / zoom;
   const resizable = showHandles && box !== undefined && onResize !== undefined;
@@ -148,7 +148,7 @@ export function SelectionFrame({
   };
 
   return (
-    <Layer ref={layerRef}>
+    <Group ref={groupRef}>
       {/* Recuadro real de la selección. */}
       <Rect
         ref={frameRef}
@@ -252,7 +252,7 @@ export function SelectionFrame({
               listening={false}
             />
           ))}
-    </Layer>
+    </Group>
   );
 }
 

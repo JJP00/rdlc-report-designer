@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useT } from '@rdlc-designer/i18n/react';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   FORMAT_PRESETS,
@@ -11,7 +10,7 @@ import {
   presetValue,
   type FormatSelection,
 } from '@/lib/textFormat';
-import { ExpressionEditor } from './ExpressionEditor';
+import { ExpressionEditor, type ExpressionEditorHandle } from './ExpressionEditor';
 
 export interface FormatFieldProps {
   /** Formato vigente: cadena, `undefined` (General) o `'mixed'` (discrepan los runs). */
@@ -27,11 +26,11 @@ export interface FormatFieldProps {
 
 /**
  * Campo de formato (`<Format>`) en columna: **selector de presets** .NET arriba
- * y **editor** debajo — Monaco si el valor es una expresión de BC
- * (`=Fields!…`, con resaltado y autocompletado), campo simple si es una cadena
- * (`N2`, `#,##0.00;(#,##0.00)`). Los presets confirman al vuelo; el texto, con
- * Enter o al salir, y se envía **sin escapar** (comillas intactas). «Mixto»
- * solo aparece como valor vigente: elegir algo lo aplica a todo.
+ * y **editor** Monaco debajo, para la cadena (`N2`, `#,##0.00;(#,##0.00)`) y
+ * para la expresión de BC (`=Fields!…`, con resaltado y autocompletado): el `=`
+ * no cambia de editor. Los presets confirman al vuelo; el texto, con Enter o al
+ * salir, y se envía **sin escapar** (comillas intactas); Escape lo descarta.
+ * «Mixto» solo aparece como valor vigente: elegir algo lo aplica a todo.
  */
 export function FormatField({
   value,
@@ -44,13 +43,11 @@ export function FormatField({
   // Aviso común (el título del `<select>` y del editor).
   const formatTitle = t('toolbar.formatField.title');
   const fieldAriaLabel = t('toolbar.formatField.ariaLabel', { label: ariaLabel });
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const editorRef = useRef<ExpressionEditorHandle | null>(null);
   /** Modo manual del selector mientras se teclea (`null` = sigue al valor). */
   const [manual, setManual] = useState<'custom' | 'expression' | null>(null);
   /** Texto local mientras el valor confirmado no ha vuelto del documento. */
   const [draft, setDraft] = useState<string | null>(null);
-  /** El siguiente montaje de Monaco recibe el foco (acción del usuario). */
-  const [focusEditor, setFocusEditor] = useState(false);
   /**
    * Último valor confirmado localmente: la proyección tarda en volver y el
    * mismo commit (p. ej. el blur del editor al desmontarse) no debe mandar el
@@ -64,17 +61,12 @@ export function FormatField({
   const expression = isExpressionFormat(text);
   const selected = manual ?? formatPresetId(value);
 
-  // El borrador se suelta cuando el valor confirmado ya lo refleja: el cambio
-  // de editor (literal ↔ Monaco) no parpadea durante el viaje de ida y vuelta.
+  // El borrador se suelta cuando el valor confirmado ya lo refleja: el editor
+  // no vuelve al valor anterior durante el viaje de ida y vuelta.
   useEffect(() => {
     if (draft === null) return;
     if (normalizeFormatInput(draft) === (current ?? null)) setDraft(null);
   }, [draft, current]);
-
-  // La petición de foco se consume en el mismo render que monta Monaco.
-  useEffect(() => {
-    if (focusEditor) setFocusEditor(false);
-  }, [focusEditor]);
 
   // El valor confirmado volvió del documento: el próximo commit vuelve a
   // compararse contra él.
@@ -82,11 +74,9 @@ export function FormatField({
     lastSentRef.current = undefined;
   }, [value]);
 
-  const focusInput = (): void => {
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
+  /** Foco al editor tras el render que le pasa el borrador nuevo. */
+  const focusEditor = (caret: 'all' | 'end'): void => {
+    requestAnimationFrame(() => editorRef.current?.focus(caret));
   };
 
   /** Solo se lanza el cambio si hay algo que cambiar (Mixto no tiene valor único). */
@@ -99,25 +89,15 @@ export function FormatField({
 
   /** Commit del editor (Enter o pérdida de foco). */
   const commitEditor = (raw: string): void => {
+    // Entrar y salir sin tocar nada no confirma: con «Mixto» el editor vacío
+    // pondría todos los runs en General.
+    if (draft === null && raw === text) return;
     const next = normalizeFormatInput(raw);
     commitValue(next);
     setManual(null);
     // El texto confirmado queda de borrador hasta que la proyección lo
-    // devuelva: así no se salta del editor al campo literal y vuelta.
+    // devuelva: así el editor no vuelve un instante al valor anterior.
     setDraft(next ?? '');
-  };
-
-  /** Commit del campo literal: un `=…` confirmado pasa a editarse con Monaco. */
-  const commitDraft = (): void => {
-    if (draft === null) return;
-    const next = normalizeFormatInput(draft);
-    commitValue(next);
-    if (next !== null && isExpressionFormat(next)) {
-      setManual('expression');
-      setFocusEditor(true);
-    } else {
-      setManual(null);
-    }
   };
 
   const changeSelection = (id: string): void => {
@@ -138,14 +118,13 @@ export function FormatField({
     if (id === 'expression') {
       setManual('expression');
       setDraft(isExpressionFormat(text) ? text : `=${text}`);
-      setFocusEditor(true);
+      focusEditor('end');
       return;
     }
     setManual('custom');
-    // El campo literal no edita expresiones: si el valor vigente lo es, se
-    // parte de vacío.
+    // Una cadena parte del valor vigente; si es una expresión, de vacío.
     setDraft(current !== undefined && !isExpressionFormat(current) ? current : '');
-    focusInput();
+    focusEditor('all');
   };
 
   return (
@@ -172,36 +151,25 @@ export function FormatField({
         <option value="expression">{t('toolbar.formatField.expression')}</option>
       </select>
 
-      {expression ? (
-        <div data-rdlc-format-expression="">
-          <ExpressionEditor
-            value={text}
-            mode="expression"
-            ariaLabel={fieldAriaLabel}
-            autoFocus={focusEditor}
-            onCommit={commitEditor}
-          />
-        </div>
-      ) : (
-        <Input
-          ref={inputRef}
-          data-rdlc-format-literal=""
-          className="h-7 border-input px-1 font-mono text-xs"
+      {/* Un solo editor: los atributos dicen qué contiene (cadena o expresión). */}
+      <div
+        title={formatTitle}
+        data-rdlc-format-expression={expression ? '' : undefined}
+        data-rdlc-format-literal={expression ? undefined : ''}
+      >
+        <ExpressionEditor
+          ref={editorRef}
           value={text}
+          mode="expression"
+          ariaLabel={fieldAriaLabel}
           placeholder={placeholder ?? t('toolbar.formatField.general')}
-          aria-label={fieldAriaLabel}
-          title={formatTitle}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commitDraft}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') commitDraft();
-            if (event.key === 'Escape') {
-              setDraft(null);
-              setManual(null);
-            }
+          onCommit={commitEditor}
+          onCancel={() => {
+            setDraft(null);
+            setManual(null);
           }}
         />
-      )}
+      </div>
     </div>
   );
 }

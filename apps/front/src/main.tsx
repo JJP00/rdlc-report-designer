@@ -5,7 +5,11 @@ import type { Locale } from '@rdlc-designer/i18n';
 import { App } from './App';
 import { BenchPage } from './BenchPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { limitKonvaPixelRatio } from './lib/canvasPixelRatio';
 import './styles.css';
+
+// Antes de crear ningún canvas: Konva lee `Konva.pixelRatio` al instanciarlos.
+limitKonvaPixelRatio();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('No se encontró #root en index.html');
