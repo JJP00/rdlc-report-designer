@@ -402,7 +402,9 @@ describe('servidor MCP rdlc', () => {
     const findings = all['findings'] as { rule: string; severity: string; message: string }[];
     for (const finding of findings) expect(typeof finding.message).toBe('string');
     const summary = all['summary'] as Record<string, number>;
-    expect((summary['error'] ?? 0) + (summary['warning'] ?? 0) + (summary['hint'] ?? 0)).toBe(findings.length);
+    expect((summary['error'] ?? 0) + (summary['warning'] ?? 0) + (summary['hint'] ?? 0)).toBe(
+      findings.length,
+    );
 
     const errorsOnly = await call('rdlc_lint', { sessionId, severity: 'error' });
     expect(errorsOnly.isError).toBe(false);

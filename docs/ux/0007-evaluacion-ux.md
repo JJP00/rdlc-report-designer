@@ -34,7 +34,7 @@ Pulsar un hallazgo selecciona su elemento y desplaza el lienzo hasta él. Cuando
 
 Heurísticas: ayudar a reconocer, diagnosticar y recuperarse de errores; correspondencia con el mundo real.
 
-Cambio: ubicación en términos de la interfaz («Grupo BTCBillNo1 · Ordenación», «Grupo BTCBillNo1 · Visibilidad», «ItemNo_Line_Lbl2 · Texto»). El mensaje de campo inexistente termina con su arreglo: «Añádelo al dataset en AL y recompila, o corrige el nombre.» Los hallazgos de un mismo campo van en una fila, con sus usos debajo.
+Cambio: ubicación en términos de la interfaz («Grupo BTCBillNo1 · Ordenación», «Grupo BTCBillNo1 · Visibilidad», «ItemNo_Line_Lbl2 · Texto»). El mensaje de campo inexistente termina con su arreglo: «Añádelo al dataset del informe en AL y compila, o corrige el nombre.» Los hallazgos de un mismo campo van en una fila, con sus usos debajo.
 
 #### Saltos de grupo sin reiniciar la numeración ni nombre de página
 
@@ -42,7 +42,7 @@ La pestaña Saltos de página del grupo solo ofrece dónde saltar. `ResetPageNum
 
 Heurística: flexibilidad y eficiencia de uso.
 
-Cambio: casilla «Reiniciar el número de página» en la misma pestaña, habilitada cuando hay un salto marcado (como «También al inicio/final» dependen de «Entre cada instancia»), y campo «Nombre de página» con «Expresión…».
+Cambio: casilla «Reiniciar la numeración de páginas en cada salto» en la misma pestaña, habilitada cuando hay un salto marcado (como «También al inicio/final» dependen de «Entre cada instancia»), y campo «Nombre de página» con «Expresión…».
 
 #### El panel Problemas: altura fija y una sola entrada
 
@@ -76,7 +76,7 @@ Subtítulo: «Expresiones, saltos de página, ordenación y visibilidad del grup
 
 Heurística: ayuda y documentación.
 
-Cambio: subtítulo «Expresiones, saltos de página, ordenación y visibilidad del grupo.»; sin nota en Saltos de página.
+Cambio: sin subtítulo, porque las pestañas ya nombran las secciones; sin nota en Saltos de página.
 
 #### Inspector y pie sin informe abierto
 

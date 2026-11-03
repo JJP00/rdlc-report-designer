@@ -29,7 +29,7 @@ const VARIANTS = {
   'in-process-gpu': ['--in-process-gpu'],
   // Escalado de Windows (laptops 125–200 %): el canvas cuesta × dpr².
   'dpr1.5': ['--force-device-scale-factor=1.5'],
-  'dpr2': ['--force-device-scale-factor=2'],
+  dpr2: ['--force-device-scale-factor=2'],
   'dpr1.5-nogpu': ['--force-device-scale-factor=1.5', '--disable-gpu'],
   'dpr2-nogpu': ['--force-device-scale-factor=2', '--disable-gpu'],
   'gpu-on': [],
@@ -48,7 +48,16 @@ const VARIANT_ENV = {
   'gpu-on-no-heap-cap': { RDLC_ENABLE_GPU: '1', RDLC_NO_HEAP_CAP: '1' },
 };
 
-const SCENARIOS = ['idle', 'report', 'editor', 'editor-switch', 'editor-switch-max', 'report-max', 'bench', 'bench-max'];
+const SCENARIOS = [
+  'idle',
+  'report',
+  'editor',
+  'editor-switch',
+  'editor-switch-max',
+  'report-max',
+  'bench',
+  'bench-max',
+];
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const mainEntry = join(here, '..', 'out', 'main', 'main.js');
@@ -83,7 +92,10 @@ function summarizeMetrics(metrics) {
 }
 
 async function measure(variant, scenario) {
-  const workspace = join(tmpdir(), `rdlc-mem-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+  const workspace = join(
+    tmpdir(),
+    `rdlc-mem-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  );
   mkdirSync(workspace, { recursive: true });
 
   const env = { ...process.env };
@@ -125,7 +137,10 @@ async function measure(variant, scenario) {
       await page.keyboard.press('Control+k');
       await page.locator('[cmdk-input]').fill('Textbox37');
       await page.waitForTimeout(300);
-      await page.locator('[cmdk-item]', { hasText: /Textbox37/ }).first().click();
+      await page
+        .locator('[cmdk-item]', { hasText: /Textbox37/ })
+        .first()
+        .click();
       const started = Date.now();
       const editor = page.locator('.monaco-editor').first();
       await editor.waitFor({ state: 'visible', timeout: 30_000 });
@@ -210,7 +225,10 @@ async function measure(variant, scenario) {
     const metrics = await app.evaluate(({ app: electronApp }) => electronApp.getAppMetrics());
     const mainHeap = await app.evaluate(() => {
       const stats = process.getHeapStatistics();
-      return { limitMB: Math.round(stats.heapSizeLimit / 1024), usedMB: Math.round(stats.totalHeapSize / 1024) };
+      return {
+        limitMB: Math.round(stats.heapSizeLimit / 1024),
+        usedMB: Math.round(stats.totalHeapSize / 1024),
+      };
     });
     const view = await page.evaluate(() => ({
       rendererHeapLimitMB: Math.round(performance.memory.jsHeapSizeLimit / 1048576),
@@ -220,14 +238,15 @@ async function measure(variant, scenario) {
       height: window.innerHeight,
       canvases: document.querySelectorAll('canvas').length,
       // Σ ancho × alto × 4 bytes de los canvas del DOM (capas de Konva).
-      canvasMB: Math.round(
-        ([...document.querySelectorAll('canvas')].reduce(
-          (sum, canvas) => sum + canvas.width * canvas.height * 4,
-          0,
-        ) /
-          1048576) *
-          10,
-      ) / 10,
+      canvasMB:
+        Math.round(
+          ([...document.querySelectorAll('canvas')].reduce(
+            (sum, canvas) => sum + canvas.width * canvas.height * 4,
+            0,
+          ) /
+            1048576) *
+            10,
+        ) / 10,
     }));
     return {
       variant,

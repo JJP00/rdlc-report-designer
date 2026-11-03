@@ -47,3 +47,87 @@
 - Por qué: `docs/ux/` y Pendientes están en español.
 - Descartado: inglés, el idioma del README y de los commits recientes.
 - Se apoya en: `docs/ux/0001`–`0006`.
+
+## 2026-10-27 · Repetir una fila de cabecera repite el bloque contiguo hasta el grupo
+- Decidido por: Claude (por defecto)
+- Por qué: un bloque con huecos parte la cabecera entre páginas; en el corpus las 18 filas que se repiten van en bloques de dos pegados al grupo.
+- Descartado: fila a fila sin regla (permite huecos); toda la cabecera siempre (impide repetir solo la fila 2 bajo un título en la fila 1).
+- Se apoya en: `fixtures/corpus/*.rdlc` (`RepeatOnNewPage` por miembro y lado del grupo); `docs/features/0006-repetir-fila-y-hallazgos-journey.md`.
+
+## 2026-10-27 · Dejar de repetir quita `RepeatOnNewPage` y conserva `KeepWithGroup`
+- Decidido por: Claude (por defecto)
+- Por qué: `KeepWithGroup=After` sin repetición mantiene la cabecera con la primera línea, y así está en tres filas de `SalesShipment.rdlc`.
+- Descartado: quitar los dos (cambia la paginación más allá de lo pedido).
+- Se apoya en: `fixtures/corpus/SalesShipment.rdlc`.
+
+## 2026-10-27 · El botón de repetir solo aparece en filas estáticas antes de un grupo; las filas de pie y las columnas quedan fuera
+- Decidido por: Claude (por defecto)
+- Por qué: ningún informe del corpus repite filas de pie y solo uno tiene grupo de columnas; un botón deshabilitado en cada fila sería ruido.
+- Descartado: botón deshabilitado con motivo en todas las filas; cubrir pies y columnas ya.
+- Se apoya en: `fixtures/corpus/*.rdlc`.
+
+## 2026-10-27 · En Problemas, seleccionar y abrir son gestos distintos: Enter o clic selecciona, F2 / doble clic / «Abrir» abre
+- Decidido por: Claude (por defecto)
+- Por qué: recorrer la lista no debe abrir un diálogo por fila; F2 ya abre el editor en el lienzo.
+- Descartado: abrir al pulsar; Ctrl+Enter (no se usa en el resto de la app).
+- Se apoya en: `apps/front/src/hooks/useItemEditing.ts:1505-1511`; `docs/ux/0005-reauditoria-intent.md` (Enter/F2 en el lienzo).
+
+## 2026-10-27 · Los usos de un mismo campo o elemento ausente se agrupan bajo un solo problema
+- Decidido por: Claude (por defecto)
+- Por qué: el arreglo es uno por nombre (en AL o en la expresión), no uno por uso.
+- Descartado: lista plana (5 filas para 3 arreglos en `SalesInvoiceESP.rdlc`); agrupar también los paréntesis sin pareja (cada uno es un arreglo distinto).
+- Se apoya en: `apps/back/src/domain/lint/rules/unknownField.ts`.
+
+## 2026-10-28 · «Comprobando» solo aparece tras 1 s sin resultado de la versión vigente, y «No se pudo comprobar» a los 5 s
+- Decidido por: Claude (por defecto)
+- Por qué: el lint tarda 4–38 ms en los informes más grandes del repositorio; un indicador de carga en cada cambio solo parpadearía. Por debajo de 1 s se mantiene el último resultado.
+- Descartado: mostrar «Comprobando…» en cada cambio (parpadeo); no tener tiempo límite (hoy un IPC colgado deja «Sin problemas» para siempre).
+- Se apoya en: medición con `window.api.lint` sobre `CartaCMR.rdlc`, `BTCSalesQuote.rdlc` y `SalesCreditMemoESP.rdlc`, 15 pasadas cada uno; `docs/features/0007-estados-indicador-problemas.md`.
+
+## 2026-10-28 · Retardo del lint tras un cambio: 250 ms en lugar de 600 ms
+- Decidido por: Claude (por defecto)
+- Por qué: el cálculo cuesta milisegundos y 250 ms sigue agrupando ráfagas; acorta el tiempo en que se ve un resultado anterior.
+- Descartado: sin retardo (un lint por cada paso de un deshacer repetido); mantener 600 ms.
+- Se apoya en: `apps/front/src/hooks/useLintFindings.ts` (`LINT_DEBOUNCE_MS`); la misma medición.
+
+## 2026-10-28 · Si la comprobación falla, el panel no muestra los hallazgos anteriores y no reintenta solo
+- Decidido por: Claude (por defecto)
+- Por qué: hallazgos de otra versión junto a un fallo confunden sobre qué está mal ahora; un fallo de una regla con el mismo documento se repite, así que reintentar en bucle no arregla nada. Se reintenta con «Reintentar» o con el siguiente cambio.
+- Descartado: lista anterior atenuada bajo el fallo; reintento con espera creciente.
+- Se apoya en: `apps/back/src/presentation/ipc/IpcController.ts:416-421` (una excepción de cualquier regla acaba en `ok:false`).
+
+## 2026-10-28 · «Sin comprobar» usa un icono neutro (círculo discontinuo), ni rojo ni verde
+- Decidido por: Claude (por defecto)
+- Por qué: no es un error del informe, y el verde es justo la promesa que no se puede hacer.
+- Descartado: icono de aviso ámbar (se confunde con un aviso del lint).
+- Se apoya en: `apps/front/src/components/StatusBar.tsx` (rojo = error, ámbar = aviso).
+
+## 2026-10-28 · Propiedades del grupo sin subtítulo
+- Decidido por: Claude (por defecto)
+- Por qué: repite las cuatro pestañas y explica el envío interno de «Aplicar», que no cambia ninguna decisión del usuario.
+- Descartado: conservar la primera frase (la propuesta de la evaluación 0007, que repetía las pestañas).
+- Se apoya en: `docs/ux/0006-guia-microcopy.md` («No narrar lo que la UI ya muestra»).
+
+## 2026-10-28 · «Agrupar por» / «Y por» en ES, y fuera la nota que explicaba «Group on» / «And on»
+- Decidido por: Claude (por defecto)
+- Por qué: con las etiquetas traducidas la nota sobra, igual que «Ordenar por» / «Y por» en Ordenación no la necesita. Revierte el «Keep» de la guía de microcopy, que se dio con las etiquetas en inglés.
+- Descartado: mantener las etiquetas en inglés con la nota.
+- Se apoya en: `docs/features/0005-i18n.md` §5 (candidato «Agrupar por / Y por», pendiente de validar con Report Builder ES); `packages/i18n/src/catalogs/es/tablix.ts:97-112`.
+
+## 2026-10-28 · El fallo del lint no muestra su motivo técnico en el panel
+- Decidido por: Claude (por defecto)
+- Por qué: el único motivo posible es «Error inesperado» (excepción) o el tiempo límite; el primero no ayuda al usuario y va al registro. Se distingue el tiempo límite y se dice que editar y guardar siguen funcionando.
+- Descartado: «No se pudo comprobar el informe: {motivo}.» (la propuesta de la 0007 de estados).
+- Se apoya en: `packages/i18n/src/catalogs/es/errors.ts` (`E_UNEXPECTED`); `apps/back/src/presentation/ipc/IpcController.ts:416-421`.
+
+## 2026-10-28 · El mensaje de campo inexistente cambia según el fichero: AL para `.rdlc`, consulta del dataset para `.rdl`
+- Decidido por: Claude (por defecto)
+- Por qué: la app abre `.rdlc` de BC y `.rdl` de SSRS; en SSRS no hay AL y el dataset viene de su consulta.
+- Descartado: un solo mensaje con AL (falso para SSRS); un mensaje sin arreglo.
+- Se apoya en: `README.md` (formatos); `RDLC Report Designer.md`.
+
+## 2026-10-28 · Los mensajes de paréntesis dicen si falta el cierre o la apertura y no muestran la posición
+- Decidido por: Claude (por defecto)
+- Por qué: el carácter ya dice cuál de los dos es; un desplazamiento en caracteres no se puede usar sin contar, y «Abrir» (F2) deja el cursor en el sitio.
+- Descartado: mantener «en la posición {index}».
+- Se apoya en: `apps/back/src/domain/lint/rules/unbalancedBrackets.ts:113-149`.

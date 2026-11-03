@@ -57,9 +57,7 @@ describe('findUnbalancedBrackets', () => {
   });
 
   it('reporta una cadena sin cerrar como unclosed "', () => {
-    expect(findUnbalancedBrackets('="abc')).toEqual([
-      { kind: 'unclosed', char: '"', index: 1 },
-    ]);
+    expect(findUnbalancedBrackets('="abc')).toEqual([{ kind: 'unclosed', char: '"', index: 1 }]);
   });
 
   it('un comentario ' + "'" + ' ignora el resto de la línea, incluidos corchetes', () => {
