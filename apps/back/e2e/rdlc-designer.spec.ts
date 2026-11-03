@@ -1402,7 +1402,7 @@ test('el contenido de una celda está anclado: no se arrastra ni se sale de la c
   expect(clipWidth).toBeGreaterThan(0);
 });
 
-test('la selección de la tabla mide su rejilla (el contenido no la infla)', async () => {
+test('la selección de la tabla mide su rejilla (ni el contenido ni un Tablix anidado la inflan)', async () => {
   await selectTablix('LinesTable2');
   await expect
     .poll(
@@ -1440,6 +1440,21 @@ test('la selección de la tabla mide su rejilla (el contenido no la infla)', asy
 
   expect(Math.abs(sizes.frameWidth - sizes.gridWidth)).toBeLessThan(1.5);
   expect(Math.abs(sizes.frameHeight - sizes.gridHeight)).toBeLessThan(1.5);
+
+  // Con un Tablix anidado, la selección mide la rejilla del exterior: Tablix2
+  // es 19 × 12.516 cm (≈ 718 × 473 px de papel); el bug medía el borde del
+  // primer Tablix anidado, LinesTable2 (2.576 cm).
+  await selectItemViaPalette('Tablix2');
+  const outer = await page.evaluate(
+    () =>
+      (window as never as Record<string, unknown>)['__rdlcSelection'] as {
+        id: string;
+        rect: { width: number; height: number };
+      } | null,
+  );
+  expect(outer?.id).toBe('Tablix2');
+  expect(outer!.rect.width).toBeGreaterThan(700);
+  expect(outer!.rect.height).toBeGreaterThan(400);
 });
 
 test('la rejilla renderizada se actualiza al añadir y deshacer una columna', async () => {
@@ -2298,23 +2313,6 @@ test('el autocompletado del editor de texto se ve por encima del diálogo', asyn
   // El borrador se descarta.
   await page.getByRole('button', { name: 'Cancelar' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
-});
-
-test('seleccionar un Tablix mide su rejilla, no la de un Tablix anidado', async () => {
-  await selectItemViaPalette('Tablix2');
-
-  const selection = await page.evaluate(
-    () =>
-      (window as never as Record<string, unknown>)['__rdlcSelection'] as {
-        id: string;
-        rect: { width: number; height: number };
-      } | null,
-  );
-  expect(selection?.id).toBe('Tablix2');
-  // La rejilla de Tablix2 es 19 × 12.516 cm (≈ 718 × 473 px de papel); el bug
-  // medía el borde del primer Tablix anidado, LinesTable2 (2.576 cm).
-  expect(selection!.rect.width).toBeGreaterThan(700);
-  expect(selection!.rect.height).toBeGreaterThan(400);
 });
 
 test('el panel de propiedades cablea el item (etiqueta, opciones, padding, borde, fondo, visibilidad y nombre)', async () => {

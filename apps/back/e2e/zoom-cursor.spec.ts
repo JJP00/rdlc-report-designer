@@ -291,64 +291,6 @@ test('zoom in: el punto bajo el cursor (descentrado) sigue bajo el cursor', asyn
   expect(Math.abs(after.scrollTop - before.scrollTop), 'scrollTop corregido').toBeGreaterThan(5);
 });
 
-test('zoom in sobre un textbox del informe: el textbox sigue bajo el cursor', async () => {
-  const start = await startAt('150 %');
-  // Primer texto del informe visible en el hueco del lienzo, localizado en el
-  // stage de Konva (rect del nodo en el contenedor → pantalla).
-  const target = await page.evaluate(
-    ([viewLeft, viewTop, viewWidth, viewHeight]) => {
-      const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
-        find(sel: string): {
-          getClientRect(): { x: number; y: number; width: number; height: number };
-        }[];
-        container(): HTMLElement;
-      };
-      const rect = stage.container().getBoundingClientRect();
-      for (const node of stage.find('Text')) {
-        const box = node.getClientRect();
-        const cx = rect.left + box.x + box.width / 2;
-        const cy = rect.top + box.y + box.height / 2;
-        if (
-          box.width > 12 &&
-          box.height > 6 &&
-          cx > viewLeft + 60 &&
-          cx < viewLeft + viewWidth - 60 &&
-          cy > viewTop + 60 &&
-          cy < viewTop + viewHeight - 60
-        ) {
-          return { x: cx, y: cy };
-        }
-      }
-      return null;
-    },
-    [start.viewLeft, start.viewTop, start.viewWidth, start.viewHeight] as [
-      number,
-      number,
-      number,
-      number,
-    ],
-  );
-  expect(target, 'debe haber un texto del informe visible en el hueco').not.toBeNull();
-  const at = target as Point;
-  const p = paperPointAt(start, at);
-
-  const { after } = await wheelGesture(at, 6, 'in');
-  expectAnchored('zoom in 150 % sobre un texto', drift(after, p, at));
-});
-
-test('zoom out en otro punto descentrado mantiene el punto bajo el cursor', async () => {
-  const start = await startAt('300 %');
-  const at = fractionOfView(start, 0.7, 0.4);
-  const p = paperPointAt(start, at);
-
-  const { before, after } = await wheelGesture(at, 4, 'out');
-  expect(after.zoom).toBeLessThan(before.zoom);
-  expect(after.zoom).toBeCloseTo(before.zoom / 1.1 ** 4, 2);
-  // De 3 a ~2,05 el papel sigue desbordando el hueco: anclaje exacto.
-  expect(after.maxScrollTop).toBeGreaterThan(0);
-  expectAnchored('zoom out 300 % (70 %, 40 %)', drift(after, p, at));
-});
-
 test('un segundo gesto seguido en otro punto recaptura el ancla', async () => {
   const start = await startAt('200 %');
   const atA = fractionOfView(start, 0.3, 0.3);

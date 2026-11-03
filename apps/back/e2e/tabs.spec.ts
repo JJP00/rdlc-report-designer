@@ -467,29 +467,9 @@ test.describe('pestañas · cierre de pestaña con guarda', () => {
 test.describe('pestañas · cierre de ventana con varias sucias', () => {
   const ctx = useApp();
 
-  test('Cancelar mantiene la ventana y las pestañas sucias', async () => {
-    const { page, app } = ctx();
-    const tabs = tabsOf(page);
-    await resetWorkspace(ctx());
-
-    await ensureTwoDirtyTabs(ctx());
-    await requestWindowClose(app);
-
-    const dialog = page.getByTestId('save-all-dialog');
-    await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText('PalletOutput.rdlc');
-    await expect(dialog).toContainText('Segundo.rdlc');
-
-    await dialog.getByRole('button', { name: 'Cancelar' }).click();
-    await expect(dialog).toBeHidden();
-    expect(await app.windows().length).toBe(1);
-    await expect(tabs).toHaveCount(2);
-    await expect(tabs.nth(0)).toHaveAttribute('data-dirty', 'true');
-    await expect(tabs.nth(1)).toHaveAttribute('data-dirty', 'true');
-  });
-
   test('Descartar todas sale sin escribir y cierra la ventana', async () => {
     const { page, app, file, secondFile } = ctx();
+    await resetWorkspace(ctx());
     await ensureTwoDirtyTabs(ctx());
     const beforeA = readFileSync(file);
     const beforeB = readFileSync(secondFile);

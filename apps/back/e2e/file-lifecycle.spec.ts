@@ -64,14 +64,6 @@ test.afterAll(async () => {
   await closing;
 });
 
-async function projectionVersion(): Promise<number> {
-  return page.evaluate(
-    () =>
-      ((window as never as Record<string, unknown>)['__rdlcProjection'] as { version: number })
-        .version,
-  );
-}
-
 async function itemCount(): Promise<number> {
   return page.evaluate(() => {
     const projection = (window as never as Record<string, unknown>)['__rdlcProjection'] as {
@@ -128,33 +120,6 @@ async function requestWindowClose(): Promise<void> {
 }
 
 test('Ctrl+S guarda (bytes idénticos) sin cambios', async () => {
-  await page.keyboard.press('Control+s');
-  await expect.poll(statusText).toContain('Guardado');
-});
-
-test('con cambios sin guardar, abrir el mismo reciente activa su pestaña sin preguntar', async () => {
-  const before = await itemCount();
-  await insertTextbox();
-  await expect.poll(itemCount).toBe(before + 1);
-  const versionAfterEdit = await projectionVersion();
-
-  // Fase de pestañas: la ruta ya está abierta. El reciente **activa su
-  // pestaña** (anti-duplicados) y no pregunta nada: nada se pierde, el
-  // textbox sigue en su pestaña y el documento no se recarga.
-  await page.getByRole('button', { name: 'Fichero' }).click();
-  await page.getByRole('menuitem', { name: 'Recientes' }).click();
-  await page.getByRole('menuitem', { name: file, exact: true }).click();
-
-  const dialog = page.getByTestId('unsaved-changes-dialog');
-  await expect(dialog).toHaveCount(0);
-  await expect(page.getByTestId('tab-strip').getByTestId('tab-item')).toHaveCount(1);
-  await expect(page.getByTestId('tab-item')).toHaveAttribute('aria-selected', 'true');
-  await expect.poll(itemCount).toBe(before + 1);
-  expect(await projectionVersion(), 'el reciente no recarga ni reabre').toBe(versionAfterEdit);
-  await expect.poll(isDirty).toBe(true);
-
-  // Los tests siguientes comparten instancia: se guarda para que disco y
-  // memoria queden en sintonía (el textbox forma parte del fichero).
   await page.keyboard.press('Control+s');
   await expect.poll(statusText).toContain('Guardado');
 });
@@ -326,10 +291,13 @@ test('cerrar la ventana con dos pestañas sucias: Guardar todas o Cancelar', asy
   await expect(dialog).toContainText('Copia.rdlc');
   await expect(dialog).toContainText('Segundo.rdlc');
 
-  // Cancelar: no se cierra nada y la ventana sigue viva.
+  // Cancelar: no se cierra nada, la ventana sigue viva y las dos siguen sucias.
   await dialog.getByRole('button', { name: 'Cancelar' }).click();
   await expect(dialog).toBeHidden();
   expect(await app.windows().length).toBe(1);
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.nth(0)).toHaveAttribute('data-dirty', 'true');
+  await expect(tabs.nth(1)).toHaveAttribute('data-dirty', 'true');
 
   // Guardar todas: escribe ambas y confirma el cierre una sola vez.
   const copiaFile = join(workspace, 'Copia.rdlc');

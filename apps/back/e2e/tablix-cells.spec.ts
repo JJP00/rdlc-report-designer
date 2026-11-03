@@ -538,73 +538,81 @@ function rowContents(tablix: ItemLike | undefined, row: number): (ItemLike | und
 
 /* ------------------- 1. filas y columnas heredan formato ------------------ */
 
-test('menú de celda · Fila debajo: la fila nueva copia alto y formato de la fila pinchada', async () => {
-  const before = await projection();
-  const idsBefore = allIds(before);
-  const tablix = findInProjection(before, TABLE);
-  const heights = await rowHeights(TABLE);
-  // Fila 1 (índice 1): 0,6 cm y cabecera gris; la de debajo (índice 3 tras la
-  // fila de celda combinada) mide 0,388 cm y tiene otro formato.
-  const reference = rowContents(tablix, 1);
-  const opposite = rowContents(tablix, 3);
-  expect(heights).toEqual([0.6, 0.6, 0.38806, 0.38806, 0.6]);
-  expect(formatOf(reference[1])).not.toEqual(formatOf(opposite[1]));
+test('menú de celda · Fila debajo y Fila encima: la fila nueva copia alto y formato de la fila pinchada', async () => {
+  // Fila debajo.
+  {
+    const before = await projection();
+    const idsBefore = allIds(before);
+    const tablix = findInProjection(before, TABLE);
+    const heights = await rowHeights(TABLE);
+    // Fila 1 (índice 1): 0,6 cm y cabecera gris; la de debajo (índice 3 tras la
+    // fila de celda combinada) mide 0,388 cm y tiene otro formato.
+    const reference = rowContents(tablix, 1);
+    const opposite = rowContents(tablix, 3);
+    expect(heights).toEqual([0.6, 0.6, 0.38806, 0.38806, 0.6]);
+    expect(formatOf(reference[1])).not.toEqual(formatOf(opposite[1]));
 
-  await insertRowOrColumn(reference[1]!.id, 'Fila debajo');
+    await insertRowOrColumn(reference[1]!.id, 'Fila debajo');
 
-  await expect.poll(() => rowHeights(TABLE)).toHaveLength(heights.length + 1);
-  const grown = findInProjection(await projection(), TABLE);
-  // Alto de la fila nueva (índice 2) = alto de la fila pinchada, no de la siguiente.
-  const afterHeights = await rowHeights(TABLE);
-  expect(afterHeights[2]).toBeCloseTo(heights[1]!, 5);
-  expect(afterHeights[3]).toBeCloseTo(heights[2]!, 5);
+    await expect.poll(() => rowHeights(TABLE)).toHaveLength(heights.length + 1);
+    const grown = findInProjection(await projection(), TABLE);
+    // Alto de la fila nueva (índice 2) = alto de la fila pinchada, no de la siguiente.
+    const afterHeights = await rowHeights(TABLE);
+    expect(afterHeights[2]).toBeCloseTo(heights[1]!, 5);
+    expect(afterHeights[3]).toBeCloseTo(heights[2]!, 5);
 
-  const created = rowContents(grown, 2);
-  for (let col = 0; col < 4; col += 1) {
-    const cell = created[col];
-    expect(cell, `celda nueva (2,${col})`).toBeTruthy();
-    expect(idsBefore.has(cell!.id), `${cell!.id} debe ser un textbox nuevo`).toBe(false);
-    expect(textOf(cell), `texto de (2,${col})`).toBe('');
-    expect(formatOf(cell), `formato de (2,${col})`).toEqual(formatOf(reference[col]));
+    const created = rowContents(grown, 2);
+    for (let col = 0; col < 4; col += 1) {
+      const cell = created[col];
+      expect(cell, `celda nueva (2,${col})`).toBeTruthy();
+      expect(idsBefore.has(cell!.id), `${cell!.id} debe ser un textbox nuevo`).toBe(false);
+      expect(textOf(cell), `texto de (2,${col})`).toBe('');
+      expect(formatOf(cell), `formato de (2,${col})`).toEqual(formatOf(reference[col]));
+    }
+    // La fila pinchada sigue donde estaba y sin tocar.
+    expect(rowContents(grown, 1).map((cell) => cell?.id)).toEqual(
+      reference.map((cell) => cell?.id),
+    );
+
+    await undoToInitial();
   }
-  // La fila pinchada sigue donde estaba y sin tocar.
-  expect(rowContents(grown, 1).map((cell) => cell?.id)).toEqual(reference.map((cell) => cell?.id));
 
-  await undoToInitial();
-});
+  // Fila encima.
+  {
+    const before = await projection();
+    const idsBefore = allIds(before);
+    const tablix = findInProjection(before, TABLE);
+    const heights = await rowHeights(TABLE);
+    // Fila 4 (índice 4): 0,6 cm; la de encima (índice 3) mide 0,388 cm y otro formato.
+    const reference = rowContents(tablix, 4);
+    const opposite = rowContents(tablix, 3);
+    expect(heights).toEqual([0.6, 0.6, 0.38806, 0.38806, 0.6]);
+    expect(formatOf(reference[1])).not.toEqual(formatOf(opposite[1]));
 
-test('menú de celda · Fila encima: la fila nueva copia alto y formato de la fila pinchada', async () => {
-  const before = await projection();
-  const idsBefore = allIds(before);
-  const tablix = findInProjection(before, TABLE);
-  const heights = await rowHeights(TABLE);
-  // Fila 4 (índice 4): 0,6 cm; la de encima (índice 3) mide 0,388 cm y otro formato.
-  const reference = rowContents(tablix, 4);
-  const opposite = rowContents(tablix, 3);
-  expect(heights).toEqual([0.6, 0.6, 0.38806, 0.38806, 0.6]);
-  expect(formatOf(reference[1])).not.toEqual(formatOf(opposite[1]));
+    await insertRowOrColumn(reference[1]!.id, 'Fila encima');
 
-  await insertRowOrColumn(reference[1]!.id, 'Fila encima');
+    await expect.poll(() => rowHeights(TABLE)).toHaveLength(heights.length + 1);
+    const grown = findInProjection(await projection(), TABLE);
+    const afterHeights = await rowHeights(TABLE);
+    expect(afterHeights[3]).toBeCloseTo(heights[3]!, 5);
+    expect(afterHeights[4]).toBeCloseTo(heights[4]!, 5);
+    expect(afterHeights[5]).toBeCloseTo(heights[4]!, 5);
 
-  await expect.poll(() => rowHeights(TABLE)).toHaveLength(heights.length + 1);
-  const grown = findInProjection(await projection(), TABLE);
-  const afterHeights = await rowHeights(TABLE);
-  expect(afterHeights[3]).toBeCloseTo(heights[3]!, 5);
-  expect(afterHeights[4]).toBeCloseTo(heights[4]!, 5);
-  expect(afterHeights[5]).toBeCloseTo(heights[4]!, 5);
+    const created = rowContents(grown, 4);
+    for (let col = 0; col < 4; col += 1) {
+      const cell = created[col];
+      expect(cell, `celda nueva (4,${col})`).toBeTruthy();
+      expect(idsBefore.has(cell!.id), `${cell!.id} debe ser un textbox nuevo`).toBe(false);
+      expect(textOf(cell), `texto de (4,${col})`).toBe('');
+      expect(formatOf(cell), `formato de (4,${col})`).toEqual(formatOf(reference[col]));
+    }
+    // La fila pinchada se corrió a abajo, intacta.
+    expect(rowContents(grown, 5).map((cell) => cell?.id)).toEqual(
+      reference.map((cell) => cell?.id),
+    );
 
-  const created = rowContents(grown, 4);
-  for (let col = 0; col < 4; col += 1) {
-    const cell = created[col];
-    expect(cell, `celda nueva (4,${col})`).toBeTruthy();
-    expect(idsBefore.has(cell!.id), `${cell!.id} debe ser un textbox nuevo`).toBe(false);
-    expect(textOf(cell), `texto de (4,${col})`).toBe('');
-    expect(formatOf(cell), `formato de (4,${col})`).toEqual(formatOf(reference[col]));
+    await undoToInitial();
   }
-  // La fila pinchada se corrió a abajo, intacta.
-  expect(rowContents(grown, 5).map((cell) => cell?.id)).toEqual(reference.map((cell) => cell?.id));
-
-  await undoToInitial();
 });
 
 /**
@@ -633,46 +641,50 @@ function expectNewColumnFormat(
   expect(compared, 'filas comparables').toBeGreaterThanOrEqual(minRows);
 }
 
-test('menú de celda · Columna a la izquierda: la columna nueva copia ancho y formato de la pinchada', async () => {
-  const before = await projection();
-  const idsBefore = allIds(before);
-  const tablix = findInProjection(before, TABLE);
-  const widths = await columnWidths(TABLE);
-  expect(widths).toEqual([11.51184, 2.42552, 2.2973, 2.70953]);
+test('menú de celda · Columna a la izquierda y a la derecha: la columna nueva copia ancho y formato de la pinchada', async () => {
+  // Columna a la izquierda.
+  {
+    const before = await projection();
+    const idsBefore = allIds(before);
+    const tablix = findInProjection(before, TABLE);
+    const widths = await columnWidths(TABLE);
+    expect(widths).toEqual([11.51184, 2.42552, 2.2973, 2.70953]);
 
-  await insertRowOrColumn(cellAt(tablix, 1, 1)!.content!.id, 'Columna a la izquierda');
+    await insertRowOrColumn(cellAt(tablix, 1, 1)!.content!.id, 'Columna a la izquierda');
 
-  await expect.poll(() => columnWidths(TABLE)).toHaveLength(widths.length + 1);
-  const afterWidths = await columnWidths(TABLE);
-  // Ancho de la nueva (índice 1) = el de la pinchada (2,42552), no el de la de su izquierda.
-  expect(afterWidths[0]).toBeCloseTo(widths[0]!, 5);
-  expect(afterWidths[1]).toBeCloseTo(widths[1]!, 5);
-  expect(afterWidths[2]).toBeCloseTo(widths[1]!, 5);
+    await expect.poll(() => columnWidths(TABLE)).toHaveLength(widths.length + 1);
+    const afterWidths = await columnWidths(TABLE);
+    // Ancho de la nueva (índice 1) = el de la pinchada (2,42552), no el de la de su izquierda.
+    expect(afterWidths[0]).toBeCloseTo(widths[0]!, 5);
+    expect(afterWidths[1]).toBeCloseTo(widths[1]!, 5);
+    expect(afterWidths[2]).toBeCloseTo(widths[1]!, 5);
 
-  // Filas 0, 1, 3 y 4 (la 2 es una celda combinada que solo se ensancha).
-  expectNewColumnFormat(tablix, findInProjection(await projection(), TABLE), idsBefore, 1, 1, 4);
+    // Filas 0, 1, 3 y 4 (la 2 es una celda combinada que solo se ensancha).
+    expectNewColumnFormat(tablix, findInProjection(await projection(), TABLE), idsBefore, 1, 1, 4);
 
-  await undoToInitial();
-});
+    await undoToInitial();
+  }
 
-test('menú de celda · Columna a la derecha: la columna nueva copia ancho y formato de la pinchada', async () => {
-  const before = await projection();
-  const idsBefore = allIds(before);
-  const tablix = findInProjection(before, TABLE);
-  const widths = await columnWidths(TABLE);
+  // Columna a la derecha.
+  {
+    const before = await projection();
+    const idsBefore = allIds(before);
+    const tablix = findInProjection(before, TABLE);
+    const widths = await columnWidths(TABLE);
 
-  await insertRowOrColumn(cellAt(tablix, 1, 2)!.content!.id, 'Columna a la derecha');
+    await insertRowOrColumn(cellAt(tablix, 1, 2)!.content!.id, 'Columna a la derecha');
 
-  await expect.poll(() => columnWidths(TABLE)).toHaveLength(widths.length + 1);
-  const afterWidths = await columnWidths(TABLE);
-  // Ancho de la nueva (índice 3) = el de la pinchada (2,2973), no el de la de su derecha (2,70953).
-  expect(afterWidths[2]).toBeCloseTo(widths[2]!, 5);
-  expect(afterWidths[3]).toBeCloseTo(widths[2]!, 5);
-  expect(afterWidths[4]).toBeCloseTo(widths[3]!, 5);
+    await expect.poll(() => columnWidths(TABLE)).toHaveLength(widths.length + 1);
+    const afterWidths = await columnWidths(TABLE);
+    // Ancho de la nueva (índice 3) = el de la pinchada (2,2973), no el de la de su derecha (2,70953).
+    expect(afterWidths[2]).toBeCloseTo(widths[2]!, 5);
+    expect(afterWidths[3]).toBeCloseTo(widths[2]!, 5);
+    expect(afterWidths[4]).toBeCloseTo(widths[3]!, 5);
 
-  expectNewColumnFormat(tablix, findInProjection(await projection(), TABLE), idsBefore, 2, 3, 3);
+    expectNewColumnFormat(tablix, findInProjection(await projection(), TABLE), idsBefore, 2, 3, 3);
 
-  await undoToInitial();
+    await undoToInitial();
+  }
 });
 
 /* ------------- 2. rectángulo insertado en una celda vacía ----------------- */
