@@ -173,6 +173,80 @@ describe('servidor MCP rdlc', () => {
     );
   });
 
+  it('insertItem aplica item.style y lo devuelve en applied (el agente no pierde estilo)', async () => {
+    const { sessionId, path } = await createBlank();
+    const length = (value: number, unit = 'cm'): Record<string, unknown> => ({ value, unit });
+
+    const applied = await call('rdlc_apply_commands', {
+      sessionId,
+      commands: [
+        {
+          cmd: 'insertItem',
+          scope: { kind: 'body' },
+          index: 0,
+          item: {
+            kind: 'rectangle',
+            name: 'OrderRect',
+            top: length(0),
+            left: length(0),
+            width: length(15),
+            height: length(5),
+            style: { border: { top: { style: 'Solid' }, bottom: { style: 'Solid' } } },
+          },
+        },
+        {
+          cmd: 'insertItem',
+          scope: { kind: 'rectangle', id: 'OrderRect' },
+          index: 0,
+          item: {
+            kind: 'textbox',
+            name: 'ReportTitle',
+            top: length(0.3),
+            left: length(0.2),
+            width: length(13),
+            height: length(1.1),
+            text: '=Parameters!ReportCaption.Value',
+            style: {
+              fontFamily: 'Arial',
+              fontSize: length(22, 'pt'),
+              fontWeight: 'Bold',
+              fontStyle: 'Italic',
+              verticalAlign: 'Middle',
+            },
+          },
+        },
+      ],
+    });
+    expect(applied.isError).toBe(false);
+
+    // El eco ya no solo trae geometría: si el estilo no se aplicara, se vería aquí.
+    type Entry = { applied?: { id: string; values: { style?: Record<string, unknown> } }[] };
+    const [rect, title] = applied['results'] as Entry[];
+    expect(rect?.applied?.[0]?.values.style).toHaveProperty('border');
+    expect(title?.applied?.[0]?.values.style).toMatchObject({
+      fontFamily: 'Arial',
+      fontWeight: 'Bold',
+      verticalAlign: 'Middle',
+    });
+
+    // Y está de verdad en el documento (lo que `rdlc_get_item` devuelve al agente).
+    const item = await call('rdlc_get_item', { sessionId, id: 'ReportTitle' });
+    const json = JSON.stringify(item['item']);
+    expect(json).toContain('"fontFamily":"Arial"');
+    expect(json).toContain('"fontWeight":"Bold"');
+    expect(json).toContain('"verticalAlign":"Middle"');
+
+    // Valida contra el XSD al guardar y el XML lleva la fuente y el borde.
+    expect((await call('rdlc_save', { sessionId })).isError).toBe(false);
+    const saved = await readFile(path, 'utf8');
+    expect(saved).toContain('<FontFamily>Arial</FontFamily>');
+    expect(saved).toContain('<TopBorder>');
+
+    // Un solo undo revierte la inserción entera, estilo incluido.
+    expect((await call('rdlc_undo', { sessionId })).isError).toBe(false);
+    expect((await call('rdlc_get_item', { sessionId, id: 'ReportTitle' })).isError).toBe(true);
+  });
+
   it('un comando mal formado no aplica nada', async () => {
     const { sessionId } = await createBlank();
     const result = await call('rdlc_apply_commands', {
