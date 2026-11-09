@@ -37,6 +37,23 @@ describe('runDisplayText', () => {
     expect(runDisplayText({ value: '=Fields!ItemNo' })).toBe('ItemNo');
   });
 
+  it('una expresión simple de parámetro muestra el nombre del parámetro', () => {
+    expect(runDisplayText({ value: '=Parameters!ToManufactureLbl.Value' })).toBe(
+      'ToManufactureLbl',
+    );
+    // Tolerante a espacios y a `.Value` omitido, igual que los campos.
+    expect(runDisplayText({ value: '= Parameters!ToManufactureLbl .Value' })).toBe(
+      'ToManufactureLbl',
+    );
+    expect(runDisplayText({ value: '=Parameters!ToManufactureLbl' })).toBe('ToManufactureLbl');
+    // La etiqueta de BC sigue mandando.
+    expect(runDisplayText({ value: '=Parameters!ToManufactureLbl.Value', label: 'Fabricar' })).toBe(
+      '[Fabricar]',
+    );
+    // Una expresión que solo contiene el parámetro entre otras cosas es `[exp]`.
+    expect(runDisplayText({ value: '=Parameters!ToManufactureLbl.Value & ":"' })).toBe('[exp]');
+  });
+
   it('un agregado simple sobre un campo muestra `Función(Campo)`', () => {
     expect(runDisplayText({ value: '=First(Fields!BTCDtoLbl1.Value, "DataSet_Result")' })).toBe(
       'First(BTCDtoLbl1)',
