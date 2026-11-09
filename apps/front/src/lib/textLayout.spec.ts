@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StyleDto, TextboxDto } from '@rdlc-designer/contracts';
-import { layoutTextbox, type TextLayoutContext } from './textLayout';
+import { layoutTextbox, textFrame, type TextLayoutContext } from './textLayout';
 
 /**
  * Layout del texto del lienzo: la alineación del párrafo (donde la pone BC) y la
@@ -120,5 +120,39 @@ describe('layoutTextbox', () => {
     const lineHeight = 12 * 1.2;
     expect(layout.height).toBeCloseTo(lineHeight, 4);
     expect(layout.runs[0]!.y).toBeCloseTo((30 - lineHeight) / 2, 4);
+  });
+});
+
+describe('textFrame (WritingMode)', () => {
+  const content = { left: 2, top: 3, width: 100, height: 40 };
+
+  it.each([undefined, 'Default', 'Horizontal'] as const)(
+    '%s no gira: origen arriba a la izquierda del área útil',
+    (mode) => {
+      expect(textFrame(mode, content)).toEqual({
+        box: { width: 100, height: 40 },
+        x: 2,
+        y: 3,
+        rotation: 0,
+      });
+    },
+  );
+
+  it('Vertical gira 90° con origen arriba a la derecha y ejes intercambiados', () => {
+    expect(textFrame('Vertical', content)).toEqual({
+      box: { width: 40, height: 100 },
+      x: 102,
+      y: 3,
+      rotation: 90,
+    });
+  });
+
+  it('Rotate270 gira -90° con origen abajo a la izquierda y ejes intercambiados', () => {
+    expect(textFrame('Rotate270', content)).toEqual({
+      box: { width: 40, height: 100 },
+      x: 2,
+      y: 43,
+      rotation: -90,
+    });
   });
 });

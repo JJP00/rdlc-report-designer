@@ -29,6 +29,11 @@ export const panels = {
     repeatRowHeaders: 'Repeat row headers',
     noRowsMessage: 'No rows message',
     appearance: 'Appearance',
+    writingMode: 'Text direction',
+    writingModeDefault: 'Default',
+    writingModeHorizontal: 'Horizontal',
+    writingModeVertical: 'Vertical (90°)',
+    writingModeRotate270: 'Rotate 270°',
   },
   background: {
     label: 'Background color',

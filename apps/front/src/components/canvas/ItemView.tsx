@@ -16,7 +16,7 @@ import { tablixGrid } from '@/lib/grid';
 import { sortByZIndex, tablixHeaderItems } from '@/lib/projection';
 import { paintColor } from '@/lib/style';
 import { tablixLayout, cellRange, isCellInRange, type SelectedCell } from '@/lib/tablix';
-import { browserTextMeasurer, layoutTextbox } from '@/lib/textLayout';
+import { browserTextMeasurer, layoutTextbox, textFrame } from '@/lib/textLayout';
 import { itemOpacity } from '@/lib/visibility';
 import { intersectsBox, itemExtent, type VisibleRect } from './culling';
 import { PX_PER_CM, SNAP_CM, toPx } from './geometry';
@@ -445,15 +445,18 @@ function TextboxContent({
   // Un nodo por run: el estilo (fuente, tamaño, color, negrita…) y la
   // alineación del párrafo (`TextAlign` del párrafo, como en BC) se resuelven
   // aquí; el grupo los recorta a la caja del textbox.
-  const layout = layoutTextbox(
-    item,
-    {
-      width: Math.max(width - padLeft - padRight, 0),
-      height: Math.max(height - padTop - padBottom, 0),
-    },
-    style,
-    { toPx, measure: browserTextMeasurer() },
-  );
+  // `WritingMode` (solo del item, como en RB): el texto se maqueta en
+  // horizontal dentro de un marco que se gira (`Vertical` 90°, `Rotate270` 270°).
+  const frame = textFrame(style?.writingMode, {
+    left: padLeft,
+    top: padTop,
+    width: Math.max(width - padLeft - padRight, 0),
+    height: Math.max(height - padTop - padBottom, 0),
+  });
+  const layout = layoutTextbox(item, frame.box, style, {
+    toPx,
+    measure: browserTextMeasurer(),
+  });
 
   return (
     <>
@@ -471,22 +474,24 @@ function TextboxContent({
           perfectDrawEnabled={false}
         />
         <ItemBorder border={style?.border} width={width} height={height} />
-        {layout.runs.map((run) => (
-          <KonvaText
-            key={`${run.paragraph}-${Math.round(run.x)}-${run.y}-${run.text}`}
-            name="textbox-run"
-            text={run.text}
-            x={padLeft + run.x}
-            y={padTop + run.y}
-            fontSize={run.fontSize}
-            fontFamily={run.fontFamily}
-            fontStyle={run.fontStyle || 'normal'}
-            fill={run.fill}
-            wrap="none"
-            perfectDrawEnabled={false}
-            {...(run.textDecoration !== undefined ? { textDecoration: run.textDecoration } : {})}
-          />
-        ))}
+        <Group x={frame.x} y={frame.y} rotation={frame.rotation}>
+          {layout.runs.map((run) => (
+            <KonvaText
+              key={`${run.paragraph}-${Math.round(run.x)}-${run.y}-${run.text}`}
+              name="textbox-run"
+              text={run.text}
+              x={run.x}
+              y={run.y}
+              fontSize={run.fontSize}
+              fontFamily={run.fontFamily}
+              fontStyle={run.fontStyle || 'normal'}
+              fill={run.fill}
+              wrap="none"
+              perfectDrawEnabled={false}
+              {...(run.textDecoration !== undefined ? { textDecoration: run.textDecoration } : {})}
+            />
+          ))}
+        </Group>
       </Group>
     </>
   );

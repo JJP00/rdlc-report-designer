@@ -50,6 +50,7 @@ const SIMPLE_TAGS: Record<string, string> = {
   backgroundColor: 'BackgroundColor',
   textAlign: 'TextAlign',
   verticalAlign: 'VerticalAlign',
+  writingMode: 'WritingMode',
   format: 'Format',
 };
 

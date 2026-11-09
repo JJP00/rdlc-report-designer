@@ -28,6 +28,14 @@ export const borderSidesSchema = z.object({
 export type BorderSides = z.infer<typeof borderSidesSchema>;
 
 /**
+ * Dirección del texto (RDL `WritingMode`): `Default` y `Horizontal` pintan de
+ * izquierda a derecha, `Vertical` gira el texto 90° (sentido horario) y
+ * `Rotate270` lo gira 270° (se lee de abajo arriba).
+ */
+export const writingModeSchema = z.enum(['Default', 'Horizontal', 'Vertical', 'Rotate270']);
+export type WritingMode = z.infer<typeof writingModeSchema>;
+
+/**
  * Mismo bag de estilo en los tres niveles (item / párrafo / run).
  * El backend solo emite lo aplicable a cada nivel.
  */
@@ -41,6 +49,8 @@ export const styleSchema = z.object({
   backgroundColor: z.string().optional(),
   textAlign: z.enum(['Left', 'Center', 'Right', 'Justify']).optional(),
   verticalAlign: z.enum(['Top', 'Middle', 'Bottom']).optional(),
+  /** Solo se lee del `<Style>` del item (como RB): el textbox entero gira. */
+  writingMode: writingModeSchema.optional(),
   padding: paddingSchema.optional(),
   border: borderSidesSchema.optional(),
   format: z.string().optional(),
@@ -86,6 +96,7 @@ export const stylePatchSchema = z
     backgroundColor: optional(z.string()),
     textAlign: optional(z.enum(['Left', 'Center', 'Right', 'Justify'])),
     verticalAlign: optional(z.enum(['Top', 'Middle', 'Bottom'])),
+    writingMode: optional(writingModeSchema),
     padding: optional(paddingPatchSchema),
     border: optional(borderSidesPatchSchema),
     format: optional(z.string()),

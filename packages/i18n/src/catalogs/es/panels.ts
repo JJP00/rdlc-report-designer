@@ -33,6 +33,11 @@ export const panels = {
     repeatRowHeaders: 'Repetir cabeceras de fila',
     noRowsMessage: 'Mensaje sin filas',
     appearance: 'Apariencia',
+    writingMode: 'Dirección del texto',
+    writingModeDefault: 'Predeterminada',
+    writingModeHorizontal: 'Horizontal',
+    writingModeVertical: 'Vertical (90°)',
+    writingModeRotate270: 'Girar 270°',
   },
   background: {
     label: 'Color de fondo',
