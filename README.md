@@ -48,31 +48,37 @@ The screenshot above shows both. Each report opens in its own tab, so one window
 
 <kbd>Ctrl</kbd>+<kbd>K</kbd> searches every editor action, every item in the report and every variable by name. Pick an item and the canvas selects it and scrolls to it.
 
-<img alt="Command palette searching for “line”: the Insert line and Underline actions, then the report items whose name contains line" src="docs/assets/palette.png" width="432">
+<img alt="Command palette: typing “lines” lists the Insert line action, the LinesTable report items and a dataset field; picking LinesTable2 selects it and scrolls the canvas to it" src="docs/assets/palette.gif" width="960">
 
 ### Hierarchy and Variables panels
 
 **Hierarchy** shows every item as a tree (header, body, footer, rectangles, tablix cells) and follows the canvas selection. **Variables** lists the dataset fields, parameters, `Code.` functions with their arguments, `Globals!` and `User!`. Both panels have a search box.
 
-<img alt="Hierarchy panel with Textbox1 selected, next to the Variables panel filtered by “Total”" src="docs/assets/panels.png" width="545">
+<img alt="Typing “Textbox9” in the Hierarchy search and clicking the result selects the footer textbox on the canvas; then typing “VAT” in the Variables search filters the dataset fields" src="docs/assets/panels.gif" width="960">
 
 ### Expression editor with autocomplete
 
 Expressions get syntax highlighting, line numbers and autocomplete for fields, parameters, `Code.` functions, `Globals!`, `User!` and RDL functions. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> applies the change.
 
-<img alt="Visibility expression editor suggesting dataset fields that start with BTCComp" src="docs/assets/expression-editor.png" width="704">
+<img alt="Visibility expression editor: typing “IsNo” autocompletes IsNothing, then typing “BTCComp” lists the dataset fields and inserts Fields!BTCCompanyBankAddress.Value" src="docs/assets/expression-editor.gif" width="704">
+
+### Text editor
+
+Double-click a textbox (or press <kbd>F2</kbd>) to edit its whole content in one dialog. Each line is a paragraph and expressions show as chips inside the text. **Insert expression at cursor** adds one where the caret is and opens its value editor, with the same autocomplete. Below the text you edit the paragraph under the caret: its alignment and each run (text or expression) with its own font, size, bold, italic, underline, colors and format. <kbd>Ctrl</kbd>+<kbd>Z</kbd> works across the whole dialog, and <kbd>Ctrl</kbd>+<kbd>Enter</kbd> applies everything as a single undo step.
+
+<img alt="Text editor: typing “Total due: ”, inserting an expression that autocompletes to Fields!TotalAmountIncludingVAT.Value, making it bold and adding a second paragraph" src="docs/assets/text-editor.gif" width="912">
 
 ### VB code editor
 
 The report's `<Code>` block opens in the same editor instead of a plain text box: VB highlighting, line numbers and the same autocomplete. Open it from **Report… → Code**.
 
-<img alt="Report properties dialog, Code tab, with the report's VB functions highlighted" src="docs/assets/report-code.png" width="704">
+<img alt="Typing a new VB function in the report's Code tab: “Form” autocompletes to Format, with VB highlighting and line numbers" src="docs/assets/code-editor.gif" width="704">
 
 ### Problems panel
 
 The app checks the report's expressions for dataset fields that don't exist, references to report items that don't exist and unbalanced brackets. The status bar shows how many problems there are. Click a problem to select the item it belongs to.
 
-<img alt="Problems panel listing fields that don't exist in the dataset, with the item and property of each one" src="docs/assets/problems.png">
+<img alt="Clicking the problem count opens the Problems panel; clicking a problem scrolls the canvas to its item and selects it" src="docs/assets/problems.gif" width="960">
 
 ### Live reload and conflict warnings
 
@@ -240,12 +246,12 @@ Current result: **59.5–59.9 fps p50** with 972 textboxes (budget 60). Details 
 
 Electron can open a report, run a script in the renderer and take a screenshot without touching anything by hand.
 
-The screenshots in this README come from a Playwright script that drives the real app in English. Regenerate them after UI changes:
+The screenshots and GIFs in this README come from a Playwright script that drives the real app in English: it records each scene with Chromium's screencast and builds the GIF with ffmpeg (which must be on the `PATH`). Regenerate them after UI changes:
 
 ```bash
 pnpm --filter @rdlc-designer/back build:e2e
-node apps/back/scripts/readme-screenshots.mjs docs/assets            # all scenes
-node apps/back/scripts/readme-screenshots.mjs docs/assets palette    # only some (comma-separated)
+node apps/back/scripts/readme-media.mjs docs/assets                  # all scenes
+node apps/back/scripts/readme-media.mjs docs/assets palette,text     # only some (comma-separated)
 ```
 
 For one-off captures, use these environment variables instead:
