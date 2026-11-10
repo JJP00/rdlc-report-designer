@@ -7,7 +7,7 @@ import type {
   ScopeRef,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
-import { useEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
 import { Stage, Layer, Group, Rect } from 'react-konva';
 import type { Translator } from '@rdlc-designer/i18n';
 import { useT } from '@rdlc-designer/i18n/react';
@@ -31,7 +31,7 @@ import { usePageResize } from './usePageResize';
 import { useRevealItem } from './useRevealItem';
 import { measureSelection, useSelectionMeasure } from './useSelectionMeasure';
 import { useStableCallback } from './useStableCallback';
-import { useWheelZoom } from './useWheelZoom';
+import { useWheelZoom, type ZoomPreviewSource } from './useWheelZoom';
 import { CANVAS_PADDING_PX, RULER_PX } from './geometry';
 
 export interface CanvasPreviewProps {
@@ -159,7 +159,11 @@ export function CanvasPreview({
 
   // Antes que el viewport: al confirmar el zoom, su efecto corrige el scroll y el
   // del viewport (`useVisibleRect`) mide ya la posición final, sin parpadeo.
-  const { paperRef, handleWheel } = useWheelZoom({ zoom, onZoomChange, scrollRef });
+  const { paperRef, sheetRef, preview, handleWheel } = useWheelZoom({
+    zoom,
+    onZoomChange,
+    scrollRef,
+  });
 
   const { layout, visibleBands, cull, stageWindow } = useCanvasViewport({
     projection,
@@ -330,12 +334,16 @@ export function CanvasPreview({
             widthPx={paperWidth}
             heightPx={paperHeight}
             rulerMarks={rulerMarks}
+            preview={preview}
+            viewportRef={scrollRef}
           />
 
           {/* Cámara (T4): el stage ocupa solo la ventana visible del papel y
               desplaza el contenido a su origen (`x`/`y`). El canvas, así, mide
-              el hueco y no `papel × zoom`. */}
+              el hueco y no `papel × zoom`. Es lo único que escala el gesto de
+              la rueda (las reglas se redibujan con el zoom provisional). */}
           <div
+            ref={sheetRef}
             className="absolute"
             style={{
               left: RULER_PX + stageWindow.x * zoom,
@@ -466,6 +474,8 @@ function CanvasRulers({
   widthPx,
   heightPx,
   rulerMarks,
+  preview,
+  viewportRef,
 }: {
   projection: ProjectionDto;
   zoom: number;
@@ -473,8 +483,47 @@ function CanvasRulers({
   widthPx: number;
   heightPx: number;
   rulerMarks: (axis: 'x' | 'y') => RulerMark[];
+  /** Zoom provisional de la rueda (las reglas lo siguen en vivo). */
+  preview: ZoomPreviewSource;
+  /** Hueco con scroll: limita lo que se pinta durante el gesto. */
+  viewportRef: RefObject<HTMLDivElement | null>;
 }): ReactNode {
   const t = useT();
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const cornerRef = useRef<HTMLDivElement | null>(null);
+  const verticalRef = useRef<HTMLDivElement | null>(null);
+
+  // Durante la rueda el papel escala sobre el cursor y su borde se desplaza:
+  // cada regla lo acompaña en el eje cruzado (la vertical en x, la horizontal
+  // en y) sin salirse del borde visible del hueco, como hace `sticky`.
+  useLayoutEffect(() => {
+    const follow = (): void => {
+      const row = rowRef.current;
+      const corner = cornerRef.current;
+      const vertical = verticalRef.current;
+      const paper = row?.parentElement;
+      const viewport = viewportRef.current;
+      if (!row || !corner || !vertical || !paper || !viewport) return;
+      row.style.transform = '';
+      corner.style.transform = '';
+      vertical.style.transform = '';
+      const current = preview.get();
+      if (!current) return;
+      // Medidas sin transform: la posición que da `sticky` en reposo.
+      const paperBox = paper.getBoundingClientRect();
+      const view = viewport.getBoundingClientRect();
+      const dy =
+        Math.max(view.top, paperBox.top + current.shiftY) - row.getBoundingClientRect().top;
+      const dx =
+        Math.max(view.left, paperBox.left + current.shiftX) - vertical.getBoundingClientRect().left;
+      row.style.transform = `translateY(${dy}px)`;
+      corner.style.transform = `translateX(${dx}px)`;
+      vertical.style.transform = `translateX(${dx}px)`;
+    };
+    follow();
+    return preview.subscribe(follow);
+  }, [preview, viewportRef]);
+
   return (
     <>
       {/* Fila superior: esquina + regla horizontal. Por encima de la vertical,
@@ -482,11 +531,13 @@ function CanvasRulers({
       {/* `sticky` se pega al borde del contenido del hueco, que tiene padding:
           el desplazamiento negativo las lleva al borde visible. */}
       <div
+        ref={rowRef}
         data-rdlc-ruler-row=""
         className="sticky z-20 flex shadow-[0_1px_3px_rgb(0_0_0/0.2)]"
         style={{ top: -CANVAS_PADDING_PX, width: RULER_PX + widthPx, height: RULER_PX }}
       >
         <div
+          ref={cornerRef}
           className="sticky z-10 shrink-0 border-b border-r border-ruler-edge bg-ruler"
           style={{ left: -CANVAS_PADDING_PX, width: RULER_PX, height: RULER_PX }}
         />
@@ -496,9 +547,12 @@ function CanvasRulers({
           lengthPx={widthPx}
           marks={rulerMarks('x')}
           segments={pageRulerSegments(projection.page, 'x', t)}
+          preview={preview}
+          viewportRef={viewportRef}
         />
       </div>
       <div
+        ref={verticalRef}
         className="sticky z-10 shadow-[1px_0_3px_rgb(0_0_0/0.2)]"
         style={{ left: -CANVAS_PADDING_PX, width: RULER_PX, height: heightPx }}
       >
@@ -508,6 +562,8 @@ function CanvasRulers({
           lengthPx={heightPx}
           marks={rulerMarks('y')}
           segments={pageRulerSegments(projection.page, 'y', t)}
+          preview={preview}
+          viewportRef={viewportRef}
         />
       </div>
     </>
