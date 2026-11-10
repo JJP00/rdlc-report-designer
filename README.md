@@ -7,7 +7,7 @@ A modern alternative to Report Builder: edit the layout with your mouse and get 
 
 **RDLC Report Designer MCP server:** let an AI agent (Claude Code, Claude Desktop, Cursor…) create and edit reports without opening the app — [setup](#mcp-server--edit-reports-from-an-agent).
 
-![Version](https://img.shields.io/badge/version-0.8.3-blue)
+![Version](https://img.shields.io/badge/version-0.8.4-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
