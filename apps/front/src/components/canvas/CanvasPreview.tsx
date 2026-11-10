@@ -30,6 +30,7 @@ import { useMoveEnd } from './useMoveEnd';
 import { usePageResize } from './usePageResize';
 import { useRevealItem } from './useRevealItem';
 import { measureSelection, useSelectionMeasure } from './useSelectionMeasure';
+import { useStableCallback } from './useStableCallback';
 import { useWheelZoom } from './useWheelZoom';
 import { CANVAS_PADDING_PX, RULER_PX } from './geometry';
 
@@ -241,6 +242,14 @@ export function CanvasPreview({
     onMoveItemToScope,
   });
 
+  // Handlers estables hacia los `ItemView` (memo): ver `useStableCallback`.
+  const stableSelect = useStableCallback(onSelect);
+  const stableMoveEnd = useStableCallback(handleMoveEnd);
+  const stableResizeColumn = useStableCallback(onResizeColumn);
+  const stableResizeRow = useStableCallback(onResizeRow);
+  const stableSelectCell = useStableCallback(onSelectCell);
+  const stableEditText = useStableCallback(onEditText);
+
   const revealItem = useRevealItem({ scrollRef, bands: visibleBands, reveal, zoom });
   const { itemCount, descriptionId, liveMessage, handleKeyDown, handleFocus } = useCanvasA11y({
     projection,
@@ -263,7 +272,7 @@ export function CanvasPreview({
     });
 
   return (
-    <TextEditContext.Provider value={onEditText ?? null}>
+    <TextEditContext.Provider value={stableEditText ?? null}>
       <div
         ref={scrollRef}
         id="lienzo"
@@ -381,12 +390,12 @@ export function CanvasPreview({
                 <Paper
                   layout={layout}
                   selectedId={selectedId}
-                  onSelect={onSelect}
-                  onMoveTo={handleMoveEnd}
-                  onResizeColumn={onResizeColumn}
-                  onResizeRow={onResizeRow}
+                  onSelect={stableSelect}
+                  onMoveTo={stableMoveEnd}
+                  onResizeColumn={stableResizeColumn}
+                  onResizeRow={stableResizeRow}
                   selectedCell={selectedCell}
-                  onSelectCell={onSelectCell}
+                  onSelectCell={stableSelectCell}
                   draggable={onMoveTo !== undefined}
                   cull={cull}
                 />

@@ -552,11 +552,45 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
     /** Sesión que originó el movimiento: el flush diferido no viaja a otra pestaña. */
     sessionId: string;
     timer: number;
+    /** `requestAnimationFrame` pendiente de reflejar la ráfaga en la proyección (0 = ninguno). */
+    frame: number;
   }
 
   const pendingMove = useRef<PendingMove | null>(null);
 
+  /**
+   * Refleja la ráfaga en la proyección. Se hace **una vez por fotograma** (no
+   * por tecla): la repetición del teclado puede ir más deprisa de lo que el
+   * lienzo repinta y, con un render por evento, se acumularía una cola de
+   * renders que sigue moviendo el item cuando ya se soltó la tecla.
+   */
+  const commitNudge = useCallback((): void => {
+    const pending = pendingMove.current;
+    if (!pending || pending.frame === 0) return;
+    window.cancelAnimationFrame(pending.frame);
+    pending.frame = 0;
+    // Si la pestaña activa ya no es la de la ráfaga, no se parchea la ajena:
+    // el flush reconcilia contra su sesión con los valores del dominio.
+    if (!doc || doc.sessionId !== pending.sessionId) return;
+    const members = pending.members;
+    updateProjection((projection) => {
+      let next = projection;
+      for (const member of members) {
+        next = patchItem(next, member.id, { top: cm(member.topCm), left: cm(member.leftCm) });
+      }
+      return next;
+    });
+  }, [doc, updateProjection]);
+
+  // El fotograma y el flush usan siempre la última versión (ver `flushRef`).
+  const commitRef = useRef(commitNudge);
+  useEffect(() => {
+    commitRef.current = commitNudge;
+  }, [commitNudge]);
+
   const flushNudge = useCallback((): void => {
+    // Lo último de la ráfaga se refleja ya, antes de cerrarla.
+    commitRef.current();
     const pending = pendingMove.current;
     if (!pending) return;
     pendingMove.current = null;
@@ -626,6 +660,7 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
                 leftCm: toCm(item.left),
               })),
               timer: 0,
+              frame: 0,
             };
 
       // Nada que mover (p. ej. ya están en el borde): no se envía nada.
@@ -644,22 +679,19 @@ export function useItemEditing(core: WorkspaceCore): ItemEditing {
         return;
       }
       pending.members = nextMembers;
-      // Un temporizador por ráfaga (no se reinicia con cada tecla): mantén la
-      // tecla pulsada = unos pocos comandos, no uno por repetición.
-      if (pending.timer === 0) {
-        pending.timer = window.setTimeout(() => flushRef.current(), NUDGE_BURST_MS);
-      }
+      // El temporizador se reinicia con cada tecla: mantener pulsada = un solo
+      // comando al soltar (el keyup lo cierra antes). Cerrarlo a mitad de la
+      // pulsación haría que la respuesta del backend (posición ya vieja) mueva
+      // el item hacia atrás mientras se siguen recibiendo repeticiones.
+      window.clearTimeout(pending.timer);
+      pending.timer = window.setTimeout(() => flushRef.current(), NUDGE_BURST_MS);
       pendingMove.current = pending;
 
-      updateProjection((projection) => {
-        let next = projection;
-        for (const member of pending.members) {
-          next = patchItem(next, member.id, { top: cm(member.topCm), left: cm(member.leftCm) });
-        }
-        return next;
-      });
+      if (pending.frame === 0) {
+        pending.frame = window.requestAnimationFrame(() => commitRef.current());
+      }
     },
-    [doc, movableIds, selectedIds, selectedItem, selectedItems, setStatus, t, updateProjection],
+    [doc, movableIds, selectedIds, selectedItem, selectedItems, setStatus, t],
   );
 
   /* --------------------------- geometría y estilo ------------------------- */
