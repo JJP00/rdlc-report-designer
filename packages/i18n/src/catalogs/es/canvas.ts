@@ -16,6 +16,14 @@ export const canvas = {
   ruler: {
     dragHint: '{label} (arrastra en la regla)',
   },
+  /** Bordes de página que se arrastran en el lienzo (asa + pista al pasar por encima). */
+  pageResize: {
+    header: 'Alto del encabezado',
+    body: 'Alto del cuerpo',
+    footer: 'Alto del pie',
+    section: 'Ancho del informe',
+    hint: '{label}: {size}',
+  },
   margins: {
     left: 'Margen izquierdo',
     right: 'Margen derecho',

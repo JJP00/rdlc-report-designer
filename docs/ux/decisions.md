@@ -186,3 +186,9 @@
 - Descartado: márgenes automáticos en el papel (mismo efecto, menos explícito).
 - Se apoya en: `apps/front/src/components/canvas/CanvasPreview.tsx` (`justify-center-safe`).
 
+## 2026-11-10 · Los bordes de página que se arrastran llevan un asa visible en el margen y una pista al pasar por encima
+- Decidido por: Claude (por defecto), a petición de JunPeng Jin («no está claro en el canvas»)
+- Por qué: las zonas de arrastre eran invisibles y solo cambiaba el cursor; el asa va en el margen porque ahí nunca hay contenido, y la pista dice qué cambia y cuánto mide.
+- Descartado: marcadores de banda en la regla vertical (lejos de donde se mira); rótulos fijos de banda sobre el papel (tapan contenido a zoom bajo).
+- Se apoya en: `apps/front/src/components/canvas/PageResizeLayer.tsx` (`variant="grips"`, `showHint`).
+

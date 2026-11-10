@@ -372,6 +372,10 @@ export function CanvasPreview({
                     pageResizeRef.current?.showPreview(orientation, position, label)
                   }
                   onPreviewEnd={() => pageResizeRef.current?.hidePreview()}
+                  onHint={(orientation, position, label, along) =>
+                    pageResizeRef.current?.showHint(orientation, position, label, along)
+                  }
+                  onHintEnd={() => pageResizeRef.current?.hideHint()}
                 />
 
                 <Paper
@@ -389,6 +393,26 @@ export function CanvasPreview({
               </Layer>
 
               <Layer>
+                {/* Asas de los bordes de página: encima del contenido (van en el
+                    margen, donde no hay items) y debajo del marco de selección,
+                    cuyos tiradores ganan si coinciden. */}
+                <PageResizeZones
+                  variant="grips"
+                  layout={layout}
+                  zoom={zoom}
+                  onResizeRegion={onResizeRegion}
+                  onResizeSectionWidth={onResizeSectionWidth}
+                  sectionMinCm={sectionMinCm}
+                  bandMinCm={bandMinCm}
+                  onPreview={(orientation, position, label) =>
+                    pageResizeRef.current?.showPreview(orientation, position, label)
+                  }
+                  onPreviewEnd={() => pageResizeRef.current?.hidePreview()}
+                  onHint={(orientation, position, label, along) =>
+                    pageResizeRef.current?.showHint(orientation, position, label, along)
+                  }
+                  onHintEnd={() => pageResizeRef.current?.hideHint()}
+                />
                 <SelectionFrame {...frameProps} />
                 <ExtraSelectionFrames stageRef={stageRef} ids={extraKey} revision={projection} />
                 {/* Previsualización de página por encima del contenido. */}
