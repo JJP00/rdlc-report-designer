@@ -1,6 +1,6 @@
 import { useT } from '@rdlc-designer/i18n/react';
 import type { TablixDto, TablixMemberDto } from '@rdlc-designer/contracts';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { CanvasColumn } from '@/components/CanvasColumn';
 import { EditorBanners } from '@/components/EditorBanners';
 import { EditorToolbar } from '@/components/EditorToolbar';
@@ -11,7 +11,7 @@ import { FormatToolbar } from '@/components/panels/FormatToolbar';
 import { ProblemsPanel } from '@/components/ProblemsPanel';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 import type { WorkspaceCore } from '@/hooks/useWorkspace';
-import { usePanelLayout, type PanelLayoutApi } from '@/hooks/usePanelLayout';
+import type { PanelLayoutApi } from '@/hooks/usePanelLayout';
 import { useBatchSelection } from '@/hooks/useBatchSelection';
 import { useLintFindings } from '@/hooks/useLintFindings';
 import { countLintSeverities } from '@/lib/lint';
@@ -53,6 +53,11 @@ export interface ReportTabProps {
    * su scroll y su foco).
    */
   tabStrip: ReactNode;
+  /** Tamaños de los paneles y plegado de Propiedades (los guarda `App`). */
+  panels: PanelLayoutApi;
+  /** Panel Problemas abierto (también lo abre la paleta). */
+  problemsOpen: boolean;
+  onProblemsOpenChange: (open: boolean) => void;
 }
 
 /**
@@ -79,12 +84,10 @@ export function ReportTab(props: ReportTabProps): ReactNode {
     onOpenProperties,
     onOpenPalette,
     tabStrip,
+    panels,
   } = props;
   const { doc, busy, recents, open, save, saveAs, createNew, openPath, close, undo, redo } = core;
   const { selectedId, selectedItem } = items;
-  // Tamaños de los paneles y plegado de Propiedades: de la app, no de la
-  // pestaña (el marco no se remonta al cambiar de pestaña; el cuerpo sí).
-  const panels = usePanelLayout();
 
   return (
     <>
@@ -149,7 +152,7 @@ export function ReportTab(props: ReportTabProps): ReactNode {
         tabIndex={-1}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <ReportBody key={doc?.sessionId ?? 'empty'} {...props} panels={panels} />
+        <ReportBody key={doc?.sessionId ?? 'empty'} {...props} />
       </div>
     </>
   );
@@ -171,7 +174,9 @@ function ReportBody({
   onResolveConflict,
   onPickExpression,
   panels,
-}: ReportTabProps & { panels: PanelLayoutApi }): ReactNode {
+  problemsOpen,
+  onProblemsOpenChange,
+}: ReportTabProps): ReactNode {
   const { doc, status, error, dirty, conflict, fileMissing, reloads, hasBackend, setError } = core;
   const { selectedId, selectedIds, selectedItems, movableIds, selectedCell } = items;
   const t = useT();
@@ -184,7 +189,6 @@ function ReportBody({
     enabled: hasBackend,
   });
   const problems = useMemo(() => countLintSeverities(findings), [findings]);
-  const [problemsOpen, setProblemsOpen] = useState(false);
 
   /** Qué edita el panel de lote: multiselección de items o contenidos de celdas. */
   const batchSelection = useBatchSelection({
@@ -256,7 +260,7 @@ function ReportBody({
           findings={findings}
           projection={doc.projection}
           onSelectItem={items.selectAndReveal}
-          onClose={() => setProblemsOpen(false)}
+          onClose={() => onProblemsOpenChange(false)}
           panels={panels}
         />
       ) : null}
@@ -273,7 +277,7 @@ function ReportBody({
         reloads={reloads}
         problems={doc ? problems : null}
         problemsOpen={problemsOpen}
-        onToggleProblems={() => setProblemsOpen((open) => !open)}
+        onToggleProblems={() => onProblemsOpenChange(!problemsOpen)}
       />
     </>
   );

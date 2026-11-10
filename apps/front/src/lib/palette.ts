@@ -69,15 +69,45 @@ export type PaletteActionId =
   | 'report-properties'
   | 'toggle-variables'
   | 'toggle-hierarchy'
+  | 'toggle-inspector'
+  | 'toggle-problems'
+  | 'reset-panels'
   | 'toggle-theme'
   | 'tab:next'
   | 'tab:prev'
   | 'tab:move-left'
   | 'tab:move-right'
+  | 'tab:close-others'
+  | 'tab:close-right'
+  | 'tab:close-saved'
+  | 'tab:close-all'
   | 'zoom:fit-width'
   | 'zoom:100'
+  | 'zoom:in'
+  | 'zoom:out'
   | 'undo'
   | 'redo'
+  | 'copy'
+  | 'cut'
+  | 'paste'
+  | 'duplicate'
+  | 'delete'
+  | 'bring-to-front'
+  | 'send-to-back'
+  | 'select-parent'
+  | 'format:bold'
+  | 'format:italic'
+  | 'format:underline'
+  | 'align:left'
+  | 'align:center'
+  | 'align:right'
+  | 'valign:top'
+  | 'valign:middle'
+  | 'valign:bottom'
+  | 'list:bulleted'
+  | 'list:numbered'
+  | 'list:none'
+  | 'check-updates'
   | 'edit-text'
   | 'tablix-filters'
   | 'insert:textbox'
@@ -86,11 +116,26 @@ export type PaletteActionId =
   | 'insert:image'
   | 'insert:tablix';
 
-/** Contexto que necesita una acción para poder ejecutarse. */
-export type PaletteContext = 'none' | 'document' | 'textbox' | 'tablix';
+/**
+ * Contexto que necesita una acción para poder ejecutarse: documento abierto,
+ * algo seleccionado (item o celda), un textbox, un Tablix, algo en el
+ * portapapeles, otras pestañas, pestañas a la derecha, pestañas sin cambios o
+ * el servicio de actualizaciones (solo en la app de escritorio).
+ */
+export type PaletteContext =
+  | 'none'
+  | 'document'
+  | 'selection'
+  | 'textbox'
+  | 'tablix'
+  | 'clipboard'
+  | 'otherTabs'
+  | 'tabsRight'
+  | 'savedTabs'
+  | 'updates';
 
 /** Categoría visible que agrupa una acción en la paleta (etiqueta de la derecha). */
-export type PaletteCategory = 'report' | 'view' | 'tabs' | 'edit' | 'insert';
+export type PaletteCategory = 'report' | 'view' | 'tabs' | 'edit' | 'format' | 'insert' | 'app';
 
 /** Claves del catálogo de cada categoría. */
 export const PALETTE_CATEGORY_KEYS: Record<PaletteCategory, CatalogKey> = {
@@ -98,7 +143,9 @@ export const PALETTE_CATEGORY_KEYS: Record<PaletteCategory, CatalogKey> = {
   view: 'palette.category.view',
   tabs: 'palette.category.tabs',
   edit: 'palette.category.edit',
+  format: 'palette.category.format',
   insert: 'palette.category.insert',
+  app: 'palette.category.app',
 };
 
 export interface PaletteAction {
@@ -158,6 +205,19 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
     group: 'view',
     needs: 'document',
   },
+  {
+    id: 'toggle-inspector',
+    labelKey: 'palette.action.toggleInspector',
+    group: 'view',
+    needs: 'document',
+  },
+  {
+    id: 'toggle-problems',
+    labelKey: 'palette.action.toggleProblems',
+    group: 'view',
+    needs: 'document',
+  },
+  { id: 'reset-panels', labelKey: 'palette.action.resetPanels', group: 'view' },
   { id: 'toggle-theme', labelKey: 'palette.action.toggleTheme', group: 'view' },
   {
     id: 'tab:next',
@@ -188,6 +248,30 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
     needs: 'document',
   },
   {
+    id: 'tab:close-others',
+    labelKey: 'palette.action.closeOtherTabs',
+    group: 'tabs',
+    needs: 'otherTabs',
+  },
+  {
+    id: 'tab:close-right',
+    labelKey: 'palette.action.closeTabsRight',
+    group: 'tabs',
+    needs: 'tabsRight',
+  },
+  {
+    id: 'tab:close-saved',
+    labelKey: 'palette.action.closeSavedTabs',
+    group: 'tabs',
+    needs: 'savedTabs',
+  },
+  {
+    id: 'tab:close-all',
+    labelKey: 'palette.action.closeAllTabs',
+    group: 'tabs',
+    needs: 'document',
+  },
+  {
     id: 'zoom:fit-width',
     labelKey: 'palette.action.zoomFitWidth',
     group: 'view',
@@ -201,6 +285,8 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
     shortcut: 'Ctrl+0',
     needs: 'document',
   },
+  { id: 'zoom:in', labelKey: 'palette.action.zoomIn', group: 'view', needs: 'document' },
+  { id: 'zoom:out', labelKey: 'palette.action.zoomOut', group: 'view', needs: 'document' },
   {
     id: 'undo',
     labelKey: 'common.undo',
@@ -215,6 +301,104 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
     shortcut: 'Ctrl+Y',
     needs: 'document',
   },
+  {
+    id: 'copy',
+    labelKey: 'palette.action.copy',
+    group: 'edit',
+    shortcut: 'Ctrl+C',
+    needs: 'selection',
+  },
+  {
+    id: 'cut',
+    labelKey: 'palette.action.cut',
+    group: 'edit',
+    shortcut: 'Ctrl+X',
+    needs: 'selection',
+  },
+  {
+    id: 'paste',
+    labelKey: 'palette.action.paste',
+    group: 'edit',
+    shortcut: 'Ctrl+V',
+    needs: 'clipboard',
+  },
+  {
+    id: 'duplicate',
+    labelKey: 'palette.action.duplicate',
+    group: 'edit',
+    shortcut: 'Ctrl+D',
+    needs: 'selection',
+  },
+  {
+    id: 'delete',
+    labelKey: 'palette.action.delete',
+    group: 'edit',
+    shortcutKey: 'common.shortcuts.delete',
+    needs: 'selection',
+  },
+  {
+    id: 'bring-to-front',
+    labelKey: 'palette.action.bringToFront',
+    group: 'edit',
+    shortcut: 'Ctrl+Shift+]',
+    needs: 'selection',
+  },
+  {
+    id: 'send-to-back',
+    labelKey: 'palette.action.sendToBack',
+    group: 'edit',
+    shortcut: 'Ctrl+Shift+[',
+    needs: 'selection',
+  },
+  {
+    id: 'select-parent',
+    labelKey: 'palette.action.selectParent',
+    group: 'edit',
+    shortcut: 'Esc',
+    needs: 'selection',
+  },
+  {
+    id: 'format:bold',
+    labelKey: 'palette.action.bold',
+    group: 'format',
+    needs: 'selection',
+  },
+  {
+    id: 'format:italic',
+    labelKey: 'palette.action.italic',
+    group: 'format',
+    needs: 'selection',
+  },
+  {
+    id: 'format:underline',
+    labelKey: 'palette.action.underline',
+    group: 'format',
+    needs: 'selection',
+  },
+  { id: 'align:left', labelKey: 'palette.action.alignLeft', group: 'format', needs: 'selection' },
+  {
+    id: 'align:center',
+    labelKey: 'palette.action.alignCenter',
+    group: 'format',
+    needs: 'selection',
+  },
+  { id: 'align:right', labelKey: 'palette.action.alignRight', group: 'format', needs: 'selection' },
+  { id: 'valign:top', labelKey: 'palette.action.alignTop', group: 'format', needs: 'selection' },
+  {
+    id: 'valign:middle',
+    labelKey: 'palette.action.alignMiddle',
+    group: 'format',
+    needs: 'selection',
+  },
+  {
+    id: 'valign:bottom',
+    labelKey: 'palette.action.alignBottom',
+    group: 'format',
+    needs: 'selection',
+  },
+  { id: 'list:bulleted', labelKey: 'palette.action.bullets', group: 'format', needs: 'textbox' },
+  { id: 'list:numbered', labelKey: 'palette.action.numbering', group: 'format', needs: 'textbox' },
+  { id: 'list:none', labelKey: 'palette.action.noList', group: 'format', needs: 'textbox' },
   { id: 'edit-text', labelKey: 'palette.action.editText', group: 'edit', needs: 'textbox' },
   {
     id: 'tablix-filters',
@@ -247,24 +431,43 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
     group: 'insert',
     needs: 'document',
   },
+  { id: 'check-updates', labelKey: 'palette.action.checkUpdates', group: 'app', needs: 'updates' },
 ];
 
 /** Estado del editor del que depende cada acción de la paleta. */
 export interface PaletteCapabilities {
   hasDocument: boolean;
+  /** Hay item o celda seleccionados (copiar, duplicar, formato…). */
+  hasSelection: boolean;
   /** El item seleccionado es un textbox (habilita «Editar el texto»). */
   hasTextbox: boolean;
   /** Hay un Tablix en contexto (seleccionado o el de la celda seleccionada). */
   hasTablix: boolean;
+  /** Hay algo copiado que pegar. */
+  hasClipboard: boolean;
+  /** Pestañas abiertas y posición de la activa (0-based; -1 sin pestañas). */
+  tabCount: number;
+  activeTabIndex: number;
+  /** Alguna pestaña no tiene cambios sin guardar. */
+  hasSavedTab: boolean;
+  /** Hay servicio de actualizaciones (la app de escritorio). */
+  canCheckUpdates: boolean;
 }
 
 /** Ids deshabilitadas en el contexto actual (según su `needs`). */
 export function paletteDisabledActions(capabilities: PaletteCapabilities): Set<PaletteActionId> {
+  const { hasDocument, tabCount, activeTabIndex } = capabilities;
   const available: Record<PaletteContext, boolean> = {
     none: true,
-    document: capabilities.hasDocument,
+    document: hasDocument,
+    selection: hasDocument && capabilities.hasSelection,
     textbox: capabilities.hasTextbox,
     tablix: capabilities.hasTablix,
+    clipboard: hasDocument && capabilities.hasClipboard,
+    otherTabs: tabCount > 1,
+    tabsRight: activeTabIndex >= 0 && activeTabIndex < tabCount - 1,
+    savedTabs: capabilities.hasSavedTab,
+    updates: capabilities.canCheckUpdates,
   };
   return new Set(
     PALETTE_ACTIONS.filter((action) => !available[action.needs ?? 'none']).map(
@@ -284,14 +487,33 @@ export interface PaletteActionHandlers {
   redo: () => void;
   toggleVariables: () => void;
   toggleHierarchy: () => void;
+  toggleInspector: () => void;
+  toggleProblems: () => void;
+  resetPanels: () => void;
   toggleTheme: () => void;
   nextTab: () => void;
   prevTab: () => void;
   moveTabLeft: () => void;
   moveTabRight: () => void;
+  closeTabs: (scope: 'others' | 'right' | 'saved' | 'all') => void;
   reportProperties: () => void;
   zoomFitWidth: () => void;
   zoom100: () => void;
+  /** `+1` aumenta, `-1` reduce (el mismo paso que los botones de la barra). */
+  zoomStep: (direction: 1 | -1) => void;
+  copy: () => void;
+  cut: () => void;
+  paste: () => void;
+  duplicate: () => void;
+  delete: () => void;
+  zOrder: (where: 'front' | 'back') => void;
+  selectParent: () => void;
+  /** Activa o quita negrita, cursiva o subrayado según el estilo vigente. */
+  toggleFormat: (format: 'bold' | 'italic' | 'underline') => void;
+  setTextAlign: (align: 'Left' | 'Center' | 'Right') => void;
+  setVerticalAlign: (align: 'Top' | 'Middle' | 'Bottom') => void;
+  setListStyle: (list: 'Bulleted' | 'Numbered' | 'None') => void;
+  checkUpdates: () => void;
   editText: () => void;
   tablixFilters: () => void;
   insertTextbox: () => void;
@@ -313,14 +535,44 @@ export function paletteRunner(handlers: PaletteActionHandlers): (action: Palette
     redo: handlers.redo,
     'toggle-variables': handlers.toggleVariables,
     'toggle-hierarchy': handlers.toggleHierarchy,
+    'toggle-inspector': handlers.toggleInspector,
+    'toggle-problems': handlers.toggleProblems,
+    'reset-panels': handlers.resetPanels,
     'toggle-theme': handlers.toggleTheme,
     'tab:next': handlers.nextTab,
     'tab:prev': handlers.prevTab,
     'tab:move-left': handlers.moveTabLeft,
     'tab:move-right': handlers.moveTabRight,
+    'tab:close-others': () => handlers.closeTabs('others'),
+    'tab:close-right': () => handlers.closeTabs('right'),
+    'tab:close-saved': () => handlers.closeTabs('saved'),
+    'tab:close-all': () => handlers.closeTabs('all'),
     'report-properties': handlers.reportProperties,
     'zoom:fit-width': handlers.zoomFitWidth,
     'zoom:100': handlers.zoom100,
+    'zoom:in': () => handlers.zoomStep(1),
+    'zoom:out': () => handlers.zoomStep(-1),
+    copy: handlers.copy,
+    cut: handlers.cut,
+    paste: handlers.paste,
+    duplicate: handlers.duplicate,
+    delete: handlers.delete,
+    'bring-to-front': () => handlers.zOrder('front'),
+    'send-to-back': () => handlers.zOrder('back'),
+    'select-parent': handlers.selectParent,
+    'format:bold': () => handlers.toggleFormat('bold'),
+    'format:italic': () => handlers.toggleFormat('italic'),
+    'format:underline': () => handlers.toggleFormat('underline'),
+    'align:left': () => handlers.setTextAlign('Left'),
+    'align:center': () => handlers.setTextAlign('Center'),
+    'align:right': () => handlers.setTextAlign('Right'),
+    'valign:top': () => handlers.setVerticalAlign('Top'),
+    'valign:middle': () => handlers.setVerticalAlign('Middle'),
+    'valign:bottom': () => handlers.setVerticalAlign('Bottom'),
+    'list:bulleted': () => handlers.setListStyle('Bulleted'),
+    'list:numbered': () => handlers.setListStyle('Numbered'),
+    'list:none': () => handlers.setListStyle('None'),
+    'check-updates': handlers.checkUpdates,
     'edit-text': handlers.editText,
     'tablix-filters': handlers.tablixFilters,
     'insert:textbox': handlers.insertTextbox,

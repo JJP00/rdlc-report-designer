@@ -222,3 +222,9 @@
 - Descartado: la ruta entera recortada por el principio (el nombre quedaba al final, detrás de la carpeta).
 - Se apoya en: `apps/front/src/components/RecentPath.tsx`.
 
+## 2026-11-10 · La paleta Ctrl+K ofrece las acciones de la barra, los menús y los atajos, y los recientes
+- Decidido por: JunPeng Jin
+- Por qué: copiar, pegar, orden, formato, paneles, cierres de pestañas, actualizaciones e idioma solo se alcanzaban con el ratón o sabiendo el atajo.
+- Descartado: llevar a la paleta las operaciones de filas y columnas del Tablix: dependen de la celda, del grupo y de la selección múltiple, y el menú del lienzo y Estructura ya las resuelven.
+- Se apoya en: `apps/front/src/lib/palette.ts`; `apps/front/src/hooks/usePaletteActions.ts`.
+

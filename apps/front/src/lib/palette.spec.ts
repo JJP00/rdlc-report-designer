@@ -110,13 +110,32 @@ describe('paletteElements', () => {
 describe('paletteDisabledActions', () => {
   const none: PaletteCapabilities = {
     hasDocument: false,
+    hasSelection: false,
     hasTextbox: false,
     hasTablix: false,
+    hasClipboard: false,
+    tabCount: 0,
+    activeTabIndex: -1,
+    hasSavedTab: false,
+    canCheckUpdates: false,
+  };
+  /** Un informe abierto en su única pestaña, sin nada seleccionado. */
+  const document: PaletteCapabilities = {
+    ...none,
+    hasDocument: true,
+    tabCount: 1,
+    activeTabIndex: 0,
   };
   const everything: PaletteCapabilities = {
     hasDocument: true,
+    hasSelection: true,
     hasTextbox: true,
     hasTablix: true,
+    hasClipboard: true,
+    tabCount: 3,
+    activeTabIndex: 1,
+    hasSavedTab: true,
+    canCheckUpdates: true,
   };
 
   it('sin documento solo queda «Abrir»', () => {
@@ -129,11 +148,7 @@ describe('paletteDisabledActions', () => {
   });
 
   it('con documento pero sin selección, editar texto y filtros siguen fuera', () => {
-    const disabled = paletteDisabledActions({
-      hasDocument: true,
-      hasTextbox: false,
-      hasTablix: false,
-    });
+    const disabled = paletteDisabledActions(document);
     expect(disabled).not.toContain('save');
     expect(disabled).not.toContain('insert:tablix');
     expect(disabled).toContain('edit-text');
@@ -141,11 +156,7 @@ describe('paletteDisabledActions', () => {
   });
 
   it('con un textbox seleccionado se habilita «Editar el texto»', () => {
-    const disabled = paletteDisabledActions({
-      hasDocument: true,
-      hasTextbox: true,
-      hasTablix: false,
-    });
+    const disabled = paletteDisabledActions({ ...document, hasSelection: true, hasTextbox: true });
     expect(disabled).not.toContain('edit-text');
     expect(disabled).toContain('tablix-filters');
   });
@@ -153,6 +164,40 @@ describe('paletteDisabledActions', () => {
   it('con un Tablix en contexto se habilitan sus filtros', () => {
     const disabled = paletteDisabledActions(everything);
     expect(disabled.size).toBe(0);
+  });
+
+  it('copiar, pegar y el formato necesitan selección; pegar, además, algo copiado', () => {
+    const empty = paletteDisabledActions(document);
+    for (const id of ['copy', 'cut', 'delete', 'format:bold', 'align:center', 'select-parent'])
+      expect(empty).toContain(id);
+    expect(empty).toContain('paste');
+    expect(paletteDisabledActions({ ...document, hasClipboard: true })).not.toContain('paste');
+    const selected = paletteDisabledActions({ ...document, hasSelection: true });
+    expect(selected).not.toContain('copy');
+    expect(selected).not.toContain('format:bold');
+    // Las listas son de los textbox.
+    expect(selected).toContain('list:bulleted');
+  });
+
+  it('cerrar varias pestañas depende de cuántas hay y de dónde está la activa', () => {
+    const solo = paletteDisabledActions(document);
+    expect(solo).toContain('tab:close-others');
+    expect(solo).toContain('tab:close-right');
+    expect(solo).not.toContain('tab:close-all');
+    const last = paletteDisabledActions({ ...document, tabCount: 3, activeTabIndex: 2 });
+    expect(last).not.toContain('tab:close-others');
+    expect(last).toContain('tab:close-right');
+    expect(last).toContain('tab:close-saved');
+    expect(paletteDisabledActions({ ...document, hasSavedTab: true })).not.toContain(
+      'tab:close-saved',
+    );
+  });
+
+  it('buscar actualizaciones solo con el servicio de la app de escritorio', () => {
+    expect(paletteDisabledActions(document)).toContain('check-updates');
+    expect(paletteDisabledActions({ ...document, canCheckUpdates: true })).not.toContain(
+      'check-updates',
+    );
   });
 
   it('todas las acciones declaran un contexto conocido', () => {
