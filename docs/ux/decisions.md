@@ -131,3 +131,46 @@
 - Por qué: el carácter ya dice cuál de los dos es; un desplazamiento en caracteres no se puede usar sin contar, y «Abrir» (F2) deja el cursor en el sitio.
 - Descartado: mantener «en la posición {index}».
 - Se apoya en: `apps/back/src/domain/lint/rules/unbalancedBrackets.ts:113-149`.
+
+## 2026-11-10 · La alineación y las acciones del párrafo van en la cabecera del bloque del párrafo, no encima del textarea
+- Decidido por: Claude (por defecto)
+- Por qué: actúan sobre el párrafo de ese bloque, no sobre el textarea; dos rótulos «Párrafo N» separados por el textarea no decían que eran el mismo, y el foco inicial caía en «Alinear izquierda».
+- Descartado: dejar la franja y quitar el rótulo de abajo, porque seguiría pareciendo del textarea.
+- Se apoya en: `docs/ux/0009-editor-de-texto.md`; `docs/ux/0005-reauditoria-intent.md:117`.
+
+## 2026-11-10 · Los marcadores se resaltan con una capa detrás del textarea, no con un editor enriquecido
+- Decidido por: Claude (por defecto)
+- Por qué: el textarea conserva el historial común de deshacer, el caret y sus selectores E2E; la capa pinta el texto visible con la misma caja, fuente y ajuste de línea, y el textarea encima es transparente.
+- Descartado: Monaco para el documento (un editor y un historial más por diálogo); otros caracteres para el marcador (son el formato del texto).
+- Se apoya en: `apps/front/src/components/panels/TextEditorDialog.tsx` (`DocumentHighlights`); `apps/front/src/lib/textEditor.ts` (`splitMarkers`).
+
+## 2026-11-10 · «fragmento» en todos los textos ES de los runs, también en los nombres accesibles
+- Decidido por: Claude (por defecto)
+- Por qué: los encabezados ya decían «fragmento» y un lector de pantalla oía «run».
+- Descartado: cambiar solo los tooltips visibles.
+- Se apoya en: `packages/i18n/src/catalogs/es/text.ts`; `docs/ux/0006-guia-microcopy.md` (los selectores E2E se actualizan en el mismo paso).
+
+## 2026-11-10 · Insertar una expresión con el caret dentro de un marcador la pone detrás de él
+- Decidido por: Claude (por defecto)
+- Por qué: partirlo rompía el run de la etiqueta.
+- Descartado: deshabilitar el botón dentro de un marcador, porque no diría por qué.
+- Se apoya en: `apps/front/src/lib/textEditor.ts` (`insertionPointAt`).
+
+## 2026-11-10 · Los `⟨ ⟩` de los marcadores no se ven en el textarea
+- Decidido por: JunPeng Jin
+- Por qué: se leían como paréntesis literales y confundían; el chip ya delimita la expresión.
+- Descartado: otros delimitadores visibles; quitarlos del valor (son los que separan los runs al reconstruir los párrafos).
+- Se apoya en: `apps/front/src/components/panels/TextEditorDialog.tsx` (`DocumentHighlights`).
+
+## 2026-11-10 · Las expresiones no se editan en el textarea: un clic lleva a su fragmento
+- Decidido por: JunPeng Jin
+- Por qué: el textarea muestra la etiqueta de la expresión, no la expresión; editarla ahí rompía el run o cambiaba otra cosa que la que se ve.
+- Descartado: dejar editar el texto del chip.
+- Se apoya en: `apps/front/src/components/panels/TextEditorDialog.tsx` (`onDocumentMouseUp`); `apps/front/src/lib/textEditor.ts` (`markerRunAt`).
+
+## 2026-11-10 · Retroceso o Supr junto a una expresión la quita entera
+- Decidido por: Claude (por defecto)
+- Por qué: es como se borra un chip en cualquier campo de destinatarios o menciones; que la tecla no hiciera nada parecería un fallo, y Ctrl+Z la devuelve (paso de deshacer propio).
+- Descartado: bloquear el borrado y obligar a la papelera del fragmento.
+- Se apoya en: `apps/front/src/lib/textEditor.ts` (`protectMarkers`).
+

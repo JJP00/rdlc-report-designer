@@ -2295,7 +2295,7 @@ test('el autocompletado de expresiones muestra el desplegable y elige con ratón
   await selectItemViaPalette('Textbox4');
 
   // El panel simple monta el Monaco de la expresión (carga diferida).
-  const container = page.locator('[aria-label="Expresión del run 1.1"]').first();
+  const container = page.locator('[aria-label="Expresión del fragmento 1.1"]').first();
   const editor = container.locator('.monaco-editor');
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await editor.click();
@@ -2338,7 +2338,7 @@ test('el autocompletado del editor de texto se ve por encima del diálogo', asyn
   // run; detrás de cada valor va el Monaco de su formato).
   await page.getByRole('button', { name: 'Añadir expresión' }).click();
   const editor = page
-    .locator('[role="dialog"] [aria-label^="Expresión del run"] .monaco-editor')
+    .locator('[role="dialog"] [aria-label^="Expresión del fragmento"] .monaco-editor')
     .last();
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await editor.click();
@@ -2376,7 +2376,7 @@ test('el panel de propiedades cablea el item (etiqueta, opciones, padding, borde
   await selectItemViaPalette('Textbox4');
 
   // Etiqueta del run (`setParagraphs`, byte-exacto).
-  const label = page.getByLabel('Etiqueta del run 1.1');
+  const label = page.getByLabel('Etiqueta del fragmento 1.1');
   await expect(label).toHaveValue('BTCNifCifLbl');
   await label.fill('MiEtiqueta');
   await label.press('Enter');

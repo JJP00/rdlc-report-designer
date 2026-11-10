@@ -27,8 +27,7 @@ export const text = {
   editor: {
     title: 'Text of {id}',
     description:
-      'Type the text (Enter = new paragraph) and expressions as {marker}. The block below edits the runs of the paragraph under the cursor.',
-    paragraph: 'Paragraph {index}',
+      'Each line is a paragraph. Highlighted expressions are edited below, in their run: click one to go to it.',
     paragraphRuns: 'Paragraph {index} · {runs, plural, one {# run} other {# runs}}',
     alignLeft: 'Align left',
     alignLeftAria: 'Align left (paragraph {index})',
@@ -44,20 +43,31 @@ export const text = {
     moveParagraphDownAria: 'Move paragraph {index} down',
     removeParagraph: 'Delete paragraph',
     removeParagraphAria: 'Delete paragraph {index}',
+    /** Etiqueta visible del textarea (el nombre accesible sigue siendo `textareaAria`). */
+    textLabel: 'Text',
     textareaAria: 'Textbox text',
     addText: 'Add text',
     addExpression: 'Add expression',
-    insertAtCursor: 'Insert at cursor',
+    insertAtCursor: 'Insert expression',
+    insertAtCursorTitle: 'Inserts an expression at the cursor',
     addParagraph: 'Add paragraph',
     applyTitle: 'Apply (Ctrl+Enter)',
+    applyHint: 'Ctrl+Enter to apply',
   },
   /** TextRun: valor (texto o expresión), etiqueta de BC y formato. */
   run: {
     labelPlaceholder: 'label (Label)',
+    /** Editor de texto: la etiqueta ya tiene rótulo visible. */
+    labelCaption: 'Label',
+    labelNone: '(no label)',
     labelTitle: 'BC label (<Label>): shown instead of the expression',
     labelAria: 'Label for run {index}',
     kindExpression: 'expression',
     kindText: 'text',
+    /** Selector Texto | Expresión del editor de texto. */
+    kindAria: 'Kind of run {index}',
+    asText: 'Text',
+    asExpression: 'Expression',
     expressionAria: 'Expression for run {index}',
     valueAria: 'Value for run {index}',
     toText: 'Convert to text',
@@ -66,6 +76,7 @@ export const text = {
     up: 'Move run up',
     down: 'Move run down',
     remove: 'Delete run',
+    fontCaption: 'Font',
     fontPlaceholder: '(inherited)',
     fontAria: 'Font for run {index}',
     sizeTitle: 'Size (pt): arrows or drag (integers)',
@@ -80,6 +91,7 @@ export const text = {
     colorAria: 'Text color for run {index}',
     highlight: 'Highlight',
     highlightAria: 'Highlight for run {index}',
+    formatCaption: 'Format',
     formatAria: 'Format for run {index}',
     formatPlaceholder: '(inherited)',
   },

@@ -268,6 +268,191 @@ export function textToParagraphs(text: string, previous: ParagraphDto[]): Paragr
   });
 }
 
+/** Tramo de una línea del textarea: texto suelto o un marcador `⟨…⟩` completo. */
+export interface MarkerSegment {
+  text: string;
+  /** `true` si el tramo es un marcador que `textToParagraphs` convierte en run. */
+  marker: boolean;
+}
+
+/**
+ * Parte una línea del textarea en texto y marcadores, con el **mismo** criterio
+ * que `textToParagraphs` (un `⟨` sin cierre es texto; `⟨ ⟩` vacío no es run).
+ * La concatenación de los tramos es la línea tal cual: sirve para resaltar los
+ * marcadores detrás del textarea sin mover un carácter.
+ */
+export function splitMarkers(line: string): MarkerSegment[] {
+  const segments: MarkerSegment[] = [];
+  let cursor = 0;
+  while (cursor < line.length) {
+    const open = line.indexOf(EXPRESSION_OPEN, cursor);
+    if (open === -1) break;
+    const close = line.indexOf(EXPRESSION_CLOSE, open + 1);
+    if (close === -1) break;
+    const end = close + EXPRESSION_CLOSE.length;
+    const inside = line.slice(open + EXPRESSION_OPEN.length, close);
+    if (open > cursor) segments.push({ text: line.slice(cursor, open), marker: false });
+    segments.push({ text: line.slice(open, end), marker: inside.trim() !== '' });
+    cursor = end;
+  }
+  if (cursor < line.length) segments.push({ text: line.slice(cursor), marker: false });
+  return segments;
+}
+
+/**
+ * Dónde insertar un marcador nuevo con el caret en `caret`: si cae **dentro** de
+ * un par `⟨…⟩`, justo detrás de su cierre (partirlo rompería ese run).
+ */
+export function insertionPointAt(text: string, caret: number): number {
+  const lineStart = text.lastIndexOf('\n', caret - 1) + 1;
+  const lineEnd = text.indexOf('\n', caret);
+  const line = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd);
+  let offset = lineStart;
+  for (const segment of splitMarkers(line)) {
+    const end = offset + segment.text.length;
+    const pair =
+      segment.text.length >= 2 &&
+      segment.text.startsWith(EXPRESSION_OPEN) &&
+      segment.text.endsWith(EXPRESSION_CLOSE);
+    if (pair && caret > offset && caret < end) return end;
+    offset = end;
+  }
+  return caret;
+}
+
+/* ------------------- expresiones atómicas en el textarea ------------------- */
+
+/** Tramo `[start, end)` del texto (absoluto) que ocupa un marcador. */
+export interface MarkerSpan {
+  start: number;
+  end: number;
+}
+
+/** Marcadores que serán runs (`splitMarkers`), en posiciones absolutas del texto. */
+export function markerSpans(text: string): MarkerSpan[] {
+  const spans: MarkerSpan[] = [];
+  let lineStart = 0;
+  for (const line of text.split('\n')) {
+    let offset = lineStart;
+    for (const segment of splitMarkers(line)) {
+      if (segment.marker) spans.push({ start: offset, end: offset + segment.text.length });
+      offset += segment.text.length;
+    }
+    lineStart += line.length + 1;
+  }
+  return spans;
+}
+
+/** Marcador que contiene el caret **por dentro** (en un borde no cuenta), o `null`. */
+export function markerSpanAt(text: string, caret: number): MarkerSpan | null {
+  return markerSpans(text).find((span) => caret > span.start && caret < span.end) ?? null;
+}
+
+/**
+ * Run de expresión del marcador que contiene el caret por dentro: párrafo, run
+ * y tramo del marcador; `null` si el caret no está en uno. Si la línea es
+ * exactamente la de `paragraphsToText`, se cuenta por los runs del párrafo (dos
+ * runs de texto seguidos son una sola tira en el textarea); si no (el textarea
+ * acaba de cambiar), como los parte `textToParagraphs`.
+ */
+export function markerRunAt(
+  text: string,
+  caret: number,
+  paragraphs: ParagraphDto[],
+): { paragraph: number; run: number; span: MarkerSpan } | null {
+  const span = markerSpanAt(text, caret);
+  if (!span) return null;
+  const paragraph = paragraphIndexAt(text, caret);
+  const runs = paragraphs[paragraph]?.runs ?? [];
+  const lineStart = text.lastIndexOf('\n', caret - 1) + 1;
+  const lineEnd = text.indexOf('\n', caret);
+  const line = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd);
+  const column = span.start - lineStart;
+
+  const isRun = (run: number): boolean => runs[run] !== undefined && isExpressionRun(runs[run]!);
+
+  if (paragraphsToText([{ runs }]) === line) {
+    let offset = 0;
+    for (const [index, run] of runs.entries()) {
+      if (offset === column && isExpressionRun(run)) return { paragraph, run: index, span };
+      offset += paragraphsToText([{ runs: [run] }]).length;
+    }
+  }
+
+  let run = 0;
+  let offset = 0;
+  for (const segment of splitMarkers(line)) {
+    if (offset === column) return isRun(run) ? { paragraph, run, span } : null;
+    // Un `⟨ ⟩` vacío no es run (`textToParagraphs` lo salta).
+    const blankPair =
+      !segment.marker &&
+      segment.text.length >= 2 &&
+      segment.text.startsWith(EXPRESSION_OPEN) &&
+      segment.text.endsWith(EXPRESSION_CLOSE);
+    if (!blankPair) run += 1;
+    offset += segment.text.length;
+  }
+  return null;
+}
+
+/**
+ * Las expresiones no se editan en el textarea: aplica `prev → next` (lo que el
+ * navegador ya escribió, con el caret en `caretAfter`) de forma que ningún
+ * marcador quede a medias. Borrar o reemplazar un trozo de un marcador lo
+ * quita **entero**; escribir o pegar dentro va detrás de él. Devuelve el texto
+ * y el caret; `changed` = hubo que corregir lo del navegador.
+ */
+export function protectMarkers(
+  prev: string,
+  next: string,
+  caretAfter: number,
+): { text: string; caret: number; changed: boolean } {
+  const unchanged = { text: next, caret: caretAfter, changed: false };
+  if (prev === next) return unchanged;
+
+  // El cambio termina en el caret: lo que hay detrás es el sufijo común. Si no
+  // cuadra (p. ej. arrastrar y soltar), el sufijo común más largo.
+  let suffix = next.length - caretAfter;
+  if (
+    suffix < 0 ||
+    suffix > prev.length ||
+    prev.slice(prev.length - suffix) !== next.slice(next.length - suffix)
+  ) {
+    suffix = 0;
+    while (
+      suffix < prev.length &&
+      suffix < next.length &&
+      prev[prev.length - 1 - suffix] === next[next.length - 1 - suffix]
+    )
+      suffix += 1;
+  }
+  let prefix = 0;
+  const maxPrefix = Math.min(prev.length, next.length) - suffix;
+  while (prefix < maxPrefix && prev[prefix] === next[prefix]) prefix += 1;
+
+  const inserted = next.slice(prefix, next.length - suffix);
+  let from = prefix;
+  let to = prev.length - suffix;
+  for (const span of markerSpans(prev)) {
+    if (from === to) {
+      if (from > span.start && from < span.end) from = to = span.end;
+      continue;
+    }
+    const overlaps = from < span.end && to > span.start;
+    const covers = from <= span.start && to >= span.end;
+    if (overlaps && !covers) {
+      from = Math.min(from, span.start);
+      to = Math.max(to, span.end);
+    }
+  }
+  if (from === prefix && to === prev.length - suffix) return unchanged;
+  return {
+    text: prev.slice(0, from) + inserted + prev.slice(to),
+    caret: from + inserted.length,
+    changed: true,
+  };
+}
+
 /** Índice de la línea (párrafo) del caret en el textarea. */
 export function paragraphIndexAt(text: string, caret: number): number {
   const position = Math.max(0, Math.min(caret, text.length));
