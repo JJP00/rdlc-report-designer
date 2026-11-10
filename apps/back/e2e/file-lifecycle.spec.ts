@@ -143,7 +143,10 @@ test('con cambios sin guardar, abrir el mismo reciente activa su pestaña sin pr
   // textbox sigue en su pestaña y el documento no se recarga.
   await page.getByRole('button', { name: 'Fichero' }).click();
   await page.getByRole('menuitem', { name: 'Recientes' }).click();
-  await page.getByRole('menuitem', { name: file, exact: true }).click();
+  // Cada reciente muestra el nombre y su carpeta; la ruta entera va en el `title`.
+  const recent = page.getByRole('menuitem').and(page.getByTitle(file, { exact: true }));
+  await expect(recent).toHaveAccessibleName(/^PalletOutput\.rdlc\s/);
+  await recent.click();
 
   const dialog = page.getByTestId('unsaved-changes-dialog');
   await expect(dialog).toHaveCount(0);
