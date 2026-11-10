@@ -2,7 +2,7 @@
   "name": "@rdlc-designer/back",
   "version": "0.8.3",
   "private": true,
-  "description": "Electron main + NestJS — el hexágono (dominio, aplicación, presentación, infraestructura)",
+  "description": "Create and edit RDL/RDLC reports.",
   "author": "RDLC Report Designer",
   "type": "module",
   "main": "out/main/main.js",
