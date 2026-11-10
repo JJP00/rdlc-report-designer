@@ -17,6 +17,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { NumberInput } from '@/components/ui/number-input';
+import { useTablixTrackPreview } from '@/hooks/scrubPreviewContext';
 import { ensureExpression } from '@/lib/groupProperties';
 import { toCm } from '@/lib/projection';
 import { MIN_SIZE_CM, resizeBoundaryTo } from '@/lib/resize';
@@ -94,6 +95,8 @@ export function TablixStructurePanel({
   onResizeColumn,
 }: TablixStructurePanelProps): ReactNode {
   const t = useT();
+  // Vista previa de la rejilla al arrastrar el tamaño de una fila/columna.
+  const previewTrack = useTablixTrackPreview(tablix.id);
   const rows = tablixRowsTree(tablix);
   const columns = tablixColumnsTree(tablix);
   const selectedRow = selectedCell?.id === tablix.id ? selectedCell.row : null;
@@ -159,6 +162,7 @@ export function TablixStructurePanel({
           entry.index !== undefined ? tablix.body.rows[entry.index]?.height : undefined
         }
         onResizeSize={onResizeRow}
+        onPreviewSize={(index, next) => previewTrack('row', index, next)}
       />
 
       <StructureSection
@@ -191,6 +195,7 @@ export function TablixStructurePanel({
           entry.index !== undefined ? tablix.body.columns[entry.index] : undefined
         }
         onResizeSize={onResizeColumn}
+        onPreviewSize={(index, next) => previewTrack('column', index, next)}
       />
     </section>
   );
@@ -219,6 +224,8 @@ interface StructureSectionProps {
   /** Longitud declarada de la hoja (alto de fila / ancho de columna). */
   sizeOf?: (entry: TablixTreeEntry) => Length | undefined;
   onResizeSize: (index: number, next: Length) => void;
+  /** Vista previa del tamaño al arrastrar (`null` = revertir). */
+  onPreviewSize: (index: number, next: Length | null) => void;
 }
 
 function StructureSection({
@@ -243,6 +250,7 @@ function StructureSection({
   addAtEndLabel,
   sizeOf,
   onResizeSize,
+  onPreviewSize,
 }: StructureSectionProps): ReactNode {
   return (
     <div className="px-2 pb-2 pt-1">
@@ -280,6 +288,7 @@ function StructureSection({
             onAddColumnGroup={onAddColumnGroup}
             onDeleteGroup={onDeleteGroup}
             onResizeSize={onResizeSize}
+            onPreviewSize={onPreviewSize}
             deleteLabel={deleteLabel}
             selectLabel={selectLabel}
           />
@@ -322,6 +331,7 @@ interface StructureRowProps {
   onAddColumnGroup: (column: number, expression: string) => void;
   onDeleteGroup: (axis: 'row' | 'column', path: number[]) => void;
   onResizeSize: (index: number, next: Length) => void;
+  onPreviewSize: (index: number, next: Length | null) => void;
   deleteLabel: (index: number) => string;
   selectLabel: (index: number) => string;
 }
@@ -497,6 +507,7 @@ function LeafRow({
   onGroupRow,
   onDeleteGroup,
   onResizeSize,
+  onPreviewSize,
   deleteLabel,
   selectLabel,
 }: StructureRowProps & {
@@ -551,6 +562,9 @@ function LeafRow({
               : t('tablix.columns.sizeHint', { column: index + 1 })
           }
           onCommit={(cmValue) => onResizeSize(index, resizeBoundaryTo(size, cmValue))}
+          onPreview={(cmValue) =>
+            onPreviewSize(index, cmValue === null ? null : resizeBoundaryTo(size, cmValue))
+          }
         />
       ) : null}
 
@@ -744,12 +758,14 @@ function SizeEditor({
   label,
   title,
   onCommit,
+  onPreview,
 }: {
   value: Length;
   axis: 'row' | 'column';
   label: string;
   title: string;
   onCommit: (cmValue: number) => void;
+  onPreview: (cmValue: number | null) => void;
 }): ReactNode {
   return (
     <div className="ml-auto flex shrink-0 items-center">
@@ -762,6 +778,7 @@ function SizeEditor({
         suffix="cm"
         className="h-6 w-14"
         onCommit={onCommit}
+        onPreview={onPreview}
       />
     </div>
   );

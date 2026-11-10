@@ -25,6 +25,13 @@ export interface NumberInputProps {
   /** Valor actual en la unidad que se muestra (`null` = sin valor, placeholder). */
   value: number | null;
   onCommit: (value: number) => void;
+  /**
+   * Vista previa del arrastre: se llama con cada valor del movimiento (a lo
+   * sumo una vez por fotograma) para que el lienzo lo pinte en vivo, **sin
+   * comando ni undo**. `null` = revertir (Escape o clic sin arrastre). Al soltar
+   * solo se llama a `onCommit`, que sustituye la vista previa.
+   */
+  onPreview?: (value: number | null) => void;
   /** Nombre accesible del campo (también prefijo de las flechas). */
   label: string;
   title?: string;
@@ -59,15 +66,18 @@ export interface NumberInputProps {
  * - **Flechas ↑/↓**: subir aumenta y bajar reduce a pasos de `step`, con un
  *   commit por clic (como el spinner del grosor de borde).
  * - **Arrastrar sobre el valor**: con el input sin foco el cursor cambia a
- *   redimensionado y el movimiento ajusta el valor en vivo; al soltar se
- *   confirma una sola vez (un paso de undo). Escape cancela el arrastre y un
- *   clic sin arrastre coloca el cursor para teclear.
+ *   redimensionado y el movimiento ajusta el valor en vivo (el campo y, con
+ *   `onPreview`, también el lienzo, a lo sumo una vez por fotograma); al soltar se
+ *   confirma una sola vez (un paso de undo). Escape cancela el arrastre
+ *   —revirtiendo la vista previa— y un clic sin arrastre coloca el cursor para
+ *   teclear.
  *
  * Los límites (`min`/`max`) se aplican también al arrastre y a las flechas.
  */
 export function NumberInput({
   value,
   onCommit,
+  onPreview,
   label,
   title,
   disabled = false,
@@ -111,7 +121,7 @@ export function NumberInput({
     onCommit(next);
   };
 
-  /** Arrastre sobre el valor (con el input sin foco): ajusta y confirma al soltar. */
+  /** Arrastre sobre el valor (con el input sin foco): ajusta, previsualiza y confirma al soltar. */
   const startScrub = (event: ReactPointerEvent<HTMLInputElement>): void => {
     if (disabled || event.button !== 0 || focused || value === null) return;
     event.preventDefault();
@@ -120,8 +130,17 @@ export function NumberInput({
     const start = value;
     let last = start;
     let done = false;
+    // Vista previa: un único `onPreview` por fotograma con el último valor.
+    let frame = 0;
+    let previewed = false;
     setScrubbing(true);
     setDraft(start.toFixed(decimals));
+
+    const flushPreview = (): void => {
+      frame = 0;
+      previewed = true;
+      onPreview?.(last);
+    };
 
     const finish = (apply: boolean): void => {
       if (done) return;
@@ -129,10 +148,16 @@ export function NumberInput({
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('keydown', onCancel);
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+      frame = 0;
       setScrubbing(false);
       // El borrador se limpia SIEMPRE: si el undo revierte el valor, el campo
       // debe volver a mostrar el de la proyección.
-      if (apply && Math.abs(last - start) > 1e-9) onCommit(last);
+      const commit = apply && Math.abs(last - start) > 1e-9;
+      // Sin commit (cancelar, clic o volver al valor inicial) la vista previa se
+      // revierte; con commit la sustituye el valor real.
+      if (previewed && !commit) onPreview?.(null);
+      if (commit) onCommit(last);
       setDraft(null);
     };
     const onMove = (move: PointerEvent): void => {
@@ -144,6 +169,7 @@ export function NumberInput({
             : move.clientY - originY;
       last = round(clamp(start + delta * perPx, min, max), 4);
       setDraft(last.toFixed(decimals));
+      if (onPreview && frame === 0) frame = window.requestAnimationFrame(flushPreview);
     };
     const onUp = (up: PointerEvent): void => {
       const moved = Math.abs(up.clientX - originX) + Math.abs(up.clientY - originY) > 2;

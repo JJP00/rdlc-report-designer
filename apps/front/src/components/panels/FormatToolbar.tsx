@@ -31,6 +31,8 @@ import { toPt } from '@/lib/style';
 interface FormatToolbarProps {
   style: StyleDto | undefined;
   onSetStyle: (patch: StylePatch) => void;
+  /** Vista previa del tamaño de fuente al arrastrarlo (`null` = revertir). */
+  onPreviewStyle?: (patch: StylePatch | null) => void;
   /** Sin selección los controles de formato se muestran deshabilitados. */
   disabled?: boolean;
   /** Insertar un item nuevo (click) o arrastrarlo al lienzo. */
@@ -52,6 +54,7 @@ interface FormatToolbarProps {
 export function FormatToolbar({
   style,
   onSetStyle,
+  onPreviewStyle,
   disabled,
   onInsert,
   insertDisabled,
@@ -121,6 +124,14 @@ export function FormatToolbar({
           decimals={0}
           disabled={disabled}
           onCommit={(pt) => onSetStyle({ fontSize: { value: Math.round(pt), unit: 'pt' } })}
+          onPreview={
+            onPreviewStyle
+              ? (pt) =>
+                  onPreviewStyle(
+                    pt === null ? null : { fontSize: { value: Math.round(pt), unit: 'pt' } },
+                  )
+              : undefined
+          }
         />
 
         <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
