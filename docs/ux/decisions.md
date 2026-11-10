@@ -215,3 +215,10 @@
 - Por qué: con el inspector a 280 px la fila de cada borde (nombre, estilo, color, grosor) desbordaba 25 px; con `@container` el nombre pasa encima, como en Relleno.
 - Descartado: subir el mínimo del inspector a 320 px.
 - Se apoya en: `apps/front/src/components/panels/BorderField.tsx`.
+
+## 2026-11-10 · Los recientes muestran el nombre del fichero y la carpeta recortada por el principio
+- Decidido por: JunPeng Jin
+- Por qué: las rutas recientes comparten el principio (`C:\Users\…\OneDrive - …`); cortadas por el final se veían todas iguales.
+- Descartado: la ruta entera recortada por el principio (el nombre quedaba al final, detrás de la carpeta).
+- Se apoya en: `apps/front/src/components/RecentPath.tsx`.
+

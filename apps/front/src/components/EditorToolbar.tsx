@@ -28,6 +28,7 @@ import {
 import type { ReactNode } from 'react';
 import { LOCALE_LABELS } from '@rdlc-designer/i18n';
 import { useLocale, useT } from '@rdlc-designer/i18n/react';
+import { RecentPath } from '@/components/RecentPath';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -241,9 +242,9 @@ function FileGroup({
                 key={path}
                 onSelect={() => onOpenRecent(path)}
                 title={path}
-                className="font-mono text-xs"
+                className="text-xs"
               >
-                <span className="truncate">{path}</span>
+                <RecentPath path={path} />
               </DropdownMenuItem>
             ))}
           </DropdownMenuSubContent>
