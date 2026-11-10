@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { focusActiveTab, shouldLeaveCanvas } from './canvasA11y';
-import { deleteSelection, pasteIntoSelection } from './editorCommands';
+import { deleteSelection, pasteIntoSelection, toggleTextFormat } from './editorCommands';
 import { useGlobalKeys } from './useGlobalKeys';
 import type { WorkspaceCore } from './useWorkspace';
 import type { ItemEditing } from './useItemEditing';
@@ -78,6 +78,7 @@ export function useEditorKeys({
     onCopy: items.copySelected,
     onCut: items.cutSelected,
     onPaste: () => pasteIntoSelection(core, items),
+    onToggleFormat: (format) => toggleTextFormat(items, format),
     onBringToFront: () => items.zOrder('front'),
     onSendToBack: () => items.zOrder('back'),
     onSelectParent: items.selectParent,

@@ -54,6 +54,8 @@ export interface GlobalKeysOptions {
    * callback comprueba que la selección sea un textbox.
    */
   onEditSelectedText?: () => void;
+  /** Ctrl+B / Ctrl+I / Ctrl+U: negrita, cursiva o subrayado de la selección. */
+  onToggleFormat?: (format: 'bold' | 'italic' | 'underline') => void;
 }
 
 export function useGlobalKeys(options: GlobalKeysOptions): void {
@@ -212,6 +214,21 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
     if (accel && key === 'd' && options.hasSelection) {
       event.preventDefault();
       options.onDuplicate();
+      return;
+    }
+    // Formato: Ctrl+B negrita, Ctrl+I cursiva, Ctrl+U subrayado (los botones de
+    // la barra de formato). En un campo de texto o en Monaco ya salió arriba:
+    // ahí las teclas son suyas.
+    if (
+      accel &&
+      !event.shiftKey &&
+      !event.altKey &&
+      (key === 'b' || key === 'i' || key === 'u') &&
+      options.hasSelection &&
+      options.onToggleFormat
+    ) {
+      event.preventDefault();
+      options.onToggleFormat(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
       return;
     }
     if (accel && key === 'c' && options.hasSelection) {

@@ -228,3 +228,8 @@
 - Descartado: llevar a la paleta las operaciones de filas y columnas del Tablix: dependen de la celda, del grupo y de la selección múltiple, y el menú del lienzo y Estructura ya las resuelven.
 - Se apoya en: `apps/front/src/lib/palette.ts`; `apps/front/src/hooks/usePaletteActions.ts`.
 
+## 2026-11-10 · Ctrl+B, Ctrl+I y Ctrl+U no actúan mientras se escribe en un campo o en Monaco
+- Decidido por: Claude (por defecto)
+- Por qué: dentro de un campo esas teclas son del campo; cambiar el formato del elemento mientras se escribe su nombre o una expresión sorprendería.
+- Descartado: aplicarlos siempre que haya selección.
+- Se apoya en: `apps/front/src/hooks/useGlobalKeys.ts` (`isTextEditingTarget`).
