@@ -31,7 +31,7 @@ import { usePageResize } from './usePageResize';
 import { useRevealItem } from './useRevealItem';
 import { measureSelection, useSelectionMeasure } from './useSelectionMeasure';
 import { useWheelZoom } from './useWheelZoom';
-import { RULER_PX } from './geometry';
+import { CANVAS_PADDING_PX, RULER_PX } from './geometry';
 
 export interface CanvasPreviewProps {
   projection: ProjectionDto;
@@ -267,7 +267,10 @@ export function CanvasPreview({
       <div
         ref={scrollRef}
         id="lienzo"
-        className="canvas-dots flex min-h-0 flex-1 items-start justify-center overflow-auto p-6"
+        // `justify-center-safe`: centrado mientras cabe; con zoom alto el papel
+        // empieza en el borde (con `center` lo que sobraba por la izquierda
+        // quedaba fuera del scroll, y con él el 0 de la regla).
+        className="canvas-dots flex min-h-0 flex-1 items-start justify-center-safe overflow-auto p-6"
         tabIndex={0}
         role="group"
         aria-label={pageLabel(itemCount, t)}
@@ -413,7 +416,17 @@ export function CanvasPreview({
 
 /* ------------------------------- helpers -------------------------------- */
 
-/** Esquina y reglas del lienzo: marcadores de margen y tramos de página. */
+/**
+ * Esquina y reglas del lienzo: marcadores de margen y tramos de página.
+ *
+ * Van alineadas con el papel (el 0 en su borde, `cm × zoom` px por cm), pero
+ * **no se salen de la vista** al hacer scroll: `sticky` las deja en el borde
+ * del hueco. La horizontal (con la esquina) se queda arriba al bajar y sigue al
+ * papel en horizontal; la vertical se queda a la izquierda y sigue al papel en
+ * vertical. Así cada regla marca siempre las distancias del papel que se ve.
+ * La caja del papel no cambia (regla de `RULER_PX` + hoja): el zoom anclado,
+ * el hit-testing y el área visible siguen midiendo igual.
+ */
 function CanvasRulers({
   projection,
   zoom,
@@ -431,25 +444,39 @@ function CanvasRulers({
   const t = useT();
   return (
     <>
-      {/* Esquina de las reglas */}
+      {/* Fila superior: esquina + regla horizontal. Por encima de la vertical,
+          que pasa por debajo al bajar. */}
+      {/* `sticky` se pega al borde del contenido del hueco, que tiene padding:
+          el desplazamiento negativo las lleva al borde visible. */}
       <div
-        className="absolute left-0 top-0 border-b border-r bg-muted"
-        style={{ width: RULER_PX, height: RULER_PX }}
-      />
-      <Ruler
-        orientation="horizontal"
-        zoom={zoom}
-        lengthPx={widthPx}
-        marks={rulerMarks('x')}
-        segments={pageRulerSegments(projection.page, 'x', t)}
-      />
-      <Ruler
-        orientation="vertical"
-        zoom={zoom}
-        lengthPx={heightPx}
-        marks={rulerMarks('y')}
-        segments={pageRulerSegments(projection.page, 'y', t)}
-      />
+        data-rdlc-ruler-row=""
+        className="sticky z-20 flex shadow-[0_1px_3px_rgb(0_0_0/0.2)]"
+        style={{ top: -CANVAS_PADDING_PX, width: RULER_PX + widthPx, height: RULER_PX }}
+      >
+        <div
+          className="sticky z-10 shrink-0 border-b border-r border-ruler-edge bg-ruler"
+          style={{ left: -CANVAS_PADDING_PX, width: RULER_PX, height: RULER_PX }}
+        />
+        <Ruler
+          orientation="horizontal"
+          zoom={zoom}
+          lengthPx={widthPx}
+          marks={rulerMarks('x')}
+          segments={pageRulerSegments(projection.page, 'x', t)}
+        />
+      </div>
+      <div
+        className="sticky z-10 shadow-[1px_0_3px_rgb(0_0_0/0.2)]"
+        style={{ left: -CANVAS_PADDING_PX, width: RULER_PX, height: heightPx }}
+      >
+        <Ruler
+          orientation="vertical"
+          zoom={zoom}
+          lengthPx={heightPx}
+          marks={rulerMarks('y')}
+          segments={pageRulerSegments(projection.page, 'y', t)}
+        />
+      </div>
     </>
   );
 }

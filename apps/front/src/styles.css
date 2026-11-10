@@ -36,6 +36,13 @@
   --color-chrome: var(--chrome);
   --color-chrome-subtle: var(--chrome-subtle);
   --color-tabstrip: var(--tabstrip);
+  /* Reglas del lienzo: van encima del papel (blanco en los dos temas) al hacer
+     scroll, así que nunca usan su blanco. */
+  --color-ruler: var(--ruler);
+  --color-ruler-printable: var(--ruler-printable);
+  --color-ruler-edge: var(--ruler-edge);
+  --color-ruler-tick: var(--ruler-tick);
+  --color-ruler-tick-minor: var(--ruler-tick-minor);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -123,6 +130,13 @@ body,
   --chrome: oklch(0.915 0.014 260);
   --chrome-subtle: oklch(0.968 0.006 260);
   --tabstrip: oklch(0.88 0.016 260);
+  /* Regla: gris medio (no el casi blanco de `muted`) con el área imprimible
+     más clara pero no blanca, y filo oscuro (≥ 3:1 sobre el papel). */
+  --ruler: oklch(0.8 0.015 260);
+  --ruler-printable: oklch(0.885 0.012 260);
+  --ruler-edge: oklch(0.45 0.015 260);
+  --ruler-tick: oklch(0.34 0.015 260);
+  --ruler-tick-minor: oklch(0.52 0.012 260);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -166,6 +180,12 @@ body,
   --chrome: oklch(0.3 0.016 260);
   --chrome-subtle: oklch(0.25 0.014 260);
   --tabstrip: oklch(0.12 0.01 260);
+  /* Regla oscura: ya contrasta con el papel blanco. */
+  --ruler: oklch(0.3 0.016 260);
+  --ruler-printable: oklch(0.22 0.013 260);
+  --ruler-edge: oklch(0.55 0.015 260);
+  --ruler-tick: oklch(0.76 0.012 260);
+  --ruler-tick-minor: oklch(0.5 0.014 260);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

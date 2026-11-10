@@ -174,3 +174,15 @@
 - Descartado: bloquear el borrado y obligar a la papelera del fragmento.
 - Se apoya en: `apps/front/src/lib/textEditor.ts` (`protectMarkers`).
 
+## 2026-11-10 · Las reglas van alineadas con el papel pero no se salen de la vista al hacer scroll
+- Decidido por: JunPeng Jin
+- Por qué: con zoom alto, al desplazarse la regla desaparecía y no había forma de leer la distancia de lo que se ve.
+- Descartado: reglas fijas en el borde del lienzo con el 0 desplazado según el scroll (misma lectura, más código por scroll).
+- Se apoya en: `apps/front/src/components/canvas/CanvasPreview.tsx` (`CanvasRulers`, `position: sticky`).
+
+## 2026-11-10 · El papel se centra solo mientras cabe en el lienzo
+- Decidido por: Claude (por defecto)
+- Por qué: con `justify-content: center`, a 200 % los primeros ~2,7 cm de la página quedaban a la izquierda del scroll, inalcanzables, y con ellos el 0 de la regla.
+- Descartado: márgenes automáticos en el papel (mismo efecto, menos explícito).
+- Se apoya en: `apps/front/src/components/canvas/CanvasPreview.tsx` (`justify-center-safe`).
+
