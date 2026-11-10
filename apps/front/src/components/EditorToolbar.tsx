@@ -9,6 +9,7 @@ import {
   History,
   Languages,
   ListTree,
+  PanelRight,
   Minus,
   Moon,
   Plus,
@@ -55,6 +56,8 @@ export interface EditorToolbarProps {
   showVariables: boolean;
   /** Panel de jerarquía visible (U4). */
   showHierarchy: boolean;
+  /** Propiedades a la vista (no plegado). */
+  showInspector: boolean;
   /** Tema claro/oscuro del editor (el toggle vive en la toolbar). */
   theme: 'light' | 'dark';
   /** Hay una operación de fichero en curso (BUG-54): grupo Fichero deshabilitado. */
@@ -72,6 +75,7 @@ export interface EditorToolbarProps {
   onOpenPalette: () => void;
   onToggleVariables: () => void;
   onToggleHierarchy: () => void;
+  onToggleInspector: () => void;
   onToggleTheme: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -116,9 +120,11 @@ export function EditorToolbar(props: EditorToolbarProps): ReactNode {
           hasDocument={props.hasDocument}
           showVariables={props.showVariables}
           showHierarchy={props.showHierarchy}
+          showInspector={props.showInspector}
           onOpenProperties={props.onOpenProperties}
           onToggleVariables={props.onToggleVariables}
           onToggleHierarchy={props.onToggleHierarchy}
+          onToggleInspector={props.onToggleInspector}
         />
         <Separator orientation="vertical" className="mx-1 h-5 shrink-0" />
         <EditGroup
@@ -296,22 +302,26 @@ function FileGroup({
   );
 }
 
-/** Informe… / Variables / Jerarquía. */
+/** Informe… / Variables / Jerarquía / Propiedades. */
 function ReportGroup({
   hasDocument,
   showVariables,
   showHierarchy,
+  showInspector,
   onOpenProperties,
   onToggleVariables,
   onToggleHierarchy,
+  onToggleInspector,
 }: Pick<
   EditorToolbarProps,
   | 'hasDocument'
   | 'showVariables'
   | 'showHierarchy'
+  | 'showInspector'
   | 'onOpenProperties'
   | 'onToggleVariables'
   | 'onToggleHierarchy'
+  | 'onToggleInspector'
 >): ReactNode {
   const t = useT();
 
@@ -364,6 +374,23 @@ function ReportGroup({
           </Button>
         </TooltipTrigger>
         <TooltipContent>{t('toolbar.report.toggleHierarchy')}</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={showInspector ? 'secondary' : 'ghost'}
+            size="sm"
+            className="shrink-0 px-[7px] 2xl:pl-1.5 2xl:pr-2.5"
+            onClick={onToggleInspector}
+            disabled={!hasDocument}
+            aria-label={t('toolbar.report.inspector')}
+            aria-pressed={showInspector}
+          >
+            <PanelRight />
+            <span className="hidden 2xl:inline">{t('toolbar.report.inspector')}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t('toolbar.report.toggleInspector')}</TooltipContent>
       </Tooltip>
     </>
   );

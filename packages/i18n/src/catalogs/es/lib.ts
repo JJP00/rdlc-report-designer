@@ -30,6 +30,14 @@ export const lib = {
     resizeAria: 'Redimensionar el diálogo',
     resizeTitle: 'Arrastra para redimensionar (doble clic: tamaño original)',
   },
+  /** Asidero del borde de un panel de la ventana. */
+  panel: {
+    resizeTitle: 'Arrastra para cambiar el tamaño (doble clic: tamaño original)',
+    hierarchyAria: 'Ancho de Jerarquía',
+    variablesAria: 'Ancho de Variables',
+    inspectorAria: 'Ancho de Propiedades',
+    problemsAria: 'Alto de Problemas',
+  },
   numberInput: {
     increaseAria: '{label}: aumentar',
     decreaseAria: '{label}: reducir',

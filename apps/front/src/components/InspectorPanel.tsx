@@ -134,7 +134,8 @@ export function InspectorPanel({
   // `#root` (relative) y su posición estática hincharía el scroll de la
   // **página** al seleccionar un elemento (el panel se podía desplazar).
   return (
-    <aside className="relative flex w-80 shrink-0 flex-col overflow-y-auto border-l bg-background">
+    // Ancho y borde los pone `InspectorColumn` (ajustable y plegable).
+    <aside className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-background">
       {selectedItems.length > 1 ? (
         <MultiSelectionPanel
           items={selectedItems}

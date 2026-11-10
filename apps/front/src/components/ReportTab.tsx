@@ -11,6 +11,7 @@ import { FormatToolbar } from '@/components/panels/FormatToolbar';
 import { ProblemsPanel } from '@/components/ProblemsPanel';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 import type { WorkspaceCore } from '@/hooks/useWorkspace';
+import { usePanelLayout, type PanelLayoutApi } from '@/hooks/usePanelLayout';
 import { useBatchSelection } from '@/hooks/useBatchSelection';
 import { useLintFindings } from '@/hooks/useLintFindings';
 import { countLintSeverities } from '@/lib/lint';
@@ -81,6 +82,9 @@ export function ReportTab(props: ReportTabProps): ReactNode {
   } = props;
   const { doc, busy, recents, open, save, saveAs, createNew, openPath, close, undo, redo } = core;
   const { selectedId, selectedItem } = items;
+  // Tamaños de los paneles y plegado de Propiedades: de la app, no de la
+  // pestaña (el marco no se remonta al cambiar de pestaña; el cuerpo sí).
+  const panels = usePanelLayout();
 
   return (
     <>
@@ -92,6 +96,7 @@ export function ReportTab(props: ReportTabProps): ReactNode {
         zoom={zoom}
         showVariables={showVariables}
         showHierarchy={showHierarchy}
+        showInspector={!panels.layout.inspectorCollapsed}
         theme={theme}
         recents={recents}
         onNew={createNew}
@@ -104,6 +109,7 @@ export function ReportTab(props: ReportTabProps): ReactNode {
         onOpenPalette={onOpenPalette}
         onToggleVariables={onToggleVariables}
         onToggleHierarchy={onToggleHierarchy}
+        onToggleInspector={() => panels.setInspectorCollapsed(!panels.layout.inspectorCollapsed)}
         onToggleTheme={onToggleTheme}
         onDuplicate={items.duplicateSelected}
         onDelete={items.deleteSelected}
@@ -143,7 +149,7 @@ export function ReportTab(props: ReportTabProps): ReactNode {
         tabIndex={-1}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <ReportBody key={doc?.sessionId ?? 'empty'} {...props} />
+        <ReportBody key={doc?.sessionId ?? 'empty'} {...props} panels={panels} />
       </div>
     </>
   );
@@ -164,7 +170,8 @@ function ReportBody({
   onOpenTablixFilters,
   onResolveConflict,
   onPickExpression,
-}: ReportTabProps): ReactNode {
+  panels,
+}: ReportTabProps & { panels: PanelLayoutApi }): ReactNode {
   const { doc, status, error, dirty, conflict, fileMissing, reloads, hasBackend, setError } = core;
   const { selectedId, selectedIds, selectedItems, movableIds, selectedCell } = items;
   const t = useT();
@@ -209,6 +216,7 @@ function ReportBody({
           onSelectItem={items.selectAndReveal}
           onSelectCell={items.selectCell}
           onPickExpression={onPickExpression}
+          panels={panels}
         />
 
         <CanvasColumn
@@ -239,6 +247,7 @@ function ReportBody({
           onOpenGroupProperties={onOpenGroupProperties}
           onOpenTablixFilters={onOpenTablixFilters}
           onEditText={onEditText}
+          panels={panels}
         />
       </main>
 
@@ -248,6 +257,7 @@ function ReportBody({
           projection={doc.projection}
           onSelectItem={items.selectAndReveal}
           onClose={() => setProblemsOpen(false)}
+          panels={panels}
         />
       ) : null}
 

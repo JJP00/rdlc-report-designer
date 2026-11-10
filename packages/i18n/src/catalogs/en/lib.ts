@@ -41,6 +41,14 @@ export const lib = {
     resizeAria: 'Resize dialog',
     resizeTitle: 'Drag to resize (double-click: original size)',
   },
+  /** Asidero del borde de un panel de la ventana. */
+  panel: {
+    resizeTitle: 'Drag to resize (double-click: original size)',
+    hierarchyAria: 'Hierarchy width',
+    variablesAria: 'Variables width',
+    inspectorAria: 'Properties width',
+    problemsAria: 'Problems height',
+  },
   /** Campo numérico: flechas ↑/↓ (el nombre del campo lo pone el panel). */
   numberInput: {
     increaseAria: '{label}: increase',

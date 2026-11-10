@@ -192,3 +192,26 @@
 - Descartado: marcadores de banda en la regla vertical (lejos de donde se mira); rótulos fijos de banda sobre el papel (tapan contenido a zoom bajo).
 - Se apoya en: `apps/front/src/components/canvas/PageResizeLayer.tsx` (`variant="grips"`, `showHint`).
 
+## 2026-11-10 · Todos los paneles se redimensionan desde su borde y Propiedades se pliega a una tira
+- Decidido por: JunPeng Jin
+- Por qué: los anchos fijos (256, 288 y 320 px) no dejaban ver expresiones largas ni ganar lienzo.
+- Descartado: —
+- Se apoya en: `apps/front/src/components/ui/panel-resizer.tsx`; `apps/front/src/components/InspectorColumn.tsx`.
+
+## 2026-11-10 · Los tamaños de los paneles son de la app, no de cada pestaña, y se recuerdan entre sesiones
+- Decidido por: Claude (por defecto)
+- Por qué: el ancho cómodo depende de la pantalla y de la persona, no del informe; que cambie al cambiar de pestaña desorienta.
+- Descartado: guardarlos en el `ui` de cada pestaña, como Jerarquía y Variables.
+- Se apoya en: `apps/front/src/hooks/usePanelLayout.ts`; `apps/front/src/lib/panelLayout.ts`.
+
+## 2026-11-10 · Mínimos de 200, 220 y 280 px y lienzo nunca por debajo de 320 px
+- Decidido por: Claude (por defecto)
+- Por qué: por debajo de 1280 px solo hay un panel izquierdo, así que 220 + 280 + 320 cabe en la ventana mínima de 960 px; por encima caben los tres al mínimo.
+- Descartado: mínimos iguales a los anchos fijos anteriores (no dejaban ganar lienzo).
+- Se apoya en: `apps/front/src/App.tsx:80` (un panel izquierdo por debajo de 1280 px); medido en la app a 960 × 600.
+
+## 2026-11-10 · Los campos del inspector se maquetan por el ancho del panel, no por el de la ventana
+- Decidido por: Claude (por defecto)
+- Por qué: con el inspector a 280 px la fila de cada borde (nombre, estilo, color, grosor) desbordaba 25 px; con `@container` el nombre pasa encima, como en Relleno.
+- Descartado: subir el mínimo del inspector a 320 px.
+- Se apoya en: `apps/front/src/components/panels/BorderField.tsx`.
