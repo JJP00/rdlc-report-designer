@@ -1,6 +1,6 @@
 # RDLC Report Designer — Arquitectura
 
-Documento técnico del proyecto. Complementa a `RDLC Report Designer.md` (visión, alcance, características y fases).
+Documento técnico del proyecto. Complementa al `README.md` (visión, alcance y características).
 
 # Librerías
 

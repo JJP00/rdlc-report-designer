@@ -4,7 +4,6 @@
 - **Estado**: propuesta de rediseño. **No sustituye** a `0001-capas.md` (trabajo del usuario, sin tocar): lo corrige en Fase 1 y deja la Fase 2 como estaba.
 - **Origen**: `docs/ux/0003-evaluacion-ux.md` Parte 2 (≈ 70/100; H6 = 3, H2/H4/H8/H9/H10 = 2).
 - **Alcance elegido**: **por niveles**. Nivel 1 barato (sin panel ni modo); Nivel 2 (panel + modo) solo si Nivel 1 no basta.
-- **Diagrama**: `0002-capas-rediseno-journey.html` (3 flujos).
 - **Naturaleza de las cifras**: pasos y puntuaciones son estimaciones de diseño; nada probado en la app.
 
 ## 1. Problema

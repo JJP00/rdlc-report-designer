@@ -2,7 +2,7 @@
 
 - **Fecha**: 2026-10-09
 - **Qué se evalúa**: el árbol de trabajo con las correcciones que otro agente aplicó tras
-  `docs/ux/0004-analisis-intent-frontend.md` (commit base `b632379`; esas correcciones
+  el análisis Intent 0004 (retirado; en el historial de git) (commit base `b632379`; esas correcciones
   **aún no están commiteadas**). Build de `apps/back/out` recompilado en modo E2E; la suite
   completa pasa **118/118** sobre él.
 - **Método**: cuatro agentes en paralelo, solo lectura, con la app ejecutándose

@@ -231,7 +231,7 @@ pnpm --filter @rdlc-designer/back bench
 # Different size / number of passes: node apps/back/scripts/bench.mjs 5000 5
 ```
 
-Current result: **59.5–59.9 fps p50** with 972 textboxes (budget 60). Details in [docs/perf](./docs/perf/0001-baseline-lienzo.md).
+Current result: **59.5–59.9 fps p50** with 972 textboxes (budget 60). Details in [docs/perf](./docs/perf/).
 
 </details>
 

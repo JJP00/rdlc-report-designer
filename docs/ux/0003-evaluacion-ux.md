@@ -3,7 +3,7 @@
 - **Fecha**: 2026-10-08
 - **Método**: evaluación heurística (Nielsen), recorridos cognitivos, escaneo de
   anti-patrones y análisis de éxito de tarea, con el sistema _Intent_
-  (`/intent` → `/fortify` → `/evaluate`). Contrasta con `docs/ux/0002-evaluacion-ux.md`.
+  (`/intent` → `/fortify` → `/evaluate`). Contrasta con la re-evaluación 0002 (retirada; en el historial de git).
 - **Artefacto evaluado**: código del árbol de trabajo en `main` (commit `f3c19a4`):
   ciclo de vida del documento (`SessionService`, `useDocumentCore`, `main.ts`),
   guardas y diálogos, `ErrorBoundary`, toolbar, barra de estado, atajos y tema; más el

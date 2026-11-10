@@ -16,7 +16,7 @@
 - Decidido por: Claude (por defecto, sin entrevistas)
 - Por qué: es lo que dicen el README y el documento de producto; no hay investigación con usuarios.
 - Descartado: —
-- Se apoya en: `README.md`; `RDLC Report Designer.md`.
+- Se apoya en: `README.md`.
 
 ## 2026-10-27 · «Sin problemas» falso se califica como importante
 - Decidido por: Claude (por defecto)
@@ -124,7 +124,7 @@
 - Decidido por: Claude (por defecto)
 - Por qué: la app abre `.rdlc` de BC y `.rdl` de SSRS; en SSRS no hay AL y el dataset viene de su consulta.
 - Descartado: un solo mensaje con AL (falso para SSRS); un mensaje sin arreglo.
-- Se apoya en: `README.md` (formatos); `RDLC Report Designer.md`.
+- Se apoya en: `README.md` (formatos).
 
 ## 2026-10-28 · Los mensajes de paréntesis dicen si falta el cierre o la apertura y no muestran la posición
 - Decidido por: Claude (por defecto)
