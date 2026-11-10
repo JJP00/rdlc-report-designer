@@ -402,6 +402,7 @@ interface KonvaLike {
   getAttr(name: string): unknown;
   getParent(): KonvaLike;
   getChildren(filter?: (node: KonvaLike) => boolean): KonvaLike[];
+  find?(selector: (node: KonvaLike) => boolean): KonvaLike[];
   findOne?(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
   getAbsoluteTransform(): { point(point: { x: number; y: number }): { x: number; y: number } };
   getClientRect(options: { relativeTo: unknown }): {
@@ -2126,8 +2127,8 @@ test('la alineación del párrafo se refleja en el lienzo', async () => {
         findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
       };
       const item = stage.findOne((candidate) => candidate.id() === itemId);
-      const clip = item?.getChildren()[0];
-      const run = clip?.getChildren((candidate) => candidate.name() === 'textbox-run')[0];
+      // Los runs cuelgan del grupo del marco de texto (anidado en el recorte).
+      const run = item?.find?.((candidate) => candidate.name() === 'textbox-run')[0];
       return run ? run.x() : null;
     }, id);
 
