@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { focusActiveTab, shouldLeaveCanvas } from './canvasA11y';
+import { focusActiveTab, isTextEditingTarget, shouldLeaveCanvas } from './canvasA11y';
 import { resolveTheme } from './useTheme';
 
 const base = {
@@ -50,5 +50,33 @@ describe('focusActiveTab', () => {
     } as unknown as ParentNode;
     expect(focusActiveTab(root)).toBe(true);
     expect(focused).toBe(true);
+  });
+});
+
+describe('isTextEditingTarget', () => {
+  /** Elemento mínimo: `insideMonaco` simula `closest('.monaco-editor')`. */
+  const el = (tagName: string, opts: { editable?: boolean; insideMonaco?: boolean } = {}) =>
+    ({
+      tagName,
+      isContentEditable: opts.editable ?? false,
+      closest: (selector: string) =>
+        selector === '.monaco-editor' && opts.insideMonaco ? {} : null,
+    }) as unknown as HTMLElement;
+
+  it('campos nativos y contenteditable son texto', () => {
+    expect(isTextEditingTarget(el('INPUT'))).toBe(true);
+    expect(isTextEditingTarget(el('TEXTAREA'))).toBe(true);
+    expect(isTextEditingTarget(el('SELECT'))).toBe(true);
+    expect(isTextEditingTarget(el('DIV', { editable: true }))).toBe(true);
+  });
+
+  it('el EditContext de Monaco (div sin contenteditable) es texto: Ctrl+C/V son suyos', () => {
+    expect(isTextEditingTarget(el('DIV', { insideMonaco: true }))).toBe(true);
+  });
+
+  it('el lienzo y los botones no son texto', () => {
+    expect(isTextEditingTarget(el('DIV'))).toBe(false);
+    expect(isTextEditingTarget(el('BUTTON'))).toBe(false);
+    expect(isTextEditingTarget(null)).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent } from 'react';
+import { isTextEditingTarget } from './canvasA11y';
 import { NUDGE_PT_CM } from './useItemEditing';
 
 /**
@@ -64,10 +65,7 @@ export function useGlobalKeys(options: GlobalKeysOptions): void {
     const key = event.key.toLowerCase();
     const accel = event.ctrlKey || event.metaKey;
     const target = event.target as HTMLElement | null;
-    const isTextField = Boolean(
-      target &&
-      (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable),
-    );
+    const isTextField = isTextEditingTarget(target);
     /**
      * Controles que usan las flechas/Supr para sí mismos (botones, pestañas,
      * sliders, checkboxes, radios…): con el foco en ellos, las flechas navegan
