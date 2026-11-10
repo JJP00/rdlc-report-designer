@@ -1933,6 +1933,60 @@ test('el editor de texto añade runs y el undo lo revierte', async () => {
   await expect.poll(async () => (await runsOf()).length).toBe(before);
 });
 
+test('el editor de texto deshace/rehace el borrador completo (textarea, Monaco y botones)', async () => {
+  const proj = await projection();
+  const content = firstCellContent(proj, 'LinesTable2');
+  expect(content).toBeTruthy();
+  const point = await nodeCenter(content!.id);
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+  await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+
+  const dialogMonaco = page.locator('[role="dialog"] .monaco-editor');
+  await expect(dialogMonaco.first()).toBeVisible();
+  const area = page.getByLabel('Texto del textbox');
+  const original = await area.inputValue();
+
+  // Monaco → textarea: lo tecleado en un run se deshace desde el textarea (antes
+  // la reescritura del valor borraba el historial nativo) y se rehace.
+  await dialogMonaco.first().click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('AAA');
+  await expect(area).toHaveValue(new RegExp('AAA'));
+  await area.click();
+  await page.keyboard.press('Control+z');
+  await expect(area).toHaveValue(original);
+  await page.keyboard.press('Control+Shift+z');
+  await expect(area).toHaveValue(new RegExp('AAA'));
+  await page.keyboard.press('Control+z');
+  await expect(area).toHaveValue(original);
+
+  // Textarea → Monaco: Ctrl+Z desde Monaco deshace lo último (el textarea), no
+  // lo más antiguo de Monaco. La pausa corta la ráfaga de la edición anterior.
+  await page.waitForTimeout(1100);
+  await area.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('BBB');
+  await expect(area).toHaveValue(original + 'BBB');
+  await dialogMonaco.first().click();
+  await page.keyboard.press('Control+z');
+  await expect(area).toHaveValue(original);
+
+  // Un botón (añadir un run) también se deshace y rehace con el teclado.
+  const editors = await dialogMonaco.count();
+  await page.getByRole('button', { name: 'Añadir texto' }).click();
+  await expect(dialogMonaco).toHaveCount(editors + 2);
+  await page.keyboard.press('Control+z');
+  await expect(dialogMonaco).toHaveCount(editors);
+  await page.keyboard.press('Control+y');
+  await expect(dialogMonaco).toHaveCount(editors + 2);
+
+  // El diálogo sigue abierto y el documento no cambió (el undo era del borrador).
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+});
+
 test('el editor de texto monta Monaco en el párrafo activo y sugiere', async () => {
   const proj = await projection();
   const content = firstCellContent(proj, 'LinesTable2');

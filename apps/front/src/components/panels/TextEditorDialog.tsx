@@ -12,7 +12,7 @@ import {
   Trash2,
   Type,
 } from 'lucide-react';
-import { useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +25,14 @@ import {
   ResizableDialogContent,
 } from '@/components/ui/dialog';
 import { useAvailableFonts } from '@/hooks/useAvailableFonts';
+import {
+  commit,
+  createHistory,
+  mapCaret,
+  redo as redoHistory,
+  undo as undoHistory,
+  type DraftHistory,
+} from '@/lib/draftHistory';
 import {
   EXPRESSION_CLOSE,
   EXPRESSION_OPEN,
@@ -96,13 +104,29 @@ function TextEditorBody({
   onApply: (paragraphs: ParagraphDto[]) => void;
 }): ReactNode {
   const t = useT();
-  // Borrador propio: se monta con el textbox abierto (nada de resincronizar).
-  const [paragraphs, setParagraphs] = useState<ParagraphDto[]>(() => clone(item.paragraphs));
-  const [text, setText] = useState<string>(() => paragraphsToText(item.paragraphs));
+  // Borrador propio: se monta con el textbox abierto (nada de resincronizar). El
+  // textarea y los bloques son dos vistas del mismo documento y comparten **un**
+  // historial de deshacer/rehacer (Ctrl+Z / Ctrl+Mayús+Z / Ctrl+Y, ver `onUndoRedoKey`).
+  const [history, setHistory] = useState<DraftHistory>(() =>
+    createHistory({
+      paragraphs: clone(item.paragraphs),
+      text: paragraphsToText(item.paragraphs),
+    }),
+  );
+  const { paragraphs, text } = history.present;
   /** Párrafo en el que está el cursor (el bloque de abajo). */
   const [active, setActive] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  /** Cursor que el textarea recupera tras un deshacer/rehacer (React reescribe el valor y lo manda al final). */
+  const pendingCaretRef = useRef<number | null>(null);
   const fonts = useAvailableFonts();
+
+  useLayoutEffect(() => {
+    const caret = pendingCaretRef.current;
+    if (caret === null) return;
+    pendingCaretRef.current = null;
+    textareaRef.current?.setSelectionRange(caret, caret);
+  }, [history]);
 
   const runCount = paragraphs.reduce((acc, paragraph) => acc + paragraph.runs.length, 0);
   const activeParagraph = paragraphs[active];
@@ -118,16 +142,69 @@ function TextEditorBody({
 
   /** El textarea manda: reconstruye los párrafos conservando formato/etiqueta. */
   const changeText = (next: string): void => {
-    setText(next);
-    setParagraphs((current) => textToParagraphs(next, current));
+    const now = Date.now();
+    setHistory((current) =>
+      commit(
+        current,
+        { text: next, paragraphs: textToParagraphs(next, current.present.paragraphs) },
+        { key: 'textarea', now },
+      ),
+    );
   };
 
-  /** Un cambio del bloque inferior se refleja en el textarea. */
-  const changeParagraphs = (update: (current: ParagraphDto[]) => ParagraphDto[]): void => {
+  /**
+   * Un cambio del bloque inferior se refleja en el textarea. `key` agrupa las
+   * teclas seguidas de un mismo campo en un solo paso de deshacer; sin ella
+   * (botones) cada cambio es un paso.
+   */
+  const changeParagraphs = (
+    update: (current: ParagraphDto[]) => ParagraphDto[],
+    key?: string,
+  ): void => {
     const next = update(paragraphs);
-    setParagraphs(next);
-    setText(paragraphsToText(next));
+    const now = Date.now();
+    setHistory((current) =>
+      commit(
+        current,
+        { text: paragraphsToText(next), paragraphs: next },
+        key === undefined ? { now } : { key, now },
+      ),
+    );
     setActive((current) => Math.max(0, Math.min(current, next.length - 1)));
+  };
+
+  /** Deshacer/rehacer del borrador completo: el cursor del textarea sigue al cambio. */
+  const stepHistory = (direction: 'undo' | 'redo'): void => {
+    const next = direction === 'undo' ? undoHistory(history) : redoHistory(history);
+    if (next === history) return;
+    const area = textareaRef.current;
+    setHistory(next);
+    if (area && document.activeElement === area) {
+      const caret = mapCaret(text, next.present.text, area.selectionStart);
+      pendingCaretRef.current = caret;
+      setActive(paragraphIndexAt(next.present.text, caret));
+    } else {
+      setActive((current) => Math.max(0, Math.min(current, next.present.paragraphs.length - 1)));
+    }
+  };
+
+  /**
+   * Ctrl+Z deshace, Ctrl+Mayús+Z / Ctrl+Y rehacen, estés donde estés del
+   * diálogo (textarea, Monaco, botones). En **captura**: Monaco y el textarea
+   * tienen su propio historial y, si manejaran la tecla, deshacerían solo lo
+   * suyo y en otro orden. El buscador de Monaco conserva el suyo.
+   */
+  const onUndoRedoKey = (event: KeyboardEvent): void => {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+    const key = event.key.toLowerCase();
+    const isUndo = key === 'z' && !event.shiftKey;
+    const isRedo = (key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey);
+    if (!isUndo && !isRedo) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest('.find-widget')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    stepHistory(isUndo ? 'undo' : 'redo');
   };
 
   /** Cursor del textarea → párrafo activo. */
@@ -144,7 +221,15 @@ function TextEditorBody({
     const end = area.selectionEnd;
     const marker = `${EXPRESSION_OPEN}=${EXPRESSION_CLOSE}`;
     const next = text.slice(0, start) + marker + text.slice(end);
-    changeText(next);
+    // Sin clave de ráfaga: insertar una expresión es un paso propio.
+    const now = Date.now();
+    setHistory((current) =>
+      commit(
+        current,
+        { text: next, paragraphs: textToParagraphs(next, current.present.paragraphs) },
+        { now },
+      ),
+    );
     const caret = start + EXPRESSION_OPEN.length + 1;
     setActive(paragraphIndexAt(next, caret));
     focusCaret(caret);
@@ -153,14 +238,16 @@ function TextEditorBody({
   const addParagraph = (): void => {
     const next = [...paragraphs, { runs: [{ value: '' }] }];
     const nextText = paragraphsToText(next);
-    setParagraphs(next);
-    setText(nextText);
+    const now = Date.now();
+    setHistory((current) => commit(current, { text: nextText, paragraphs: next }, { now }));
     setActive(next.length - 1);
     focusCaret(nextText.length);
   };
 
   return (
-    <>
+    // `contents`: el contenedor no existe para el layout (cabecera, cuerpo y pie
+    // siguen siendo hijos directos del marco flex); solo recoge las teclas.
+    <div className="contents" onKeyDownCapture={onUndoRedoKey}>
       <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12">
         <div className="flex items-center justify-between gap-3">
           <DialogTitle>{t('text.editor.title', { id: item.id })}</DialogTitle>
@@ -327,11 +414,16 @@ function TextEditorBody({
                 canMoveUp={r > 0}
                 canMoveDown={r < (activeParagraph?.runs.length ?? 0) - 1}
                 onValue={(value) =>
-                  changeParagraphs((current) => updateRun(current, active, r, { value }))
+                  changeParagraphs(
+                    (current) => updateRun(current, active, r, { value }),
+                    `run:${active}:${r}:value`,
+                  )
                 }
                 onLabel={(label) =>
-                  changeParagraphs((current) =>
-                    updateRun(current, active, r, { label: label === '' ? undefined : label }),
+                  changeParagraphs(
+                    (current) =>
+                      updateRun(current, active, r, { label: label === '' ? undefined : label }),
+                    `run:${active}:${r}:label`,
                   )
                 }
                 onStyle={(patch) =>
@@ -363,7 +455,7 @@ function TextEditorBody({
           {t('text.dialog.apply')}
         </Button>
       </DialogFooter>
-    </>
+    </div>
   );
 }
 

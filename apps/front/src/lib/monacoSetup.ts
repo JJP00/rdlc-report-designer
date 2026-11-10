@@ -28,6 +28,7 @@ import 'monaco-editor/editor/contrib/suggest/browser/suggestController.js';
 import 'monaco-editor/editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import 'monaco-editor/editor/contrib/wordOperations/browser/wordOperations.js';
 import { getCompletionMeta } from './completionMeta';
+import { mapCaret } from './draftHistory';
 import { completionSuggestions, expressionCompletions, VB_KEYWORDS } from './expressionCatalog';
 
 /**
@@ -459,8 +460,19 @@ export function createExpressionEditor(
       const current = editor.getValue();
       if (current !== value) {
         // Con foco y algo tecleado no se pisa: manda lo que se está escribiendo.
-        if (editor.hasTextFocus() && current !== synced) return;
+        const focused = editor.hasTextFocus();
+        if (focused && current !== synced) return;
+        // Con foco (p. ej. un deshacer del diálogo) `setValue` mandaría el
+        // cursor al principio: se recoloca junto al cambio.
+        const model = editor.getModel();
+        const selection = editor.getSelection();
+        const caret =
+          focused && model && selection
+            ? mapCaret(current, value, model.getOffsetAt(selection.getEndPosition()))
+            : null;
         editor.setValue(value);
+        const position = caret === null ? undefined : editor.getModel()?.getPositionAt(caret);
+        if (position) editor.setPosition(position);
       }
       synced = value;
       dirty.set(false);
