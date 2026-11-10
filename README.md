@@ -5,9 +5,9 @@
 **Visual editor for Business Central `.rdlc` and SSRS `.rdl` reports.**
 A modern alternative to Report Builder: edit the layout with your mouse and get XML that saves **without altering anything you didn't touch**.
 
-**RDCL Report Designer MCP server:** let an AI agent (Claude Code, Claude Desktop, Cursor…) create and edit reports without opening the app — [setup](#mcp-server--edit-reports-from-an-agent).
+**RDLC Report Designer MCP server:** let an AI agent (Claude Code, Claude Desktop, Cursor…) create and edit reports without opening the app — [setup](#mcp-server--edit-reports-from-an-agent).
 
-![Version](https://img.shields.io/badge/version-0.7.0-blue)
+![Version](https://img.shields.io/badge/version-0.8.3-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
@@ -21,7 +21,7 @@ A modern alternative to Report Builder: edit the layout with your mouse and get 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshot-dark.png">
-  <img alt="RDLC Report Designer: canvas with an invoice report, tabs and properties panel" src="docs/assets/screenshot-light.png" width="920">
+  <img alt="RDLC Report Designer: three reports open in tabs, the Hierarchy panel, an invoice on the canvas and the Properties panel" src="docs/assets/screenshot-light.png" width="920">
 </picture>
 
 </div>
@@ -30,26 +30,59 @@ A modern alternative to Report Builder: edit the layout with your mouse and get 
 
 ## Why
 
-Microsoft Report Builder in my point of view is old, that lacks basic user experience features. With RDLC Report Designer i try to fill some gaps that i find in my day a day working with rdlc/rdl reports. The core idea behind this software are:
+In my point of view, Microsoft Report Builder is old and lacks basic user experience features. With RDLC Report Designer I try to fill some gaps that I find in my day-to-day work with rdlc/rdl reports. The core ideas behind this software are:
 
 - Offer modern features that greatly improve the user experience while designing reports, features like tabs, VB IntelliSense, elements hierarchy and so on...
-- Offer coding agents a MCP that saves tokens and improves agents understanding of the report.
-- Compability with what **Report Builder and BC** expect when opening the report.
+- Offer coding agents an MCP that saves tokens and improves the agent's understanding of the report.
+- Compatibility with what **Report Builder and BC** expect when opening the report.
 
-## Features
+## What's new compared to Report Builder
 
-| Area                         | What it includes                                                                                                                                                                   |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Faithful to the file**     | _Lossless_ XML as the source of truth: byte-for-byte.                                        |
-| **Canvas**                   | Paper, margins and bands, mm/cm rulers, snapping, 1 pt / 10 pt arrows, zoom up to 400 %, multi-selection (move, align/distribute and block resize), 8 handles, z-order, viewport culling (≈60 fps with ~1000 textboxes).     |
-| **Full Tablix**              | Cells, rows and columns, merge/split cells, row and column groups (Matrix), visibility, filters...                         |
-| **Text and style**           | Runs and paragraphs with `run > paragraph > item` precedence, format bar, fonts available in BC, per-side borders, padding, literal or expression background color, number format. |
-| **Expressions**              | Highlighting and autocomplete for expressions and code.                                                             |
-| **Productivity**             | Command palette <kbd>Ctrl</kbd>+<kbd>K</kbd> and search tablix, textbox, rectangles, images in the report. 2 new panels list variables and hierarchy.                                |
-| **Multiple reports at once** | One tab per report. Work with multiples tabs in the same instance instead of opening multiple times the same app.                                                                    |
-| **Resilient**                | Live reload if the file changes outside, conflict warning when saving and deleted-file warning.                                                         |
-| **Formats**                  | Business Central `.rdlc` and SSRS `.rdl` (2016/01 schema).                                                                                                                         |
-| **Agent connection**         | MCP server for code agents. Instead of reading and editing the `.rdlc`/`.rdl` files which is token expensive, the mcp exposes the right tools that lets the agent understand and efficiently edit the report. |
+The canvas, tablix, text and styles work much like they do in Report Builder. This section only covers what Report Builder doesn't have.
+
+### Tabs and dark mode
+
+The screenshot above shows both. Each report opens in its own tab, so one window holds all your reports: unsaved reports are marked with `*`, <kbd>Ctrl</kbd>+<kbd>Tab</kbd> switches between them, and right-clicking a tab closes the other tabs or only the saved ones. The moon/sun button in the toolbar switches between the light and dark themes (the screenshot follows your GitHub theme).
+
+### Command palette
+
+<kbd>Ctrl</kbd>+<kbd>K</kbd> searches every editor action, every item in the report and every variable by name. Pick an item and the canvas selects it and scrolls to it.
+
+<img alt="Command palette searching for “line”: the Insert line and Underline actions, then the report items whose name contains line" src="docs/assets/palette.png" width="432">
+
+### Hierarchy and Variables panels
+
+**Hierarchy** shows every item as a tree (header, body, footer, rectangles, tablix cells) and follows the canvas selection. **Variables** lists the dataset fields, parameters, `Code.` functions with their arguments, `Globals!` and `User!`. Both panels have a search box.
+
+<img alt="Hierarchy panel with Textbox1 selected, next to the Variables panel filtered by “Total”" src="docs/assets/panels.png" width="545">
+
+### Expression editor with autocomplete
+
+Expressions get syntax highlighting, line numbers and autocomplete for fields, parameters, `Code.` functions, `Globals!`, `User!` and RDL functions. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> applies the change.
+
+<img alt="Visibility expression editor suggesting dataset fields that start with BTCComp" src="docs/assets/expression-editor.png" width="704">
+
+### VB code editor
+
+The report's `<Code>` block opens in the same editor instead of a plain text box: VB highlighting, line numbers and the same autocomplete. Open it from **Report… → Code**.
+
+<img alt="Report properties dialog, Code tab, with the report's VB functions highlighted" src="docs/assets/report-code.png" width="704">
+
+### Problems panel
+
+The app checks the report's expressions for dataset fields that don't exist, references to report items that don't exist and unbalanced brackets. The status bar shows how many problems there are. Click a problem to select the item it belongs to.
+
+<img alt="Problems panel listing fields that don't exist in the dataset, with the item and property of each one" src="docs/assets/problems.png">
+
+### Live reload and conflict warnings
+
+When the file changes on disk (for example after compiling the AL project), the open report reloads by itself. If you have unsaved changes, the app keeps them and asks which version to keep instead of overwriting either one. If the file is deleted, saving creates it again.
+
+<img alt="Warning that the file changed on disk while the report had unsaved changes, with Save as, Save and overwrite, Reload from disk and Not now" src="docs/assets/conflict.png">
+
+### English and Spanish
+
+The interface follows the Windows language (English or Spanish). To switch, open <kbd>Ctrl</kbd>+<kbd>K</kbd> and pick **Switch language**.
 
 ## Installation
 
@@ -205,7 +238,17 @@ Current result: **59.5–59.9 fps p50** with 972 textboxes (budget 60). Details 
 <details>
 <summary><b>QA mode: screenshots and scripts against the real app</b></summary>
 
-Electron can open a report, run a script in the renderer and take a screenshot without touching anything by hand. That's how the screenshots in this README were generated.
+Electron can open a report, run a script in the renderer and take a screenshot without touching anything by hand.
+
+The screenshots in this README come from a Playwright script that drives the real app in English. Regenerate them after UI changes:
+
+```bash
+pnpm --filter @rdlc-designer/back build:e2e
+node apps/back/scripts/readme-screenshots.mjs docs/assets            # all scenes
+node apps/back/scripts/readme-screenshots.mjs docs/assets palette    # only some (comma-separated)
+```
+
+For one-off captures, use these environment variables instead:
 
 ```powershell
 $env:RDLC_OPEN='C:\path\to\report.rdlc'     # file to open at startup
