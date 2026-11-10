@@ -855,7 +855,7 @@ async function resizeWindow(
  * así que el tamaño crece el doble del delta en vez de fijar la esquina.
  * Remove `test.fail()` when fixing; the test must then pass.
  */
-test.describe('BUG-60…65 los diálogos redimensionables comparten la agarradera', () => {
+test.describe('BUG-60…66 los diálogos redimensionables comparten la agarradera', () => {
   const ctx = useApp('SalesCreditMemoESP.rdlc');
 
   // La app es compartida por todo el `describe`: cada test cierra su diálogo.
@@ -1060,6 +1060,62 @@ test.describe('BUG-60…65 los diálogos redimensionables comparten la agarrader
     const after = await stableBox(page, reopened);
     expect(Math.abs(after.width - original.width), 'ancho original').toBeLessThanOrEqual(2);
     expect(Math.abs(after.height - original.height), 'alto original').toBeLessThanOrEqual(2);
+  });
+
+  /* -------------------------------- BUG-66 -------------------------------- */
+
+  /**
+   * BUG-66 — Al agarrar la esquina el diálogo se dispara un instante a todo el
+   * ancho de la ventana y luego vuelve hasta el cursor.
+   * Origen: `dialog.tsx`, clase `duration-100` del marco sin `transition-property`
+   * (vale `all` por defecto): el primer `setSize` cambia `width: 100%` (topado por
+   * `max-w-*`) a píxeles con `maxWidth: none`; `max-width` cambia de golpe y
+   * `width` se interpola desde `100%` del viewport, y cada movimiento del puntero
+   * llega con 100 ms de retraso.
+   * Correcto: ningún fotograma del gesto es mayor que el tamaño final.
+   * `stableBox` solo ve el reposo, así que aquí se mide cada fotograma.
+   */
+  test('BUG-66: agarrar la esquina no hace parpadear el diálogo a un tamaño mayor', async () => {
+    const { page } = ctx();
+    const dialog = await openReportProperties(page);
+    const before = await stableBox(page, dialog);
+    const grip = await boxOf(dialog.locator('[data-rdlc-dialog-grip]'));
+    const x = grip.x + grip.width / 2;
+    const y = grip.y + grip.height / 2;
+
+    await dialog.evaluate((el) => {
+      const frames: { width: number; height: number }[] = [];
+      let running = true;
+      const tick = (): void => {
+        const rect = el.getBoundingClientRect();
+        frames.push({ width: rect.width, height: rect.height });
+        if (running) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      (window as unknown as { __gripFrames: () => typeof frames }).__gripFrames = () => {
+        running = false;
+        return frames;
+      };
+    });
+
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 40, y + 20, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForTimeout(300); // más que cualquier transición residual
+    const frames = await page.evaluate(() =>
+      (
+        window as unknown as { __gripFrames: () => { width: number; height: number }[] }
+      ).__gripFrames(),
+    );
+    const final = await stableBox(page, dialog);
+
+    expect(final.width, 'creció al arrastrar').toBeGreaterThan(before.width + 60);
+    expect(frames.length, 'fotogramas muestreados').toBeGreaterThan(5);
+    const widest = Math.max(...frames.map((frame) => frame.width));
+    const tallest = Math.max(...frames.map((frame) => frame.height));
+    expect(widest, 'ningún fotograma más ancho que el final').toBeLessThanOrEqual(final.width + 1);
+    expect(tallest, 'ningún fotograma más alto que el final').toBeLessThanOrEqual(final.height + 1);
   });
 
   /* -------------------------------- BUG-63 -------------------------------- */

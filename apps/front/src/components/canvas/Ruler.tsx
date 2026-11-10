@@ -7,6 +7,10 @@ import { RULER_PX, PX_PER_CM } from './geometry';
  * Reglas en cm/mm del lienzo (una horizontal y otra vertical) con **marcadores
  * arrastrables** estilo Word (márgenes) y **tramos resaltados** (área imprimible
  * y bandas de encabezado/pie, como el Report Builder).
+ *
+ * La regla mide `lengthPx` con su 0 en el borde inicial de su caja; quien la
+ * monta la coloca alineada con el papel (`CanvasRulers`, que la mantiene a la
+ * vista con el scroll).
  */
 
 export interface RulerMark {
@@ -54,11 +58,11 @@ export function Ruler({
   return (
     <div
       ref={containerRef}
-      className="absolute border-b border-r bg-muted"
+      className="relative shrink-0 border-b border-r border-ruler-edge bg-ruler"
       style={
         orientation === 'horizontal'
-          ? { left: RULER_PX, top: 0, width: lengthPx, height: RULER_PX }
-          : { left: 0, top: RULER_PX, width: RULER_PX, height: lengthPx }
+          ? { width: lengthPx, height: RULER_PX }
+          : { width: RULER_PX, height: lengthPx }
       }
     >
       {/* Tramos resaltados (debajo de las marcas y los números). */}
@@ -106,7 +110,7 @@ function RulerSegmentView({
     <div
       aria-hidden
       title={segment.label}
-      className="pointer-events-none absolute bg-background"
+      className="pointer-events-none absolute bg-ruler-printable"
       style={
         horizontal
           ? {
@@ -264,7 +268,7 @@ function buildTicks({
             width: RULER_PX * ratio,
             height: thickness,
           }),
-      backgroundColor: isCm ? 'var(--muted-foreground)' : 'var(--border)',
+      backgroundColor: isCm ? 'var(--ruler-tick)' : 'var(--ruler-tick-minor)',
     } as const;
 
     ticks.push(<div key={`t${index}`} className="absolute" style={style} />);

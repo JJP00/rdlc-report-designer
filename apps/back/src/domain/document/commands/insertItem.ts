@@ -9,6 +9,7 @@ import type { CommandContext, CommandOutcome } from './CommandContext.js';
 import { createReportItem } from './itemFactory.js';
 import { resolveScope, tablixCellBox } from './scope.js';
 import { hasGroupNamed } from './scopeNames.js';
+import { applyStyleToNode } from './setStyle.js';
 
 export type InsertItemCommand = Extract<RdlcCommand, { cmd: 'insertItem' }>;
 
@@ -103,6 +104,14 @@ export function applyInsertItem(
       },
     },
   );
+  // `item.style` viaja en el contrato (MCP/IPC): se aplica con la misma lógica
+  // que `setStyle` (fuente a los runs, `TextAlign` a los párrafos, bordes…).
+  // Se hace **antes** de colgar el item: un parche con claves no soportadas
+  // se rechaza y no queda nada a medias. El inverso (`removeNode`) ya se lleva
+  // el estilo consigo, no hace falta uno propio.
+  const style = applyItemStyle(node, name, command.item.style);
+  if (style.isLeft()) return left(style.value);
+
   container.insertChildAt(node, command.index);
 
   return right({
@@ -116,11 +125,43 @@ export function applyInsertItem(
           left: position.left,
           width: spec.width,
           height: spec.height,
+          // El eco incluye el estilo: si algo no se aplicara, se vería aquí.
+          ...(style.value ? { style: style.value } : {}),
         },
       },
     ],
     createdId: name,
   });
+}
+
+/**
+ * Estilo del item nuevo. Devuelve lo aplicado (para el eco de `applied`) o
+ * `undefined` si no había nada que aplicar.
+ *
+ * `readStyle` solo lee el `<Style>` del item, y `textAlign`/`format`/`listStyle`
+ * se escriben en párrafos y runs: se añaden al eco desde el parche (ya validado)
+ * para que lo que se pidió figure en lo que se devuelve.
+ */
+function applyItemStyle(
+  node: RdlcNode,
+  name: string,
+  patch: InsertItemCommand['item']['style'],
+): Either<DomainError, Record<string, unknown> | undefined> {
+  if (!patch || Object.keys(patch).length === 0) return right(undefined);
+
+  const outcome = applyStyleToNode(node, { cmd: 'setStyle', id: name, style: patch });
+  if (outcome.isLeft()) return left(outcome.value);
+
+  const itemStyle = outcome.value.applied?.[0]?.values['style'] as
+    Record<string, unknown> | undefined;
+  const { textAlign, format, listStyle } = patch;
+  const echoed: Record<string, unknown> = {
+    ...itemStyle,
+    ...(textAlign ? { textAlign } : {}),
+    ...(format ? { format } : {}),
+    ...(listStyle ? { listStyle } : {}),
+  };
+  return right(Object.keys(echoed).length > 0 ? echoed : undefined);
 }
 
 function boundsForRegion(

@@ -101,3 +101,22 @@ export function focusActiveTab(root: ParentNode = document): boolean {
   tab.focus();
   return true;
 }
+
+/**
+ * ¿El foco está en algo donde se **escribe**? Campos nativos, `contenteditable`
+ * y el editor de Monaco. Monaco 0.56 recibe el teclado en un
+ * `div.native-edit-context` (EditContext): ni es INPUT/TEXTAREA ni
+ * `contenteditable`, así que sin la comprobación de `.monaco-editor` los atajos
+ * globales (Ctrl+C/X/V…) lo tratarían como lienzo, harían `preventDefault` y
+ * cancelarían el copiar/pegar nativo del editor.
+ */
+export function isTextEditingTarget(
+  target: Pick<HTMLElement, 'tagName' | 'isContentEditable' | 'closest'> | null,
+): boolean {
+  if (!target) return false;
+  return (
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+    target.isContentEditable ||
+    target.closest('.monaco-editor') !== null
+  );
+}

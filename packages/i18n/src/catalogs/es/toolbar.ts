@@ -31,6 +31,12 @@ export const toolbar = {
     toggleVariables: 'Mostrar u ocultar Variables',
     hierarchy: 'Jerarquía',
     toggleHierarchy: 'Mostrar u ocultar Jerarquía',
+    inspector: 'Propiedades',
+    toggleInspector: 'Mostrar u ocultar Propiedades',
+    /** Cabecera del panel de Propiedades y su tira plegada. */
+    inspectorTitle: 'Propiedades',
+    collapseInspector: 'Ocultar Propiedades',
+    expandInspector: 'Mostrar Propiedades',
   },
   theme: {
     light: 'Modo claro',

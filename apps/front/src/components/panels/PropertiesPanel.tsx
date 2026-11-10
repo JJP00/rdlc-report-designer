@@ -1,4 +1,4 @@
-import type { ItemDto, Length, StylePatch } from '@rdlc-designer/contracts';
+import type { ItemDto, Length, StylePatch, WritingMode } from '@rdlc-designer/contracts';
 import { useT } from '@rdlc-designer/i18n/react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,13 @@ import { VisibilityField } from './VisibilityField';
 
 /** Kinds cuyo borde se pinta en el lienzo (donde la UI no engaña). */
 const BORDER_KINDS = new Set(['textbox', 'rectangle', 'image']);
+
+const WRITING_MODES = [
+  'Default',
+  'Horizontal',
+  'Vertical',
+  'Rotate270',
+] as const satisfies readonly WritingMode[];
 
 /** Kinds que admiten `PageBreak` en el XSD (y que el editor soporta). */
 const PAGE_BREAK_KINDS = new Set(['rectangle', 'tablix']);
@@ -199,6 +206,25 @@ export function PropertiesPanel({
           se entrega al item anterior (flush del desmontaje) en vez de pintar
           el nuevo (BUG-38). */}
       <BackgroundField key={`${item.id}-background`} item={item} onSetStyle={onSetStyle} />
+      {item.kind === 'textbox' ? (
+        <div className="grid gap-1">
+          <Label className="text-[11px] text-muted-foreground">
+            {t('panels.properties.writingMode')}
+          </Label>
+          <select
+            className="h-7 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
+            aria-label={t('panels.properties.writingMode')}
+            value={item.style?.writingMode ?? 'Default'}
+            onChange={(event) => onSetStyle({ writingMode: event.target.value as WritingMode })}
+          >
+            {WRITING_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`panels.properties.writingMode${mode}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <PaddingSection padding={item.style?.padding} onSetStyle={onSetStyle} />
       {BORDER_KINDS.has(item.kind) ? (
         <BorderField

@@ -44,6 +44,55 @@ const LINE_HEIGHT_FACTOR = 1.2;
 const DEFAULT_FAMILY = 'Segoe UI';
 const DEFAULT_COLOR = '#111827';
 
+/**
+ * Marco en el que se coloca el texto de un textbox según su `WritingMode`.
+ *
+ * El texto se maqueta **siempre en horizontal** dentro de `box`; el marco dice
+ * dónde está su origen en el textbox y cuánto se gira:
+ * - `Default`/`Horizontal`: sin giro, origen arriba a la izquierda del área útil.
+ * - `Vertical`: 90° horario — el texto se lee de arriba abajo y las líneas se
+ *   apilan de derecha a izquierda (origen arriba a la derecha).
+ * - `Rotate270`: 270° — se lee de abajo arriba y las líneas se apilan de
+ *   izquierda a derecha (origen abajo a la izquierda).
+ *
+ * En los dos giros el ancho y el alto del marco se intercambian: el «ancho» de
+ * línea es el alto físico del textbox. `TextAlign`/`VerticalAlign` actúan sobre
+ * ese marco girado, como en Report Builder.
+ */
+export interface TextFrame {
+  /** Caja de maquetación (ancho = largo de línea, alto = apilado de líneas). */
+  box: { width: number; height: number };
+  /** Posición del origen del marco dentro del textbox. */
+  x: number;
+  y: number;
+  /** Grados, en sentido horario (convención de Konva). */
+  rotation: number;
+}
+
+export function textFrame(
+  writingMode: StyleDto['writingMode'],
+  content: { left: number; top: number; width: number; height: number },
+): TextFrame {
+  const { left, top, width, height } = content;
+  if (writingMode === 'Vertical') {
+    return {
+      box: { width: height, height: width },
+      x: left + width,
+      y: top,
+      rotation: 90,
+    };
+  }
+  if (writingMode === 'Rotate270') {
+    return {
+      box: { width: height, height: width },
+      x: left,
+      y: top + height,
+      rotation: -90,
+    };
+  }
+  return { box: { width, height }, x: left, y: top, rotation: 0 };
+}
+
 export function layoutTextbox(
   item: TextboxDto,
   box: { width: number; height: number },

@@ -131,3 +131,105 @@
 - Por qué: el carácter ya dice cuál de los dos es; un desplazamiento en caracteres no se puede usar sin contar, y «Abrir» (F2) deja el cursor en el sitio.
 - Descartado: mantener «en la posición {index}».
 - Se apoya en: `apps/back/src/domain/lint/rules/unbalancedBrackets.ts:113-149`.
+
+## 2026-11-10 · La alineación y las acciones del párrafo van en la cabecera del bloque del párrafo, no encima del textarea
+- Decidido por: Claude (por defecto)
+- Por qué: actúan sobre el párrafo de ese bloque, no sobre el textarea; dos rótulos «Párrafo N» separados por el textarea no decían que eran el mismo, y el foco inicial caía en «Alinear izquierda».
+- Descartado: dejar la franja y quitar el rótulo de abajo, porque seguiría pareciendo del textarea.
+- Se apoya en: `docs/ux/0009-editor-de-texto.md`; `docs/ux/0005-reauditoria-intent.md:117`.
+
+## 2026-11-10 · Los marcadores se resaltan con una capa detrás del textarea, no con un editor enriquecido
+- Decidido por: Claude (por defecto)
+- Por qué: el textarea conserva el historial común de deshacer, el caret y sus selectores E2E; la capa pinta el texto visible con la misma caja, fuente y ajuste de línea, y el textarea encima es transparente.
+- Descartado: Monaco para el documento (un editor y un historial más por diálogo); otros caracteres para el marcador (son el formato del texto).
+- Se apoya en: `apps/front/src/components/panels/TextEditorDialog.tsx` (`DocumentHighlights`); `apps/front/src/lib/textEditor.ts` (`splitMarkers`).
+
+## 2026-11-10 · «fragmento» en todos los textos ES de los runs, también en los nombres accesibles
+- Decidido por: Claude (por defecto)
+- Por qué: los encabezados ya decían «fragmento» y un lector de pantalla oía «run».
+- Descartado: cambiar solo los tooltips visibles.
+- Se apoya en: `packages/i18n/src/catalogs/es/text.ts`; `docs/ux/0006-guia-microcopy.md` (los selectores E2E se actualizan en el mismo paso).
+
+## 2026-11-10 · Insertar una expresión con el caret dentro de un marcador la pone detrás de él
+- Decidido por: Claude (por defecto)
+- Por qué: partirlo rompía el run de la etiqueta.
+- Descartado: deshabilitar el botón dentro de un marcador, porque no diría por qué.
+- Se apoya en: `apps/front/src/lib/textEditor.ts` (`insertionPointAt`).
+
+## 2026-11-10 · Los `⟨ ⟩` de los marcadores no se ven en el textarea
+- Decidido por: JunPeng Jin
+- Por qué: se leían como paréntesis literales y confundían; el chip ya delimita la expresión.
+- Descartado: otros delimitadores visibles; quitarlos del valor (son los que separan los runs al reconstruir los párrafos).
+- Se apoya en: `apps/front/src/components/panels/TextEditorDialog.tsx` (`DocumentHighlights`).
+
+## 2026-11-10 · Las expresiones no se editan en el textarea: un clic lleva a su fragmento
+- Decidido por: JunPeng Jin
+- Por qué: el textarea muestra la etiqueta de la expresión, no la expresión; editarla ahí rompía el run o cambiaba otra cosa que la que se ve.
+- Descartado: dejar editar el texto del chip.
+- Se apoya en: `apps/front/src/components/panels/TextEditorDialog.tsx` (`onDocumentMouseUp`); `apps/front/src/lib/textEditor.ts` (`markerRunAt`).
+
+## 2026-11-10 · Retroceso o Supr junto a una expresión la quita entera
+- Decidido por: Claude (por defecto)
+- Por qué: es como se borra un chip en cualquier campo de destinatarios o menciones; que la tecla no hiciera nada parecería un fallo, y Ctrl+Z la devuelve (paso de deshacer propio).
+- Descartado: bloquear el borrado y obligar a la papelera del fragmento.
+- Se apoya en: `apps/front/src/lib/textEditor.ts` (`protectMarkers`).
+
+## 2026-11-10 · Las reglas van alineadas con el papel pero no se salen de la vista al hacer scroll
+- Decidido por: JunPeng Jin
+- Por qué: con zoom alto, al desplazarse la regla desaparecía y no había forma de leer la distancia de lo que se ve.
+- Descartado: reglas fijas en el borde del lienzo con el 0 desplazado según el scroll (misma lectura, más código por scroll).
+- Se apoya en: `apps/front/src/components/canvas/CanvasPreview.tsx` (`CanvasRulers`, `position: sticky`).
+
+## 2026-11-10 · El papel se centra solo mientras cabe en el lienzo
+- Decidido por: Claude (por defecto)
+- Por qué: con `justify-content: center`, a 200 % los primeros ~2,7 cm de la página quedaban a la izquierda del scroll, inalcanzables, y con ellos el 0 de la regla.
+- Descartado: márgenes automáticos en el papel (mismo efecto, menos explícito).
+- Se apoya en: `apps/front/src/components/canvas/CanvasPreview.tsx` (`justify-center-safe`).
+
+## 2026-11-10 · Los bordes de página que se arrastran llevan un asa visible en el margen y una pista al pasar por encima
+- Decidido por: Claude (por defecto), a petición de JunPeng Jin («no está claro en el canvas»)
+- Por qué: las zonas de arrastre eran invisibles y solo cambiaba el cursor; el asa va en el margen porque ahí nunca hay contenido, y la pista dice qué cambia y cuánto mide.
+- Descartado: marcadores de banda en la regla vertical (lejos de donde se mira); rótulos fijos de banda sobre el papel (tapan contenido a zoom bajo).
+- Se apoya en: `apps/front/src/components/canvas/PageResizeLayer.tsx` (`variant="grips"`, `showHint`).
+
+## 2026-11-10 · Todos los paneles se redimensionan desde su borde y Propiedades se pliega a una tira
+- Decidido por: JunPeng Jin
+- Por qué: los anchos fijos (256, 288 y 320 px) no dejaban ver expresiones largas ni ganar lienzo.
+- Descartado: —
+- Se apoya en: `apps/front/src/components/ui/panel-resizer.tsx`; `apps/front/src/components/InspectorColumn.tsx`.
+
+## 2026-11-10 · Los tamaños de los paneles son de la app, no de cada pestaña, y se recuerdan entre sesiones
+- Decidido por: Claude (por defecto)
+- Por qué: el ancho cómodo depende de la pantalla y de la persona, no del informe; que cambie al cambiar de pestaña desorienta.
+- Descartado: guardarlos en el `ui` de cada pestaña, como Jerarquía y Variables.
+- Se apoya en: `apps/front/src/hooks/usePanelLayout.ts`; `apps/front/src/lib/panelLayout.ts`.
+
+## 2026-11-10 · Mínimos de 200, 220 y 280 px y lienzo nunca por debajo de 320 px
+- Decidido por: Claude (por defecto)
+- Por qué: por debajo de 1280 px solo hay un panel izquierdo, así que 220 + 280 + 320 cabe en la ventana mínima de 960 px; por encima caben los tres al mínimo.
+- Descartado: mínimos iguales a los anchos fijos anteriores (no dejaban ganar lienzo).
+- Se apoya en: `apps/front/src/App.tsx:80` (un panel izquierdo por debajo de 1280 px); medido en la app a 960 × 600.
+
+## 2026-11-10 · Los campos del inspector se maquetan por el ancho del panel, no por el de la ventana
+- Decidido por: Claude (por defecto)
+- Por qué: con el inspector a 280 px la fila de cada borde (nombre, estilo, color, grosor) desbordaba 25 px; con `@container` el nombre pasa encima, como en Relleno.
+- Descartado: subir el mínimo del inspector a 320 px.
+- Se apoya en: `apps/front/src/components/panels/BorderField.tsx`.
+
+## 2026-11-10 · Los recientes muestran el nombre del fichero y la carpeta recortada por el principio
+- Decidido por: JunPeng Jin
+- Por qué: las rutas recientes comparten el principio (`C:\Users\…\OneDrive - …`); cortadas por el final se veían todas iguales.
+- Descartado: la ruta entera recortada por el principio (el nombre quedaba al final, detrás de la carpeta).
+- Se apoya en: `apps/front/src/components/RecentPath.tsx`.
+
+## 2026-11-10 · La paleta Ctrl+K ofrece las acciones de la barra, los menús y los atajos, y los recientes
+- Decidido por: JunPeng Jin
+- Por qué: copiar, pegar, orden, formato, paneles, cierres de pestañas, actualizaciones e idioma solo se alcanzaban con el ratón o sabiendo el atajo.
+- Descartado: llevar a la paleta las operaciones de filas y columnas del Tablix: dependen de la celda, del grupo y de la selección múltiple, y el menú del lienzo y Estructura ya las resuelven.
+- Se apoya en: `apps/front/src/lib/palette.ts`; `apps/front/src/hooks/usePaletteActions.ts`.
+
+## 2026-11-10 · Ctrl+B, Ctrl+I y Ctrl+U no actúan mientras se escribe en un campo o en Monaco
+- Decidido por: Claude (por defecto)
+- Por qué: dentro de un campo esas teclas son del campo; cambiar el formato del elemento mientras se escribe su nombre o una expresión sorprendería.
+- Descartado: aplicarlos siempre que haya selección.
+- Se apoya en: `apps/front/src/hooks/useGlobalKeys.ts` (`isTextEditingTarget`).

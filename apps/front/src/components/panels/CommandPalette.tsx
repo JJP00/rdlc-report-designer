@@ -1,34 +1,64 @@
 import type { ProjectionDto } from '@rdlc-designer/contracts';
-import { useT } from '@rdlc-designer/i18n/react';
+import { LOCALE_LABELS } from '@rdlc-designer/i18n';
+import { useLocale, useT } from '@rdlc-designer/i18n/react';
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  AlignVerticalJustifyCenter,
+  AlignVerticalJustifyEnd,
+  AlignVerticalJustifyStart,
+  Bold,
   Braces,
   ArrowLeftToLine,
   ArrowRightToLine,
+  BringToFront,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
+  CornerLeftUp,
   FilePlus,
   Filter,
   FolderOpen,
   Frame,
+  History,
   Image,
+  Italic,
+  Languages,
+  List,
+  ListOrdered,
   ListTree,
+  ListX,
   Minus,
   Moon,
   MoveHorizontal,
+  PanelRight,
   PencilLine,
   Percent,
   Redo2,
+  RefreshCw,
+  RotateCcw,
   Save,
   SaveAll,
+  Scissors,
+  SendToBack,
   Settings2,
   Square,
   Table,
+  Trash2,
   Type,
+  Underline,
   Undo2,
   Variable,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
+import { RecentPath } from '@/components/RecentPath';
 import {
   Command,
   CommandDialog,
@@ -64,6 +94,9 @@ export interface CommandPaletteProps {
   onAction: (action: PaletteActionId) => void;
   /** Estado del editor: qué acciones están habilitadas. */
   capabilities: PaletteCapabilities;
+  /** Informes recientes (rutas) y abrir uno. */
+  recents: string[];
+  onOpenRecent: (path: string) => void;
 }
 
 const ACTION_ICONS: Record<PaletteActionId, ReactNode> = {
@@ -85,18 +118,49 @@ const ACTION_ICONS: Record<PaletteActionId, ReactNode> = {
   'insert:tablix': <Table />,
   'toggle-variables': <Variable />,
   'toggle-hierarchy': <ListTree />,
+  'toggle-inspector': <PanelRight />,
+  'toggle-problems': <CircleAlert />,
+  'reset-panels': <RotateCcw />,
   'toggle-theme': <Moon />,
   'tab:next': <ChevronRight />,
   'tab:prev': <ChevronLeft />,
   'tab:move-left': <ArrowLeftToLine />,
   'tab:move-right': <ArrowRightToLine />,
+  'tab:close-others': <X />,
+  'tab:close-right': <X />,
+  'tab:close-saved': <X />,
+  'tab:close-all': <X />,
+  'zoom:in': <ZoomIn />,
+  'zoom:out': <ZoomOut />,
+  copy: <Copy />,
+  cut: <Scissors />,
+  paste: <ClipboardPaste />,
+  duplicate: <CopyPlus />,
+  delete: <Trash2 />,
+  'bring-to-front': <BringToFront />,
+  'send-to-back': <SendToBack />,
+  'select-parent': <CornerLeftUp />,
+  'format:bold': <Bold />,
+  'format:italic': <Italic />,
+  'format:underline': <Underline />,
+  'align:left': <AlignLeft />,
+  'align:center': <AlignCenter />,
+  'align:right': <AlignRight />,
+  'valign:top': <AlignVerticalJustifyStart />,
+  'valign:middle': <AlignVerticalJustifyCenter />,
+  'valign:bottom': <AlignVerticalJustifyEnd />,
+  'list:bulleted': <List />,
+  'list:numbered': <ListOrdered />,
+  'list:none': <ListX />,
+  'check-updates': <RefreshCw />,
   'report-properties': <Settings2 />,
 };
 
 /**
- * Paleta de comandos (Ctrl+K): busca **elementos** del informe (por nombre y
- * por contenido), **variables** del informe (campos, parámetros, funciones de
- * `<Code>`, Globals!, User!) y **acciones** del editor.
+ * Paleta de comandos (Ctrl+K): busca **acciones** del editor (las de la barra,
+ * los menús y los atajos), **informes recientes**, **elementos** del informe
+ * (por nombre y por contenido) y **variables** (campos, parámetros, funciones de
+ * `<Code>`, Globals!, User!).
  */
 export function CommandPalette({
   open,
@@ -106,8 +170,12 @@ export function CommandPalette({
   onPickExpression,
   onAction,
   capabilities,
+  recents,
+  onOpenRecent,
 }: CommandPaletteProps): ReactNode {
   const t = useT();
+  const { locale, locales, setLocale } = useLocale();
+  const appGroup = t(PALETTE_CATEGORY_KEYS.app);
   const elements = useMemo(() => (projection ? paletteElements(projection) : []), [projection]);
   const variables = useMemo(
     () => (projection ? variableEntries(projection.meta, t) : []),
@@ -159,7 +227,47 @@ export function CommandPalette({
                 </CommandItem>
               );
             })}
+            {/* Idioma: una entrada por cada idioma distinto del actual. */}
+            {locales
+              .filter((code) => code !== locale)
+              .map((code) => {
+                const label = t('palette.action.switchLanguage', { language: LOCALE_LABELS[code] });
+                return (
+                  <CommandItem
+                    key={`language:${code}`}
+                    value={`${PALETTE_ACTION_MARK}${label}`}
+                    keywords={[appGroup, LOCALE_LABELS[code]]}
+                    onSelect={() => run(() => setLocale(code))}
+                  >
+                    <Languages />
+                    <span>{label}</span>
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                      {appGroup}
+                    </span>
+                  </CommandItem>
+                );
+              })}
           </CommandGroup>
+
+          {recents.length > 0 ? (
+            <>
+              <CommandSeparator />
+              <CommandGroup heading={t('palette.section.recents')}>
+                {recents.map((path) => (
+                  <CommandItem
+                    key={path}
+                    value={`recent:${path}`}
+                    keywords={[path]}
+                    title={path}
+                    onSelect={() => run(() => onOpenRecent(path))}
+                  >
+                    <History />
+                    <RecentPath path={path} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </>
+          ) : null}
 
           {elements.length > 0 ? (
             <>

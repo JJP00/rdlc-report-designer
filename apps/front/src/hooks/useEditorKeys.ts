@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { focusActiveTab, shouldLeaveCanvas } from './canvasA11y';
+import { deleteSelection, pasteIntoSelection, toggleTextFormat } from './editorCommands';
 import { useGlobalKeys } from './useGlobalKeys';
 import type { WorkspaceCore } from './useWorkspace';
 import type { ItemEditing } from './useItemEditing';
@@ -32,7 +33,7 @@ export function useEditorKeys({
   const hasSelection = items.selectedItem !== undefined || items.selectedCell !== null;
 
   // Salida del lienzo con teclado: con el lienzo enfocado y nada seleccionado
-  // (Esc ya subi� hasta deseleccionar), Esc devuelve el foco a la pesta�a activa.
+  // (Esc ya subió hasta deseleccionar), Esc devuelve el foco a la pestaña activa.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const target = event.target instanceof Element ? event.target : null;
@@ -71,34 +72,13 @@ export function useEditorKeys({
     onZoomReset: zoomReset,
     onNudge: items.nudge,
     onFlushNudge: items.flushNudge,
-    onDelete: () => {
-      // Con multiselección, borrar es un solo paso de undo (batch).
-      if (selectedIds.length > 1) {
-        items.batchEdit(selectedIds.map((id) => ({ cmd: 'deleteItem', id })));
-      } else {
-        items.deleteSelected();
-      }
-    },
+    // Borrar y pegar los comparte la paleta (`editorCommands`).
+    onDelete: () => deleteSelection(items, selectedIds),
     onDuplicate: items.duplicateSelected,
     onCopy: items.copySelected,
     onCut: items.cutSelected,
-    onPaste: () => {
-      // Con celdas seleccionadas se pega el bloque desde su esquina (Excel).
-      if (items.selectedCell) {
-        items.pasteCells();
-        return;
-      }
-      // Con un rectángulo seleccionado, se pega dentro de él (al final: el
-      // clon se pinta encima).
-      const target = items.selectedItem;
-      if (target?.kind === 'rectangle') {
-        items.pasteAt({ kind: 'rectangle', id: target.id }, target.children.length);
-        return;
-      }
-      // Pinchar una celda con texto selecciona su Textbox: cuenta como la celda.
-      if (items.pasteCells()) return;
-      items.pasteAt({ kind: 'body' }, core.doc?.projection.page.body.items.length ?? 0);
-    },
+    onPaste: () => pasteIntoSelection(core, items),
+    onToggleFormat: (format) => toggleTextFormat(items, format),
     onBringToFront: () => items.zOrder('front'),
     onSendToBack: () => items.zOrder('back'),
     onSelectParent: items.selectParent,

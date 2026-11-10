@@ -50,6 +50,7 @@ const SIMPLE_TAGS: Record<string, string> = {
   backgroundColor: 'BackgroundColor',
   textAlign: 'TextAlign',
   verticalAlign: 'VerticalAlign',
+  writingMode: 'WritingMode',
   format: 'Format',
 };
 
@@ -83,7 +84,21 @@ export function applySetStyle(
 ): Either<DomainError, CommandOutcome> {
   const node = ctx.index.get(command.id);
   if (!node) return left(CommandRejectedError.of('itemMissing', { id: command.id }));
+  return applyStyleToNode(node, command);
+}
 
+/**
+ * Aplica el parche directamente sobre un nodo, sin pasar por el índice. Lo usan
+ * `setStyle` y `insertItem` (el item nuevo aún no está en el índice, y puede
+ * estar sin colgar del árbol: se estila **antes** de insertarlo para que un
+ * parche inválido no deje nada a medias).
+ *
+ * Si el parche trae claves no soportadas se rechaza **antes de tocar nada**.
+ */
+export function applyStyleToNode(
+  node: RdlcNode,
+  command: SetStyleCommand,
+): Either<DomainError, CommandOutcome> {
   const unsupported = Object.keys(command.style).filter((key) => !SUPPORTED_KEYS.has(key));
   if (unsupported.length > 0) {
     return left(

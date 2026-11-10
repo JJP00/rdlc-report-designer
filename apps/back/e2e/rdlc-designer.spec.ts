@@ -402,6 +402,7 @@ interface KonvaLike {
   getAttr(name: string): unknown;
   getParent(): KonvaLike;
   getChildren(filter?: (node: KonvaLike) => boolean): KonvaLike[];
+  find?(selector: (node: KonvaLike) => boolean): KonvaLike[];
   findOne?(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
   getAbsoluteTransform(): { point(point: { x: number; y: number }): { x: number; y: number } };
   getClientRect(options: { relativeTo: unknown }): {
@@ -1933,6 +1934,60 @@ test('el editor de texto añade runs y el undo lo revierte', async () => {
   await expect.poll(async () => (await runsOf()).length).toBe(before);
 });
 
+test('el editor de texto deshace/rehace el borrador completo (textarea, Monaco y botones)', async () => {
+  const proj = await projection();
+  const content = firstCellContent(proj, 'LinesTable2');
+  expect(content).toBeTruthy();
+  const point = await nodeCenter(content!.id);
+  expect(point).not.toBeNull();
+  await page.mouse.click(point!.x, point!.y);
+  await page.getByRole('button', { name: 'Abrir editor de texto' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+
+  const dialogMonaco = page.locator('[role="dialog"] .monaco-editor');
+  await expect(dialogMonaco.first()).toBeVisible();
+  const area = page.getByLabel('Texto del textbox');
+  const original = await area.inputValue();
+
+  // Monaco → textarea: lo tecleado en un run se deshace desde el textarea (antes
+  // la reescritura del valor borraba el historial nativo) y se rehace.
+  await dialogMonaco.first().click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('AAA');
+  await expect(area).toHaveValue(new RegExp('AAA'));
+  await area.click();
+  await page.keyboard.press('Control+z');
+  await expect(area).toHaveValue(original);
+  await page.keyboard.press('Control+Shift+z');
+  await expect(area).toHaveValue(new RegExp('AAA'));
+  await page.keyboard.press('Control+z');
+  await expect(area).toHaveValue(original);
+
+  // Textarea → Monaco: Ctrl+Z desde Monaco deshace lo último (el textarea), no
+  // lo más antiguo de Monaco. La pausa corta la ráfaga de la edición anterior.
+  await page.waitForTimeout(1100);
+  await area.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('BBB');
+  await expect(area).toHaveValue(original + 'BBB');
+  await dialogMonaco.first().click();
+  await page.keyboard.press('Control+z');
+  await expect(area).toHaveValue(original);
+
+  // Un botón (añadir un run) también se deshace y rehace con el teclado.
+  const editors = await dialogMonaco.count();
+  await page.getByRole('button', { name: 'Añadir texto' }).click();
+  await expect(dialogMonaco).toHaveCount(editors + 2);
+  await page.keyboard.press('Control+z');
+  await expect(dialogMonaco).toHaveCount(editors);
+  await page.keyboard.press('Control+y');
+  await expect(dialogMonaco).toHaveCount(editors + 2);
+
+  // El diálogo sigue abierto y el documento no cambió (el undo era del borrador).
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Cancelar' }).click();
+});
+
 test('el editor de texto monta Monaco en el párrafo activo y sugiere', async () => {
   const proj = await projection();
   const content = firstCellContent(proj, 'LinesTable2');
@@ -2072,8 +2127,8 @@ test('la alineación del párrafo se refleja en el lienzo', async () => {
         findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
       };
       const item = stage.findOne((candidate) => candidate.id() === itemId);
-      const clip = item?.getChildren()[0];
-      const run = clip?.getChildren((candidate) => candidate.name() === 'textbox-run')[0];
+      // Los runs cuelgan del grupo del marco de texto (anidado en el recorte).
+      const run = item?.find?.((candidate) => candidate.name() === 'textbox-run')[0];
       return run ? run.x() : null;
     }, id);
 
@@ -2241,7 +2296,7 @@ test('el autocompletado de expresiones muestra el desplegable y elige con ratón
   await selectItemViaPalette('Textbox4');
 
   // El panel simple monta el Monaco de la expresión (carga diferida).
-  const container = page.locator('[aria-label="Expresión del run 1.1"]').first();
+  const container = page.locator('[aria-label="Expresión del fragmento 1.1"]').first();
   const editor = container.locator('.monaco-editor');
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await editor.click();
@@ -2284,7 +2339,7 @@ test('el autocompletado del editor de texto se ve por encima del diálogo', asyn
   // run; detrás de cada valor va el Monaco de su formato).
   await page.getByRole('button', { name: 'Añadir expresión' }).click();
   const editor = page
-    .locator('[role="dialog"] [aria-label^="Expresión del run"] .monaco-editor')
+    .locator('[role="dialog"] [aria-label^="Expresión del fragmento"] .monaco-editor')
     .last();
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await editor.click();
@@ -2322,7 +2377,7 @@ test('el panel de propiedades cablea el item (etiqueta, opciones, padding, borde
   await selectItemViaPalette('Textbox4');
 
   // Etiqueta del run (`setParagraphs`, byte-exacto).
-  const label = page.getByLabel('Etiqueta del run 1.1');
+  const label = page.getByLabel('Etiqueta del fragmento 1.1');
   await expect(label).toHaveValue('BTCNifCifLbl');
   await label.fill('MiEtiqueta');
   await label.press('Enter');

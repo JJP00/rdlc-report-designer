@@ -4,6 +4,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { CanvasArea } from '@/components/CanvasArea';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 import type { CanvasHit } from '@/lib/hit';
+import { CANVAS_MIN_PX } from '@/lib/panelLayout';
 import { cm } from '@/lib/projection';
 import type { SelectedCell } from '@/lib/tablix';
 
@@ -52,7 +53,13 @@ export function CanvasColumn({
   onEditText,
 }: CanvasColumnProps): ReactNode {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    // Ancho mínimo del lienzo: los paneles ceden antes (hasta su mínimo) y sus
+    // asideros lo miden (`data-rdlc-canvas-column`) para no pasar de ahí.
+    <div
+      data-rdlc-canvas-column=""
+      className="flex min-h-0 flex-1 flex-col"
+      style={{ minWidth: CANVAS_MIN_PX }}
+    >
       {projection ? (
         <Breadcrumb
           projection={projection}

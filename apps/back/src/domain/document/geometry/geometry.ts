@@ -121,6 +121,7 @@ const STYLE_ORDER = [
   'RightBorder',
   'TextAlign',
   'VerticalAlign',
+  'WritingMode',
   'ListStyle',
 ];
 

@@ -79,6 +79,50 @@ describe('F1 · setStyle', () => {
     expect(adapter.serialize(doc)).toBe(xml);
   });
 
+  it.each(['Default', 'Horizontal', 'Vertical', 'Rotate270'] as const)(
+    'escribe WritingMode=%s en el item, valida contra el XSD y el undo restaura bytes',
+    (writingMode) => {
+      const { xml, doc, index } = open('PalletOutput.rdlc');
+
+      const applied = applyCommand(
+        { root: doc.root, index },
+        { cmd: 'setStyle', id: 'Textbox25', style: { writingMode } },
+      );
+      expect(applied.isRight()).toBe(true);
+      if (!applied.isRight()) return;
+
+      const output = adapter.serialize(doc);
+      expect(itemSlice(output, 'Textbox25')).toContain(`<WritingMode>${writingMode}</WritingMode>`);
+      expect(validator.validate(output).problems).toEqual([]);
+      expect(appliedOf(applied.value, 'Textbox25')).toMatchObject({ style: { writingMode } });
+
+      const undone = undoAll({ root: doc.root, index }, applied.value);
+      expect(undone.isRight()).toBe(true);
+      expect(adapter.serialize(doc)).toBe(xml);
+    },
+  );
+
+  it('quita WritingMode con null y el undo lo devuelve en su sitio', () => {
+    const { doc, index } = open('PalletOutput.rdlc');
+    const set = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'Textbox25', style: { writingMode: 'Rotate270' } },
+    );
+    expect(set.isRight()).toBe(true);
+    const withMode = adapter.serialize(doc);
+
+    const cleared = applyCommand(
+      { root: doc.root, index },
+      { cmd: 'setStyle', id: 'Textbox25', style: { writingMode: null } },
+    );
+    expect(cleared.isRight()).toBe(true);
+    if (!cleared.isRight()) return;
+    expect(itemSlice(adapter.serialize(doc), 'Textbox25')).not.toContain('<WritingMode>');
+
+    undoAll({ root: doc.root, index }, cleared.value);
+    expect(adapter.serialize(doc)).toBe(withMode);
+  });
+
   it('respeta el estilo existente del item (no lo pisa)', () => {
     const { doc, index } = open('SalesInvoiceESP.rdlc');
 

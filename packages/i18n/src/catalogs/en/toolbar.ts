@@ -28,6 +28,12 @@ export const toolbar = {
     toggleVariables: 'Show or hide variables',
     hierarchy: 'Hierarchy',
     toggleHierarchy: 'Show or hide hierarchy',
+    inspector: 'Properties',
+    toggleInspector: 'Show or hide properties',
+    /** Cabecera del panel de Propiedades y su tira plegada. */
+    inspectorTitle: 'Properties',
+    collapseInspector: 'Hide properties',
+    expandInspector: 'Show properties',
   },
   theme: {
     light: 'Light mode',

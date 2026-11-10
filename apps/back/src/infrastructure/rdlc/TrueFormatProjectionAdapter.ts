@@ -760,6 +760,7 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     const backgroundColor = textOf(el.getFirstElementByName('BackgroundColor'));
     const textAlign = textOf(el.getFirstElementByName('TextAlign'));
     const verticalAlign = textOf(el.getFirstElementByName('VerticalAlign'));
+    const writingMode = textOf(el.getFirstElementByName('WritingMode'));
     const format = textOf(el.getFirstElementByName('Format'));
 
     if (fontFamily) style.fontFamily = fontFamily;
@@ -786,6 +787,14 @@ export class TrueFormatProjectionAdapter implements RdlcProjectionPort {
     }
     if (verticalAlign === 'Top' || verticalAlign === 'Middle' || verticalAlign === 'Bottom') {
       style.verticalAlign = verticalAlign;
+    }
+    if (
+      writingMode === 'Default' ||
+      writingMode === 'Horizontal' ||
+      writingMode === 'Vertical' ||
+      writingMode === 'Rotate270'
+    ) {
+      style.writingMode = writingMode;
     }
     if (format) style.format = format;
 

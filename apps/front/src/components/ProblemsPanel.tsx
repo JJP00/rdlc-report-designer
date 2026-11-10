@@ -1,8 +1,11 @@
 import type { LintFindingDto, ProjectionDto } from '@rdlc-designer/contracts';
 import { useT, useTranslator } from '@rdlc-designer/i18n/react';
 import { CircleCheck, Info, OctagonX, TriangleAlert, X, type LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
+import { PanelResizer } from '@/components/ui/panel-resizer';
+import type { PanelLayoutApi } from '@/hooks/usePanelLayout';
+import { PANEL_LIMITS } from '@/lib/panelLayout';
 import { LINT_SEVERITY_KEYS, lintMessage, sortLintFindings, type LintSeverity } from '@/lib/lint';
 import { findItem } from '@/lib/projection';
 
@@ -12,7 +15,12 @@ export interface ProblemsPanelProps {
   /** Selecciona (y revela en la jerarquía) el item de un hallazgo. */
   onSelectItem: (id: string) => void;
   onClose: () => void;
+  /** Alto del panel (lo comparte la app). */
+  panels: PanelLayoutApi;
 }
+
+/** Alto mínimo que el panel le deja al lienzo al crecer (px). */
+const CANVAS_MIN_HEIGHT_PX = 200;
 
 const SEVERITY_ICONS: Record<LintSeverity, LucideIcon> = {
   error: OctagonX,
@@ -36,16 +44,43 @@ export function ProblemsPanel({
   projection,
   onSelectItem,
   onClose,
+  panels,
 }: ProblemsPanelProps): ReactNode {
   const t = useT();
   const translator = useTranslator();
   const sorted = sortLintFindings(findings);
+  const sectionRef = useRef<HTMLElement | null>(null);
 
   return (
+    // Sin tocar el asidero, el alto sigue al contenido (hasta el inicial); al
+    // arrastrarlo, el alto elegido.
     <section
+      ref={sectionRef}
       aria-label={t('lint.title')}
-      className="flex max-h-56 min-h-0 shrink-0 flex-col overflow-hidden border-t bg-background text-sm"
+      className="relative flex min-h-0 shrink-0 flex-col border-t bg-background text-sm"
+      style={
+        panels.layout.problemsSized
+          ? { height: panels.layout.sizes.problems }
+          : { maxHeight: PANEL_LIMITS.problems.initial }
+      }
     >
+      <PanelResizer
+        panel="problems"
+        edge="top"
+        size={
+          panels.layout.problemsSized ? panels.layout.sizes.problems : PANEL_LIMITS.problems.initial
+        }
+        onResize={(px) => panels.setSize('problems', px)}
+        onReset={() => panels.resetSize('problems')}
+        room={() => {
+          const canvas = document.querySelector('[data-rdlc-canvas-column]');
+          return canvas
+            ? canvas.getBoundingClientRect().height - CANVAS_MIN_HEIGHT_PX
+            : Number.POSITIVE_INFINITY;
+        }}
+        label={t('lib.panel.problemsAria')}
+        measure={() => sectionRef.current?.getBoundingClientRect().height ?? 0}
+      />
       <header className="flex items-center gap-2 border-b px-3 py-1">
         <span className="font-medium">{t('lint.title')}</span>
         <Button

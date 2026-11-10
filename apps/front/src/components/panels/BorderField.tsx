@@ -42,8 +42,10 @@ interface BorderFieldProps {
 export function BorderField({ border, onSetStyle, mixedSides }: BorderFieldProps): ReactNode {
   const t = useT();
 
+  // `@container`: cada lado se maqueta según el ancho del panel que lo contiene
+  // (el inspector es redimensionable), no según la ventana.
   return (
-    <div className="grid gap-1.5">
+    <div className="@container grid gap-1.5">
       <Label className="text-[11px] text-muted-foreground">{t('toolbar.border.title')}</Label>
       {SIDES.map((side) => (
         <BorderSideRow
@@ -102,14 +104,16 @@ function BorderSideRow({
     });
   };
 
+  // Ancho: nombre | estilo | color | grosor en una fila. Estrecho (< 17,5 rem,
+  // el inspector a su mínimo): el nombre encima, como los campos de Relleno.
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="w-14 shrink-0 text-[11px] text-muted-foreground">
+    <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_auto_auto] items-center gap-1.5 @max-[17.5rem]:grid-cols-[minmax(0,1fr)_auto_auto] @max-[17.5rem]:gap-y-1">
+      <span className="text-[11px] text-muted-foreground @max-[17.5rem]:col-span-3">
         {label}
         {mixed ? ' —' : ''}
       </span>
       <select
-        className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
+        className="h-7 min-w-0 rounded-md border border-input bg-background px-1 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
         aria-label={t('toolbar.border.styleAria', { side: label.toLowerCase() })}
         value={mixed ? '' : current.style}
         onChange={(event) => {

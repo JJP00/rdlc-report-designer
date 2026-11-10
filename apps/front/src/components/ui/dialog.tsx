@@ -169,7 +169,12 @@ function DialogContent({
         data-slot="dialog-content"
         style={{ ...style, ...sizeStyle }}
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+          // `duration-100` es para `animate-in/out` (leen `--tw-duration`), pero
+          // también pone `transition-duration` y, sin `transition-property`, la
+          // transición es `all`: al agarrar la esquina `width` se interpolaba
+          // desde `100%` del viewport (el diálogo se disparaba a todo el ancho)
+          // y cada movimiento llegaba con 100 ms de retraso (BUG-66).
+          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 transition-none duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
           // Marco sin scroll: la agarradera es un hijo absoluto y no puede
           // irse con el scroll (BUG-61); el cuerpo es quien scrollea.
           resizable && 'overflow-hidden',

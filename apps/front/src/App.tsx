@@ -13,6 +13,7 @@ import { useFileDrop } from '@/hooks/useFileDrop';
 import { useItemEditing } from '@/hooks/useItemEditing';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { usePaletteActions } from '@/hooks/usePaletteActions';
+import { usePanelLayout } from '@/hooks/usePanelLayout';
 import { useQaHooks } from '@/hooks/useQaHooks';
 import { useTheme } from '@/hooks/useTheme';
 import { useUpdater } from '@/hooks/useUpdater';
@@ -51,6 +52,12 @@ export function App(): ReactNode {
   const [filtersTablixId, setFiltersTablixId] = useState<string | null>(null);
   /** Conflicto: el diálogo se reabre al detectarse (y con el botón del aviso). */
   const [conflictOpen, setConflictOpen] = useState(false);
+  /**
+   * Tamaños de los paneles y plegado de Propiedades (de la app, no de la
+   * pestaña) y panel Problemas: aquí para que también los alcance la paleta.
+   */
+  const panels = usePanelLayout();
+  const [problemsOpen, setProblemsOpen] = useState(false);
 
   const {
     doc,
@@ -192,16 +199,23 @@ export function App(): ReactNode {
     core,
     items,
     selectedItem,
+    selectedIds,
     structureTablix,
+    zoom: ui.zoom,
+    setZoom,
     zoomFitWidth,
     zoomReset,
     toggleVariables,
     toggleHierarchy,
     toggleTheme,
+    toggleProblems: () => setProblemsOpen((open) => !open),
+    panels,
+    checkUpdates: () => void updater.check(),
     setPropertiesOpen,
     setEditingTextId,
     setFiltersTablixId,
   });
+  const activeTabIndex = tabs.findIndex((tab) => tab.sessionId === activeSessionId);
 
   return (
     <UpdaterContext.Provider value={updater}>
@@ -259,6 +273,9 @@ export function App(): ReactNode {
             onOpenTablixFilters={setFiltersTablixId}
             onResolveConflict={() => setConflictOpen(true)}
             onPickExpression={pickExpression}
+            panels={panels}
+            problemsOpen={problemsOpen}
+            onProblemsOpenChange={setProblemsOpen}
           />
         </div>
 
@@ -285,12 +302,20 @@ export function App(): ReactNode {
           projection={doc?.projection ?? null}
           capabilities={{
             hasDocument: doc !== null,
+            hasSelection: selectedItem !== undefined || selectedCell !== null,
             hasTextbox: selectedItem?.kind === 'textbox',
             hasTablix: structureTablix !== undefined,
+            hasClipboard: items.hasClipboard,
+            tabCount: tabs.length,
+            activeTabIndex,
+            hasSavedTab: tabs.some((tab) => !tab.dirty),
+            canCheckUpdates: hasBackend,
           }}
           onSelectItem={items.selectAndReveal}
           onPickExpression={pickExpression}
           onAction={runPaletteAction}
+          recents={core.recents}
+          onOpenRecent={core.openPath}
         />
 
         <UpdateDialog />

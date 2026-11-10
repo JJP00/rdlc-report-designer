@@ -66,17 +66,21 @@ export function FormatToolbar({
   /** Tamaño en pt entero (pasos de 1, sin decimales). */
   const fontSizePt = style?.fontSize ? Math.round(toPt(style.fontSize)) : 10;
 
+  /** Botón de formato; `shortcut` (p. ej. Ctrl+B) va en el tooltip, no en el nombre. */
   const toggle = (
     active: boolean,
     patch: StylePatch,
     icon: ReactNode,
     title: string,
+    shortcut?: { label: string; aria: string },
   ): ReactNode => (
     <Button
       variant={active ? 'secondary' : 'ghost'}
       size="icon-xs"
-      title={title}
+      title={shortcut ? `${title} (${shortcut.label})` : title}
       aria-label={title}
+      aria-pressed={active}
+      aria-keyshortcuts={shortcut?.aria}
       onClick={() => onSetStyle(patch)}
     >
       {icon}
@@ -126,18 +130,21 @@ export function FormatToolbar({
           { fontWeight: style?.fontWeight === 'Bold' ? 'Normal' : 'Bold' },
           <Bold />,
           t('toolbar.format.bold'),
+          { label: 'Ctrl+B', aria: 'Control+B' },
         )}
         {toggle(
           style?.fontStyle === 'Italic',
           { fontStyle: style?.fontStyle === 'Italic' ? 'Normal' : 'Italic' },
           <Italic />,
           t('toolbar.format.italic'),
+          { label: 'Ctrl+I', aria: 'Control+I' },
         )}
         {toggle(
           style?.textDecoration === 'Underline',
           { textDecoration: style?.textDecoration === 'Underline' ? 'None' : 'Underline' },
           <Underline />,
           t('toolbar.format.underline'),
+          { label: 'Ctrl+U', aria: 'Control+U' },
         )}
 
         <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
