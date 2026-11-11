@@ -3674,6 +3674,77 @@ test('multiselección: arrastrar y mover con flechas desplaza todos; suprimir bo
   await expect.poll(async () => itemLocation('Textbox17')).toBeDefined();
 });
 
+/**
+ * Tirador SE de la selección leído del nodo Konva real (no del hook de QA, que
+ * solo se refresca al re-renderizar): centro en pantalla y distancia, en px de
+ * pantalla, a la esquina SE de la caja (`item-box`) del item.
+ */
+async function seHandleState(
+  id: string,
+): Promise<{ x: number; y: number; offCorner: number } | null> {
+  return page.evaluate((nodeId) => {
+    const stage = (window as never as Record<string, unknown>)['__rdlcStage'] as {
+      findOne(selector: (node: KonvaLike) => boolean): KonvaLike | undefined;
+      container(): HTMLElement;
+      scaleX(): number;
+      x(): number;
+      y(): number;
+    };
+    const handle = stage.findOne((candidate) => candidate.name() === 'handle-se');
+    const item = stage.findOne((candidate) => candidate.id() === nodeId);
+    const box = item?.findOne?.((candidate) => candidate.name() === 'item-box');
+    if (!handle || !box) return null;
+    const handleRect = handle.getClientRect({ relativeTo: stage as unknown as never });
+    const boxRect = box.getClientRect({ relativeTo: stage as unknown as never });
+    const zoom = stage.scaleX();
+    const centerX = handleRect.x + handleRect.width / 2;
+    const centerY = handleRect.y + handleRect.height / 2;
+    const container = stage.container().getBoundingClientRect();
+    return {
+      x: container.left + stage.x() + centerX * zoom,
+      y: container.top + stage.y() + centerY * zoom,
+      offCorner:
+        Math.hypot(centerX - (boxRect.x + boxRect.width), centerY - (boxRect.y + boxRect.height)) *
+        zoom,
+    };
+  }, id);
+}
+
+test('un tirador frenado por el rectángulo padre vuelve al marco al soltar', async () => {
+  // Textbox4 vive en Rectangle1: el tirador no puede sacarlo del rectángulo.
+  // El primer arrastre lo lleva al borde; el segundo ya no cambia la caja, y
+  // el tirador se quedaba donde se soltó (react-konva no reaplica x/y iguales).
+  await selectItemViaPalette('Textbox4');
+  const parent = await itemSize('Rectangle1');
+  const start = await itemLocation('Textbox4');
+  expect(parent).toBeDefined();
+  expect(start).toBeDefined();
+  const maxWidth = parent!.width - start!.left;
+  const maxHeight = parent!.height - start!.top;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await expect
+      .poll(async () => (await seHandleState('Textbox4'))?.offCorner ?? Infinity)
+      .toBeLessThan(2);
+    const handle = (await seHandleState('Textbox4'))!;
+    const corner = (await nodeCenter('Rectangle1', 1, 1))!;
+    await page.mouse.move(handle.x, handle.y);
+    await page.mouse.down();
+    await page.mouse.move(corner.x + 40, corner.y + 40, { steps: 12 });
+    await page.mouse.up();
+
+    // La caja queda recortada al rectángulo padre.
+    await expect.poll(async () => (await itemSize('Textbox4'))!.width).toBeCloseTo(maxWidth, 3);
+    await expect.poll(async () => (await itemSize('Textbox4'))!.height).toBeCloseTo(maxHeight, 3);
+    // Y el tirador vuelve a la esquina del marco, no al punto donde se soltó.
+    await expect
+      .poll(async () => (await seHandleState('Textbox4'))?.offCorner ?? Infinity, {
+        message: `intento ${attempt + 1}: el tirador SE debe volver a la esquina del marco`,
+      })
+      .toBeLessThan(2);
+  }
+});
+
 test('multiselección: los tiradores escalan todo el bloque y un undo lo revierte', async () => {
   await selectItemViaPalette('Textbox4');
   // Tirador SE de un item solo: referencia para detectar el marco del bloque.
