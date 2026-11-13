@@ -1,6 +1,6 @@
 {
   "name": "@rdlc-designer/back",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "private": true,
   "description": "Create and edit RDL/RDLC reports.",
   "author": "RDLC Report Designer",
