@@ -31,6 +31,8 @@ const BORDER_STYLES = [
 interface BorderFieldProps {
   border: BorderSides | undefined;
   onSetStyle: (patch: StylePatch) => void;
+  /** Vista previa en el lienzo al arrastrar el grosor (`null` = revertir). */
+  onPreviewStyle?: (patch: StylePatch | null) => void;
   /**
    * Lados con valores distintos entre los items seleccionados (multiselección):
    * se muestran como «—» y **se pueden editar igualmente** (la edición fija el
@@ -39,7 +41,12 @@ interface BorderFieldProps {
   mixedSides?: ReadonlySet<keyof BorderSides>;
 }
 
-export function BorderField({ border, onSetStyle, mixedSides }: BorderFieldProps): ReactNode {
+export function BorderField({
+  border,
+  onSetStyle,
+  onPreviewStyle,
+  mixedSides,
+}: BorderFieldProps): ReactNode {
   const t = useT();
 
   // `@container`: cada lado se maqueta según el ancho del panel que lo contiene
@@ -55,6 +62,7 @@ export function BorderField({ border, onSetStyle, mixedSides }: BorderFieldProps
           value={border?.[side.key]}
           mixed={mixedSides?.has(side.key) ?? false}
           onSetStyle={onSetStyle}
+          onPreviewStyle={onPreviewStyle}
         />
       ))}
     </div>
@@ -67,12 +75,14 @@ function BorderSideRow({
   value,
   mixed,
   onSetStyle,
+  onPreviewStyle,
 }: {
   side: keyof BorderSides;
   label: string;
   value: BorderSide | undefined;
   mixed: boolean;
   onSetStyle: (patch: StylePatch) => void;
+  onPreviewStyle?: (patch: StylePatch | null) => void;
 }): ReactNode {
   const t = useT();
   const current: BorderSide = value ?? { style: 'None' };
@@ -92,17 +102,17 @@ function BorderSideRow({
   );
 
   const widthPt = current.width ? Math.round(toPt(current.width) * 100) / 100 : 1;
-  const commitWidth = (pt: number): void => {
-    onSetStyle({
-      border: {
-        [side]: {
-          ...current,
-          style: current.style === 'None' ? 'Solid' : current.style,
-          width: { value: pt, unit: 'pt' },
-        },
+  /** Parche del grosor: lo comparten el commit y la vista previa del arrastre. */
+  const widthPatch = (pt: number): StylePatch => ({
+    border: {
+      [side]: {
+        ...current,
+        style: current.style === 'None' ? 'Solid' : current.style,
+        width: { value: pt, unit: 'pt' },
       },
-    });
-  };
+    },
+  });
+  const commitWidth = (pt: number): void => onSetStyle(widthPatch(pt));
 
   // Ancho: nombre | estilo | color | grosor en una fila. Estrecho (< 17,5 rem,
   // el inspector a su mínimo): el nombre encima, como los campos de Relleno.
@@ -158,6 +168,9 @@ function BorderSideRow({
         suffix="pt"
         disabled={isNone}
         onCommit={commitWidth}
+        onPreview={
+          onPreviewStyle ? (pt) => onPreviewStyle(pt === null ? null : widthPatch(pt)) : undefined
+        }
       />
     </div>
   );

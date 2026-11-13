@@ -9,6 +9,7 @@ import { LeftPanels } from '@/components/LeftPanels';
 import { StatusBar } from '@/components/StatusBar';
 import { FormatToolbar } from '@/components/panels/FormatToolbar';
 import { ProblemsPanel } from '@/components/ProblemsPanel';
+import { useStylePreview } from '@/hooks/scrubPreviewContext';
 import type { ItemEditing } from '@/hooks/useItemEditing';
 import type { WorkspaceCore } from '@/hooks/useWorkspace';
 import type { PanelLayoutApi } from '@/hooks/usePanelLayout';
@@ -88,6 +89,8 @@ export function ReportTab(props: ReportTabProps): ReactNode {
   } = props;
   const { doc, busy, recents, open, save, saveAs, createNew, openPath, close, undo, redo } = core;
   const { selectedId, selectedItem } = items;
+  // Vista previa del tamaño de fuente al arrastrarlo, sobre toda la selección.
+  const previewStyle = useStylePreview(items.selectedIds);
 
   return (
     <>
@@ -132,6 +135,7 @@ export function ReportTab(props: ReportTabProps): ReactNode {
             : undefined
         }
         onSetStyle={items.setItemStyle}
+        onPreviewStyle={previewStyle}
         disabled={selectedItem === undefined}
         onInsert={items.insertItem}
         insertDisabled={doc === null}

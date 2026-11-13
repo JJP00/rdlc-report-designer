@@ -125,20 +125,38 @@ export function SelectionFrame({
     });
   };
 
-  const showPreview = (next: BoxCm): void => {
+  const showPreview = (handle: ResizeHandle, node: Konva.Node, next: BoxCm): void => {
     const start = dragStart.current;
     if (!start) return;
     // La previsualización parte del rect medido: funciona con items anidados
     // (su Top/Left es relativo al contenedor).
-    previewRef.current?.setAttrs({
+    const preview = {
       x: rect.x + (next.left - start.box.left) * PX_PER_CM,
       y: rect.y + (next.top - start.box.top) * PX_PER_CM,
       width: next.width * PX_PER_CM,
       height: next.height * PX_PER_CM,
-      visible: true,
-    });
+    };
+    previewRef.current?.setAttrs({ ...preview, visible: true });
     frameRef.current?.visible(false);
+    // El tirador sigue al recuadro (ya recortado e imantado), no al puntero:
+    // si el límite del contenedor frena la caja, el tirador se queda en su borde.
+    placeHandle(node, handle, preview);
     previewRef.current?.getLayer()?.batchDraw();
+  };
+
+  /**
+   * Coloca un tirador sobre un rect. Konva mueve el nodo arrastrado por su
+   * cuenta y react-konva solo reaplica `x`/`y` cuando cambian las props: si la
+   * caja no cambia (p. ej. el hijo ya toca el borde del rectángulo padre), el
+   * tirador se quedaba donde se soltó. Al soltar se devuelve a su sitio.
+   */
+  const placeHandle = (
+    node: Konva.Node,
+    handle: ResizeHandle,
+    on: { x: number; y: number; width: number; height: number },
+  ): void => {
+    const [x, y] = handlePosition(handle, on);
+    node.position({ x: x - size / 2, y: y - size / 2 });
   };
 
   const hidePreview = (): void => {
@@ -225,13 +243,15 @@ export function SelectionFrame({
                   const pointer = event.target.getStage()?.getPointerPosition();
                   if (!pointer) return;
                   const next = resizeFrom(handle, pointer, event.evt.shiftKey);
-                  if (next) showPreview(next);
+                  if (next) showPreview(handle, event.target, next);
                 }}
                 onDragEnd={(event) => {
                   event.cancelBubble = true;
+                  // Vuelve a la posición de las props actuales; si la caja
+                  // cambia, el re-render con la proyección nueva lo mueve.
+                  placeHandle(event.target, handle, rect);
                   const pointer = event.target.getStage()?.getPointerPosition();
-                  if (!pointer) return;
-                  const next = resizeFrom(handle, pointer, event.evt.shiftKey);
+                  const next = pointer ? resizeFrom(handle, pointer, event.evt.shiftKey) : null;
                   dragStart.current = null;
                   hidePreview();
                   if (next && onResize) onResize(next);

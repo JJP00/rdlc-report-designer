@@ -28,6 +28,7 @@ import { NumberInput } from '@/components/ui/number-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BorderField } from '@/components/panels/BorderField';
 import { PaddingSection } from '@/components/panels/PaddingSection';
+import { useStylePreview } from '@/hooks/scrubPreviewContext';
 import { useAvailableFonts } from '@/hooks/useAvailableFonts';
 import {
   alignBoxes,
@@ -113,6 +114,9 @@ export function MultiSelectionPanel({
     return items.filter((item) => styled.has(item.id));
   }, [items, isCellContentId]);
 
+  // Vista previa en el lienzo al arrastrar un valor (sin comando ni undo).
+  const previewStyle = useStylePreview(styledItems.map((item) => item.id));
+
   const styleBatch = (patch: StylePatch): void => {
     if (styledItems.length === 0) return;
     onBatchEdit(styledItems.map((item) => ({ cmd: 'setStyle', id: item.id, style: patch })));
@@ -132,8 +136,8 @@ export function MultiSelectionPanel({
         </p>
       </header>
 
-      <TextSection items={styledItems} onStyle={styleBatch} />
-      <BoxSection items={styledItems} onStyle={styleBatch} />
+      <TextSection items={styledItems} onStyle={styleBatch} onPreview={previewStyle} />
+      <BoxSection items={styledItems} onStyle={styleBatch} onPreview={previewStyle} />
       <VisibilitySection items={items} onBatchEdit={onBatchEdit} />
       <AlignSection movable={movable} onBatchEdit={onBatchEdit} />
 
@@ -170,9 +174,11 @@ const DEFAULT_BACKGROUND = '#ffffff';
 function TextSection({
   items,
   onStyle,
+  onPreview,
 }: {
   items: ItemDto[];
   onStyle: (patch: StylePatch) => void;
+  onPreview: (patch: StylePatch | null) => void;
 }): ReactNode {
   const t = useT();
   const fonts = useAvailableFonts();
@@ -241,6 +247,11 @@ function TextSection({
           decimals={0}
           disabled={disabled}
           onCommit={(value) => onStyle({ fontSize: { value: Math.round(value), unit: 'pt' } })}
+          onPreview={(value) =>
+            onPreview(
+              value === null ? null : { fontSize: { value: Math.round(value), unit: 'pt' } },
+            )
+          }
           className="h-8 w-20 text-sm"
         />
       </div>
@@ -308,9 +319,11 @@ function TextSection({
 function BoxSection({
   items,
   onStyle,
+  onPreview,
 }: {
   items: ItemDto[];
   onStyle: (patch: StylePatch) => void;
+  onPreview: (patch: StylePatch | null) => void;
 }): ReactNode {
   /** Lados que difieren entre los seleccionados: se marcan «—» y se dejan editar. */
   const mixedSides = useMemo(() => {
@@ -327,8 +340,17 @@ function BoxSection({
 
   return (
     <section className="flex flex-col gap-2">
-      <BorderField border={items[0]?.style?.border} mixedSides={mixedSides} onSetStyle={onStyle} />
-      <PaddingSection padding={common(items, (item) => item.style?.padding)} onSetStyle={onStyle} />
+      <BorderField
+        border={items[0]?.style?.border}
+        mixedSides={mixedSides}
+        onSetStyle={onStyle}
+        onPreviewStyle={onPreview}
+      />
+      <PaddingSection
+        padding={common(items, (item) => item.style?.padding)}
+        onSetStyle={onStyle}
+        onPreviewStyle={onPreview}
+      />
     </section>
   );
 }

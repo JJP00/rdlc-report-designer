@@ -3,7 +3,7 @@
 Reported by the user: "in the dialogs that let me change the size, when I change it, it
 briefly resizes to a bigger window and then returns to where the cursor is".
 
-IDs continue from `docs/bugs/0003-dialogos-redimensionado-2026-10-13.md` (last used: BUG-65).
+IDs continue from BUG-65 (the closed BUG-60…65 audit is in git history).
 
 > **Closed 2026-11-10 (same session)**: reproduced on the real app, fixed and verified.
 > Regression test: `apps/back/e2e/known-bugs.spec.ts` (BUG-66), in the shared

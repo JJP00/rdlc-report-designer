@@ -7,7 +7,7 @@ import type {
   TextboxDto,
 } from '@rdlc-designer/contracts';
 import type Konva from 'konva';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { memo, useEffect, useRef, type ReactNode } from 'react';
 import { Group, Line, Rect, Text as KonvaText } from 'react-konva';
 import { useT } from '@rdlc-designer/i18n/react';
 import { computeDragEnd } from '@/lib/drag';
@@ -282,7 +282,7 @@ interface ItemViewProps {
   cull?: VisibleRect | null;
 }
 
-export function ItemView({
+function ItemViewBase({
   item,
   selected,
   draggable,
@@ -354,6 +354,46 @@ export function ItemView({
   );
 }
 
+function sameBox(
+  a: { width: number; height: number } | undefined,
+  b: { width: number; height: number } | undefined,
+): boolean {
+  return (
+    a === b || (a !== undefined && b !== undefined && a.width === b.width && a.height === b.height)
+  );
+}
+
+function sameCellOwner(a: ItemViewProps['cellOwner'], b: ItemViewProps['cellOwner']): boolean {
+  return a === b || (!!a && !!b && a.id === b.id && a.row === b.row && a.col === b.col);
+}
+
+/**
+ * Un item solo se vuelve a pintar si cambia su dato (`patchItem` conserva la
+ * identidad de lo que no se toca), su selección o el contexto que lo afecta.
+ * `bounds`/`cellOwner` se comparan por valor (se crean nuevos en cada render del
+ * padre) y el origen solo importa con culling (T3): es lo único que lo lee.
+ * Con ello mover un item con las flechas no re-renderiza el resto del lienzo.
+ */
+function sameItemViewProps(prev: ItemViewProps, next: ItemViewProps): boolean {
+  return (
+    prev.item === next.item &&
+    prev.selected === next.selected &&
+    prev.draggable === next.draggable &&
+    prev.onSelect === next.onSelect &&
+    prev.onMoveTo === next.onMoveTo &&
+    prev.onResizeColumn === next.onResizeColumn &&
+    prev.onResizeRow === next.onResizeRow &&
+    prev.selectedCell === next.selectedCell &&
+    prev.onSelectCell === next.onSelectCell &&
+    prev.cull === next.cull &&
+    sameCellOwner(prev.cellOwner, next.cellOwner) &&
+    sameBox(prev.bounds, next.bounds) &&
+    (!next.cull || (prev.originX === next.originX && prev.originY === next.originY))
+  );
+}
+
+export const ItemView = memo(ItemViewBase, sameItemViewProps);
+
 /** Contenido del item según su tipo (un componente por tipo, sin switch gigante). */
 function renderContent(
   item: ItemDto,
@@ -423,7 +463,7 @@ function renderContent(
   }
 }
 
-function TextboxContent({
+function TextboxContentBase({
   item,
   style,
   width,
@@ -496,6 +536,19 @@ function TextboxContent({
     </>
   );
 }
+
+/**
+ * El maquetado (medir cada run en un canvas) solo depende del texto, el estilo y
+ * la caja: mover el item (`top`/`left`) no lo repite.
+ */
+const TextboxContent = memo(
+  TextboxContentBase,
+  (prev, next) =>
+    prev.item.paragraphs === next.item.paragraphs &&
+    prev.style === next.style &&
+    prev.width === next.width &&
+    prev.height === next.height,
+);
 
 function RectangleContent({
   item,

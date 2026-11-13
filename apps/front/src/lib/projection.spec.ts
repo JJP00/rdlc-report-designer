@@ -105,6 +105,28 @@ describe('lib/projection', () => {
     expect(findItem(patched, 'TextboxInCell')?.top.value).toBe(1);
   });
 
+  it('al parchear conserva la identidad de lo que no se toca (memo del lienzo)', () => {
+    const projection = makeProjection();
+    const patched = patchItem(projection, 'TextboxNested', { top: { value: 3, unit: 'cm' } });
+
+    // Se recrea la ruta hasta el item…
+    expect(patched).not.toBe(projection);
+    expect(findItem(patched, 'Rectangle1')).not.toBe(findItem(projection, 'Rectangle1'));
+    // …y el resto de hermanos, regiones y celdas se reutilizan.
+    expect(findItem(patched, 'Tablix1')).toBe(findItem(projection, 'Tablix1'));
+    expect(findItem(patched, 'TextboxInCell')).toBe(findItem(projection, 'TextboxInCell'));
+    expect(patched.page.header).toBe(projection.page.header);
+    expect(patched.page.footer).toBe(projection.page.footer);
+
+    // Parchear dentro de una celda tampoco toca el rectángulo.
+    const inCell = patchItem(projection, 'TextboxInCell', { top: { value: 2, unit: 'cm' } });
+    expect(findItem(inCell, 'Rectangle1')).toBe(findItem(projection, 'Rectangle1'));
+    expect(findItem(inCell, 'TextboxInCell')?.top.value).toBe(2);
+
+    // Un id que no existe devuelve la misma proyección.
+    expect(patchItem(projection, 'NoExiste', { top: { value: 9, unit: 'cm' } })).toBe(projection);
+  });
+
   it('cuenta items de todas las regiones y profundidades', () => {
     const projection = makeProjection();
     const stats = countItems(projection);

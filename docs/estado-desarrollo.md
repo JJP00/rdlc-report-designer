@@ -13,8 +13,7 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
 - [x] Decisión del parser: `xml-trueformat` ([ADR 0001](./adr/0001-parser-xml-lossless.md)).
 - [x] Shell Electron + NestJS ([ADR 0002](./adr/0002-nest-en-electron-main.md)) + preload tipado.
 - [x] File watching → re-parseo → snapshot nueva (recarga en vivo).
-- [x] Benchmark de lienzo con 972 textboxes
-      ([docs/perf/0001-baseline-lienzo.md](./perf/0001-baseline-lienzo.md)).
+- [x] Benchmark de lienzo con 972 textboxes (baseline F0, en el historial de git).
 
 **Fase 1 (editor de layout) — en curso:**
 
@@ -180,7 +179,7 @@ Backlog y punto de retomada: [`RDLC Report Designer - Pendientes.md`](../RDLC%20
       en tags) · **endurecimiento de Electron** (sandbox con preload CJS bundleado,
       navegación/ventanas/permisos bloqueados, 3 E2E de seguridad) · **rendimiento del lienzo**
       (culling por ventana visible, `perfectDrawEnabled:false` y rejilla cacheada;
-      **59,5–59,9 fps p50** con 972 textboxes, [perf](./perf/0001-baseline-lienzo.md)).
+      **59,5–59,9 fps p50** con 972 textboxes; ver [docs/perf](./perf/)).
       Estado: **306 back + 189 front** unit + **78 E2E** verdes.
 
 - [x] **Sesión 2026-10-02 (2.ª parte) · `.rdl`**: Abrir/Guardar, argumento CLI y

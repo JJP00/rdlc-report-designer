@@ -1,7 +1,16 @@
-import { useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { useT } from '@rdlc-designer/i18n/react';
 import type { PageRulerSegment } from '@/lib/pageResize';
 import { RULER_PX, PX_PER_CM } from './geometry';
+import type { ZoomPreviewSource } from './useWheelZoom';
 
 /**
  * Reglas en cm/mm del lienzo (una horizontal y otra vertical) con **marcadores
@@ -33,6 +42,8 @@ export function Ruler({
   lengthPx,
   marks = [],
   segments = [],
+  preview,
+  viewportRef,
 }: {
   orientation: 'horizontal' | 'vertical';
   zoom: number;
@@ -40,11 +51,85 @@ export function Ruler({
   marks?: RulerMark[];
   /** Tramos resaltados: área imprimible y bandas (encabezado/pie). */
   segments?: PageRulerSegment[];
+  /** Zoom provisional de la rueda: la regla lo sigue sin re-render de React. */
+  preview?: ZoomPreviewSource;
+  /** Hueco con scroll: durante el gesto solo se pinta lo que se ve. */
+  viewportRef?: RefObject<HTMLDivElement | null>;
 }): ReactNode {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const segmentsLayerRef = useRef<HTMLDivElement | null>(null);
+  const marksLayerRef = useRef<HTMLDivElement | null>(null);
   const cmPx = PX_PER_CM * zoom;
   const maxCm = lengthPx / cmPx;
-  const labelStep = zoom >= 0.5 ? 1 : zoom >= 0.3 ? 2 : 5;
+
+  /**
+   * Pinta las marcas (canvas) y coloca las capas de tramos y marcadores. Sin
+   * gesto, con el zoom confirmado; durante la rueda, con el provisional y el 0
+   * desplazado como el del papel (que escala sobre el cursor).
+   */
+  const paint = (): void => {
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
+    const horizontal = orientation === 'horizontal';
+    const current = preview?.get() ?? null;
+    const shift = current ? (horizontal ? current.shiftX : current.shiftY) : 0;
+    const liveZoom = current?.zoom ?? zoom;
+    const scale = liveZoom / zoom;
+
+    // Tramos y marcadores acompañan al papel con un transform (barato).
+    const transform = current
+      ? horizontal
+        ? `translateX(${shift}px) scaleX(${scale})`
+        : `translateY(${shift}px) scaleY(${scale})`
+      : '';
+    for (const layer of [segmentsLayerRef.current, marksLayerRef.current]) {
+      if (layer) layer.style.transform = transform;
+    }
+    // El fondo lo pone la capa de tramos, que escala con el papel.
+    container.style.backgroundColor = current ? 'transparent' : '';
+
+    let from = shift;
+    let to = shift + lengthPx * scale;
+    const viewport = current ? viewportRef?.current : null;
+    if (viewport) {
+      const box = container.getBoundingClientRect();
+      const view = viewport.getBoundingClientRect();
+      from = Math.max(from, horizontal ? view.left - box.left : view.top - box.top);
+      to = Math.min(to, horizontal ? view.right - box.left : view.bottom - box.top);
+    }
+    from = Math.floor(from);
+    paintTicks(canvas, {
+      horizontal,
+      cmPx: PX_PER_CM * liveZoom,
+      maxCm,
+      from,
+      length: Math.max(Math.ceil(to) - from, 0),
+      shift,
+      labelStep: labelStepFor(liveZoom),
+    });
+  };
+  const paintRef = useRef(paint);
+  useLayoutEffect(() => {
+    paintRef.current = paint;
+    paint();
+  });
+
+  useEffect(() => {
+    const repaint = (): void => paintRef.current();
+    const unsubscribe = preview?.subscribe(repaint);
+    // El tema (claro/oscuro) cambia los colores de las marcas.
+    const observer = new MutationObserver(repaint);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme', 'style'],
+    });
+    return () => {
+      unsubscribe?.();
+      observer.disconnect();
+    };
+  }, [preview]);
 
   /** cm de papel correspondientes a la posición del puntero en la regla. */
   const cmFromPointer = (event: PointerEvent<HTMLDivElement>): number => {
@@ -66,27 +151,44 @@ export function Ruler({
       }
     >
       {/* Tramos resaltados (debajo de las marcas y los números). */}
-      {segments.map((segment) => (
-        <RulerSegmentView
-          key={segment.key}
-          orientation={orientation}
-          segment={segment}
-          cmPx={cmPx}
-        />
-      ))}
-      {buildTicks({ orientation, maxCm, cmPx, labelStep })}
-      {marks.map((mark) => (
-        <RulerMarkHandle
-          key={mark.key}
-          orientation={orientation}
-          mark={mark}
-          offset={mark.cm * cmPx}
-          maxCm={maxCm}
-          cmFromPointer={cmFromPointer}
-        />
-      ))}
+      <div
+        ref={segmentsLayerRef}
+        className="pointer-events-none absolute inset-0 origin-top-left bg-ruler"
+      >
+        {segments.map((segment) => (
+          <RulerSegmentView
+            key={segment.key}
+            orientation={orientation}
+            segment={segment}
+            cmPx={cmPx}
+          />
+        ))}
+      </div>
+      <canvas
+        ref={canvasRef}
+        aria-hidden
+        className="pointer-events-none absolute text-foreground"
+      />
+      {/* Sin eventos la capa (cubre la regla); los marcadores los reactivan. */}
+      <div ref={marksLayerRef} className="pointer-events-none absolute inset-0 origin-top-left">
+        {marks.map((mark) => (
+          <RulerMarkHandle
+            key={mark.key}
+            orientation={orientation}
+            mark={mark}
+            offset={mark.cm * cmPx}
+            maxCm={maxCm}
+            cmFromPointer={cmFromPointer}
+          />
+        ))}
+      </div>
     </div>
   );
+}
+
+/** Cada cuántos cm se numera: a pasos mayores con zoom bajo para no solaparse. */
+function labelStepFor(zoom: number): number {
+  return zoom >= 0.5 ? 1 : zoom >= 0.3 ? 2 : 5;
 }
 
 /** Tramo resaltado de la regla (área imprimible o banda de encabezado/pie). */
@@ -169,7 +271,7 @@ function RulerMarkHandle({
       aria-valuenow={Math.round(mark.cm * 100) / 100}
       tabIndex={0}
       title={t('canvas.ruler.dragHint', { label: mark.label })}
-      className={`absolute z-10 outline-none before:absolute before:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${
+      className={`pointer-events-auto absolute z-10 outline-none before:absolute before:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${
         horizontal
           ? 'cursor-ew-resize before:-inset-x-1.5 before:-inset-y-0.5'
           : 'cursor-ns-resize before:-inset-y-1.5 before:-inset-x-0.5'
@@ -227,74 +329,83 @@ function RulerMarkHandle({
 }
 
 /**
- * Marcas de la regla: milímetro a milímetro; la etiqueta (en negrita) manda en
- * grosor y se agrupa a pasos mayores si el zoom es bajo para no solaparse.
+ * Marcas de la regla en un canvas: milímetro a milímetro; la etiqueta (en
+ * negrita) manda en grosor y se agrupa a pasos mayores si el zoom es bajo para
+ * no solaparse. Un solo canvas (y no cientos de nodos) permite repintarla en
+ * cada paso de la rueda. Solo se pinta el tramo `[from, from + length)` (px de
+ * regla); `shift` es dónde cae su 0.
  */
-function buildTicks({
-  orientation,
-  maxCm,
-  cmPx,
-  labelStep,
-}: {
-  orientation: 'horizontal' | 'vertical';
-  maxCm: number;
-  cmPx: number;
-  labelStep: number;
-}): ReactNode[] {
-  const ticks: ReactNode[] = [];
-  const tickStep = 0.1;
-  const count = Math.floor(maxCm / tickStep + 1e-9);
+function paintTicks(
+  canvas: HTMLCanvasElement,
+  {
+    horizontal,
+    cmPx,
+    maxCm,
+    from,
+    length,
+    shift,
+    labelStep,
+  }: {
+    horizontal: boolean;
+    cmPx: number;
+    maxCm: number;
+    from: number;
+    length: number;
+    shift: number;
+    labelStep: number;
+  },
+): void {
+  const dpr = window.devicePixelRatio || 1;
+  const along = Math.round(length * dpr);
+  const across = Math.round(RULER_PX * dpr);
+  const width = horizontal ? along : across;
+  const height = horizontal ? across : along;
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  canvas.style.width = `${width / dpr}px`;
+  canvas.style.height = `${height / dpr}px`;
+  canvas.style.left = horizontal ? `${from}px` : '0px';
+  canvas.style.top = horizontal ? '0px' : `${from}px`;
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  context.clearRect(0, 0, width, height);
+  if (along === 0) return;
 
-  for (let index = 0; index <= count; index += 1) {
-    const cm = index * tickStep;
-    const offset = cm * cmPx;
-    const isLabel = isMultiple(cm, labelStep);
-    const isCm = isMultiple(cm, 1);
+  const styles = getComputedStyle(canvas);
+  const major = styles.getPropertyValue('--ruler-tick').trim() || styles.color;
+  const minor = styles.getPropertyValue('--ruler-tick-minor').trim() || styles.color;
+  context.font = `600 ${9 * dpr}px ${styles.fontFamily}`;
+  context.textBaseline = 'top';
 
+  // Marcas cada mm (índice = décimas de cm); con zoom muy bajo los mm se
+  // juntan en una mancha y solo quedan los cm.
+  const tickPx = cmPx / 10;
+  const showMillimetres = tickPx >= 3;
+  const labelEvery = Math.round(labelStep * 10);
+  const count = Math.floor(maxCm * 10 + 1e-6);
+  const first = Math.max(0, Math.floor((from - shift) / tickPx) - 1);
+  const last = Math.min(count, Math.ceil((from + length - shift) / tickPx) + 1);
+  const thickness = Math.max(1, Math.round(dpr));
+
+  for (let index = first; index <= last; index += 1) {
+    const isLabel = index % labelEvery === 0;
+    const isCm = index % 10 === 0;
+    if (!isCm && !showMillimetres) continue;
+    const offset = shift + (index / 10) * cmPx - from;
+    const position = Math.round(offset * dpr);
     // Longitud de la marca: etiqueta > centímetro > milímetro.
-    const ratio = isLabel ? 1 : isCm ? 0.75 : 0.35;
-    const thickness = 1;
-    const style = {
-      ...(orientation === 'horizontal'
-        ? {
-            left: offset,
-            top: RULER_PX * (1 - ratio),
-            height: RULER_PX * ratio,
-            width: thickness,
-          }
-        : {
-            top: offset,
-            left: RULER_PX * (1 - ratio),
-            width: RULER_PX * ratio,
-            height: thickness,
-          }),
-      backgroundColor: isCm ? 'var(--ruler-tick)' : 'var(--ruler-tick-minor)',
-    } as const;
-
-    ticks.push(<div key={`t${index}`} className="absolute" style={style} />);
+    const tick = Math.round(across * (isLabel ? 1 : isCm ? 0.75 : 0.35));
+    context.fillStyle = isCm ? major : minor;
+    if (horizontal) context.fillRect(position, across - tick, thickness, tick);
+    else context.fillRect(across - tick, position, tick, thickness);
 
     if (isLabel && index > 0) {
-      ticks.push(
-        <span
-          key={`l${index}`}
-          className="absolute select-none text-[9px] font-semibold leading-none text-foreground"
-          style={
-            orientation === 'horizontal'
-              ? { left: offset + 2, top: 1 }
-              : { top: offset + 2, left: 1 }
-          }
-        >
-          {formatCm(cm, labelStep)}
-        </span>,
-      );
+      context.fillStyle = styles.color;
+      const text = formatCm(index / 10, labelStep);
+      if (horizontal) context.fillText(text, (offset + 2) * dpr, dpr);
+      else context.fillText(text, dpr, (offset + 2) * dpr);
     }
   }
-
-  return ticks;
-}
-
-function isMultiple(value: number, step: number): boolean {
-  return Math.abs(value / step - Math.round(value / step)) < 1e-6;
 }
 
 function formatCm(value: number, step: number): string {

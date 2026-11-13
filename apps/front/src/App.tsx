@@ -7,6 +7,7 @@ import { WorkspaceDialogs } from '@/components/WorkspaceDialogs';
 import { CommandPalette } from '@/components/panels/CommandPalette';
 import { UpdateDialog } from '@/components/UpdateDialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ScrubPreviewContext } from '@/hooks/scrubPreviewContext';
 import { UpdaterContext } from '@/hooks/updaterContext';
 import { useEditorKeys } from '@/hooks/useEditorKeys';
 import { useFileDrop } from '@/hooks/useFileDrop';
@@ -240,43 +241,45 @@ export function App(): ReactNode {
           ) : null}
 
           {/* Marco estable (toolbars + tira de pestañas); el cuerpo se remonta por pestaña. */}
-          <ReportTab
-            core={core}
-            tabStrip={
-              <TabStrip
-                tabs={tabs}
-                activeSessionId={activeSessionId}
-                onActivate={activateTab}
-                onMove={moveTab}
-                onClose={closeTab}
-                onCloseMany={closeTabs}
-              />
-            }
-            items={items}
-            structureTablix={structureTablix}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            zoom={ui.zoom}
-            onZoomChange={setZoom}
-            onZoomFitWidth={zoomFitWidth}
-            onFitZoomChange={setFitZoom}
-            showVariables={showVariables}
-            onToggleVariables={toggleVariables}
-            showHierarchy={showHierarchy}
-            onToggleHierarchy={toggleHierarchy}
-            onOpenProperties={() => setPropertiesOpen(true)}
-            onOpenPalette={() => setPaletteOpen(true)}
-            onEditText={setEditingTextId}
-            onOpenGroupProperties={(tablixId, axis, member) =>
-              setGroupProperties({ tablixId, axis, member })
-            }
-            onOpenTablixFilters={setFiltersTablixId}
-            onResolveConflict={() => setConflictOpen(true)}
-            onPickExpression={pickExpression}
-            panels={panels}
-            problemsOpen={problemsOpen}
-            onProblemsOpenChange={setProblemsOpen}
-          />
+          <ScrubPreviewContext.Provider value={items.previewItems}>
+            <ReportTab
+              core={core}
+              tabStrip={
+                <TabStrip
+                  tabs={tabs}
+                  activeSessionId={activeSessionId}
+                  onActivate={activateTab}
+                  onMove={moveTab}
+                  onClose={closeTab}
+                  onCloseMany={closeTabs}
+                />
+              }
+              items={items}
+              structureTablix={structureTablix}
+              theme={theme}
+              onToggleTheme={toggleTheme}
+              zoom={ui.zoom}
+              onZoomChange={setZoom}
+              onZoomFitWidth={zoomFitWidth}
+              onFitZoomChange={setFitZoom}
+              showVariables={showVariables}
+              onToggleVariables={toggleVariables}
+              showHierarchy={showHierarchy}
+              onToggleHierarchy={toggleHierarchy}
+              onOpenProperties={() => setPropertiesOpen(true)}
+              onOpenPalette={() => setPaletteOpen(true)}
+              onEditText={setEditingTextId}
+              onOpenGroupProperties={(tablixId, axis, member) =>
+                setGroupProperties({ tablixId, axis, member })
+              }
+              onOpenTablixFilters={setFiltersTablixId}
+              onResolveConflict={() => setConflictOpen(true)}
+              onPickExpression={pickExpression}
+              panels={panels}
+              problemsOpen={problemsOpen}
+              onProblemsOpenChange={setProblemsOpen}
+            />
+          </ScrubPreviewContext.Provider>
         </div>
 
         <WorkspaceDialogs

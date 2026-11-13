@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { NumberInput } from '@/components/ui/number-input';
 import { Separator } from '@/components/ui/separator';
+import { useItemPreview, useStylePreview } from '@/hooks/scrubPreviewContext';
 import { toCm, cm } from '@/lib/projection';
 import { useState, type ReactNode } from 'react';
 import { BackgroundField } from './BackgroundField';
@@ -65,6 +66,9 @@ export function PropertiesPanel({
   onSetPageBreak,
 }: PropertiesPanelProps): ReactNode {
   const t = useT();
+  // Vista previa en el lienzo al arrastrar un valor (sin comando ni undo).
+  const previewItem = useItemPreview(item.id);
+  const previewStyle = useStylePreview([item.id]);
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center justify-between">
@@ -94,6 +98,7 @@ export function PropertiesPanel({
           axis="x"
           invert={false}
           onCommit={(value) => onSetLocation(item.top, cm(value))}
+          onPreview={(value) => previewItem(value === null ? null : { left: cm(value) })}
         />
         <LengthField
           key={`${item.id}-top`}
@@ -103,6 +108,7 @@ export function PropertiesPanel({
           axis="y"
           invert={false}
           onCommit={(value) => onSetLocation(cm(value), item.left)}
+          onPreview={(value) => previewItem(value === null ? null : { top: cm(value) })}
         />
         <LengthField
           key={`${item.id}-width`}
@@ -111,6 +117,7 @@ export function PropertiesPanel({
           disabled={cellContent}
           axis="x"
           onCommit={(value) => onSetSize(cm(value), item.height)}
+          onPreview={(value) => previewItem(value === null ? null : { width: cm(value) })}
         />
         <LengthField
           key={`${item.id}-height`}
@@ -119,6 +126,7 @@ export function PropertiesPanel({
           disabled={cellContent}
           axis="y"
           onCommit={(value) => onSetSize(item.width, cm(value))}
+          onPreview={(value) => previewItem(value === null ? null : { height: cm(value) })}
         />
       </div>
 
@@ -225,12 +233,17 @@ export function PropertiesPanel({
           </select>
         </div>
       ) : null}
-      <PaddingSection padding={item.style?.padding} onSetStyle={onSetStyle} />
+      <PaddingSection
+        padding={item.style?.padding}
+        onSetStyle={onSetStyle}
+        onPreviewStyle={previewStyle}
+      />
       {BORDER_KINDS.has(item.kind) ? (
         <BorderField
           key={`${item.id}-border`}
           border={item.style?.border}
           onSetStyle={onSetStyle}
+          onPreviewStyle={previewStyle}
         />
       ) : null}
       <VisibilityField
@@ -350,6 +363,7 @@ function LengthField({
   axis,
   invert,
   onCommit,
+  onPreview,
 }: {
   label: string;
   value: number;
@@ -357,6 +371,8 @@ function LengthField({
   axis: 'x' | 'y';
   invert?: boolean;
   onCommit: (valueCm: number) => void;
+  /** Vista previa en el lienzo mientras se arrastra (`null` = revertir). */
+  onPreview?: (valueCm: number | null) => void;
 }): ReactNode {
   return (
     <div className="grid gap-1">
@@ -370,6 +386,7 @@ function LengthField({
         min={0}
         className="h-7 flex-1 text-xs"
         onCommit={onCommit}
+        onPreview={onPreview}
       />
     </div>
   );

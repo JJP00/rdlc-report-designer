@@ -21,9 +21,12 @@ const PADDING_SIDES = [
 export function PaddingSection({
   padding,
   onSetStyle,
+  onPreviewStyle,
 }: {
   padding?: Padding;
   onSetStyle: (patch: StylePatch) => void;
+  /** Vista previa en el lienzo al arrastrar un valor (`null` = revertir). */
+  onPreviewStyle?: (patch: StylePatch | null) => void;
 }): ReactNode {
   const t = useT();
 
@@ -40,6 +43,16 @@ export function PaddingSection({
             onCommit={(valuePt) =>
               onSetStyle({ padding: { [side.key]: { value: valuePt, unit: 'pt' } } })
             }
+            onPreview={
+              onPreviewStyle
+                ? (valuePt) =>
+                    onPreviewStyle(
+                      valuePt === null
+                        ? null
+                        : { padding: { [side.key]: { value: valuePt, unit: 'pt' } } },
+                    )
+                : undefined
+            }
           />
         ))}
       </div>
@@ -52,11 +65,13 @@ function PaddingField({
   axis,
   value,
   onCommit,
+  onPreview,
 }: {
   label: string;
   axis: 'x' | 'y';
   value: number;
   onCommit: (value: number) => void;
+  onPreview?: (value: number | null) => void;
 }): ReactNode {
   const t = useT();
 
@@ -71,6 +86,7 @@ function PaddingField({
         min={0}
         suffix="pt"
         onCommit={onCommit}
+        onPreview={onPreview}
       />
     </div>
   );

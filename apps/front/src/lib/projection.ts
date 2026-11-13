@@ -263,55 +263,95 @@ export function flattenItems(projection: ProjectionDto): ItemDto[] {
   return items;
 }
 
-/** Devuelve una copia de la proyección con el item parcheado (inmutable). */
+/**
+ * Como `Array.map`, pero devuelve **la misma lista** si ningún elemento cambió
+ * (conserva la identidad de los subárboles que no se tocaron).
+ */
+function mapKeep<T>(list: T[], fn: (value: T) => T): T[] {
+  let changed = false;
+  const next = list.map((value) => {
+    const mapped = fn(value);
+    if (mapped !== value) changed = true;
+    return mapped;
+  });
+  return changed ? next : list;
+}
+
+/**
+ * Devuelve una copia de la proyección con el item parcheado (inmutable).
+ *
+ * Solo se recrea la **ruta** hasta el item: todo lo demás conserva su identidad,
+ * así el lienzo (`React.memo` en `ItemView`) re-renderiza únicamente el item
+ * tocado y sus ancestros, no el documento entero. Si el id no existe devuelve la
+ * misma proyección.
+ */
 export function patchItem(
   projection: ProjectionDto,
   id: string,
   patch: Partial<ItemDto>,
 ): ProjectionDto {
   function patchIn(items: ItemDto[]): ItemDto[] {
-    return items.map((item) => {
-      if (item.id === id) return { ...item, ...patch } as ItemDto;
-      if (item.kind === 'rectangle') return { ...item, children: patchIn(item.children) };
-      if (item.kind === 'tablix') {
-        return {
-          ...item,
-          body: {
-            ...item.body,
-            rows: item.body.rows.map((row) => ({
-              ...row,
-              cells: row.cells.map((cell) =>
-                cell?.content
-                  ? { ...cell, content: patchIn([cell.content])[0] ?? cell.content }
-                  : cell,
-              ),
-            })),
-          },
-          ...(item.headers ? { headers: patchHeaders(item.headers) } : {}),
-        };
-      }
-      return item;
-    });
+    return mapKeep(items, patchOne);
   }
 
-  function patchHeaders(headers: NonNullable<TablixDto['headers']>): TablixDto['headers'] {
-    const patchCell = (cell: ItemDto | null): ItemDto | null =>
-      cell ? (patchIn([cell])[0] ?? cell) : null;
-    return {
-      ...headers,
-      columns: headers.columns.map((band) => ({ ...band, cells: band.cells.map(patchCell) })),
-      rows: headers.rows.map((band) => ({ ...band, cells: band.cells.map(patchCell) })),
-      corner: headers.corner.map((row) => row.map(patchCell)),
+  function patchOne(item: ItemDto): ItemDto {
+    if (item.id === id) return { ...item, ...patch } as ItemDto;
+    if (item.kind === 'rectangle') {
+      const children = patchIn(item.children);
+      return children === item.children ? item : { ...item, children };
+    }
+    if (item.kind === 'tablix') {
+      const rows = mapKeep(item.body.rows, (row) => {
+        const cells = mapKeep(row.cells, (cell) => {
+          if (!cell?.content) return cell;
+          const content = patchOne(cell.content);
+          return content === cell.content ? cell : { ...cell, content };
+        });
+        return cells === row.cells ? row : { ...row, cells };
+      });
+      const headers = item.headers ? patchHeaders(item.headers) : undefined;
+      if (rows === item.body.rows && headers === item.headers) return item;
+      return {
+        ...item,
+        body: rows === item.body.rows ? item.body : { ...item.body, rows },
+        ...(headers ? { headers } : {}),
+      };
+    }
+    return item;
+  }
+
+  function patchHeaders(
+    headers: NonNullable<TablixDto['headers']>,
+  ): NonNullable<TablixDto['headers']> {
+    const patchCell = (cell: ItemDto | null): ItemDto | null => (cell ? patchOne(cell) : null);
+    const patchBand = <T extends { cells: (ItemDto | null)[] }>(band: T): T => {
+      const cells = mapKeep(band.cells, patchCell);
+      return cells === band.cells ? band : { ...band, cells };
     };
+    const columns = mapKeep(headers.columns, patchBand);
+    const rows = mapKeep(headers.rows, patchBand);
+    const corner = mapKeep(headers.corner, (row) => mapKeep(row, patchCell));
+    if (columns === headers.columns && rows === headers.rows && corner === headers.corner) {
+      return headers;
+    }
+    return { ...headers, columns, rows, corner };
+  }
+
+  const { header, body, footer } = projection.page;
+  const headerItems = patchIn(header.items);
+  const bodyItems = patchIn(body.items);
+  const footerItems = patchIn(footer.items);
+  if (headerItems === header.items && bodyItems === body.items && footerItems === footer.items) {
+    return projection;
   }
 
   return {
     ...projection,
     page: {
       ...projection.page,
-      header: { ...projection.page.header, items: patchIn(projection.page.header.items) },
-      body: { ...projection.page.body, items: patchIn(projection.page.body.items) },
-      footer: { ...projection.page.footer, items: patchIn(projection.page.footer.items) },
+      header: headerItems === header.items ? header : { ...header, items: headerItems },
+      body: bodyItems === body.items ? body : { ...body, items: bodyItems },
+      footer: footerItems === footer.items ? footer : { ...footer, items: footerItems },
     },
   };
 }
